@@ -1,0 +1,21 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2025-11-17 00:15:04",
+    "filename": "submission-20251117001504.csv",
+    "model_name": "autogluon-medium_quality",
+    "local_cv_score": -34.74299647705078,
+    "cv_std": null,
+    "public_score": 32.47479,
+    "private_score": null,
+    "notes": "Baseline AutoGluon medium_quality, 600s",
+    "config": {
+      "preset": "medium_quality",
+      "time_limit": 600,
+      "eval_metric": "mean_absolute_error"
+    },
+    "experiment_id": "20251117_001504_autogluon-medium_quality",
+    "git_hash": null,
+    "code_path": "code/models/baseline_autogluon.py"
+  }
+]

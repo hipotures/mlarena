@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "playwright-cdp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@0.0.32",
+        "--cdp-endpoint=http://localhost:9222",
+        "--no-sandbox",
+        "--block-service-workers"
+      ],
+      "env": {}
+    },
+    "todoit": {
+      "command": "python",
+      "args": ["-m", "interfaces.mcp_server"],
+      "env": {
+        "TODOIT_FORCE_TAGS": "37d",
+        "TODOIT_DB_PATH": "${HOME}/.todoit/todoit.db"
+      }
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["chrome-devtools-mcp@latest"]
+    }
+  }
+}

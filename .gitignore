@@ -1,0 +1,55 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Large data artifacts (keep code + docs only)
+*.csv
+*.tsv
+*.zip
+*.gz
+*.bz2
+*.xz
+*.7z
+*.parquet
+*.feather
+*.arrow
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.weights
+*.db
+*.sqlite
+*.sqlite3
+*.tfevents
+*.tgz
+*.tar
+*.tar.gz
+*.ipynb
+
+# Model outputs / caches
+**/AutogluonModels/
+**/wandb/
+**/mlruns/
+
+# Misc binaries & temporary artifacts
+*.log
+*.journal
+*.tmp
+*.bak
+*.swp
+*.swo
+*.DS_Store

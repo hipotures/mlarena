@@ -16,6 +16,8 @@ from typing import Dict, Optional
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+TOOLS_ROOT = Path(__file__).resolve().parent
+MODULES = ["eda", "model", "submit", "fetch-score"]
 
 
 def utc_now() -> str:
@@ -71,8 +73,8 @@ class ExperimentManager:
         base_dir = project_root / "experiments"
         if experiment_id is None:
             experiment_id = generate_experiment_id()
-        json_path = base_dir / f"{experiment_id}.json"
         artifact_dir = base_dir / experiment_id
+        json_path = artifact_dir / "state.json"
         if json_path.exists():
             with open(json_path) as f:
                 data = json.load(f)
@@ -84,7 +86,7 @@ class ExperimentManager:
                 "git": get_git_info(project_root),
                 "modules": {},
             }
-            base_dir.mkdir(parents=True, exist_ok=True)
+            artifact_dir.mkdir(parents=True, exist_ok=True)
             with open(json_path, "w") as f:
                 json.dump(data, f, indent=2)
         return cls(
@@ -97,8 +99,30 @@ class ExperimentManager:
             data=data,
         )
 
+    @classmethod
+    def load_existing(cls, project_name: str, experiment_id: str) -> "ExperimentManager":
+        if not experiment_id:
+            raise ValueError("experiment-id is required")
+        project_root = REPO_ROOT / project_name
+        base_dir = project_root / "experiments"
+        artifact_dir = base_dir / experiment_id
+        json_path = artifact_dir / "state.json"
+        if not json_path.exists():
+            raise FileNotFoundError(f"Experiment '{experiment_id}' not found in {artifact_dir}")
+        with open(json_path) as f:
+            data = json.load(f)
+        return cls(
+            project_name=project_name,
+            experiment_id=experiment_id,
+            project_root=project_root,
+            base_dir=base_dir,
+            artifact_dir=artifact_dir,
+            json_path=json_path,
+            data=data,
+        )
+
     def save(self):
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.artifact_dir.mkdir(parents=True, exist_ok=True)
         with open(self.json_path, "w") as f:
             json.dump(self.data, f, indent=2)
 
@@ -168,12 +192,128 @@ def run_list(args):
     if not base_dir.exists():
         print("No experiments found.")
         return
-    for path in sorted(base_dir.glob("exp-*.json")):
-        with open(path) as f:
+    for dir_path in sorted(base_dir.glob("exp-*")):
+        state_path = dir_path / "state.json"
+        if not state_path.exists():
+            continue
+        with open(state_path) as f:
             data = json.load(f)
         modules = data.get("modules", {})
         statuses = ", ".join(f"{k}:{v.get('status')}" for k, v in modules.items())
         print(f"{data['experiment_id']} - {statuses}")
+
+
+def run_modules(args):
+    print("Available modules:")
+    for module in MODULES:
+        print(f"- {module}")
+
+
+def run_model(args):
+    manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+    if args.experiment_id is None:
+        print(f"[Model] Using new experiment ID: {manager.experiment_id}")
+    script = TOOLS_ROOT / "autogluon_runner.py"
+    cmd = [
+        sys.executable,
+        str(script),
+        "--project",
+        args.project,
+        "--template",
+        args.template,
+        "--experiment-id",
+        manager.experiment_id,
+    ]
+    if args.skip_submit:
+        cmd.append("--skip-submit")
+    if args.auto_submit:
+        cmd.append("--auto-submit")
+    if args.skip_score_fetch:
+        cmd.append("--skip-score-fetch")
+    if args.skip_git:
+        cmd.append("--skip-git")
+    if args.force_extreme:
+        cmd.append("--force-extreme")
+    if args.skip_eda_check:
+        cmd.append("--skip-eda-check")
+    if args.time_limit is not None:
+        cmd += ["--time-limit", str(args.time_limit)]
+    if args.preset:
+        cmd += ["--preset", args.preset]
+    if args.use_gpu is not None:
+        cmd += ["--use-gpu", str(args.use_gpu)]
+    cmd += ["--wait-seconds", str(args.wait_seconds)]
+    cmd += ["--cdp-url", args.cdp_url]
+    if args.kaggle_message:
+        cmd += ["--kaggle-message", args.kaggle_message]
+    subprocess.run(cmd, check=True)
+
+
+def _resolve_submission_filename(project: str, experiment_id: Optional[str], explicit_filename: Optional[str]) -> str:
+    if explicit_filename:
+        return explicit_filename
+    if not experiment_id:
+        raise ValueError("Provide --experiment-id or --filename")
+    manager = ExperimentManager.load_existing(project, experiment_id)
+    model_module = manager.get_module("model")
+    if not model_module or not model_module.get("submission_file"):
+        raise RuntimeError(f"Experiment {experiment_id} has no recorded submission file")
+    submission_path = Path(model_module["submission_file"])
+    return submission_path.name
+
+
+def run_submit(args):
+    filename = _resolve_submission_filename(args.project, args.experiment_id, args.filename)
+    script = TOOLS_ROOT / "submission_workflow.py"
+    cmd = [
+        sys.executable,
+        str(script),
+        "submit",
+        "--project",
+        args.project,
+        "--filename",
+        filename,
+        "--wait-seconds",
+        str(args.wait_seconds),
+        "--cdp-url",
+        args.cdp_url,
+    ]
+    if args.experiment_id:
+        cmd += ["--experiment-id", args.experiment_id]
+    if args.kaggle_message:
+        cmd += ["--kaggle-message", args.kaggle_message]
+    if args.skip_score_fetch:
+        cmd.append("--skip-score-fetch")
+    if args.skip_git:
+        cmd.append("--skip-git")
+    subprocess.run(cmd, check=True)
+
+
+def run_fetch_score(args):
+    filename = _resolve_submission_filename(args.project, args.experiment_id, args.filename)
+    script = TOOLS_ROOT / "submission_workflow.py"
+    cmd = [
+        sys.executable,
+        str(script),
+        "fetch",
+        "--project",
+        args.project,
+        "--filename",
+        filename,
+        "--wait-seconds",
+        str(args.wait_seconds),
+        "--cdp-url",
+        args.cdp_url,
+    ]
+    if args.experiment_id:
+        cmd += ["--experiment-id", args.experiment_id]
+    if args.kaggle_message:
+        cmd += ["--kaggle-message", args.kaggle_message]
+    if args.skip_score_fetch:
+        cmd.append("--skip-score-fetch")
+    if args.skip_git:
+        cmd.append("--skip-git")
+    subprocess.run(cmd, check=True)
 
 
 def build_parser():
@@ -189,6 +329,49 @@ def build_parser():
     list_parser = subparsers.add_parser("list", help="List experiments")
     list_parser.add_argument("--project", required=True)
     list_parser.set_defaults(func=run_list)
+
+    modules_parser = subparsers.add_parser("modules", help="List available modules")
+    modules_parser.set_defaults(func=run_modules)
+
+    model_parser = subparsers.add_parser("model", help="Run modeling module")
+    model_parser.add_argument("--project", required=True)
+    model_parser.add_argument("--experiment-id")
+    model_parser.add_argument("--template", required=True)
+    model_parser.add_argument("--time-limit", type=int)
+    model_parser.add_argument("--preset")
+    model_parser.add_argument("--use-gpu", type=int, choices=[0, 1])
+    model_parser.add_argument("--force-extreme", action="store_true")
+    model_parser.add_argument("--skip-submit", action="store_true")
+    model_parser.add_argument("--auto-submit", action="store_true")
+    model_parser.add_argument("--skip-score-fetch", action="store_true")
+    model_parser.add_argument("--skip-git", action="store_true")
+    model_parser.add_argument("--skip-eda-check", action="store_true")
+    model_parser.add_argument("--wait-seconds", type=int, default=30)
+    model_parser.add_argument("--cdp-url", default="http://localhost:9222")
+    model_parser.add_argument("--kaggle-message")
+    model_parser.set_defaults(func=run_model)
+
+    submit_parser = subparsers.add_parser("submit", help="Submit an existing CSV and update experiment")
+    submit_parser.add_argument("--project", required=True)
+    submit_parser.add_argument("--experiment-id")
+    submit_parser.add_argument("--filename")
+    submit_parser.add_argument("--wait-seconds", type=int, default=30)
+    submit_parser.add_argument("--cdp-url", default="http://localhost:9222")
+    submit_parser.add_argument("--skip-score-fetch", action="store_true")
+    submit_parser.add_argument("--skip-git", action="store_true")
+    submit_parser.add_argument("--kaggle-message")
+    submit_parser.set_defaults(func=run_submit)
+
+    fetch_parser = subparsers.add_parser("fetch-score", help="Fetch leaderboard score for an existing submission")
+    fetch_parser.add_argument("--project", required=True)
+    fetch_parser.add_argument("--experiment-id")
+    fetch_parser.add_argument("--filename")
+    fetch_parser.add_argument("--wait-seconds", type=int, default=0)
+    fetch_parser.add_argument("--cdp-url", default="http://localhost:9222")
+    fetch_parser.add_argument("--skip-score-fetch", action="store_true")
+    fetch_parser.add_argument("--skip-git", action="store_true")
+    fetch_parser.add_argument("--kaggle-message")
+    fetch_parser.set_defaults(func=run_fetch_score)
 
     return parser
 

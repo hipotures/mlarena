@@ -332,9 +332,38 @@ def _run_resume(args):
     runner.execute()
 
 
+def _run_submit(args):
+    artifact = _build_artifact_from_filename(args.project, args.filename)
+    runner = SubmissionRunner(
+        artifact=artifact,
+        kaggle_message=args.kaggle_message or f"submit {args.filename}",
+        wait_seconds=args.wait_seconds,
+        cdp_url=args.cdp_url,
+        auto_submit=True,
+        prompt=False,
+        skip_submit=False,
+        skip_browser=args.skip_score_fetch,
+        skip_git=args.skip_git,
+        resume_mode=False,
+        experiment_id=args.experiment_id,
+    )
+    runner.execute()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Submission workflow helpers")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    submit_parser = subparsers.add_parser("submit", help="Submit an existing file and fetch the score")
+    submit_parser.add_argument("--project", required=True, help="Competition directory (e.g., playground-series-s5e11)")
+    submit_parser.add_argument("--filename", required=True, help="Submission filename (e.g., submission-YYYYMMDDHHMMSS.csv)")
+    submit_parser.add_argument("--cdp-url", default="http://localhost:9222", help="Playwright CDP endpoint")
+    submit_parser.add_argument("--wait-seconds", type=int, default=30, help="Seconds to wait before scraping")
+    submit_parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes")
+    submit_parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping")
+    submit_parser.add_argument("--kaggle-message", help="Override Kaggle message")
+    submit_parser.add_argument("--experiment-id", help="Experiment identifier to update")
+    submit_parser.set_defaults(func=_run_submit)
 
     resume_parser = subparsers.add_parser("resume", help="Fetch public score for an existing submission")
     resume_parser.add_argument("--project", required=True, help="Competition directory (e.g., playground-series-s5e11)")
@@ -345,13 +374,10 @@ def main():
     resume_parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping (debug only)")
     resume_parser.add_argument("--kaggle-message", help="Override log message for resume action")
     resume_parser.add_argument("--experiment-id", help="Experiment identifier to update (optional)")
+    resume_parser.set_defaults(func=_run_resume)
 
     args = parser.parse_args()
-
-    if args.command == "resume":
-        _run_resume(args)
-    else:
-        parser.print_help()
+    args.func(args)
 
 
 if __name__ == "__main__":

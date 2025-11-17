@@ -53,3 +53,5 @@ wheels/
 *.swp
 *.swo
 *.DS_Store
+
+**/experiments/exp-*/

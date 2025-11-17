@@ -27,6 +27,8 @@ Overrides (`--time-limit`, `--preset`, `--use-gpu`) remain available when a temp
 
 Każdy moduł dopisuje swoją sekcję (status, artefakty, wyniki). `uv run python tools/experiment_manager.py list --project playground-series-s5e11` wypisze stan wszystkich eksperymentów. Dzięki temu możesz odpalać moduły osobno, wznawiać pipeline od dowolnego kroku lub od razu zobaczyć, które submission odpowiada któremu kodowi.
 
+Spis kroków znajdziesz pod `uv run python tools/experiment_manager.py modules`.
+
 Submission automation is built into the runner: append `--auto-submit --wait-seconds 45` to push the CSV to Kaggle, wait for scoring, scrape the latest score via Playwright, update the tracker, and commit the code/state (omit `--auto-submit` to keep the interactive “Submit? [y/N]” prompt, or pass `--skip-submit` to opt out entirely). Customize the Kaggle description with `--kaggle-message "autogluon medium exp-2"` and tweak the CDP endpoint (`--cdp-url http://localhost:9222`) when connecting to an existing Chrome session.
 
 ## Coding Style & Naming Conventions

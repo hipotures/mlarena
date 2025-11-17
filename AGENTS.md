@@ -4,9 +4,19 @@
 Competition workspaces sit in directories such as `playground-series-s5e11/` or `melting-point/`. Within each, raw Kaggle files belong to `data/`, runnable code to `code/` (split into `exploration/`, `models/`, `utils/`), generated files to `submissions/`, experiment metadata to `experiments/`, and notes to `docs/`. Shared tooling for experiment tracking and Kaggle automation lives in `tools/`, while dependency metadata stays in `pyproject.toml` plus `uv.lock`; do not commit bulky outputs outside these locations.
 
 ## Build, Test, and Development Commands
-`uv sync` installs the Python 3.12 environment defined for the entire repo. Re-run experiments with `uv run python playground-series-s5e11/code/models/baseline.py` (adjust the path per project) to rebuild submissions deterministically. Use `uv run python tools/submissions_tracker.py --project playground-series-s5e11 list` to audit historical scores and `uv run python tools/experiment_logger.py --project playground-series-s5e11 list --limit 10` to inspect experiment metadata. Pull fresh data via `kaggle competitions download -c <competition>` from the relevant project directory; the CLI reads `~/.kaggle/kaggle.json` outside the repo.
+`uv sync` installs the Python 3.12 environment defined for the entire repo. Re-run experiments with the shared runner (`uv run python tools/autogluon_runner.py --project playground-series-s5e11 --template dev-gpu`) or, equivalently, via the thin wrappers in each project (`uv run python playground-series-s5e11/code/models/baseline_autogluon.py`). Templates replace raw numeric flags:
 
-Submission automation is built into each baseline model: `uv run python playground-series-s5e11/code/models/baseline_autogluon.py --auto-submit --wait-seconds 45` trains, creates the CSV, pushes it to Kaggle, waits, scrapes the latest score via Playwright, updates the tracker, and commits the code/state (omit `--auto-submit` to get an interactive “Submit? [y/N]” prompt, or pass `--skip-submit` to opt out entirely). Customize the Kaggle description with `--kaggle-message "autogluon medium exp-2"` and tweak the CDP endpoint (`--cdp-url http://localhost:9222`) when connecting to an existing Chrome session.
+| Template     | Time limit | Preset           | GPU |
+|--------------|-----------:|------------------|-----|
+| `dev-cpu`    | 300 s      | `medium_quality` | ❌  |
+| `dev-gpu`    | 300 s      | `medium_quality` | ✅  |
+| `best-cpu`   | 3600 s     | `best_quality`   | ❌  |
+| `best-gpu`   | 3600 s     | `best_quality`   | ✅  |
+| `extreme-gpu`| 24 h       | `extreme_quality`| ✅ *(≤30k rows recommended, prompts if higher)* |
+
+Overrides (`--time-limit`, `--preset`, `--use-gpu`) remain available when a template needs tweaking. Use `uv run python tools/submissions_tracker.py --project playground-series-s5e11 list` to audit historical scores and `uv run python tools/experiment_logger.py --project playground-series-s5e11 list --limit 10` to inspect experiment metadata. Pull fresh data via `kaggle competitions download -c <competition>` from the relevant project directory; the CLI reads `~/.kaggle/kaggle.json` outside the repo.
+
+Submission automation is built into the runner: append `--auto-submit --wait-seconds 45` to push the CSV to Kaggle, wait for scoring, scrape the latest score via Playwright, update the tracker, and commit the code/state (omit `--auto-submit` to keep the interactive “Submit? [y/N]” prompt, or pass `--skip-submit` to opt out entirely). Customize the Kaggle description with `--kaggle-message "autogluon medium exp-2"` and tweak the CDP endpoint (`--cdp-url http://localhost:9222`) when connecting to an existing Chrome session.
 
 ## Coding Style & Naming Conventions
 Use 4-space indentation, `snake_case` for modules/functions, and `CamelCase` for classes. Zero-pad exploration scripts (`01_initial_eda.py`) so chronological ordering is preserved. Name outputs `submission-YYYYMMDDHHMM-model.csv` for automatic ingestion by `submissions_tracker.py`, and centralize constants plus random seeds inside `code/utils/config.py`. Keep logging helpers and datapath utilities in `code/utils` so every project script shares the same conventions.

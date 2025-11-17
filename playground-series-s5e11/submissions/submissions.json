@@ -23,7 +23,7 @@
     "timestamp": "2025-11-17 02:12:48",
     "filename": "submission-20251117015359.csv",
     "model_name": "submission-20251117015359.csv",
-    "local_cv_score": null,
+    "local_cv_score": 0.92379,
     "cv_std": null,
     "public_score": 0.92278,
     "private_score": null,

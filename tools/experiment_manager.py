@@ -138,7 +138,11 @@ class ExperimentManager:
             raise RuntimeError(f"Module '{module}' must complete before continuing.")
 
     def start_module(self, module: str, extra: Optional[Dict] = None):
-        entry = self.modules().setdefault(module, {})
+        modules = self.modules()
+        entry = modules.get(module)
+        if entry and entry.get("status") == "completed":
+            raise RuntimeError(f"Module '{module}' is already completed for {self.experiment_id}")
+        entry = modules.setdefault(module, {})
         entry.update(extra or {})
         entry["status"] = "running"
         entry["started_at"] = utc_now()

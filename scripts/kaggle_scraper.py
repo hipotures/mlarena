@@ -52,7 +52,7 @@ class KaggleScraper:
         print(f"Navigating to {url}...")
 
         try:
-            await self.page.goto(url, timeout=10000, wait_until="networkidle")
+            await self.page.goto(url, wait_until="domcontentloaded")
             await asyncio.sleep(1)  # Wait briefly for dynamic content
             print("✓ Page loaded")
         except TimeoutError:
@@ -64,7 +64,7 @@ class KaggleScraper:
         print(f"Navigating to {url}...")
 
         try:
-            await self.page.goto(url, timeout=10000, wait_until="networkidle")
+            await self.page.goto(url, wait_until="domcontentloaded")
             await asyncio.sleep(1)  # Wait briefly for dynamic content
             print("✓ Page loaded")
         except TimeoutError:
@@ -486,7 +486,7 @@ async def main():
     print("\nUsage:")
     print("1. Review scraped data in JSON files")
     print("2. Update submissions tracker with public/private scores:")
-    print(f"   python tools/submissions_tracker.py --project {args.competition} update <ID> --public <SCORE>")
+    print(f"   python scripts/submissions_tracker.py --project {args.competition} update <ID> --public <SCORE>")
 
 
 if __name__ == "__main__":

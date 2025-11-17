@@ -14,7 +14,7 @@ class AIError(Exception):
     """Raised when AI call fails after all retries."""
 
 
-def call_gemini(prompt: str, model: str = "gemini-2.0-flash-exp", timeout: int = 60) -> str:
+def call_gemini(prompt: str, model: str = "gemini-2.5-flash", timeout: int = 60) -> str:
     """
     Call Gemini CLI with prompt via stdin.
 
@@ -124,7 +124,7 @@ def parse_json_response(response: str) -> Dict:
 def call_ai(
     prompt: str,
     primary: str = "gemini",
-    gemini_model: str = "gemini-2.0-flash-exp",
+    gemini_model: str = "gemini-2.5-flash",
     claude_model: str = "haiku",
     timeout: int = 60,
     retries: int = 1

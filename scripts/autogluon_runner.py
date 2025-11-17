@@ -202,6 +202,7 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
             "use_gpu": params["use_gpu"],
             "template": params.get("template"),
         },
+        track=False,  # Disable legacy ExperimentLogger - use experiment_manager tracking instead
     )
 
     validate_fn = getattr(context.submission_module, "validate_submission", None)
@@ -253,6 +254,14 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
     console.print(f"Submission file: {result['submission'].path}")
     console.print(f"Local CV: {result['best_score']:.5f}")
 
+    # Save code snapshot for reproducibility
+    exp_dir = context.root / "experiments" / manager.experiment_id
+    exp_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_path = exp_dir / "autogluon_runner.py"
+    import shutil
+    shutil.copy2(Path(__file__), snapshot_path)
+    console.print(f"[dim]Code snapshot: {snapshot_path.relative_to(context.root)}[/dim]")
+
     manager.complete_module(
         "model",
         {
@@ -260,6 +269,7 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
             "local_cv": result["best_score"],
             "submission_file": str(result["submission"].path.relative_to(context.root)),
             "config": params,
+            "code_snapshot": str(snapshot_path.relative_to(context.root)),
         },
     )
 

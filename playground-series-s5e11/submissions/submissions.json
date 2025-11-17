@@ -32,5 +32,25 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 3,
+    "timestamp": "2025-11-17 09:44:12",
+    "filename": "submission-20251117094411.csv",
+    "model_name": "autogluon-best_quality",
+    "local_cv_score": 0.9135027512858314,
+    "cv_std": null,
+    "public_score": 0.92434,
+    "private_score": null,
+    "notes": "AutoGluon best_quality (28800s, gpu=False)",
+    "config": {
+      "preset": "best_quality",
+      "time_limit": 28800,
+      "use_gpu": false,
+      "template": "time8-cpu"
+    },
+    "experiment_id": "20251117_094411_autogluon-best_quality",
+    "git_hash": "0ffffbc7d8918ebef77157e4a32e56fb8498145d",
+    "code_path": "code/utils/submission.py"
   }
 ]

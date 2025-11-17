@@ -42,6 +42,37 @@ def generate_experiment_id() -> str:
     return datetime.now(timezone.utc).strftime("exp-%Y%m%d-%H%M%S")
 
 
+def log_ai_interaction(project_root: Path, log_type: str, prompt: str, response: str, metadata: Optional[Dict] = None):
+    """
+    Log AI request/response to project logs directory.
+
+    Args:
+        project_root: Path to project root
+        log_type: Type of interaction (e.g., 'init', 'eda', 'feature_engineering')
+        prompt: The prompt sent to AI
+        response: The response from AI
+        metadata: Optional additional metadata
+    """
+    logs_dir = project_root / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    log_file = logs_dir / f"{timestamp}_{log_type}.json"
+
+    log_entry = {
+        "timestamp": utc_now(),
+        "log_type": log_type,
+        "prompt": prompt,
+        "response": response,
+        "metadata": metadata or {}
+    }
+
+    with open(log_file, 'w') as f:
+        json.dump(log_entry, f, indent=2)
+
+    return log_file
+
+
 def run_git_command(args, cwd: Path) -> str:
     return subprocess.check_output(args, cwd=cwd, stderr=subprocess.DEVNULL).decode().strip()
 
@@ -497,6 +528,7 @@ def run_init_project(args):
         "docs",
         "experiments",
         "submissions",
+        "logs",
     ]
 
     for dir_path in dirs_to_create:
@@ -505,7 +537,7 @@ def run_init_project(args):
         console.print(f"  [green]✓[/green] {dir_path}/")
 
     # Create .gitkeep files
-    for keep_dir in ["data", "docs", "experiments", "submissions"]:
+    for keep_dir in ["data", "docs", "experiments", "submissions", "logs"]:
         (project_root / keep_dir / ".gitkeep").touch()
 
     # Copy template files

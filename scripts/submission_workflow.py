@@ -2,18 +2,21 @@
 Unified submission workflow for Kaggle competitions.
 
 Handles creating a Kaggle submission, waiting for processing,
-fetching public leaderboard score via Playwright (CDP),
+fetching public/leaderboard scores via Kaggle CLI,
 updating the submissions tracker, and creating a git commit
-that ties code + local CV + public score together.
+that ties code + local CV + public score + rank together.
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
+import csv
 import importlib
+import io
 import subprocess
+import tempfile
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -22,7 +25,6 @@ import sys
 from rich.console import Console
 from rich.panel import Panel
 
-from kaggle_scraper import KaggleScraper
 from submissions_tracker import SubmissionsTracker
 from experiment_manager import ExperimentManager, ModuleStateError
 
@@ -121,11 +123,16 @@ class SubmissionRunner:
                     time.sleep(self.wait_seconds)
 
             if not self.skip_browser:
-                score_data = asyncio.run(self._fetch_scores())
+                score_data = self._fetch_scores()
                 if score_data and score_data.get("public_score") is not None:
+                    # Fetch leaderboard position
+                    leaderboard_data = self._fetch_leaderboard_position()
+                    if leaderboard_data:
+                        score_data['leaderboard'] = leaderboard_data
+
                     self._update_tracker(score_data["public_score"], score_data=score_data)
                 else:
-                    console.print("[yellow]Could not fetch public score via Playwright.[/yellow]")
+                    console.print("[yellow]Could not fetch public score via Kaggle CLI.[/yellow]")
 
             if not self.skip_git:
                 self._git_commit(score_data)
@@ -181,21 +188,107 @@ class SubmissionRunner:
         )
         console.print("[green]✓ Kaggle submission command completed[/green]")
 
-    async def _fetch_scores(self) -> Optional[Dict[str, Any]]:
-        console.print("[bold blue]Fetching public score via Playwright...[/bold blue]")
-        scraper = KaggleScraper(self.cdp_url)
+    def _fetch_scores(self) -> Optional[Dict[str, Any]]:
+        """Fetch scores via Kaggle CLI."""
+        console.print("[bold blue]Fetching scores via Kaggle CLI...[/bold blue]")
         try:
-            await scraper.connect()
-            result = await scraper.get_latest_submission_score(
-                competition=self.artifact.competition,
-                filename=self.artifact.filename,
+            result = subprocess.run(
+                ["kaggle", "competitions", "submissions", "-c", self.artifact.competition, "--csv"],
+                capture_output=True,
+                text=True,
+                check=True
             )
-            return result
-        except Exception as exc:  # noqa: BLE001
-            console.print(f"[red]Playwright error: {exc}[/red]")
+
+            # Parse CSV output
+            for row in csv.DictReader(io.StringIO(result.stdout)):
+                if row['fileName'] == self.artifact.filename:
+                    public_score = float(row['publicScore']) if row['publicScore'] else None
+                    private_score = float(row['privateScore']) if row['privateScore'] else None
+
+                    if public_score is None:
+                        console.print("[yellow]Public score not yet available[/yellow]")
+                        return None
+
+                    return {
+                        'public_score': public_score,
+                        'private_score': private_score,
+                        'status': row['status'],
+                        'date': row['date']
+                    }
+
+            console.print(f"[yellow]Submission {self.artifact.filename} not found in Kaggle submissions list[/yellow]")
             return None
-        finally:
-            await scraper.close()
+
+        except subprocess.CalledProcessError as exc:
+            console.print(f"[red]Kaggle CLI error: {exc.stderr}[/red]")
+            return None
+        except Exception as exc:
+            console.print(f"[red]Error parsing scores: {exc}[/red]")
+            return None
+
+    def _fetch_leaderboard_position(self, username: str = "hipotures") -> Optional[Dict[str, Any]]:
+        """Fetch leaderboard position via Kaggle CLI."""
+        console.print(f"[bold blue]Fetching leaderboard position for {username}...[/bold blue]")
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Download leaderboard
+                result = subprocess.run(
+                    ["kaggle", "competitions", "leaderboard", "-c", self.artifact.competition, "--download"],
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+
+                # Find and extract zip file
+                tmppath = Path(tmpdir)
+                zip_files = list(tmppath.glob("*.zip"))
+                if not zip_files:
+                    console.print("[yellow]No leaderboard zip file downloaded[/yellow]")
+                    return None
+
+                zip_path = zip_files[0]
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(tmppath)
+
+                # Find CSV file
+                csv_files = list(tmppath.glob("*publicleaderboard*.csv"))
+                if not csv_files:
+                    console.print("[yellow]No leaderboard CSV found in zip[/yellow]")
+                    return None
+
+                csv_path = csv_files[0]
+
+                # Parse leaderboard
+                with open(csv_path, 'r', encoding='utf-8-sig') as f:
+                    reader = csv.DictReader(f)
+                    total_rows = 0
+                    for row in reader:
+                        total_rows += 1
+                        # Check if username matches (case-insensitive)
+                        if username.lower() in row.get('TeamMemberUserNames', '').lower():
+                            rank = int(row['Rank'])
+                            score = float(row['Score'])
+                            percentile = (rank / total_rows) * 100 if total_rows > 0 else 0
+
+                            console.print(f"[green]Found: Rank {rank}/{total_rows} (top {percentile:.1f}%)[/green]")
+                            return {
+                                'rank': rank,
+                                'total': total_rows,
+                                'percentile': percentile,
+                                'score': score,
+                                'team_name': row.get('TeamName', username)
+                            }
+
+                console.print(f"[yellow]Username '{username}' not found in leaderboard[/yellow]")
+                return None
+
+        except subprocess.CalledProcessError as exc:
+            console.print(f"[red]Kaggle CLI error downloading leaderboard: {exc.stderr}[/red]")
+            return None
+        except Exception as exc:
+            console.print(f"[red]Error processing leaderboard: {exc}[/red]")
+            return None
 
     def _update_tracker(self, public_score: float, score_data: Optional[Dict[str, Any]] = None) -> Optional[int]:
         tracker = SubmissionsTracker(self.artifact.project_root)
@@ -242,6 +335,8 @@ class SubmissionRunner:
             payload["public_score"] = score_data.get("public_score")
             if score_data.get("row_text"):
                 payload["snapshot"] = score_data["row_text"]
+            if 'leaderboard' in score_data:
+                payload["leaderboard"] = score_data["leaderboard"]
         self._experiment_manager.complete_module("submit", payload)
 
     def _fail_experiment(self, reason: str):
@@ -284,12 +379,21 @@ class SubmissionRunner:
         if self.artifact.local_cv_score is not None:
             parts.append(f"local {self.artifact.local_cv_score:.5f}")
         public_score = None
+        leaderboard_info = None
         if score_data:
             public_score = score_data.get("public_score")
+            if 'leaderboard' in score_data:
+                lb = score_data['leaderboard']
+                rank = lb.get('rank')
+                total = lb.get('total')
+                if rank and total:
+                    leaderboard_info = f"rank {rank}/{total}"
         if public_score is not None:
             parts.append(f"public {public_score:.5f}")
         else:
             parts.append("public pending")
+        if leaderboard_info:
+            parts.append(leaderboard_info)
         return ": ".join(parts[:1]) + " | " + " | ".join(parts[1:])
 
 
@@ -333,11 +437,12 @@ def _build_artifact_from_filename(project_name: str, filename: str) -> Submissio
     )
 
 
-def _run_resume(args):
+def _run_pull_score(args):
+    """Pull scores from Kaggle for an existing submission."""
     artifact = _build_artifact_from_filename(args.project, args.filename)
     runner = SubmissionRunner(
         artifact=artifact,
-        kaggle_message=args.kaggle_message or f"resume {args.filename}",
+        kaggle_message=args.kaggle_message or f"pull-score {args.filename}",
         wait_seconds=args.wait_seconds,
         cdp_url=args.cdp_url,
         auto_submit=True,
@@ -349,6 +454,12 @@ def _run_resume(args):
         experiment_id=args.experiment_id,
     )
     runner.execute()
+
+
+def _run_pull_score_deprecated(args):
+    """Deprecated wrapper for backward compatibility."""
+    console.print("[yellow]Warning: 'resume' is deprecated. Use 'pull-score' instead.[/yellow]")
+    _run_pull_score(args)
 
 
 def _run_submit(args):
@@ -384,16 +495,29 @@ def main():
     submit_parser.add_argument("--experiment-id", help="Experiment identifier to update")
     submit_parser.set_defaults(func=_run_submit)
 
-    resume_parser = subparsers.add_parser("resume", help="Fetch public score for an existing submission")
-    resume_parser.add_argument("--project", required=True, help="Competition directory (e.g., playground-series-s5e11)")
-    resume_parser.add_argument("--filename", required=True, help="Submission filename (e.g., submission-YYYYMMDDHHMMSS.csv)")
-    resume_parser.add_argument("--cdp-url", default="http://localhost:9222", help="Playwright CDP endpoint")
-    resume_parser.add_argument("--wait-seconds", type=int, default=0, help="Seconds to wait before scraping")
-    resume_parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes")
-    resume_parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping (debug only)")
-    resume_parser.add_argument("--kaggle-message", help="Override log message for resume action")
-    resume_parser.add_argument("--experiment-id", help="Experiment identifier to update (optional)")
-    resume_parser.set_defaults(func=_run_resume)
+    # Main command: pull-score
+    pull_score_parser = subparsers.add_parser("pull-score", help="Pull scores from Kaggle for existing submission")
+    pull_score_parser.add_argument("--project", required=True, help="Competition directory (e.g., playground-series-s5e11)")
+    pull_score_parser.add_argument("--filename", required=True, help="Submission filename (e.g., submission-YYYYMMDDHHMMSS.csv)")
+    pull_score_parser.add_argument("--cdp-url", default="http://localhost:9222", help="[Deprecated] CDP endpoint (unused, kept for compatibility)")
+    pull_score_parser.add_argument("--wait-seconds", type=int, default=0, help="Seconds to wait before fetching")
+    pull_score_parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes")
+    pull_score_parser.add_argument("--skip-score-fetch", action="store_true", help="Skip score fetching")
+    pull_score_parser.add_argument("--kaggle-message", help="Override log message for commit")
+    pull_score_parser.add_argument("--experiment-id", help="Experiment identifier to update (optional)")
+    pull_score_parser.set_defaults(func=_run_pull_score)
+
+    # Deprecated alias: resume (backward compatibility)
+    resume_parser = subparsers.add_parser("resume", help="[DEPRECATED] Use 'pull-score' instead")
+    resume_parser.add_argument("--project", required=True, help="Competition directory")
+    resume_parser.add_argument("--filename", required=True, help="Submission filename")
+    resume_parser.add_argument("--cdp-url", default="http://localhost:9222")
+    resume_parser.add_argument("--wait-seconds", type=int, default=0)
+    resume_parser.add_argument("--skip-git", action="store_true")
+    resume_parser.add_argument("--skip-score-fetch", action="store_true")
+    resume_parser.add_argument("--kaggle-message")
+    resume_parser.add_argument("--experiment-id")
+    resume_parser.set_defaults(func=_run_pull_score_deprecated)
 
     args = parser.parse_args()
     try:

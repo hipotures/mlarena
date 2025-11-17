@@ -6,15 +6,16 @@ Competition workspaces sit in directories such as `playground-series-s5e11/` or 
 ## Build, Test, and Development Commands
 `uv sync` installs the Python 3.12 environment defined for the entire repo. Re-run experiments with the shared runner (`uv run python tools/autogluon_runner.py --project playground-series-s5e11 --template dev-gpu`) or, equivalently, via the thin wrappers in each project (`uv run python playground-series-s5e11/code/models/baseline_autogluon.py`). Templates replace raw numeric flags:
 
-| Template     | Time limit | Preset           | GPU |
-|--------------|-----------:|------------------|-----|
-| `dev-cpu`    | 300 s      | `medium_quality` | ❌  |
-| `dev-gpu`    | 300 s      | `medium_quality` | ✅  |
-| `best-cpu`   | 3600 s     | `best_quality`   | ❌  |
-| `best-gpu`   | 3600 s     | `best_quality`   | ✅  |
-| `extreme-gpu`| 24 h       | `extreme_quality`| ✅ *(≤30k rows recommended, prompts if higher)* |
+| Template     | Time limit | Preset           | GPU | Notes |
+|--------------|-----------:|------------------|-----|-------|
+| `fast-cpu`   | 60 s       | `medium_quality` | ❌  | XGBoost only, sanity checks |
+| `dev-cpu`    | 300 s      | `medium_quality` | ❌  | default stack |
+| `dev-gpu`    | 300 s      | `medium_quality` | ✅  | default stack |
+| `best-cpu`   | 3600 s     | `best_quality`   | ❌  | high-quality ensemble |
+| `best-gpu`   | 3600 s     | `best_quality`   | ✅  | high-quality ensemble |
+| `extreme-gpu`| 24 h       | `extreme_quality`| ✅  | ≤30k rows, prompts if higher |
 
-Overrides (`--time-limit`, `--preset`, `--use-gpu`) remain available when a template needs tweaking. Use `uv run python tools/submissions_tracker.py --project playground-series-s5e11 list` to audit historical scores and `uv run python tools/experiment_logger.py --project playground-series-s5e11 list --limit 10` to inspect experiment metadata. Pull fresh data via `kaggle competitions download -c <competition>` from the relevant project directory; the CLI reads `~/.kaggle/kaggle.json` outside the repo.
+Overrides (`--time-limit`, `--preset`, `--use-gpu`) remain available when a template needs tweaking. Reach for `fast-cpu` when chcesz 60-sekundowy smoke test XGBoost-em – nie traktuj go jako finalnego treningu. Use `uv run python tools/submissions_tracker.py --project playground-series-s5e11 list` to audit historical scores and `uv run python tools/experiment_logger.py --project playground-series-s5e11 list --limit 10` to inspect experiment metadata. Pull fresh data via `kaggle competitions download -c <competition>` from the relevant project directory; the CLI reads `~/.kaggle/kaggle.json` outside the repo.
 
 ### Experiment Workflow
 

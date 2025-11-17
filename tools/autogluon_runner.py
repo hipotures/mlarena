@@ -31,6 +31,12 @@ console = Console()
 
 
 TEMPLATES: Dict[str, Dict[str, Any]] = {
+    "fast-cpu": {
+        "time_limit": 60,
+        "preset": "medium_quality",
+        "use_gpu": False,
+        "hyperparameters": {"XGBoost": {}},
+    },
     "dev-cpu": {"time_limit": 300, "preset": "medium_quality", "use_gpu": False},
     "dev-gpu": {"time_limit": 300, "preset": "medium_quality", "use_gpu": True},
     "best-cpu": {"time_limit": 3600, "preset": "best_quality", "use_gpu": False},
@@ -162,6 +168,7 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
         time_limit=params["time_limit"],
         num_cpus="auto",
         num_gpus=1 if params["use_gpu"] else 0,
+        hyperparameters=params.get("hyperparameters"),
     )
 
     leaderboard = predictor.leaderboard(train_no_id, silent=True)

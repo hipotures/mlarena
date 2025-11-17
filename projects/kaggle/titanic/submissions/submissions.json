@@ -38,5 +38,56 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 3,
+    "timestamp": "2025-11-17 22:58:59",
+    "filename": "submission-20251117225824.csv",
+    "model_name": "autogluon_baseline-fast-cpu",
+    "local_cv_score": 0.8044692737430168,
+    "cv_std": null,
+    "public_score": 0.78947,
+    "private_score": null,
+    "notes": "template=fast-cpu",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/experiments/exp-20251117-215814",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/experiments/exp-20251117-215814/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/experiments/exp-20251117-215814/artifacts/fast-cpu-autogluon_baseline",
+        "template": "fast-cpu",
+        "experiment_id": "exp-20251117-215814",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/data/test.csv",
+        "target": "Survived",
+        "id_column": "PassengerId",
+        "ignored_columns": [
+          "PassengerId"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/titanic/data/gender_submission.csv",
+        "problem_type": "binary",
+        "metric": "accuracy",
+        "submission_probas": false
+      },
+      "hyperparameters": {
+        "presets": "medium_quality",
+        "time_limit": 60,
+        "use_gpu": false,
+        "excluded_models": [
+          "NN_TORCH"
+        ]
+      },
+      "model": {
+        "leaderboard_rows": 10
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

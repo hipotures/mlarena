@@ -1,7 +1,7 @@
 """
 Utilities for creating and managing competition submissions.
 
-This is a lightweight wrapper around tools/submission_utils.py that injects
+This is a lightweight wrapper around src/kaggle_tools that injects
 competition-specific configuration from this project's config.py.
 """
 
@@ -18,12 +18,12 @@ from .config import (
     TARGET_COLUMN
 )
 
-# Add tools to path and import shared utilities
-TOOLS_PATH = PROJECT_ROOT.parent / "tools"
-if str(TOOLS_PATH) not in sys.path:
-    sys.path.insert(0, str(TOOLS_PATH))
+# Add src to path and import shared utilities
+SRC_PATH = PROJECT_ROOT.parent.parent / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
 
-import submission_utils  # noqa: E402
+from kaggle_tools import submission as submission_utils  # noqa: E402
 
 
 def create_submission(

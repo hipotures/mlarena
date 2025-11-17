@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2025-11-17 19:55:12",
+    "filename": "submission-20251117195512.csv",
+    "model_name": "autogluon-medium_quality",
+    "local_cv_score": -0.05625,
+    "cv_std": null,
+    "public_score": 0.0556,
+    "private_score": 0.05588,
+    "notes": "AutoGluon medium_quality (60s, gpu=False)",
+    "config": {
+      "preset": "medium_quality",
+      "time_limit": 60,
+      "use_gpu": false,
+      "hyperparameters": {
+        "XGB": [
+          {}
+        ]
+      },
+      "template": "fast-cpu"
+    },
+    "experiment_id": "exp-20251117-185344",
+    "git_hash": "d02564de077f49c98becc41fd0d6b0cc20ebc134",
+    "code_path": "experiments/exp-20251117-185344/autogluon_runner.py"
+  }
+]

@@ -52,8 +52,8 @@ class KaggleScraper:
         print(f"Navigating to {url}...")
 
         try:
-            await self.page.goto(url, timeout=30000, wait_until="networkidle")
-            await asyncio.sleep(2)  # Wait for dynamic content
+            await self.page.goto(url, timeout=10000, wait_until="networkidle")
+            await asyncio.sleep(1)  # Wait briefly for dynamic content
             print("✓ Page loaded")
         except TimeoutError:
             print("Warning: Timeout waiting for page load, continuing anyway...")
@@ -64,8 +64,8 @@ class KaggleScraper:
         print(f"Navigating to {url}...")
 
         try:
-            await self.page.goto(url, timeout=30000, wait_until="networkidle")
-            await asyncio.sleep(2)  # Wait for dynamic content
+            await self.page.goto(url, timeout=10000, wait_until="networkidle")
+            await asyncio.sleep(1)  # Wait briefly for dynamic content
             print("✓ Page loaded")
         except TimeoutError:
             print("Warning: Timeout waiting for page load, continuing anyway...")

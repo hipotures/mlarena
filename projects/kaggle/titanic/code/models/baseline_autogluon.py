@@ -13,4 +13,4 @@ from autogluon_runner import cli_entry  # noqa: E402
 
 
 if __name__ == "__main__":
-    cli_entry(default_project="playground-series-s5e11")
+    cli_entry(default_project="titanic")

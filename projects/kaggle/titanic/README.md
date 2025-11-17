@@ -1,7 +1,7 @@
 # Playground Series S5E11 - Predicting Loan Payback
 
 ## Competition Overview
-**Competition URL:** https://www.kaggle.com/competitions/playground-series-s5e11
+**Competition URL:** https://www.kaggle.com/competitions/titanic
 **Type:** Playground Prediction Competition (Kaggle)
 **Host:** Kaggle
 **Deadline:** 2025-11-30 23:59 UTC
@@ -10,7 +10,7 @@
 Predict the probability that a borrower will pay back their loan based on financial and demographic features.
 
 ### Evaluation Metric
-**ROC AUC Score** - Area under the ROC curve between predicted probability and observed target.
+**ROC AUC Score** - roc_auc (higher is better) between predicted probability and observed target.
 
 ### Dataset Description
 **Source:** Synthetically generated from [Loan Prediction dataset](https://www.kaggle.com/datasets/nabihazahid/loan-prediction-dataset-2025/data)
@@ -53,8 +53,8 @@ Predict the probability that a borrower will pay back their loan based on financ
 ### Download Data
 ```bash
 cd data/
-kaggle competitions download -c playground-series-s5e11
-unzip playground-series-s5e11.zip
+kaggle competitions download -c titanic
+unzip titanic.zip
 ```
 
 ### Environment

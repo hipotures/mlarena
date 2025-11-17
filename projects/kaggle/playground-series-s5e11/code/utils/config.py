@@ -33,3 +33,6 @@ AUTOGLUON_EVAL_METRIC = "roc_auc"  # ROC AUC Score
 COMPETITION_NAME = "playground-series-s5e11"
 METRIC = "roc_auc"  # Area under the ROC curve
 DEADLINE = "2025-11-30 23:59 UTC"
+
+# Submission format
+SUBMISSION_PROBAS = False  # Submit class labels (0/1), not probabilities

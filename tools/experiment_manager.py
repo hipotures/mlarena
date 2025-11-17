@@ -317,7 +317,21 @@ def run_fetch_score(args):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Experiment workflow manager")
+    parser = argparse.ArgumentParser(
+        description="Experiment workflow manager",
+        epilog=(
+            "Examples:\n"
+            "  # Start EDA (auto experiment_id)\n"
+            "  uv run python tools/experiment_manager.py eda --project playground-series-s5e11\n\n"
+            "  # Train model using template fast-cpu and resume ID\n"
+            "  uv run python tools/experiment_manager.py model --project playground-series-s5e11 "
+            "--experiment-id exp-20250101-010101 --template fast-cpu --skip-submit\n\n"
+            "  # Submit existing CSV and fetch score\n"
+            "  uv run python tools/experiment_manager.py submit --project playground-series-s5e11 "
+            "--experiment-id exp-20250101-010101\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     eda_parser = subparsers.add_parser("eda", help="Run EDA module")

@@ -523,6 +523,63 @@ See `scripts/README_KAGGLE.md` for details.
    - Remove or rename existing `.old/` directory before migration
    - Or manually merge contents if needed
 
+## Development Guidelines
+
+### Coding Style & Naming Conventions
+
+- Use 4-space indentation
+- `snake_case` for modules/functions
+- `CamelCase` for classes
+- Zero-pad exploration scripts (`01_initial_eda.py`) for chronological ordering
+- Name outputs `submission-YYYYMMDDHHMM-model.csv` for automatic ingestion by `submissions_tracker.py`
+- Centralize constants and random seeds in `code/utils/config.py`
+- Keep logging helpers and datapath utilities in `code/utils/` so every project shares conventions
+
+### Testing Guidelines
+
+Rapid validation relies on shared templates:
+
+```bash
+# Smoke test in ~60s (XGBoost only) before committing heavier compute
+uv run python scripts/experiment_manager.py model --project <proj> \
+    --template fast-cpu --skip-submit
+```
+
+**Quality gates:**
+- Use `dev-*` or `best-*` templates for longer jobs
+- Compare local CV in experiment's `state.json`
+- Block merges when metrics deviate by >±0.002 ROC-AUC/RMSE
+- Block when leaderboard trend in `submissions/submissions.json` regresses
+- All preprocessing/modeling scripts must be deterministic (respect seeds in `config.py`)
+
+### Commit & Pull Request Guidelines
+
+**Commit message format:**
+- Prefix with `feat:`, `fix:`, or `experiment:`
+- Describe observable change: `"feat: add AutoGluon medium baseline"`
+- Example: `"experiment: tune XGBoost hyperparams for s5e11"`
+
+**Pull Request requirements:**
+- Link tracked Kaggle issue or discussion
+- Include reproduction commands
+- Mention relevant tracker entry
+- Attach leaderboard evidence for new submissions
+- Never include dataset files
+- Refresh `uv.lock` when dependencies change
+
+### Security & Configuration
+
+**Kaggle credentials:**
+- Keep `~/.kaggle/kaggle.json` local with `chmod 600`
+- Reference via environment variables, not hard-coded paths
+- Never commit credentials
+
+**Best practices:**
+- Document sensitive configs in project-level READMEs
+- Scrub notebooks before committing
+- Share only minimum per-competition folder with external agents
+- Runner only stages active competition directory
+
 ## Dependencies
 
 Managed via `pyproject.toml`:

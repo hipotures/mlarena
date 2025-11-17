@@ -157,7 +157,6 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
         time_limit=params["time_limit"],
         num_cpus="auto",
         num_gpus=1 if params["use_gpu"] else 0,
-        seed=getattr(cfg, "RANDOM_SEED", None),
     )
 
     leaderboard = predictor.leaderboard(train_no_id, silent=True)

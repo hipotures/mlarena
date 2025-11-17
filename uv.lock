@@ -1532,6 +1532,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "playwright" },
+    { name = "requests" },
     { name = "rich" },
     { name = "scikit-learn" },
 ]
@@ -1543,6 +1544,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "playwright", specifier = ">=1.48.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "scikit-learn", specifier = ">=1.3.0" },
 ]

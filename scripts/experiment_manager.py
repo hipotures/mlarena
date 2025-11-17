@@ -412,11 +412,17 @@ def fetch_kaggle_evaluation(competition_slug: str) -> str:
         from pathlib import Path
         import pandas as pd
 
-        # Try to read sample_submission.csv if it exists
+        # Try to read any *submission*.csv file
         project_root = REPO_ROOT / "projects" / "kaggle" / competition_slug
-        sample_path = project_root / "data" / "sample_submission.csv"
+        data_dir = project_root / "data"
 
-        if sample_path.exists():
+        sample_path = None
+        if data_dir.exists():
+            submission_files = list(data_dir.glob("*submission*.csv"))
+            if submission_files:
+                sample_path = submission_files[0]
+
+        if sample_path:
             sample = pd.read_csv(sample_path, nrows=5)
             if len(sample.columns) >= 2:
                 target_col = sample.columns[1]
@@ -577,14 +583,18 @@ def run_init_project(args):
     problem_type = args.problem_type
     metric = args.metric
 
-    # Try to detect from sample_submission.csv
-    sample_path = project_root / "data/sample_submission.csv"
-    if sample_path.exists() and not target_column:
+    # Try to detect from any *submission*.csv file
+    sample_path = None
+    submission_files = list((project_root / "data").glob("*submission*.csv"))
+    if submission_files:
+        sample_path = submission_files[0]
+
+    if sample_path and not target_column:
         try:
             sample = pd.read_csv(sample_path, nrows=1)
             if len(sample.columns) >= 2:
                 detected_target = sample.columns[1]
-                console.print(f"\n[cyan]Detected target column: '{detected_target}' from sample_submission.csv[/cyan]")
+                console.print(f"\n[cyan]Detected target column: '{detected_target}' from {sample_path.name}[/cyan]")
                 target_column = detected_target
         except Exception:
             pass

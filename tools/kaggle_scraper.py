@@ -226,14 +226,26 @@ class KaggleScraper:
         rows: List[str] = []
 
         try:
-            locator = self.page.locator("tbody tr")
-            handles = await locator.all()
-            for handle in handles[:max_rows]:
-                text = (await handle.inner_text()).strip()
-                if text:
-                    rows.append(text)
+            dom_rows = await self.page.eval_on_selector_all(
+                "table tbody tr",
+                "rows => rows.map(row => row.innerText || '')",
+            )
+            for text in dom_rows:
+                cleaned = (text or "").strip()
+                if cleaned:
+                    rows.append(cleaned)
+                if len(rows) >= max_rows:
+                    break
         except Exception:
-            pass
+            try:
+                locator = self.page.locator("tbody tr")
+                handles = await locator.all()
+                for handle in handles[:max_rows]:
+                    text = (await handle.inner_text()).strip()
+                    if text:
+                        rows.append(text)
+            except Exception:
+                pass
 
         if rows:
             return rows

@@ -18,5 +18,25 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 2,
+    "timestamp": "2025-11-17 19:03:58",
+    "filename": "submission-20251117190322.csv",
+    "model_name": "autogluon-medium_quality",
+    "local_cv_score": 0.8100558659217877,
+    "cv_std": null,
+    "public_score": 0.78229,
+    "private_score": null,
+    "notes": "AutoGluon medium_quality (60s, gpu=False)",
+    "config": {
+      "preset": "medium_quality",
+      "time_limit": 60,
+      "use_gpu": false,
+      "template": "fast-cpu"
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

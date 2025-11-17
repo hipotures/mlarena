@@ -675,6 +675,20 @@ Return ONLY valid JSON (no markdown, no explanation):
 
                 ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
 
+                # Log AI interaction
+                log_ai_interaction(
+                    project_root,
+                    "init_problem_detection",
+                    prompt=prompt,
+                    response=json.dumps(ai_result, indent=2),
+                    metadata={
+                        "model": model,
+                        "competition": project_name,
+                        "eval_text_length": len(eval_text)
+                    }
+                )
+                console.print(f"[dim]Logged AI interaction to logs/[/dim]")
+
                 # Validate response
                 if "problem_type" in ai_result and "metric" in ai_result:
                     detected_type = ai_result["problem_type"]

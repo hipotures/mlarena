@@ -269,14 +269,16 @@ class SubmissionRunner:
                         if username.lower() in row.get('TeamMemberUserNames', '').lower():
                             rank = int(row['Rank'])
                             score = float(row['Score'])
+                            submission_count = int(row.get('SubmissionCount', 0))
                             percentile = (rank / total_rows) * 100 if total_rows > 0 else 0
 
-                            console.print(f"[green]Found: Rank {rank}/{total_rows} (top {percentile:.1f}%)[/green]")
+                            console.print(f"[green]Found: Rank {rank}/{total_rows} (top {percentile:.1f}%) - {submission_count} submissions[/green]")
                             return {
                                 'rank': rank,
                                 'total': total_rows,
                                 'percentile': percentile,
                                 'score': score,
+                                'submission_count': submission_count,
                                 'team_name': row.get('TeamName', username)
                             }
 
@@ -386,8 +388,12 @@ class SubmissionRunner:
                 lb = score_data['leaderboard']
                 rank = lb.get('rank')
                 total = lb.get('total')
+                sub_count = lb.get('submission_count')
                 if rank and total:
-                    leaderboard_info = f"rank {rank}/{total}"
+                    if sub_count:
+                        leaderboard_info = f"rank {rank}/{total} ({sub_count} subs)"
+                    else:
+                        leaderboard_info = f"rank {rank}/{total}"
         if public_score is not None:
             parts.append(f"public {public_score:.5f}")
         else:

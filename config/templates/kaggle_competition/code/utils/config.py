@@ -26,6 +26,12 @@ N_FOLDS = 5
 # Target column
 TARGET_COLUMN = "loan_paid_back"
 
+# Column used as row identifier (ignored during training, used for submissions)
+ID_COLUMN = "id"
+
+# Columns to ignore during training (e.g., IDs)
+IGNORED_COLUMNS: list[str] = []
+
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
 AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment
@@ -36,3 +42,6 @@ AUTOGLUON_EVAL_METRIC = "roc_auc"  # ROC AUC Score
 COMPETITION_NAME = "playground-series-s5e11"
 METRIC = "roc_auc"  # Area under the ROC curve
 DEADLINE = "2025-11-30 23:59 UTC"
+
+# Submission format
+SUBMISSION_PROBAS = True  # Set False to submit class labels instead of probabilities

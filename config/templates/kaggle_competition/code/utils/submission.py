@@ -15,8 +15,13 @@ from .config import (
     PROJECT_ROOT,
     SAMPLE_SUBMISSION_PATH,
     SUBMISSIONS_DIR,
-    TARGET_COLUMN
+    TARGET_COLUMN,
 )
+
+try:
+    from .config import ID_COLUMN
+except ImportError:
+    ID_COLUMN = "id"
 
 # Add src to path and import shared utilities
 SRC_PATH = PROJECT_ROOT.parent.parent / "src"
@@ -76,7 +81,8 @@ def create_submission(
         notes=notes,
         config=config,
         track=track,
-        default_target_col=TARGET_COLUMN
+        default_target_col=TARGET_COLUMN,
+        id_column=ID_COLUMN
     )
 
 

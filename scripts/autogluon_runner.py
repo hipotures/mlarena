@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,15 +89,16 @@ def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     )
 
     # Submission workflow flags
-    parser.add_argument("--skip-submit", action="store_true", help="Do not run Kaggle submission workflow")
-    parser.add_argument("--auto-submit", action="store_true", help="Submit to Kaggle without asking")
+    parser.add_argument("--skip-submit", action="store_true", help="Do not run Kaggle submission workflow (alias for --auto-submit=0)")
+    parser.add_argument("--auto-submit", action="store_true", help="Submit to Kaggle without asking (non-interactive)")
     parser.add_argument("--kaggle-message", help="Custom Kaggle submission message")
     parser.add_argument("--wait-seconds", type=int, default=30, help="Seconds to wait before scraping score")
     parser.add_argument("--cdp-url", default="http://localhost:9222", help="Playwright CDP endpoint")
     parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping of latest score")
     parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes automatically")
     parser.add_argument("--experiment-id", help="Existing experiment identifier (auto-generated if omitted)")
-    parser.add_argument("--skip-eda-check", action="store_true", help="Do not require EDA module completion")
+    parser.add_argument("--require-eda", action="store_true", help="Require EDA module completion before training")
+    parser.add_argument("--skip-eda-check", action="store_true", help="Deprecated: EDA enforcement is opt-in")
 
     args = parser.parse_args()
     if not args.project:
@@ -161,8 +163,23 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
         verbosity=2,
     )
 
-    train_no_id = train_df.drop(columns=[c for c in ["id"] if c in train_df.columns])
-    test_no_id = test_df.drop(columns=[c for c in ["id"] if c in test_df.columns])
+    ignored_columns = list(getattr(cfg, "IGNORED_COLUMNS", []))
+    id_column = getattr(cfg, "ID_COLUMN", None)
+    if not id_column:
+        if ignored_columns:
+            id_column = ignored_columns[0]
+        elif "id" in train_df.columns:
+            id_column = "id"
+    if not id_column or id_column not in test_df.columns:
+        raise RuntimeError(
+            f"ID column '{id_column or 'unknown'}' not found in test.csv; "
+            "set --id-column during init-project or update config."
+        )
+    test_ids = test_df[id_column]
+
+    drop_candidates = [col for col in ignored_columns if col != cfg.TARGET_COLUMN]
+    train_no_id = train_df.drop(columns=[c for c in drop_candidates if c in train_df.columns])
+    test_no_id = test_df.drop(columns=[c for c in drop_candidates if c in test_df.columns])
 
     predictor.fit(
         train_no_id,
@@ -185,14 +202,18 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
     best_score = leaderboard.iloc[0]["score_val"]
     console.print(f"[bold green]Best model:[/bold green] {leaderboard.iloc[0]['model']} @ {best_score:.5f}")
 
-    if getattr(cfg, "AUTOGLUON_PROBLEM_TYPE", None) == "regression":
+    submit_probas = getattr(cfg, "SUBMISSION_PROBAS", True)
+    problem_type = getattr(cfg, "AUTOGLUON_PROBLEM_TYPE", None)
+    if problem_type == "regression":
         predictions = predictor.predict(test_no_id)
-    else:
+    elif submit_probas:
         predictions = predictor.predict_proba(test_no_id, as_multiclass=False)
+    else:
+        predictions = predictor.predict(test_no_id)
 
     submission_artifact = context.submission_module.create_submission(
         predictions=predictions,
-        test_ids=test_df["id"],
+        test_ids=test_ids,
         model_name=f"autogluon-{params['preset']}",
         local_cv_score=best_score,
         notes=f"AutoGluon {params['preset']} ({params['time_limit']}s, gpu={params['use_gpu']})",
@@ -220,7 +241,10 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
 def run(args: argparse.Namespace, default_project: Optional[str] = None):
     context = load_project_context(args.project)
     manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
-    if not args.skip_eda_check:
+    require_eda = args.require_eda
+    if args.skip_eda_check:
+        require_eda = False
+    if require_eda:
         try:
             manager.require("eda")
         except ModuleStateError as exc:
@@ -273,8 +297,8 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
         },
     )
 
-    if args.skip_submit:
-        console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit).[/yellow]")
+    if args.skip_submit or os.environ.get("KAGGLE_SKIP_SUBMIT"):
+        console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit or KAGGLE_SKIP_SUBMIT).[/yellow]")
         return
 
     runner = SubmissionRunner(

@@ -160,6 +160,11 @@ kaggle competitions leaderboard competition-name
 kaggle competitions submissions competition-name
 ```
 
+### Metric Detection via CDP
+- Commands such as `uv run python scripts/experiment_manager.py detect-metric` or `init-project` scrape the Evaluation section directly from the Kaggle overview page.
+- Keep Chrome running with `--remote-debugging-port=9222` (and logged into Kaggle) before invoking them.
+- Configure the connection through `KAGGLE_CDP_URL` or `--cdp-url http://127.0.0.1:9222`; without a reachable CDP endpoint the detection step will exit instead of guessing from `sample_submission.csv`.
+
 ### AutoGluon Quick Start
 
 ```python
@@ -242,7 +247,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
        --auto-submit \
        --wait-seconds 45
    ```
-   Runner odmówi startu, jeśli moduł EDA nie był wykonany (chyba że dodasz `--skip-eda-check`).
+   Runner zweryfikuje moduł EDA tylko wtedy, gdy dodasz `--require-eda` (domyślnie pomija ten krok).
 
 3. **Submit / Resume** – gdy CSV jest już wysłany, pobierasz skorę i aktualizujesz zarówno tracker, jak i eksperyment:
    ```bash

@@ -15,23 +15,23 @@ uv sync
 uv run playwright install chromium
 
 # 2. Initialize new competition (creates structure + downloads data)
-uv run python tools/experiment_manager.py init-project --project [competition]
+uv run python scripts/experiment_manager.py init-project --project [competition-name]
 # Auto-detects target column and prompts for problem type/metric
 
 # 3. Run complete pipeline
-uv run python tools/experiment_manager.py eda --project [competition]
+uv run python scripts/experiment_manager.py eda --project [competition-name]
 # Note the experiment_id from output
 
-uv run python tools/experiment_manager.py model \
-    --project [competition] \
+uv run python scripts/experiment_manager.py model \
+    --project [competition-name] \
     --experiment-id exp-YYYYMMDD-HHMMSS \
     --template dev-gpu \
     --auto-submit \
     --wait-seconds 45
 
 # 4. Check results
-uv run python tools/experiment_manager.py list --project [competition]
-uv run python tools/submissions_tracker.py --project [competition] list
+uv run python scripts/experiment_manager.py list --project [competition-name]
+uv run python scripts/submissions_tracker.py --project [competition-name] list
 ```
 
 **Key tools:**
@@ -43,24 +43,28 @@ uv run python tools/submissions_tracker.py --project [competition] list
 
 ## Architecture
 
-### Three-Layer System
+### Four-Layer System
 
-1. **Tools Layer** (`tools/`): Universal utilities for all competitions
+1. **Scripts Layer** (`scripts/`): CLI entry points and orchestration
    - `experiment_manager.py`: Orchestrates modular pipeline (EDA → Model → Submit), project initialization
    - `autogluon_runner.py`: Template-based AutoGluon training (fast-cpu, dev-gpu, best-gpu, etc.)
-   - `submission_utils.py`: Universal submission creation/validation logic (shared across projects)
    - `submission_workflow.py`: Kaggle upload + Playwright score scraping automation
    - `submissions_tracker.py`: Tracks local CV, public/private scores with git integration
    - `experiment_logger.py`: Logs experiments with git hash, code snapshots, config
    - `kaggle_scraper.py`: Scrapes Kaggle leaderboard/submissions via CDP
 
-2. **Project Layer** (`[competition-name]/`): Individual competition directories
+2. **Core Package** (`src/kaggle_tools/`): Shared Python package (installed with `uv pip install -e .`)
+   - `submission.py`: Universal submission creation/validation logic
+   - Importable as `from kaggle_tools import create_submission, validate_submission`
+   - Used by all project wrappers
+
+3. **Project Layer** (`projects/kaggle/[competition-name]/`): Individual competition directories
    - `code/utils/config.py`: Competition-specific constants (target, metric, AutoGluon settings)
-   - `code/utils/submission.py`: Lightweight wrapper that injects config into tools/submission_utils.py
+   - `code/utils/submission.py`: Lightweight wrapper that injects config into `src/kaggle_tools`
    - `code/models/`: Model implementations
    - `code/exploration/`: EDA scripts
 
-3. **Tracking Layer**: Automatic experiment → submission → git linkage
+4. **Tracking Layer**: Automatic experiment → submission → git linkage
    - Every `create_submission()` call captures git hash, creates code snapshot
    - Stored in `experiments/*.json` and `submissions/submissions.json`
    - Enables full reproducibility via experiment ID or git hash
@@ -99,11 +103,11 @@ uv run playwright install chromium
 
 ### Modern Workflow (Recommended)
 
-The repository uses a **modular experiment pipeline** managed by `tools/experiment_manager.py`. Each experiment progresses through modules: EDA → Model → Submit → Fetch-score.
+The repository uses a **modular experiment pipeline** managed by `scripts/experiment_manager.py`. Each experiment progresses through modules: EDA → Model → Submit → Fetch-score.
 
 **1. Download data:**
 ```bash
-cd [competition-name]/data
+cd projects/kaggle/[competition-name]/data
 kaggle competitions download -c [competition-name]
 unzip [competition-name].zip
 cd ../..
@@ -111,7 +115,7 @@ cd ../..
 
 **2. Start experiment with EDA:**
 ```bash
-uv run python tools/experiment_manager.py eda \
+uv run python scripts/experiment_manager.py eda \
     --project [competition-name] \
     --notes "baseline exploration"
 # Outputs: experiment_id (e.g., exp-20251117-020830)
@@ -119,7 +123,7 @@ uv run python tools/experiment_manager.py eda \
 
 **3. Train model using templates:**
 ```bash
-uv run python tools/experiment_manager.py model \
+uv run python scripts/experiment_manager.py model \
     --project [competition-name] \
     --experiment-id exp-20251117-020830 \
     --template dev-gpu \
@@ -145,7 +149,7 @@ Template overrides available: `--time-limit`, `--preset`, `--use-gpu 0/1`
 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 
 # Resume and fetch score
-uv run python tools/submission_workflow.py resume \
+uv run python scripts/submission_workflow.py resume \
     --project [competition-name] \
     --filename submission-20251117015359.csv \
     --experiment-id exp-20251117-020830 \
@@ -155,26 +159,26 @@ uv run python tools/submission_workflow.py resume \
 **5. View experiment status:**
 ```bash
 # List all experiments with module status
-uv run python tools/experiment_manager.py list --project [competition-name]
+uv run python scripts/experiment_manager.py list --project [competition-name]
 
 # Show available modules
-uv run python tools/experiment_manager.py modules
+uv run python scripts/experiment_manager.py modules
 ```
 
 ### Alternative: Direct Runner (Without Experiment Manager)
 
-Use `tools/autogluon_runner.py` directly for quick iterations:
+Use `scripts/autogluon_runner.py` directly for quick iterations:
 
 ```bash
 # Direct runner with template
-uv run python tools/autogluon_runner.py \
+uv run python scripts/autogluon_runner.py \
     --project [competition-name] \
     --template best-gpu \
     --auto-submit \
     --wait-seconds 45
 
 # Or with manual parameters (overrides template)
-uv run python tools/autogluon_runner.py \
+uv run python scripts/autogluon_runner.py \
     --project [competition-name] \
     --time-limit 1800 \
     --preset high_quality \
@@ -191,17 +195,17 @@ Competition-specific wrappers in `code/models/baseline_autogluon.py` are thin wr
 git status
 git add code/
 git commit -m "feat: baseline model"
-uv run python [competition-name]/code/models/baseline_autogluon.py
+uv run python projects/kaggle/[competition-name]/code/models/baseline_autogluon.py
 
 # Manual Kaggle submission
-cd [competition-name]/submissions
+cd projects/kaggle/[competition-name]/submissions
 kaggle competitions submit -c [competition-name] \
     -f submission-TIMESTAMP.csv \
     -m "Model description with local CV"
 cd ../..
 
 # Manual score update
-python tools/submissions_tracker.py --project [competition-name] \
+python scripts/submissions_tracker.py --project [competition-name] \
     update 1 --public 0.85123
 ```
 
@@ -209,22 +213,22 @@ python tools/submissions_tracker.py --project [competition-name] \
 
 **View submissions:**
 ```bash
-python tools/submissions_tracker.py --project [competition-name] list
+python scripts/submissions_tracker.py --project [competition-name] list
 ```
 
 **View experiments:**
 ```bash
-python tools/experiment_logger.py --project [competition-name] list
+python scripts/experiment_logger.py --project [competition-name] list
 ```
 
 **Reproduce submission:**
 ```bash
 # Method 1: Git checkout
-python tools/submissions_tracker.py --project [competition-name] list  # get git hash
+python scripts/submissions_tracker.py --project [competition-name] list  # get git hash
 git checkout <GIT_HASH>
 
 # Method 2: Code snapshot restore
-python tools/experiment_logger.py --project [competition-name] restore <EXPERIMENT_ID>
+python scripts/experiment_logger.py --project [competition-name] restore <EXPERIMENT_ID>
 ```
 
 ## Critical Workflows
@@ -246,16 +250,16 @@ python tools/experiment_logger.py --project [competition-name] restore <EXPERIME
 **Typical Flow:**
 ```bash
 # 1. EDA creates experiment ID
-uv run python tools/experiment_manager.py eda --project playground-series-s5e11
+uv run python scripts/experiment_manager.py eda --project playground-series-s5e11
 
 # 2. Model requires EDA completion (enforced unless --skip-eda-check)
-uv run python tools/experiment_manager.py model \
+uv run python scripts/experiment_manager.py model \
     --project playground-series-s5e11 \
     --experiment-id exp-20251117-020830 \
     --template dev-gpu
 
 # 3. Submit/fetch can be run later if needed
-uv run python tools/submission_workflow.py resume \
+uv run python scripts/submission_workflow.py resume \
     --project playground-series-s5e11 \
     --filename submission-20251117015359.csv \
     --experiment-id exp-20251117-020830
@@ -288,25 +292,25 @@ When `create_submission()` is called directly (outside pipeline):
 
 ```bash
 # New competition (downloads data automatically)
-uv run python tools/experiment_manager.py init-project \
+uv run python scripts/experiment_manager.py init-project \
     --project competition-slug \
     --target-column target_name \
     --problem-type binary \
     --metric roc_auc
 
 # Or let it auto-detect and prompt interactively
-uv run python tools/experiment_manager.py init-project \
+uv run python scripts/experiment_manager.py init-project \
     --project competition-slug
 
 # Migrate old project to new structure
-uv run python tools/experiment_manager.py init-project \
+uv run python scripts/experiment_manager.py init-project \
     --project playground-series-s4e6 \
     --migrate
 ```
 
 **What it does:**
 1. Creates standard directory structure (code/, data/, docs/, experiments/, submissions/)
-2. Copies template files from playground-series-s5e11
+2. Copies template files from `config/templates/kaggle_competition/`
 3. Downloads and extracts data from Kaggle (unless `--skip-download`)
 4. Auto-detects target column from sample_submission.csv
 5. Customizes config.py, README.md, baseline_autogluon.py
@@ -324,15 +328,15 @@ uv run python tools/experiment_manager.py init-project \
 
 ```bash
 COMP_NAME="competition-slug"
-mkdir -p ${COMP_NAME}/{data,code/{exploration,models,utils},submissions,experiments,docs}
-touch ${COMP_NAME}/{data,submissions,experiments}/.gitkeep
+mkdir -p projects/kaggle/${COMP_NAME}/{data,code/{exploration,models,utils},submissions,experiments,docs}
+touch projects/kaggle/${COMP_NAME}/{data,submissions,experiments}/.gitkeep
 
-# Copy templates from existing competition:
-cp playground-series-s5e11/.gitignore ${COMP_NAME}/
-cp playground-series-s5e11/README.md ${COMP_NAME}/  # edit competition details
-cp playground-series-s5e11/code/utils/*.py ${COMP_NAME}/code/utils/
-cp playground-series-s5e11/code/exploration/01_initial_eda.py ${COMP_NAME}/code/exploration/
-cp playground-series-s5e11/code/models/baseline_autogluon.py ${COMP_NAME}/code/models/
+# Copy templates:
+cp config/templates/kaggle_competition/.gitignore projects/kaggle/${COMP_NAME}/
+cp config/templates/kaggle_competition/README.md projects/kaggle/${COMP_NAME}/  # edit competition details
+cp config/templates/kaggle_competition/code/utils/*.py projects/kaggle/${COMP_NAME}/code/utils/
+cp config/templates/kaggle_competition/code/exploration/01_initial_eda.py projects/kaggle/${COMP_NAME}/code/exploration/
+cp config/templates/kaggle_competition/code/models/baseline_autogluon.py projects/kaggle/${COMP_NAME}/code/models/
 
 # Edit config.py with competition-specific settings:
 # - TARGET_COLUMN
@@ -431,7 +435,7 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 ### Automatic Workflow
 ```bash
 # Model command with auto-submit fetches score automatically
-uv run python tools/experiment_manager.py model \
+uv run python scripts/experiment_manager.py model \
     --project playground-series-s5e11 \
     --experiment-id exp-20251117-020830 \
     --template dev-gpu \
@@ -463,12 +467,12 @@ For existing submissions or manual score updates:
 
 ```bash
 # Scrape leaderboard/submissions (requires Chrome with CDP)
-python tools/kaggle_scraper.py [competition-name]
+python scripts/kaggle_scraper.py [competition-name]
 
-# Output: JSON files in [competition-name]/data/kaggle_scrapes/
+# Output: JSON files in projects/kaggle/[competition-name]/data/kaggle_scrapes/
 ```
 
-See `tools/README_KAGGLE.md` for details.
+See `scripts/README_KAGGLE.md` for details.
 
 ## Common Pitfalls
 
@@ -482,8 +486,8 @@ See `tools/README_KAGGLE.md` for details.
    - Regression: use `predict()`
 
 3. **Calling tools from wrong directory** → File not found
-   - Tools must be called from repo root: `uv run python tools/...`
-   - Or use `cd .. && uv run python tools/...` from competition dir
+   - Tools must be called from repo root: `uv run python scripts/...`
+   - Or use `cd .. && uv run python scripts/...` from competition dir
 
 4. **Missing submission column name** → Kaggle rejects
    - `submission.py` auto-reads from `sample_submission.csv`
@@ -492,7 +496,7 @@ See `tools/README_KAGGLE.md` for details.
 5. **Running model without EDA** → Pipeline error
    - `experiment_manager.py model` requires EDA module to be completed first
    - Use `--skip-eda-check` to bypass (not recommended)
-   - Or run EDA first: `uv run python tools/experiment_manager.py eda --project ...`
+   - Or run EDA first: `uv run python scripts/experiment_manager.py eda --project ...`
 
 6. **Module already completed** → Won't re-run
    - Modules won't execute if already marked `completed`

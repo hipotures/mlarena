@@ -1,0 +1,52 @@
+submission0 = pd.read_csv(kaggle + kaggle_list["Submission Name"][0])
+
+submission00 = pd.read_csv(kaggle + kaggle_list["Submission Name"][1])
+
+submission1 = pd.read_csv(kaggle + kaggle_list["Submission Name"][2])
+
+submission2 = pd.read_csv(kaggle + kaggle_list["Submission Name"][3])
+
+submission3 = pd.read_csv(kaggle + kaggle_list["Submission Name"][4])
+
+submission4 = pd.read_csv(kaggle + kaggle_list["Submission Name"][5])
+
+submission5 = pd.read_csv(kaggle + kaggle_list["Submission Name"][6])
+
+submission6 = pd.read_csv(kaggle + kaggle_list["Submission Name"][7])
+
+submission7 = pd.read_csv(kaggle + kaggle_list["Submission Name"][8])
+
+submission8 = pd.read_csv(kaggle + kaggle_list["Submission Name"][9])
+
+submission9 = pd.read_csv(kaggle + kaggle_list["Submission Name"][10])
+
+submission10 = pd.read_csv(kaggle + kaggle_list["Submission Name"][11])
+
+submission11 = pd.read_csv(kaggle + kaggle_list["Submission Name"][12])
+
+submission12 = pd.read_csv(kaggle + kaggle_list["Submission Name"][13])
+
+submission13 = pd.read_csv(kaggle + kaggle_list["Submission Name"][14])
+
+submission14 = pd.read_csv(kaggle + kaggle_list["Submission Name"][15])
+
+submission15 = pd.read_csv(kaggle + kaggle_list["Submission Name"][16])
+
+submission16 = pd.read_csv(kaggle + kaggle_list["Submission Name"][17])
+
+submission17 = pd.read_csv(kaggle + kaggle_list["Submission Name"][18])
+
+submission18 = pd.read_csv(kaggle + kaggle_list["Submission Name"][19])
+
+submission19 = pd.read_csv(kaggle + kaggle_list["Submission Name"][20])
+
+submission20 = pd.read_csv(kaggle + kaggle_list["Submission Name"][21])
+
+submission21 = pd.read_csv(kaggle + kaggle_list["Submission Name"][22])
+
+submission22 = pd.read_csv(kaggle + kaggle_list["Submission Name"][23])
+
+submission23 = pd.read_csv(kaggle + kaggle_list["Submission Name"][24])
+
+submission24 = pd.read_csv(kaggle + kaggle_list["Submission Name"][25])
+

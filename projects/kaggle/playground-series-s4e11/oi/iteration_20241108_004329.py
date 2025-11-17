@@ -1,0 +1,1 @@
+Optimal trial: {'model_type': 'CatBoost', 'learning_rate': 0.07073799351282581, 'depth': 8}

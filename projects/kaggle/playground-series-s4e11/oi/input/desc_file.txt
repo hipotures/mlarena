@@ -1,0 +1,85 @@
+Dataset Description
+
+The dataset for this competition (both train and test) was generated from a deep learning model trained on the Depression Survey/Dataset for Analysis dataset. Feature distributions are close to, but not exactly the same, as the original. Feel free to use the original dataset as part of this competition, both to explore differences as well as to see whether incorporating the original in training improves model performance.
+
+Notes:
+    A number of data artifacts have been left in the synthetic dataset.
+
+This dataset was collected as part of a comprehensive survey aimed at understanding the factors contributing to depression risk among adults. It was collected during an anonymous survey conducted between January and June 2023. The survey was conducted across various cities, targeting individuals from diverse backgrounds and professions. Participants, ranging from 18 to 60 years old, voluntarily provided inputs on factors such as age, gender, city, degree, job satisfaction, study satisfaction, study/work hours, and family history among others. Participants were asked to provide inputs without requiring any professional mental health assessments or diagnostic test scores.
+
+The target variable, 'Depression', represents whether the individual is at risk of depression, marked as 'Yes' or 'No', based on their responses to lifestyle and demographic factors. The dataset has been curated to provide insights into how everyday factors might correlate with mental health risks, making it a useful resource for machine learning models aimed at mental health prediction.
+
+This dataset can be used for predictive modeling in mental health research, particularly in identifying key contributors to mental health challenges in a non-clinical setting.
+
+
+ 'Variable Name': [
+        'name', 'gender', 'age', 'city', 'working_professional_or_student',
+        'profession', 'academic_pressure', 'work_pressure', 'cgpa',
+        'study_satisfaction', 'job_satisfaction', 'sleep_duration',
+        'dietary_habits', 'degree', 'have_you_ever_had_suicidal_thoughts_?',
+        'work/study_hours', 'financial_stress',
+        'family_history_of_mental_illness', 'depression'
+    ],
+    'Description': [
+        'Name of the participant',
+        'Gender of the participant',
+        'Age of the participant in years',
+        'City of residence',
+        'Status of employment/education',
+        'Current profession',
+        'Level of academic pressure experienced',
+        'Level of work pressure experienced',
+        'Cumulative Grade Point Average',
+        'Level of satisfaction with studies',
+        'Level of satisfaction with job',
+        'Average duration of sleep',
+        'Quality of dietary habits',
+        'Educational degree',
+        'History of suicidal thoughts',
+        'Daily hours spent on work/study',
+        'Level of financial stress',
+        'Family history of mental illness',
+        'Risk of depression (target variable)'
+    ],
+    'Values': [
+        'Text strings (names)',
+        '0 (Male), 1 (Female)',
+        '18-60',
+        'Text strings (city names)',
+        '0 (Student), 1 (Professional)',
+        'Text strings (job titles)',
+        '1-5 ',
+        '1-5  ',
+        '0-10',
+        '1-5  ',
+        '1-5  ',
+        ' ',
+        ' ',
+        'Text strings (degree names)',
+        '0 (No), 1 (Yes)',
+        '0-12 hours',
+        '1-5 ',
+        '0 (No), 1 (Yes)',
+        '0 (No), 1 (Yes)'
+    ],
+    'Variable Type': [
+        'nominal',
+        'nominal_boolean',
+        'discrete',
+        'nominal',
+        'nominal_boolean',
+        'nominal',
+        'ordinal',        # geändert von discrete
+        'ordinal',        # geändert von discrete
+        'continuous',
+        'ordinal',        # geändert von discrete
+        'ordinal',        # geändert von discrete
+        'nominal',
+        'nominal',
+        'nominal',
+        'nominal_boolean',
+        'discrete',
+        'ordinal',        # geändert von discrete
+        'nominal_boolean',
+        'nominal_boolean'
+    ]

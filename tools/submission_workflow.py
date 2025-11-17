@@ -9,12 +9,15 @@ that ties code + local CV + public score together.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+import importlib
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import sys
 
 from rich.console import Console
 from rich.panel import Panel
@@ -23,6 +26,7 @@ from kaggle_scraper import KaggleScraper
 from submissions_tracker import SubmissionsTracker
 
 console = Console()
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 @dataclass
@@ -62,6 +66,7 @@ class SubmissionRunner:
         skip_browser: bool = False,
         skip_git: bool = False,
         extra_stage_paths: Optional[List[Path]] = None,
+        resume_mode: bool = False,
     ):
         self.artifact = artifact
         self.kaggle_message = kaggle_message or self._default_message()
@@ -74,6 +79,7 @@ class SubmissionRunner:
         self.skip_git = skip_git
         self.extra_stage_paths = extra_stage_paths or []
         self.repo_root = artifact.project_root.parent
+        self.resume_mode = resume_mode
 
     def _default_message(self) -> str:
         parts = [self.artifact.model_name or "submission"]
@@ -85,17 +91,17 @@ class SubmissionRunner:
         """Run the submission workflow end-to-end."""
         if self.skip_submit:
             console.print("[yellow]Skipping Kaggle submission (flag enabled).[/yellow]")
-            return None
-
-        if self.prompt and not self.auto_submit:
-            if not self._confirm():
-                console.print("[yellow]Submission aborted by user.[/yellow]")
+            if not self.resume_mode:
                 return None
-
-        self._submit_to_kaggle()
-        if self.wait_seconds > 0:
-            console.print(f"[cyan]Waiting {self.wait_seconds}s for Kaggle processing...[/cyan]")
-            time.sleep(self.wait_seconds)
+        else:
+            if self.prompt and not self.auto_submit:
+                if not self._confirm():
+                    console.print("[yellow]Submission aborted by user.[/yellow]")
+                    return None
+            self._submit_to_kaggle()
+            if self.wait_seconds > 0:
+                console.print(f"[cyan]Waiting {self.wait_seconds}s for Kaggle processing...[/cyan]")
+                time.sleep(self.wait_seconds)
 
         score_data: Optional[Dict[str, Any]] = None
         if not self.skip_browser:
@@ -111,10 +117,14 @@ class SubmissionRunner:
             console.print("[yellow]Skipping git commit (flag enabled).[/yellow]")
 
         if score_data:
+            public_score = score_data.get("public_score", "N/A")
+            private_score = score_data.get("private_score")
+            lines = [f"Public Score: {public_score}"]
+            if private_score is not None:
+                lines.append(f"Private Score: {private_score}")
             console.print(
                 Panel.fit(
-                    f"Public Score: {score_data.get('public_score', 'N/A')}\n"
-                    f"Private Score: {score_data.get('private_score', 'N/A')}",
+                    "\n".join(lines),
                     title="Kaggle Results",
                     border_style="green",
                 )
@@ -166,13 +176,22 @@ class SubmissionRunner:
             await scraper.close()
 
     def _update_tracker(self, public_score: float):
+        tracker = SubmissionsTracker(self.artifact.project_root)
         tracker_id = self.artifact.tracker_id()
         if tracker_id is None:
-            console.print("[yellow]Tracker entry missing; skipping tracker update.[/yellow]")
-            return
-
-        tracker = SubmissionsTracker(self.artifact.project_root)
-        tracker.update_scores(submission_id=tracker_id, public_score=public_score)
+            console.print("[yellow]Tracker entry missing; creating new submission entry.[/yellow]")
+            entry = tracker.add_submission(
+                filename=self.artifact.filename,
+                model_name=self.artifact.model_name or self.artifact.filename,
+                local_cv_score=self.artifact.local_cv_score,
+                notes=self.artifact.notes or "Auto-added via resume",
+                config=self.artifact.config,
+                public_score=public_score,
+            )
+            self.artifact.tracker_entry = entry
+            tracker_id = entry["id"]
+        else:
+            tracker.update_scores(submission_id=tracker_id, public_score=public_score)
 
     def _git_commit(self, score_data: Optional[Dict[str, Any]]):
         console.print("[bold blue]Staging files for git commit...[/bold blue]")
@@ -217,3 +236,85 @@ class SubmissionRunner:
         else:
             parts.append("public pending")
         return ": ".join(parts[:1]) + " | " + " | ".join(parts[1:])
+
+
+def _load_project_context(project_name: str):
+    project_root = (REPO_ROOT / project_name).resolve()
+    if not project_root.exists():
+        raise FileNotFoundError(f"Project directory '{project_name}' not found at {project_root}")
+
+    code_dir = project_root / "code"
+    if str(code_dir) not in sys.path:
+        sys.path.insert(0, str(code_dir))
+
+    config = importlib.import_module("utils.config")
+    return project_root, config
+
+
+def _build_artifact_from_filename(project_name: str, filename: str) -> SubmissionArtifact:
+    project_root, config = _load_project_context(project_name)
+    submission_path = project_root / "submissions" / filename
+    if not submission_path.exists():
+        raise FileNotFoundError(f"Submission file '{filename}' not found under {submission_path.parent}")
+
+    tracker = SubmissionsTracker(project_root)
+    tracker_entry = next((s for s in tracker.submissions if s["filename"] == filename), None)
+    model_name = (tracker_entry or {}).get("model_name", filename)
+    local_cv = (tracker_entry or {}).get("local_cv_score")
+    notes = (tracker_entry or {}).get("notes", "")
+    config_dict = (tracker_entry or {}).get("config")
+
+    return SubmissionArtifact(
+        path=submission_path,
+        filename=filename,
+        project_root=project_root,
+        competition=getattr(config, "COMPETITION_NAME", project_name),
+        tracker_entry=tracker_entry,
+        experiment=None,
+        model_name=model_name,
+        local_cv_score=local_cv,
+        notes=notes,
+        config=config_dict,
+    )
+
+
+def _run_resume(args):
+    artifact = _build_artifact_from_filename(args.project, args.filename)
+    runner = SubmissionRunner(
+        artifact=artifact,
+        kaggle_message=args.kaggle_message or f"resume {args.filename}",
+        wait_seconds=args.wait_seconds,
+        cdp_url=args.cdp_url,
+        auto_submit=True,
+        prompt=False,
+        skip_submit=True,
+        skip_browser=args.skip_score_fetch,
+        skip_git=args.skip_git,
+        resume_mode=True,
+    )
+    runner.execute()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Submission workflow helpers")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    resume_parser = subparsers.add_parser("resume", help="Fetch public score for an existing submission")
+    resume_parser.add_argument("--project", required=True, help="Competition directory (e.g., playground-series-s5e11)")
+    resume_parser.add_argument("--filename", required=True, help="Submission filename (e.g., submission-YYYYMMDDHHMMSS.csv)")
+    resume_parser.add_argument("--cdp-url", default="http://localhost:9222", help="Playwright CDP endpoint")
+    resume_parser.add_argument("--wait-seconds", type=int, default=0, help="Seconds to wait before scraping")
+    resume_parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes")
+    resume_parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping (debug only)")
+    resume_parser.add_argument("--kaggle-message", help="Override log message for resume action")
+
+    args = parser.parse_args()
+
+    if args.command == "resume":
+        _run_resume(args)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

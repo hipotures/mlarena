@@ -191,6 +191,11 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
         },
     )
 
+    validate_fn = getattr(context.submission_module, "validate_submission", None)
+    if callable(validate_fn):
+        console.print("[bold blue]Validating submission format...[/bold blue]")
+        validate_fn(submission_artifact.path)
+
     return {
         "submission": submission_artifact,
         "best_score": best_score,

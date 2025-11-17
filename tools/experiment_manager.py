@@ -391,6 +391,258 @@ def run_fetch_score(args):
     subprocess.run(cmd, check=True)
 
 
+def run_init_project(args):
+    """Initialize a new competition project with standard structure."""
+    import shutil
+    import zipfile
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    project_name = args.project
+    project_root = REPO_ROOT / project_name
+    template_project = REPO_ROOT / "playground-series-s5e11"
+
+    # Check if project already exists
+    if project_root.exists() and not args.migrate:
+        console.print(f"[red]Error: Project '{project_name}' already exists. Use --migrate to migrate old project.[/red]")
+        sys.exit(1)
+
+    # Handle migration
+    if args.migrate:
+        if not project_root.exists():
+            console.print(f"[red]Error: Project '{project_name}' does not exist. Cannot migrate.[/red]")
+            sys.exit(1)
+
+        console.print(f"[yellow]Migrating old project '{project_name}' to new structure...[/yellow]")
+        old_backup = project_root / ".old"
+        old_backup.mkdir(exist_ok=True)
+
+        # Move all existing files/dirs to .old/ (except .old itself)
+        for item in project_root.iterdir():
+            if item.name != ".old":
+                dest = old_backup / item.name
+                console.print(f"  Moving {item.name} → .old/{item.name}")
+                shutil.move(str(item), str(dest))
+
+        console.print(f"[green]✓ Old project backed up to {old_backup}[/green]\n")
+
+    # Create project directory
+    project_root.mkdir(parents=True, exist_ok=True)
+    console.print(f"[cyan]Creating project structure for '{project_name}'...[/cyan]")
+
+    # Create directory structure
+    dirs_to_create = [
+        "data",
+        "code/exploration",
+        "code/models",
+        "code/utils",
+        "docs",
+        "experiments",
+        "submissions",
+    ]
+
+    for dir_path in dirs_to_create:
+        full_path = project_root / dir_path
+        full_path.mkdir(parents=True, exist_ok=True)
+        console.print(f"  [green]✓[/green] {dir_path}/")
+
+    # Create .gitkeep files
+    for keep_dir in ["data", "docs", "experiments", "submissions"]:
+        (project_root / keep_dir / ".gitkeep").touch()
+
+    # Copy template files
+    console.print("\n[cyan]Copying template files...[/cyan]")
+
+    # .gitignore
+    shutil.copy(template_project / ".gitignore", project_root / ".gitignore")
+    console.print("  [green]✓[/green] .gitignore")
+
+    # README.md (will customize later)
+    shutil.copy(template_project / "README.md", project_root / "README.md")
+    console.print("  [green]✓[/green] README.md")
+
+    # code/exploration/01_initial_eda.py
+    shutil.copy(
+        template_project / "code/exploration/01_initial_eda.py",
+        project_root / "code/exploration/01_initial_eda.py"
+    )
+    console.print("  [green]✓[/green] code/exploration/01_initial_eda.py")
+
+    # code/models/baseline_autogluon.py (will customize later)
+    shutil.copy(
+        template_project / "code/models/baseline_autogluon.py",
+        project_root / "code/models/baseline_autogluon.py"
+    )
+    console.print("  [green]✓[/green] code/models/baseline_autogluon.py")
+
+    # code/utils/submission.py (wrapper - use as-is)
+    shutil.copy(
+        template_project / "code/utils/submission.py",
+        project_root / "code/utils/submission.py"
+    )
+    console.print("  [green]✓[/green] code/utils/submission.py")
+
+    # code/utils/config.py (will customize)
+    console.print("  [green]✓[/green] code/utils/config.py (will customize)")
+
+    # Download data from Kaggle if not skipped
+    if not args.skip_download:
+        console.print(f"\n[cyan]Downloading data from Kaggle for '{project_name}'...[/cyan]")
+        data_dir = project_root / "data"
+
+        try:
+            result = subprocess.run(
+                ["kaggle", "competitions", "download", "-c", project_name, "-p", str(data_dir)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            console.print(f"  [green]✓[/green] Data downloaded to data/")
+
+            # Find and unzip
+            zip_files = list(data_dir.glob("*.zip"))
+            if zip_files:
+                zip_file = zip_files[0]
+                console.print(f"  [cyan]Extracting {zip_file.name}...[/cyan]")
+                with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                    zip_ref.extractall(data_dir)
+                console.print(f"  [green]✓[/green] Data extracted")
+
+                # Optionally remove zip
+                if not args.keep_zip:
+                    zip_file.unlink()
+                    console.print(f"  [dim]Removed {zip_file.name}[/dim]")
+
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]Error downloading data: {e.stderr}[/red]")
+            console.print("[yellow]You can download data manually later with:[/yellow]")
+            console.print(f"  cd {project_name}/data && kaggle competitions download -c {project_name}")
+    else:
+        console.print("\n[yellow]Skipping data download (--skip-download)[/yellow]")
+
+    # Detect problem type and target from data if possible
+    target_column = args.target_column
+    problem_type = args.problem_type
+    metric = args.metric
+
+    # Try to detect from sample_submission.csv
+    sample_path = project_root / "data/sample_submission.csv"
+    if sample_path.exists() and not target_column:
+        try:
+            sample = pd.read_csv(sample_path, nrows=1)
+            if len(sample.columns) >= 2:
+                detected_target = sample.columns[1]
+                console.print(f"\n[cyan]Detected target column: '{detected_target}' from sample_submission.csv[/cyan]")
+                target_column = detected_target
+        except Exception:
+            pass
+
+    # Interactive prompts if not provided
+    if not target_column:
+        target_column = input("Target column name: ").strip() or "target"
+
+    if not problem_type:
+        console.print("\nProblem type:")
+        console.print("  1. binary (binary classification)")
+        console.print("  2. regression")
+        console.print("  3. multiclass (multiclass classification)")
+        choice = input("Choose (1/2/3): ").strip()
+        problem_type = {"1": "binary", "2": "regression", "3": "multiclass"}.get(choice, "binary")
+
+    if not metric:
+        default_metrics = {
+            "binary": "roc_auc",
+            "regression": "mean_absolute_error",
+            "multiclass": "accuracy"
+        }
+        metric = default_metrics.get(problem_type, "roc_auc")
+        console.print(f"Using default metric for {problem_type}: {metric}")
+
+    # Create config.py with customized values
+    config_content = f'''"""
+Configuration and constants for the competition
+"""
+
+from pathlib import Path
+
+# Project paths
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+CODE_DIR = PROJECT_ROOT / "code"
+SUBMISSIONS_DIR = PROJECT_ROOT / "submissions"
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
+
+# Data paths
+TRAIN_PATH = DATA_DIR / "train.csv"
+TEST_PATH = DATA_DIR / "test.csv"
+SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv"
+
+# Model settings
+RANDOM_SEED = 42
+N_FOLDS = 5
+
+# Target column
+TARGET_COLUMN = "{target_column}"
+
+# AutoGluon settings
+AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
+AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment
+AUTOGLUON_PROBLEM_TYPE = "{problem_type}"  # binary, regression, multiclass
+AUTOGLUON_EVAL_METRIC = "{metric}"  # evaluation metric
+
+# Competition details
+COMPETITION_NAME = "{project_name}"
+METRIC = "{metric.replace('mean_absolute_error', 'mae').replace('root_mean_squared_error', 'rmse')}"
+'''
+
+    config_path = project_root / "code/utils/config.py"
+    config_path.write_text(config_content)
+    console.print(f"\n[green]✓[/green] Customized code/utils/config.py")
+
+    # Customize baseline_autogluon.py
+    baseline_path = project_root / "code/models/baseline_autogluon.py"
+    baseline_content = baseline_path.read_text()
+    baseline_content = baseline_content.replace(
+        'cli_entry(default_project="playground-series-s5e11")',
+        f'cli_entry(default_project="{project_name}")'
+    )
+    baseline_path.write_text(baseline_content)
+    console.print(f"[green]✓[/green] Customized code/models/baseline_autogluon.py")
+
+    # Customize README.md
+    readme_path = project_root / "README.md"
+    readme_content = readme_path.read_text()
+    readme_content = readme_content.replace("playground-series-s5e11", project_name)
+    readme_content = readme_content.replace(
+        "Area under the ROC curve",
+        f"{metric} ({'lower is better' if 'error' in metric or 'loss' in metric else 'higher is better'})"
+    )
+    readme_path.write_text(readme_content)
+    console.print(f"[green]✓[/green] Customized README.md")
+
+    # Print summary
+    console.print("\n" + "="*60)
+    console.print(f"[green bold]✓ Project '{project_name}' initialized successfully![/green bold]")
+    console.print("="*60)
+
+    table = Table(title="Project Configuration", show_header=True)
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("Project Name", project_name)
+    table.add_row("Target Column", target_column)
+    table.add_row("Problem Type", problem_type)
+    table.add_row("Metric", metric)
+    table.add_row("Location", str(project_root))
+
+    console.print(table)
+
+    console.print("\n[cyan]Next steps:[/cyan]")
+    console.print(f"  1. Review configuration: {project_root}/code/utils/config.py")
+    console.print(f"  2. Run EDA: uv run python tools/experiment_manager.py eda --project {project_name}")
+    console.print(f"  3. Train baseline: uv run python tools/experiment_manager.py model --project {project_name} --experiment-id <EXP_ID> --template dev-gpu")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         description="Experiment workflow manager",
@@ -421,6 +673,16 @@ def build_parser():
 
     modules_parser = subparsers.add_parser("modules", help="List available modules")
     modules_parser.set_defaults(func=run_modules)
+
+    init_parser = subparsers.add_parser("init-project", help="Initialize new competition project")
+    init_parser.add_argument("--project", required=True, help="Competition slug from Kaggle")
+    init_parser.add_argument("--migrate", action="store_true", help="Migrate old project to new structure")
+    init_parser.add_argument("--target-column", help="Target column name")
+    init_parser.add_argument("--problem-type", choices=["binary", "regression", "multiclass"], help="Problem type")
+    init_parser.add_argument("--metric", help="Evaluation metric")
+    init_parser.add_argument("--skip-download", action="store_true", help="Skip data download")
+    init_parser.add_argument("--keep-zip", action="store_true", help="Keep zip file after extraction")
+    init_parser.set_defaults(func=run_init_project)
 
     model_parser = subparsers.add_parser("model", help="Run modeling module")
     model_parser.add_argument("--project", required=True)

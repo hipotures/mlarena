@@ -57,7 +57,7 @@ class ProjectContext:
 
 
 def load_project_context(project_name: str) -> ProjectContext:
-    project_root = (REPO_ROOT / project_name).resolve()
+    project_root = (REPO_ROOT / "projects" / "kaggle" / project_name).resolve()
     if not project_root.exists():
         raise FileNotFoundError(f"Project directory '{project_name}' not found at {project_root}")
 

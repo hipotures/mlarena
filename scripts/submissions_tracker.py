@@ -296,7 +296,8 @@ if __name__ == "__main__":
 
     # Determine project root
     script_path = Path(__file__).resolve()
-    competitions_root = script_path.parent.parent
+    repo_root = script_path.parent.parent
+    competitions_root = repo_root / "projects" / "kaggle"
     project_root = competitions_root / args.project
 
     if not project_root.exists():

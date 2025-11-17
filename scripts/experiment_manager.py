@@ -815,6 +815,96 @@ METRIC = "{metric.replace('mean_absolute_error', 'mae').replace('root_mean_squar
     console.print(f"  3. Train baseline: uv run python scripts/experiment_manager.py model --project {project_name} --experiment-id <EXP_ID> --template dev-gpu")
 
 
+def run_detect_metric(args):
+    """Detect problem type and metric for a competition using AI."""
+    from rich.console import Console
+    from rich.panel import Panel
+
+    console = Console()
+    project_name = args.project
+    project_root = REPO_ROOT / "projects" / "kaggle" / project_name
+
+    if not project_root.exists():
+        console.print(f"[red]Error: Project '{project_name}' not found[/red]")
+        sys.exit(1)
+
+    console.print(Panel.fit(
+        f"[bold cyan]AI Metric Detection[/bold cyan]\n"
+        f"Competition: {project_name}",
+        title="🤖 Detecting Problem Type & Metric"
+    ))
+
+    try:
+        console.print(f"[cyan]Fetching competition details from Kaggle...[/cyan]")
+        eval_text = fetch_kaggle_evaluation(project_name)
+
+        if not eval_text:
+            console.print(f"[red]Could not fetch Evaluation section from Kaggle[/red]")
+            sys.exit(1)
+
+        console.print(f"[dim]Evaluation section: {eval_text[:150]}...[/dim]\n")
+        console.print(f"[cyan]Asking AI to detect problem type and metric...[/cyan]")
+
+        # Import AI helper
+        sys.path.insert(0, str(Path(__file__).parent))
+        from ai_helper import call_ai_json
+
+        # Build prompt (same as init-project)
+        prompt = f"""You are a Kaggle competition expert analyzing evaluation metrics.
+
+Given the Evaluation section from a Kaggle competition, determine:
+1. problem_type: "binary", "regression", or "multiclass"
+2. metric: AutoGluon-compatible metric name
+
+EVALUATION SECTION:
+{eval_text}
+
+AUTOGLUON METRIC MAPPING (use exact names):
+- AUC/ROC/Area Under Curve → "roc_auc"
+- RMSE/Root Mean Squared Error → "root_mean_squared_error"
+- MAE/Mean Absolute Error → "mean_absolute_error"
+- Accuracy → "accuracy"
+- Log Loss/Logarithmic Loss → "log_loss"
+- F1 Score → "f1"
+- Precision → "precision"
+- Recall → "recall"
+
+PROBLEM TYPE RULES:
+- If predicting 0/1, True/False, or probability → "binary"
+- If predicting continuous number → "regression"
+- If predicting one of 3+ categories → "multiclass"
+
+Return ONLY valid JSON (no markdown, no explanation):
+{{"problem_type": "binary|regression|multiclass", "metric": "autogluon_metric_name"}}"""
+
+        ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
+
+        # Log AI interaction
+        log_file = log_ai_interaction(
+            project_root,
+            "detect_metric",
+            prompt=prompt,
+            response=json.dumps(ai_result, indent=2),
+            metadata={
+                "model": model,
+                "competition": project_name,
+                "eval_text_length": len(eval_text)
+            }
+        )
+
+        # Display results
+        console.print(f"\n[bold green]✓ AI Detection Complete[/bold green] ({model})")
+        console.print(f"  Problem Type: [cyan]{ai_result.get('problem_type', 'N/A')}[/cyan]")
+        console.print(f"  Metric: [cyan]{ai_result.get('metric', 'N/A')}[/cyan]")
+        console.print(f"\n[dim]Logged to: {log_file.relative_to(REPO_ROOT)}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         description="Experiment workflow manager",
@@ -855,6 +945,10 @@ def build_parser():
     init_parser.add_argument("--skip-download", action="store_true", help="Skip data download")
     init_parser.add_argument("--keep-zip", action="store_true", help="Keep zip file after extraction")
     init_parser.set_defaults(func=run_init_project)
+
+    detect_parser = subparsers.add_parser("detect-metric", help="Detect problem type and metric using AI")
+    detect_parser.add_argument("--project", required=True, help="Competition name (e.g., titanic)")
+    detect_parser.set_defaults(func=run_detect_metric)
 
     model_parser = subparsers.add_parser("model", help="Run modeling module")
     model_parser.add_argument("--project", required=True)

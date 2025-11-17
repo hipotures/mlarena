@@ -55,3 +55,20 @@ wheels/
 *.DS_Store
 
 **/experiments/exp-*/
+
+# Old/archived projects (legacy structure)
+projects/kaggle/playground-series-s4e2/
+projects/kaggle/playground-series-s4e3/
+projects/kaggle/playground-series-s4e4/
+projects/kaggle/playground-series-s4e5/
+projects/kaggle/playground-series-s4e6/
+projects/kaggle/playground-series-s4e10/
+projects/kaggle/playground-series-s4e11/
+projects/kaggle/playground-series-s4e12/
+projects/kaggle/playground-series-s5e1/
+projects/kaggle/playground-series-s5e6/
+projects/kaggle/playground-series-s5e7/
+projects/kaggle/playground-series-s5e9/
+
+# Migration/backup directories
+**/.old/

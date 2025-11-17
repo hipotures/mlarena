@@ -2,7 +2,7 @@
 Reusable AutoGluon training pipeline driven by competition configs.
 
 Usage:
-    uv run python tools/autogluon_runner.py --project playground-series-s5e11 \
+    uv run python scripts/autogluon_runner.py --project playground-series-s5e11 \
         --template dev-gpu --auto-submit
 """
 

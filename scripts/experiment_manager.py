@@ -796,13 +796,6 @@ def run_init_project(args):
     shutil.copy(template_project / "README.md", project_root / "README.md")
     console.print("  [green]✓[/green] README.md")
 
-    # code/models/baseline_autogluon.py (will customize later)
-    shutil.copy(
-        template_project / "code/models/baseline_autogluon.py",
-        project_root / "code/models/baseline_autogluon.py"
-    )
-    console.print("  [green]✓[/green] code/models/baseline_autogluon.py")
-
     # code/utils/submission.py (wrapper - use as-is)
     shutil.copy(
         template_project / "code/utils/submission.py",
@@ -1066,16 +1059,6 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
     config_path.write_text(config_content)
     console.print(f"\n[green]✓[/green] Customized code/utils/config.py")
 
-    # Customize baseline_autogluon.py
-    baseline_path = project_root / "code/models/baseline_autogluon.py"
-    baseline_content = baseline_path.read_text()
-    baseline_content = baseline_content.replace(
-        'cli_entry(default_project="playground-series-s5e11")',
-        f'cli_entry(default_project="{project_name}")'
-    )
-    baseline_path.write_text(baseline_content)
-    console.print(f"[green]✓[/green] Customized code/models/baseline_autogluon.py")
-
     # Customize README.md
     readme_path = project_root / "README.md"
     readme_content = readme_path.read_text()
@@ -1227,12 +1210,12 @@ def build_parser():
         epilog=(
             "Examples:\n"
             "  # Start EDA (auto experiment_id)\n"
-            "  uv run python tools/experiment_manager.py eda --project playground-series-s5e11\n\n"
+            "  uv run python scripts/experiment_manager.py eda --project playground-series-s5e11\n\n"
             "  # Train model using template fast-cpu and resume ID\n"
-            "  uv run python tools/experiment_manager.py model --project playground-series-s5e11 "
+            "  uv run python scripts/experiment_manager.py model --project playground-series-s5e11 "
             "--experiment-id exp-20250101-010101 --template fast-cpu --skip-submit\n\n"
             "  # Submit existing CSV and fetch score\n"
-            "  uv run python tools/experiment_manager.py submit --project playground-series-s5e11 "
+            "  uv run python scripts/experiment_manager.py submit --project playground-series-s5e11 "
             "--experiment-id exp-20250101-010101\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

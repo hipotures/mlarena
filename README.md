@@ -62,6 +62,15 @@ competition-name/
 
 `tools/` at the repository root contains the reusable runners (`autogluon_runner.py`, `experiment_manager.py`, `submission_workflow.py`, etc.). Competition folders only hold lightweight configuration and any extra scripts that are truly competition-specific. Large artefacts (models, downloaded zips) stay ignored via each project's `.gitignore`.
 
+`code/utils/config.py` is the only file you normally edit per competition. The init script fills in:
+- Data paths (`TRAIN_PATH`, `TEST_PATH`, `SAMPLE_SUBMISSION_PATH`) and Kaggle metadata (`COMPETITION_NAME`, `METRIC`).
+- Experiment knobs (`RANDOM_SEED`, `N_FOLDS`, AutoGluon preset/problem type/time limit).
+- Submission wiring:
+  - `ID_COLUMN` and `IGNORED_COLUMNS` are inferred from `*submission*.csv` so every model drops the identifier before training but reuses it for Kaggle uploads.
+  - `SUBMISSION_PROBAS` signals whether the submission should contain probabilities (`True`, e.g., ROC AUC) or discrete labels (`False`, e.g., accuracy). This is auto-detected from the Evaluation text but can be overridden manually.
+
+All shared tools (runner, submissions tracker, validation) rely on these fields, so keep them in sync with the competition rules.
+
 ## Creating a New Competition Project
 
 1. Accept the rules on Kaggle and grab the competition slug.

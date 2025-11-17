@@ -191,29 +191,6 @@ uv run python scripts/autogluon_runner.py \
     --skip-submit
 ```
 
-### Legacy Workflow (Per-Competition Scripts)
-
-Competition-specific wrappers in `code/models/baseline_autogluon.py` are thin wrappers around the runner:
-
-```bash
-# Train model directly (ALWAYS commit first!)
-git status
-git add code/
-git commit -m "feat: baseline model"
-uv run python projects/kaggle/[competition-name]/code/models/baseline_autogluon.py
-
-# Manual Kaggle submission
-cd projects/kaggle/[competition-name]/submissions
-kaggle competitions submit -c [competition-name] \
-    -f submission-TIMESTAMP.csv \
-    -m "Model description with local CV"
-cd ../..
-
-# Manual score update
-python scripts/submissions_tracker.py --project [competition-name] \
-    update 1 --public 0.85123
-```
-
 ### Tracking & Reproducibility
 
 **View submissions:**
@@ -318,7 +295,7 @@ uv run python scripts/experiment_manager.py init-project \
 2. Copies template files from `config/templates/kaggle_competition/`
 3. Downloads and extracts data from Kaggle (unless `--skip-download`)
 4. Auto-detects target column from sample_submission.csv
-5. Customizes config.py, README.md, baseline_autogluon.py
+5. Customizes config.py and README.md
 6. Creates .gitignore and .gitkeep files
 
 **Flags:**
@@ -341,7 +318,6 @@ cp config/templates/kaggle_competition/.gitignore projects/kaggle/${COMP_NAME}/
 cp config/templates/kaggle_competition/README.md projects/kaggle/${COMP_NAME}/  # edit competition details
 cp config/templates/kaggle_competition/code/utils/*.py projects/kaggle/${COMP_NAME}/code/utils/
 cp config/templates/kaggle_competition/code/exploration/01_initial_eda.py projects/kaggle/${COMP_NAME}/code/exploration/
-cp config/templates/kaggle_competition/code/models/baseline_autogluon.py projects/kaggle/${COMP_NAME}/code/models/
 
 # Edit config.py with competition-specific settings:
 # - TARGET_COLUMN
@@ -371,6 +347,11 @@ AUTOGLUON_PRESET = "medium_quality"
 # Model settings
 RANDOM_SEED = 42
 N_FOLDS = 5
+
+# Submission settings
+ID_COLUMN = "PassengerId"          # Detected automatically from sample_submission
+IGNORED_COLUMNS = ["PassengerId"]  # Always dropped before training
+SUBMISSION_PROBAS = False          # False → send class labels (e.g., accuracy), True → send probabilities (e.g., ROC AUC)
 ```
 
 ## File Path Conventions

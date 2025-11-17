@@ -5,6 +5,7 @@ Experiment Manager - track modular pipeline state (EDA, model, submit, etc.).
 from __future__ import annotations
 
 import argparse
+import asyncio
 import errno
 import json
 import os
@@ -13,7 +14,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -100,6 +101,83 @@ def load_project_config(project_name: str):
     if str(code_dir) not in sys.path:
         sys.path.insert(0, str(code_dir))
     return __import__("utils.config", fromlist=["dummy"])
+
+
+PROFILE_REMOVE_KEYS = {
+    "value_counts_without_nan",
+    "value_counts_index_sorted",
+    "histogram",
+    "histogram_length",
+    "character_counts",
+    "block_alias_values",
+    "category_alias_values",
+    "block_alias_char_counts",
+    "script_char_counts",
+    "category_alias_char_counts",
+    "package",
+    "analysis",
+    "time_index_analysis",
+}
+WORD_COUNT_LIMIT = 50
+
+
+def _sanitize_profile_payload(payload: Any) -> Any:
+    """Remove heavy sections from the ydata profile output."""
+
+    def _clean(node: Any) -> Any:
+        if isinstance(node, dict):
+            cleaned = {}
+            for key, value in node.items():
+                if key in PROFILE_REMOVE_KEYS:
+                    continue
+                if key == "word_counts" and isinstance(value, dict):
+                    cleaned[key] = value if len(value) <= WORD_COUNT_LIMIT else {}
+                    continue
+                cleaned[key] = _clean(value)
+            return cleaned
+        if isinstance(node, list):
+            return [_clean(item) for item in node]
+        return node
+
+    return _clean(payload)
+
+
+def _infer_problem_type_from_series(series: pd.Series) -> str:
+    """Best-effort ML task detection using the target column."""
+    values = series.dropna()
+    n_unique = int(values.nunique())
+    if n_unique <= 2:
+        return "binary"
+    if pd.api.types.is_numeric_dtype(values):
+        ratio = n_unique / max(len(values), 1)
+        if pd.api.types.is_integer_dtype(values) and n_unique <= 20:
+            return "multiclass"
+        if ratio < 0.05 and n_unique <= 50:
+            return "multiclass"
+        return "regression"
+    return "multiclass"
+
+
+def _summarize_target(series: pd.Series) -> Dict[str, Any]:
+    """Summarize target distribution for downstream tooling."""
+
+    def _format_key(value: Any) -> str:
+        if pd.isna(value):
+            return "<NA>"
+        return str(value)
+
+    counts = series.value_counts(dropna=False)
+    total = int(counts.sum())
+    counts_dict = {_format_key(idx): int(val) for idx, val in counts.items()}
+    dist_dict = {_format_key(idx): float(val / total) if total else 0.0 for idx, val in counts.items()}
+
+    return {
+        "dtype": str(series.dtype),
+        "num_unique": int(series.nunique(dropna=True)),
+        "counts": counts_dict,
+        "proportions": dist_dict,
+        "example_values": series.head(5).tolist(),
+    }
 
 
 @dataclass
@@ -254,27 +332,131 @@ def run_eda(args):
     manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
     manager.start_module("eda", {"notes": args.notes or ""}, allow_restart=True)
     try:
+        try:
+            from ydata_profiling import ProfileReport
+        except ImportError as exc:
+            raise RuntimeError("ydata-profiling is required for the EDA step. Run `uv sync` first.") from exc
+
         config = load_project_config(args.project)
         train_df = pd.read_csv(config.TRAIN_PATH)
         test_df = pd.read_csv(config.TEST_PATH)
+
+        print(f"[EDA] Running ydata-profiling on {config.TRAIN_PATH}...")
+        train_profile = ProfileReport(
+            train_df,
+            title=f"{args.project} - YData Profiling",
+            minimal=True,
+            infer_dtypes=True,
+            progress_bar=False,
+        )
+
+        train_profile_html_path = manager.artifact_path("eda/ydata_profile.html")
+        train_profile_json_path = manager.artifact_path("eda/ydata_profile.json")
+        train_profile_json_min_path = manager.artifact_path("eda/ydata_profile_min.json")
+
+        train_profile.to_file(str(train_profile_html_path))
+        train_raw_json = train_profile.to_json()
+        train_profile_json_path.write_text(train_raw_json)
+
+        train_trimmed_payload = _sanitize_profile_payload(json.loads(train_raw_json))
+        train_profile_json_min_path.write_text(json.dumps(train_trimmed_payload, indent=2))
+
+        print(f"[EDA] Running ydata-profiling on {config.TEST_PATH}...")
+        test_profile = ProfileReport(
+            test_df,
+            title=f"{args.project} - YData Profiling (Test)",
+            minimal=True,
+            infer_dtypes=True,
+            progress_bar=False,
+        )
+
+        test_profile_html_path = manager.artifact_path("eda/ydata_profile_test.html")
+        test_profile_json_path = manager.artifact_path("eda/ydata_profile_test.json")
+        test_profile_json_min_path = manager.artifact_path("eda/ydata_profile_test_min.json")
+
+        test_profile.to_file(str(test_profile_html_path))
+        test_raw_json = test_profile.to_json()
+        test_profile_json_path.write_text(test_raw_json)
+
+        test_trimmed_payload = _sanitize_profile_payload(json.loads(test_raw_json))
+        test_profile_json_min_path.write_text(json.dumps(test_trimmed_payload, indent=2))
+
+        target_column = getattr(config, "TARGET_COLUMN", None)
+        target_summary = None
+        problem_type_guess = None
+        if target_column and target_column in train_df.columns:
+            target_series = train_df[target_column]
+            target_summary = _summarize_target(target_series)
+            problem_type_guess = _infer_problem_type_from_series(target_series)
+
+        train_profile_html_rel = train_profile_html_path.relative_to(manager.project_root)
+        train_profile_json_rel = train_profile_json_path.relative_to(manager.project_root)
+        train_profile_json_min_rel = train_profile_json_min_path.relative_to(manager.project_root)
+
+        test_profile_html_rel = test_profile_html_path.relative_to(manager.project_root)
+        test_profile_json_rel = test_profile_json_path.relative_to(manager.project_root)
+        test_profile_json_min_rel = test_profile_json_min_path.relative_to(manager.project_root)
+
         summary = {
-            "train_shape": train_df.shape,
-            "test_shape": test_df.shape,
-            "columns": train_df.columns.tolist(),
+            "profiles": {
+                "train": {
+                    "shape": list(train_df.shape),
+                    "columns": train_df.columns.tolist(),
+                    "html": str(train_profile_html_rel),
+                    "json": str(train_profile_json_rel),
+                    "json_min": str(train_profile_json_min_rel),
+                    "summary": train_trimmed_payload,
+                },
+                "test": {
+                    "shape": list(test_df.shape),
+                    "columns": test_df.columns.tolist(),
+                    "html": str(test_profile_html_rel),
+                    "json": str(test_profile_json_rel),
+                    "json_min": str(test_profile_json_min_rel),
+                    "summary": test_trimmed_payload,
+                },
+            },
         }
-        if hasattr(config, "TARGET_COLUMN") and config.TARGET_COLUMN in train_df.columns:
-            summary["target_distribution"] = train_df[config.TARGET_COLUMN].value_counts(normalize=True).to_dict()
+        if target_column:
+            summary["target_column"] = target_column
+        if target_summary:
+            summary["target_analysis"] = target_summary
+        if problem_type_guess:
+            summary["problem_type_guess"] = problem_type_guess
+
         stats_path = manager.artifact_path("eda_summary.json")
         with open(stats_path, "w") as f:
             json.dump(summary, f, indent=2)
-        manager.complete_module(
-            "eda",
-            {
-                "summary_file": str(stats_path.relative_to(manager.project_root)),
-                "train_shape": train_df.shape,
-                "test_shape": test_df.shape,
+
+        module_payload = {
+            "summary_file": str(stats_path.relative_to(manager.project_root)),
+            "problem_type_guess": problem_type_guess,
+            "profiles": {
+                "train": {
+                    "shape": train_df.shape,
+                    "columns": train_df.columns.tolist(),
+                    "html": str(train_profile_html_rel),
+                    "json": str(train_profile_json_rel),
+                    "json_min": str(train_profile_json_min_rel),
+                },
+                "test": {
+                    "shape": test_df.shape,
+                    "columns": test_df.columns.tolist(),
+                    "html": str(test_profile_html_rel),
+                    "json": str(test_profile_json_rel),
+                    "json_min": str(test_profile_json_min_rel),
+                },
             },
-        )
+        }
+
+        manager.complete_module("eda", module_payload)
+
+        print(f"[EDA] Saved train HTML report to {train_profile_html_rel}")
+        print(f"[EDA] Saved train trimmed JSON report to {train_profile_json_min_rel}")
+        print(f"[EDA] Saved test HTML report to {test_profile_html_rel}")
+        print(f"[EDA] Saved test trimmed JSON report to {test_profile_json_min_rel}")
+        if problem_type_guess:
+            print(f"[EDA] Detected problem type ({target_column}): {problem_type_guess}")
         print(f"[EDA] Experiment {manager.experiment_id} summary saved to {stats_path}")
     except Exception as exc:
         manager.fail_module("eda", str(exc))
@@ -308,6 +490,15 @@ def run_model(args):
     manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
     if args.experiment_id is None:
         print(f"[Model] Using new experiment ID: {manager.experiment_id}")
+    require_eda = getattr(args, "require_eda", False)
+    if getattr(args, "skip_eda_check", False):
+        require_eda = False
+    if require_eda:
+        try:
+            manager.require("eda")
+        except ModuleStateError as exc:
+            print(f"[Model] {exc}")
+            return
     existing = manager.get_module("model")
     if existing and existing.get("status") == "completed":
         print(
@@ -336,6 +527,8 @@ def run_model(args):
         cmd.append("--skip-git")
     if args.force_extreme:
         cmd.append("--force-extreme")
+    if args.require_eda:
+        cmd.append("--require-eda")
     if args.skip_eda_check:
         cmd.append("--skip-eda-check")
     if args.time_limit is not None:
@@ -422,61 +615,113 @@ def run_fetch_score(args):
     subprocess.run(cmd, check=True)
 
 
-def fetch_kaggle_evaluation(competition_slug: str) -> str:
-    """
-    Fetch Evaluation info from Kaggle competition.
+PLAYWRIGHT_EVAL_SCRIPT = """
+() => {
+  const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+  const headingTags = ['H1','H2','H3','H4','H5','H6'];
+  const headings = Array.from(document.querySelectorAll(headingTags.join(',')));
+  const evalHeading = headings.find(
+    (node) => normalize(node.textContent).toLowerCase() === 'evaluation'
+  );
+  const collectSiblings = (start) => {
+    const parts = [];
+    let cursor = start.nextElementSibling;
+    while (cursor) {
+      if (headingTags.includes(cursor.tagName)) {
+        break;
+      }
+      const text = normalize(cursor.innerText || cursor.textContent || '');
+      if (text) {
+        parts.push(text);
+      }
+      cursor = cursor.nextElementSibling;
+    }
+    return parts.join('\\n\\n');
+  };
+  if (evalHeading) {
+    const section = evalHeading.closest('section');
+    if (section) {
+      const sectionText = normalize(section.innerText || section.textContent || '');
+      if (sectionText) {
+        return sectionText;
+      }
+    }
+    const fallbackText = collectSiblings(evalHeading);
+    if (fallbackText) {
+      return fallbackText;
+    }
+  }
+  const blocks = Array.from(document.querySelectorAll('section, article, div'));
+  for (const block of blocks) {
+    const text = normalize(block.innerText || block.textContent || '');
+    if (text.toLowerCase().startsWith('evaluation')) {
+      return text;
+    }
+  }
+  return '';
+}
+"""
 
-    Simple approach: Use sample_submission.csv analysis + competition category.
-    Most Kaggle competitions follow standard patterns:
-    - Binary classification (0/1 predictions) → ROC AUC
-    - Regression (continuous values) → RMSE/MAE
-    - Multiclass (3+ classes) → Log Loss/Accuracy
 
-    Args:
-        competition_slug: Kaggle competition identifier (e.g., 'titanic')
+def _resolve_cdp_url(custom_url: Optional[str]) -> Optional[str]:
+    if custom_url is not None:
+        return custom_url or None
+    env_url = os.environ.get("KAGGLE_CDP_URL") or os.environ.get("CDP_URL")
+    if env_url is not None:
+        return env_url or None
+    return "http://localhost:9222"
 
-    Returns:
-        Evaluation hint text based on sample_submission pattern
 
-    """
+async def _fetch_overview_section_via_cdp(competition_slug: str, cdp_url: str) -> str:
+    """Connect to Chrome via CDP and scrape the Evaluation section text."""
+    from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_playwright
+
+    playwright = None
     try:
-        from pathlib import Path
-        import pandas as pd
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.connect_over_cdp(cdp_url)
+        contexts = browser.contexts
+        if not contexts:
+            raise RuntimeError("No browser contexts available via CDP")
+        context = contexts[0]
+        pages = context.pages
+        page = pages[0] if pages else await context.new_page()
+        url = f"https://www.kaggle.com/competitions/{competition_slug}/overview"
+        try:
+            await page.goto(url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(1000)
+        except PlaywrightTimeoutError:
+            return ""
+        text = await page.evaluate(PLAYWRIGHT_EVAL_SCRIPT)
+        return (text or "").strip()
+    finally:
+        if playwright:
+            await playwright.stop()
 
-        # Try to read any *submission*.csv file
-        project_root = REPO_ROOT / "projects" / "kaggle" / competition_slug
-        data_dir = project_root / "data"
 
-        sample_path = None
-        if data_dir.exists():
-            submission_files = list(data_dir.glob("*submission*.csv"))
-            if submission_files:
-                sample_path = submission_files[0]
+def fetch_kaggle_evaluation(competition_slug: str, cdp_url: Optional[str] = None) -> str:
+    """
+    Retrieve Evaluation section text for a Kaggle competition.
 
-        if sample_path:
-            sample = pd.read_csv(sample_path, nrows=5)
-            if len(sample.columns) >= 2:
-                target_col = sample.columns[1]
-                target_values = sample[target_col]
+    Requires an active Chrome instance with remote debugging enabled.
+    """
+    resolved_cdp = _resolve_cdp_url(cdp_url)
+    if not resolved_cdp:
+        raise RuntimeError(
+            "CDP endpoint not configured. Set KAGGLE_CDP_URL or pass --cdp-url to scrape the Evaluation section."
+        )
 
-                # Analyze target pattern
-                if target_values.dtype in ['float64', 'float32']:
-                    # Check if probabilities (0-1 range) or continuous
-                    if (target_values >= 0).all() and (target_values <= 1).all():
-                        return "Submissions evaluated on probability predictions (0-1 range). Likely uses ROC AUC or Log Loss metric."
-                    else:
-                        return "Submissions evaluated on continuous value predictions. Likely uses RMSE or MAE metric."
-                elif target_values.dtype in ['int64', 'int32']:
-                    unique_vals = target_values.nunique()
-                    if unique_vals == 2:
-                        return "Submissions evaluated on binary classification (0/1). Likely uses ROC AUC metric."
-                    else:
-                        return f"Submissions evaluated on multiclass classification ({unique_vals} classes). Likely uses Log Loss or Accuracy metric."
+    try:
+        evaluation = asyncio.run(_fetch_overview_section_via_cdp(competition_slug, resolved_cdp))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to fetch evaluation via CDP ({resolved_cdp}): {exc}") from exc
 
-        return ""
-
-    except Exception:
-        return ""  # Graceful fallback
+    if not evaluation:
+        raise RuntimeError(
+            f"Could not extract Evaluation section via CDP ({resolved_cdp}). "
+            "Ensure the Kaggle page is accessible and you are logged in."
+        )
+    return evaluation
 
 
 def run_init_project(args):
@@ -551,13 +796,6 @@ def run_init_project(args):
     shutil.copy(template_project / "README.md", project_root / "README.md")
     console.print("  [green]✓[/green] README.md")
 
-    # code/exploration/01_initial_eda.py
-    shutil.copy(
-        template_project / "code/exploration/01_initial_eda.py",
-        project_root / "code/exploration/01_initial_eda.py"
-    )
-    console.print("  [green]✓[/green] code/exploration/01_initial_eda.py")
-
     # code/models/baseline_autogluon.py (will customize later)
     shutil.copy(
         template_project / "code/models/baseline_autogluon.py",
@@ -614,30 +852,57 @@ def run_init_project(args):
     target_column = args.target_column
     problem_type = args.problem_type
     metric = args.metric
+    submit_probabilities = None
+    if args.submit_probas:
+        submit_probabilities = True
+    elif args.submit_labels:
+        submit_probabilities = False
 
     # Try to detect from any *submission*.csv file
     sample_path = None
+    sample_submission_literal = 'DATA_DIR / "sample_submission.csv"'
     submission_files = list((project_root / "data").glob("*submission*.csv"))
     if submission_files:
         sample_path = submission_files[0]
+        sample_submission_literal = f'DATA_DIR / "{sample_path.name}"'
 
-    if sample_path and not target_column:
+    sample_columns = []
+    if sample_path:
         try:
-            sample = pd.read_csv(sample_path, nrows=1)
-            if len(sample.columns) >= 2:
-                detected_target = sample.columns[1]
-                console.print(f"\n[cyan]Detected target column: '{detected_target}' from {sample_path.name}[/cyan]")
-                target_column = detected_target
+            sample_preview = pd.read_csv(sample_path, nrows=1)
+            sample_columns = sample_preview.columns.tolist()
         except Exception:
-            pass
+            sample_columns = []
+
+    if sample_columns and not target_column and len(sample_columns) >= 2:
+        detected_target = sample_columns[-1]
+        console.print(f"\n[cyan]Detected target column: '{detected_target}' from {sample_path.name}[/cyan]")
+        target_column = detected_target
+
+    id_column = args.id_column
+    if id_column:
+        console.print(f"[cyan]Using ID column from arguments: '{id_column}'[/cyan]")
+    elif sample_columns:
+        candidate_id = sample_columns[0]
+        if candidate_id != target_column:
+            id_column = candidate_id
+            console.print(f"[cyan]Detected ID column: '{id_column}' from {sample_path.name}[/cyan]")
+
+    if not id_column:
+        id_column = "id"
+        console.print(f"[yellow]ID column not specified; defaulting to '{id_column}'[/yellow]")
 
     # Try AI-based detection first
     if not problem_type or not metric:
         try:
             console.print(f"\n[cyan]Fetching competition details from Kaggle...[/cyan]")
-            eval_text = fetch_kaggle_evaluation(project_name)
+            eval_text = fetch_kaggle_evaluation(project_name, args.cdp_url)
+        except RuntimeError as exc:
+            console.print(f"[yellow]Skipping AI detection: {exc}[/yellow]")
+            eval_text = ""
 
-            if eval_text:
+        if eval_text:
+            try:
                 console.print(f"[dim]Evaluation section: {eval_text[:100]}...[/dim]")
                 console.print(f"[cyan]Asking AI to detect problem type and metric...[/cyan]")
 
@@ -651,6 +916,7 @@ def run_init_project(args):
 Given the Evaluation section from a Kaggle competition, determine:
 1. problem_type: "binary", "regression", or "multiclass"
 2. metric: AutoGluon-compatible metric name
+3. submit_probabilities: true if the competition expects probability outputs in the submission (e.g., ROC AUC or log loss), false if it expects class labels or numeric values directly (e.g., accuracy, MAE)
 
 EVALUATION SECTION:
 {eval_text}
@@ -671,7 +937,7 @@ PROBLEM TYPE RULES:
 - If predicting one of 3+ categories → "multiclass"
 
 Return ONLY valid JSON (no markdown, no explanation):
-{{"problem_type": "binary|regression|multiclass", "metric": "autogluon_metric_name"}}"""
+{{"problem_type": "binary|regression|multiclass", "metric": "autogluon_metric_name", "submit_probabilities": true|false}}"""
 
                 ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
 
@@ -698,17 +964,17 @@ Return ONLY valid JSON (no markdown, no explanation):
                         problem_type = problem_type or detected_type
                         metric = metric or detected_metric
                         console.print(f"[green]✓ AI detected ({model}): {problem_type} / {metric}[/green]")
+                        if submit_probabilities is None and "submit_probabilities" in ai_result:
+                            submit_probabilities = bool(ai_result["submit_probabilities"])
                     else:
                         console.print(f"[yellow]AI returned invalid problem_type: {detected_type}[/yellow]")
                 else:
                     console.print(f"[yellow]AI response missing required fields[/yellow]")
 
-            else:
-                console.print(f"[yellow]Could not fetch Evaluation section from Kaggle[/yellow]")
-
-        except Exception as e:
-            console.print(f"[yellow]AI detection failed: {e}[/yellow]")
-            # Continue to interactive prompts
+            except Exception as e:
+                console.print(f"[yellow]AI detection failed: {e}[/yellow]")
+        else:
+            console.print(f"[yellow]Could not fetch Evaluation section from Kaggle[/yellow]")
 
     # Interactive prompts if not provided (fallback)
     if not target_column:
@@ -731,6 +997,26 @@ Return ONLY valid JSON (no markdown, no explanation):
         metric = default_metrics.get(problem_type, "roc_auc")
         console.print(f"Using default metric for {problem_type}: {metric}")
 
+    if submit_probabilities is None:
+        proba_metrics = {"roc_auc", "log_loss", "brier_score"}
+        submit_probabilities = metric in proba_metrics
+
+    ignored_columns = list(args.ignore_columns or [])
+    if id_column and id_column != target_column:
+        ignored_columns.append(id_column)
+    # Deduplicate while preserving order
+    seen = set()
+    cleaned_ignored = []
+    for col in ignored_columns:
+        if not col or col in seen:
+            continue
+        seen.add(col)
+        cleaned_ignored.append(col)
+    ignored_columns = cleaned_ignored
+
+    submit_probabilities = getattr(args, "submit_probabilities", None)
+    ignored_columns_literal = repr(ignored_columns)
+
     # Create config.py with customized values
     config_content = f'''"""
 Configuration and constants for the competition
@@ -748,7 +1034,7 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 # Data paths
 TRAIN_PATH = DATA_DIR / "train.csv"
 TEST_PATH = DATA_DIR / "test.csv"
-SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv"
+SAMPLE_SUBMISSION_PATH = {sample_submission_literal}
 
 # Model settings
 RANDOM_SEED = 42
@@ -756,6 +1042,12 @@ N_FOLDS = 5
 
 # Target column
 TARGET_COLUMN = "{target_column}"
+
+# Row identifier column (ignored when training)
+ID_COLUMN = "{id_column}"
+
+# Columns to ignore during training
+IGNORED_COLUMNS = {ignored_columns_literal}
 
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
@@ -766,6 +1058,8 @@ AUTOGLUON_EVAL_METRIC = "{metric}"  # evaluation metric
 # Competition details
 COMPETITION_NAME = "{project_name}"
 METRIC = "{metric.replace('mean_absolute_error', 'mae').replace('root_mean_squared_error', 'rmse')}"
+# Submission format
+SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
 '''
 
     config_path = project_root / "code/utils/config.py"
@@ -792,6 +1086,32 @@ METRIC = "{metric.replace('mean_absolute_error', 'mae').replace('root_mean_squar
     )
     readme_path.write_text(readme_content)
     console.print(f"[green]✓[/green] Customized README.md")
+
+    # Initial EDA (train/test) stored under experiments/init
+    train_path = project_root / "data" / "train.csv"
+    test_path = project_root / "data" / "test.csv"
+    if train_path.exists() and test_path.exists():
+        console.print("\n[cyan]Generating initial EDA (experiments/init)...[/cyan]")
+        try:
+            eda_args = argparse.Namespace(
+                project=project_name,
+                experiment_id="init",
+                notes="Project initialization EDA",
+            )
+            run_eda(eda_args)
+            console.print(f"[green]✓[/green] Initial EDA stored under experiments/init/")
+        except Exception as exc:
+            console.print(f"[red]Initial EDA failed: {exc}[/red]")
+            console.print(
+                f"[yellow]Fix the issue (ensure data files exist) and rerun: "
+                f"uv run python scripts/experiment_manager.py eda --project {project_name} --experiment-id init[/yellow]"
+            )
+            sys.exit(1)
+    else:
+        console.print(
+            "\n[yellow]Initial EDA skipped: train.csv/test.csv not found. "
+            f"Run `uv run python scripts/experiment_manager.py eda --project {project_name} --experiment-id init` once data is available.[/yellow]"
+        )
 
     # Print summary
     console.print("\n" + "="*60)
@@ -836,11 +1156,7 @@ def run_detect_metric(args):
 
     try:
         console.print(f"[cyan]Fetching competition details from Kaggle...[/cyan]")
-        eval_text = fetch_kaggle_evaluation(project_name)
-
-        if not eval_text:
-            console.print(f"[red]Could not fetch Evaluation section from Kaggle[/red]")
-            sys.exit(1)
+        eval_text = fetch_kaggle_evaluation(project_name, args.cdp_url)
 
         console.print(f"[dim]Evaluation section: {eval_text[:150]}...[/dim]\n")
         console.print(f"[cyan]Asking AI to detect problem type and metric...[/cyan]")
@@ -942,12 +1258,18 @@ def build_parser():
     init_parser.add_argument("--target-column", help="Target column name")
     init_parser.add_argument("--problem-type", choices=["binary", "regression", "multiclass"], help="Problem type")
     init_parser.add_argument("--metric", help="Evaluation metric")
+    init_parser.add_argument("--id-column", help="Identifier column name (optional)")
+    init_parser.add_argument("--ignore-columns", nargs="*", help="Columns to ignore during training")
+    init_parser.add_argument("--submit-probas", action="store_true", help="Force submissions to use probabilities")
+    init_parser.add_argument("--submit-labels", action="store_true", help="Force submissions to use discrete labels")
     init_parser.add_argument("--skip-download", action="store_true", help="Skip data download")
     init_parser.add_argument("--keep-zip", action="store_true", help="Keep zip file after extraction")
+    init_parser.add_argument("--cdp-url", help="CDP endpoint for scraping Kaggle overview (default: env or localhost)")
     init_parser.set_defaults(func=run_init_project)
 
     detect_parser = subparsers.add_parser("detect-metric", help="Detect problem type and metric using AI")
     detect_parser.add_argument("--project", required=True, help="Competition name (e.g., titanic)")
+    detect_parser.add_argument("--cdp-url", help="CDP endpoint for scraping Kaggle overview (default: env or localhost)")
     detect_parser.set_defaults(func=run_detect_metric)
 
     model_parser = subparsers.add_parser("model", help="Run modeling module")
@@ -962,7 +1284,8 @@ def build_parser():
     model_parser.add_argument("--auto-submit", action="store_true")
     model_parser.add_argument("--skip-score-fetch", action="store_true")
     model_parser.add_argument("--skip-git", action="store_true")
-    model_parser.add_argument("--skip-eda-check", action="store_true")
+    model_parser.add_argument("--require-eda", action="store_true", help="Require EDA module completion before modeling")
+    model_parser.add_argument("--skip-eda-check", action="store_true", help="Deprecated: model no longer enforces EDA")
     model_parser.add_argument("--wait-seconds", type=int, default=30)
     model_parser.add_argument("--cdp-url", default="http://localhost:9222")
     model_parser.add_argument("--kaggle-message")

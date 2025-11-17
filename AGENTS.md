@@ -101,6 +101,11 @@ chmod 600 ~/.kaggle/kaggle.json
 uv run playwright install chromium
 ```
 
+### Metric Detection (CDP)
+- AI-based metric detection (`init-project`, `detect-metric`) now scrapes the Evaluation section directly from Kaggle via Playwright + Chrome CDP.
+- Start Chrome with `--remote-debugging-port=9222` (and stay logged into Kaggle) before running those commands.
+- Configure the endpoint via `KAGGLE_CDP_URL` or pass `--cdp-url http://127.0.0.1:9222`; without a reachable CDP session the detection step aborts (no sample_submission guessing fallback).
+
 ### Modern Workflow (Recommended)
 
 The repository uses a **modular experiment pipeline** managed by `scripts/experiment_manager.py`. Each experiment progresses through modules: EDA → Model → Submit → Fetch-score.
@@ -252,7 +257,7 @@ python scripts/experiment_logger.py --project [competition-name] restore <EXPERI
 # 1. EDA creates experiment ID
 uv run python scripts/experiment_manager.py eda --project playground-series-s5e11
 
-# 2. Model requires EDA completion (enforced unless --skip-eda-check)
+# 2. Model (optionally enforce EDA with --require-eda)
 uv run python scripts/experiment_manager.py model \
     --project playground-series-s5e11 \
     --experiment-id exp-20251117-020830 \
@@ -493,10 +498,10 @@ See `scripts/README_KAGGLE.md` for details.
    - `submission.py` auto-reads from `sample_submission.csv`
    - Fallback to competition-specific default in config
 
-5. **Running model without EDA** → Pipeline error
-   - `experiment_manager.py model` requires EDA module to be completed first
-   - Use `--skip-eda-check` to bypass (not recommended)
-   - Or run EDA first: `uv run python scripts/experiment_manager.py eda --project ...`
+5. **Skipping EDA when data changed** → Hidden schema drifts
+   - `init-project` automatically generates baseline train/test reports under `experiments/init`
+   - Per-experiment EDA is optional; add `--require-eda` when launching the model module if you want it enforced
+   - Re-run `uv run python scripts/experiment_manager.py eda --project ...` whenever you materially change the data
 
 6. **Module already completed** → Won't re-run
    - Modules won't execute if already marked `completed`

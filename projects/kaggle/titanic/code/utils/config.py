@@ -38,3 +38,5 @@ AUTOGLUON_EVAL_METRIC = "accuracy"  # evaluation metric
 # Competition details
 COMPETITION_NAME = "titanic"
 METRIC = "accuracy"
+# Submission format
+SUBMISSION_PROBAS = False

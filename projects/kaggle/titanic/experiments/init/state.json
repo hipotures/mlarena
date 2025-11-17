@@ -1,9 +1,9 @@
 {
   "experiment_id": "init",
   "project": "titanic",
-  "created_at": "2025-11-17T16:57:21Z",
+  "created_at": "2025-11-17T17:23:58Z",
   "git": {
-    "hash": "768c25c3efccfdc199495d93b795f08e488dad56",
+    "hash": "5034704765dd087643d427a7ea4685879b72bc03",
     "branch": "main",
     "has_uncommitted_changes": true
   },
@@ -11,8 +11,8 @@
     "eda": {
       "notes": "Project initialization EDA",
       "status": "completed",
-      "started_at": "2025-11-17T16:57:21Z",
-      "updated_at": "2025-11-17T16:57:28Z",
+      "started_at": "2025-11-17T17:23:58Z",
+      "updated_at": "2025-11-17T17:24:04Z",
       "pid": null,
       "summary_file": "experiments/init/eda_summary.json",
       "problem_type_guess": "binary",
@@ -63,7 +63,7 @@
           "json_min": "experiments/init/eda/ydata_profile_test_min.json"
         }
       },
-      "finished_at": "2025-11-17T16:57:28Z"
+      "finished_at": "2025-11-17T17:24:04Z"
     }
   }
 }

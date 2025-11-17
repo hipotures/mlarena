@@ -16,6 +16,16 @@ Competition workspaces sit in directories such as `playground-series-s5e11/` or 
 
 Overrides (`--time-limit`, `--preset`, `--use-gpu`) remain available when a template needs tweaking. Use `uv run python tools/submissions_tracker.py --project playground-series-s5e11 list` to audit historical scores and `uv run python tools/experiment_logger.py --project playground-series-s5e11 list --limit 10` to inspect experiment metadata. Pull fresh data via `kaggle competitions download -c <competition>` from the relevant project directory; the CLI reads `~/.kaggle/kaggle.json` outside the repo.
 
+### Experiment Workflow
+
+`experiments/<experiment_id>.json` trzyma stan modułów. Standardowa ścieżka:
+
+1. **EDA:** `uv run python tools/experiment_manager.py eda --project playground-series-s5e11` (wydrukuje ID, np. `exp-20251117-011230`).
+2. **Model:** `uv run python tools/autogluon_runner.py --project playground-series-s5e11 --experiment-id exp-20251117-011230 --template dev-gpu ...`
+3. **Submit/Resume:** `uv run python tools/submission_workflow.py resume --project playground-series-s5e11 --filename submission-YYYYMMDDHHMMSS.csv --experiment-id exp-20251117-011230 --cdp-url http://127.0.0.1:9222`
+
+Każdy moduł dopisuje swoją sekcję (status, artefakty, wyniki). `uv run python tools/experiment_manager.py list --project playground-series-s5e11` wypisze stan wszystkich eksperymentów. Dzięki temu możesz odpalać moduły osobno, wznawiać pipeline od dowolnego kroku lub od razu zobaczyć, które submission odpowiada któremu kodowi.
+
 Submission automation is built into the runner: append `--auto-submit --wait-seconds 45` to push the CSV to Kaggle, wait for scoring, scrape the latest score via Playwright, update the tracker, and commit the code/state (omit `--auto-submit` to keep the interactive “Submit? [y/N]” prompt, or pass `--skip-submit` to opt out entirely). Customize the Kaggle description with `--kaggle-message "autogluon medium exp-2"` and tweak the CDP endpoint (`--cdp-url http://localhost:9222`) when connecting to an existing Chrome session.
 
 ## Coding Style & Naming Conventions

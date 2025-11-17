@@ -251,7 +251,15 @@ class KaggleScraper:
             return rows
 
         snapshot = await self.page.accessibility.snapshot()
-        return self._extract_rows_from_snapshot(snapshot, max_rows=max_rows)
+        rows = self._extract_rows_from_snapshot(snapshot, max_rows=max_rows)
+        if rows:
+            return rows
+
+        try:
+            body_text = await self.page.inner_text("body")
+            return self._extract_rows_from_body(body_text, max_rows=max_rows)
+        except Exception:
+            return []
 
     def _extract_rows_from_snapshot(
         self,
@@ -273,6 +281,19 @@ class KaggleScraper:
                 traverse(child)
 
         traverse(node)
+        return rows
+
+    def _extract_rows_from_body(self, text: str, max_rows: int = 10) -> List[str]:
+        import re
+
+        pattern = re.compile(r"(submission-\d+\.csv.*?)(?=submission-\d+\.csv|$)", re.DOTALL | re.IGNORECASE)
+        rows: List[str] = []
+        for match in pattern.findall(text):
+            chunk = match.strip()
+            if chunk:
+                rows.append(chunk)
+            if len(rows) >= max_rows:
+                break
         return rows
 
     def _node_text(self, node: Dict) -> str:
@@ -303,22 +324,33 @@ class KaggleScraper:
         public_score = parse_label("Public")
         private_score = parse_label("Private")
 
+        local_cv = None
+        local_match = re.search(r"local\s+([-+]?[0-9]*\.?[0-9]+)", text, re.IGNORECASE)
+        if local_match:
+            try:
+                local_cv = float(local_match.group(1))
+            except ValueError:
+                local_cv = None
+
         if public_score is None:
-            numbers = re.findall(r"[-+]?[0-9]*\.?[0-9]+", text)
-            if numbers:
+            floats = re.findall(r"[-+]?[0-9]*\.[0-9]+", text)
+            if floats:
                 try:
-                    public_score = float(numbers[0])
+                    public_score = float(floats[-1])
                 except ValueError:
                     public_score = None
-            if len(numbers) > 1 and private_score is None:
-                try:
-                    private_score = float(numbers[1])
-                except ValueError:
-                    private_score = None
+            elif private_score is None:
+                ints = re.findall(r"[-+]?[0-9]+", text)
+                if ints:
+                    try:
+                        public_score = float(ints[-1])
+                    except ValueError:
+                        public_score = None
 
         return {
             "public_score": public_score,
             "private_score": private_score,
+            "local_cv": local_cv,
         }
 
     async def get_current_page_data(self) -> Dict:

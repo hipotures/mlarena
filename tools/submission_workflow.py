@@ -24,6 +24,7 @@ from rich.panel import Panel
 
 from kaggle_scraper import KaggleScraper
 from submissions_tracker import SubmissionsTracker
+from experiment_manager import ExperimentManager
 
 console = Console()
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -67,6 +68,7 @@ class SubmissionRunner:
         skip_git: bool = False,
         extra_stage_paths: Optional[List[Path]] = None,
         resume_mode: bool = False,
+        experiment_id: Optional[str] = None,
     ):
         self.artifact = artifact
         self.kaggle_message = kaggle_message or self._default_message()
@@ -80,6 +82,18 @@ class SubmissionRunner:
         self.extra_stage_paths = extra_stage_paths or []
         self.repo_root = artifact.project_root.parent
         self.resume_mode = resume_mode
+        self.experiment_id = experiment_id
+        self._experiment_manager = None
+        if experiment_id:
+            project_name = artifact.project_root.name
+            self._experiment_manager = ExperimentManager.load_or_create(project_name, experiment_id)
+            self._experiment_manager.start_module(
+                "submit",
+                {
+                    "kaggle_message": self.kaggle_message,
+                    "resume_mode": resume_mode,
+                },
+            )
 
     def _default_message(self) -> str:
         parts = [self.artifact.model_name or "submission"]
@@ -107,7 +121,7 @@ class SubmissionRunner:
         if not self.skip_browser:
             score_data = asyncio.run(self._fetch_scores())
             if score_data and score_data.get("public_score") is not None:
-                self._update_tracker(score_data["public_score"])
+                self._update_tracker(score_data["public_score"], score_data=score_data)
             else:
                 console.print("[yellow]Could not fetch public score via Playwright.[/yellow]")
 
@@ -175,15 +189,18 @@ class SubmissionRunner:
         finally:
             await scraper.close()
 
-    def _update_tracker(self, public_score: float):
+    def _update_tracker(self, public_score: float, score_data: Optional[Dict[str, Any]] = None):
         tracker = SubmissionsTracker(self.artifact.project_root)
         tracker_id = self.artifact.tracker_id()
+        local_cv = self.artifact.local_cv_score
+        if local_cv is None and score_data:
+            local_cv = score_data.get("local_cv")
         if tracker_id is None:
             console.print("[yellow]Tracker entry missing; creating new submission entry.[/yellow]")
             entry = tracker.add_submission(
                 filename=self.artifact.filename,
                 model_name=self.artifact.model_name or self.artifact.filename,
-                local_cv_score=self.artifact.local_cv_score,
+                local_cv_score=local_cv,
                 notes=self.artifact.notes or "Auto-added via resume",
                 config=self.artifact.config,
                 public_score=public_score,
@@ -192,6 +209,25 @@ class SubmissionRunner:
             tracker_id = entry["id"]
         else:
             tracker.update_scores(submission_id=tracker_id, public_score=public_score)
+            if local_cv is not None and (self.artifact.tracker_entry is None or not self.artifact.tracker_entry.get("local_cv_score")):
+                for sub in tracker.submissions:
+                    if sub["id"] == tracker_id:
+                        sub["local_cv_score"] = local_cv
+                        tracker._save_submissions()
+                        self.artifact.local_cv_score = local_cv
+                        if self.artifact.tracker_entry:
+                            self.artifact.tracker_entry["local_cv_score"] = local_cv
+                        break
+        if self._experiment_manager:
+            payload = {
+                "public_score": public_score,
+                "local_cv": local_cv,
+                "tracker_id": tracker_id,
+                "submission_file": str(self.artifact.path.relative_to(self.artifact.project_root)),
+            }
+            if score_data and score_data.get("row_text"):
+                payload["snapshot"] = score_data["row_text"]
+            self._experiment_manager.complete_module("submit", payload)
 
     def _git_commit(self, score_data: Optional[Dict[str, Any]]):
         console.print("[bold blue]Staging files for git commit...[/bold blue]")
@@ -291,6 +327,7 @@ def _run_resume(args):
         skip_browser=args.skip_score_fetch,
         skip_git=args.skip_git,
         resume_mode=True,
+        experiment_id=args.experiment_id,
     )
     runner.execute()
 
@@ -307,6 +344,7 @@ def main():
     resume_parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes")
     resume_parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping (debug only)")
     resume_parser.add_argument("--kaggle-message", help="Override log message for resume action")
+    resume_parser.add_argument("--experiment-id", help="Experiment identifier to update (optional)")
 
     args = parser.parse_args()
 

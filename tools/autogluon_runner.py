@@ -21,6 +21,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from experiment_manager import ExperimentManager
+from submission_workflow import SubmissionRunner
+
 TOOLS_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = TOOLS_ROOT.parent
 
@@ -84,6 +87,8 @@ def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser.add_argument("--cdp-url", default="http://localhost:9222", help="Playwright CDP endpoint")
     parser.add_argument("--skip-score-fetch", action="store_true", help="Skip Playwright scraping of latest score")
     parser.add_argument("--skip-git", action="store_true", help="Do not stage/commit git changes automatically")
+    parser.add_argument("--experiment-id", help="Existing experiment identifier (auto-generated if omitted)")
+    parser.add_argument("--skip-eda-check", action="store_true", help="Do not require EDA module completion")
 
     args = parser.parse_args()
     if not args.project:
@@ -204,9 +209,25 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
 
 def run(args: argparse.Namespace, default_project: Optional[str] = None):
     context = load_project_context(args.project)
+    manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+    if not args.skip_eda_check:
+        try:
+            manager.require("eda")
+        except RuntimeError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            return
+
     params = resolve_template(args)
     params["template"] = args.template
     params["force_extreme"] = args.force_extreme
+
+    manager.start_module(
+        "model",
+        {
+            "template": params["template"],
+            "compute": params,
+        },
+    )
 
     result = train_autogluon(context, params)
 
@@ -214,11 +235,19 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
     console.print(f"Submission file: {result['submission'].path}")
     console.print(f"Local CV: {result['best_score']:.5f}")
 
+    manager.complete_module(
+        "model",
+        {
+            "template": params["template"],
+            "local_cv": result["best_score"],
+            "submission_file": str(result["submission"].path.relative_to(context.root)),
+            "config": params,
+        },
+    )
+
     if args.skip_submit:
         console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit).[/yellow]")
         return
-
-    from submission_workflow import SubmissionRunner  # Local import to avoid circular
 
     runner = SubmissionRunner(
         artifact=result["submission"],
@@ -229,6 +258,7 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
         prompt=not args.auto_submit,
         skip_browser=args.skip_score_fetch,
         skip_git=args.skip_git,
+        experiment_id=manager.experiment_id,
     )
     runner.execute()
 

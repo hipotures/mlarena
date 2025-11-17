@@ -2,11 +2,24 @@
 Utilities for creating and managing competition submissions
 """
 
-import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict
-from .config import SUBMISSIONS_DIR, SAMPLE_SUBMISSION_PATH, PROJECT_ROOT
+from typing import Dict, Optional
+
+import pandas as pd
+
+from .config import COMPETITION_NAME, PROJECT_ROOT, SAMPLE_SUBMISSION_PATH, SUBMISSIONS_DIR
+
+TOOLS_PATH = PROJECT_ROOT.parent / "tools"
+import sys  # noqa: E402  (needs PROJECT_ROOT)
+import inspect  # noqa: E402
+
+if str(TOOLS_PATH) not in sys.path:
+    sys.path.insert(0, str(TOOLS_PATH))
+
+from experiment_logger import ExperimentLogger  # noqa: E402
+from submission_workflow import SubmissionArtifact  # noqa: E402
+from submissions_tracker import SubmissionsTracker  # noqa: E402
 
 
 def create_submission(
@@ -71,22 +84,13 @@ def create_submission(
     print(f"  Shape: {submission.shape}")
 
     # Add to tracker if requested
+    experiment = None
+    tracker_entry = None
     if track:
         try:
-            import sys
-            import inspect
-            tools_path = PROJECT_ROOT.parent / "tools"
-            if str(tools_path) not in sys.path:
-                sys.path.insert(0, str(tools_path))
-
-            from submissions_tracker import SubmissionsTracker
-            from experiment_logger import ExperimentLogger
-
-            # Get calling code path
             frame = inspect.stack()[1]
             code_path = Path(frame.filename)
 
-            # Log experiment
             exp_logger = ExperimentLogger(PROJECT_ROOT)
             experiment = exp_logger.log_experiment(
                 model_name=model_name or filename_prefix,
@@ -95,23 +99,33 @@ def create_submission(
                 notes=notes
             )
 
-            # Add to submissions tracker with experiment info
             tracker = SubmissionsTracker(PROJECT_ROOT)
-            tracker.add_submission(
+            tracker_entry = tracker.add_submission(
                 filename=filename,
                 model_name=model_name or filename_prefix,
                 local_cv_score=local_cv_score or metric_value,
                 cv_std=cv_std,
                 notes=notes,
                 config=config,
-                experiment_id=experiment.get('experiment_id'),
-                git_hash=experiment['git']['hash'],
+                experiment_id=experiment.get('experiment_id') if experiment else None,
+                git_hash=experiment['git']['hash'] if experiment else None,
                 code_path=str(code_path.relative_to(PROJECT_ROOT)) if code_path.exists() else None
             )
         except Exception as e:
             print(f"Warning: Could not add to tracker: {e}")
 
-    return filepath
+    return SubmissionArtifact(
+        path=filepath,
+        filename=filename,
+        project_root=PROJECT_ROOT,
+        competition=COMPETITION_NAME,
+        tracker_entry=tracker_entry,
+        experiment=experiment,
+        model_name=model_name or filename_prefix,
+        local_cv_score=local_cv_score or metric_value,
+        notes=notes,
+        config=config
+    )
 
 
 def validate_submission(submission_path):

@@ -6,6 +6,8 @@ Competition workspaces sit in directories such as `playground-series-s5e11/` or 
 ## Build, Test, and Development Commands
 `uv sync` installs the Python 3.12 environment defined for the entire repo. Re-run experiments with `uv run python playground-series-s5e11/code/models/baseline.py` (adjust the path per project) to rebuild submissions deterministically. Use `uv run python tools/submissions_tracker.py --project playground-series-s5e11 list` to audit historical scores and `uv run python tools/experiment_logger.py --project playground-series-s5e11 list --limit 10` to inspect experiment metadata. Pull fresh data via `kaggle competitions download -c <competition>` from the relevant project directory; the CLI reads `~/.kaggle/kaggle.json` outside the repo.
 
+Submission automation is built into each baseline model: `uv run python playground-series-s5e11/code/models/baseline_autogluon.py --auto-submit --wait-seconds 45` trains, creates the CSV, pushes it to Kaggle, waits, scrapes the latest score via Playwright, updates the tracker, and commits the code/state (omit `--auto-submit` to get an interactive “Submit? [y/N]” prompt, or pass `--skip-submit` to opt out entirely). Customize the Kaggle description with `--kaggle-message "autogluon medium exp-2"` and tweak the CDP endpoint (`--cdp-url http://localhost:9222`) when connecting to an existing Chrome session.
+
 ## Coding Style & Naming Conventions
 Use 4-space indentation, `snake_case` for modules/functions, and `CamelCase` for classes. Zero-pad exploration scripts (`01_initial_eda.py`) so chronological ordering is preserved. Name outputs `submission-YYYYMMDDHHMM-model.csv` for automatic ingestion by `submissions_tracker.py`, and centralize constants plus random seeds inside `code/utils/config.py`. Keep logging helpers and datapath utilities in `code/utils` so every project script shares the same conventions.
 
@@ -17,3 +19,6 @@ Follow the lightweight conventional style noted in `README.md`: prefix messages 
 
 ## Security & Configuration Tips
 Keep `~/.kaggle/kaggle.json` local and chmod 600; reference it from scripts via environment variables, not hard-coded paths. Document any sensitive configs in project-level READMEs, scrub notebooks before committing, and share only the minimum per-competition folder when collaborating with external agents or runners.
+
+## Submission Automation Workflow
+`tools/submission_workflow.py` orchestrates Kaggle submissions: it runs the CLI upload, waits (`--wait-seconds`, default 30s), connects to an already running Chrome (`google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug`) via Playwright, reads the latest score from `/submissions`, updates `submissions/submissions.json`, and creates a git commit like `submission(playground-series-s5e11): autogluon-medium | local 0.92379 | public 0.92227`. Install Playwright with `uv run playwright install chromium` before first use. Pass `--skip-score-fetch` or `--skip-git` to the model scripts if the browser isn't available or you want to review changes manually. The runner only stages the active competition directory, so adjust manually if other folders changed.

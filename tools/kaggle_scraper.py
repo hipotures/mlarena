@@ -2,16 +2,19 @@
 """
 Kaggle Competition Scraper via CDP
 Automatically fetch leaderboard and submissions data from Kaggle competitions
+and provide helpers for reading the latest submission score.
 """
 
+import argparse
 import asyncio
 import json
+import re
 import sys
-from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, List
-import argparse
-from playwright.async_api import async_playwright, TimeoutError
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from playwright.async_api import TimeoutError, async_playwright
 
 
 class KaggleScraper:
@@ -178,6 +181,133 @@ class KaggleScraper:
 
         print(f"✓ Found {len(submissions_data)} submissions")
         return submissions_data
+
+    async def get_latest_submission_score(
+        self,
+        competition: str,
+        filename: Optional[str] = None,
+        max_rows: int = 10,
+    ) -> Dict[str, Optional[float]]:
+        """
+        Parse /submissions page and return latest public/private scores.
+
+        Args:
+            competition: Kaggle competition slug
+            filename: Optional submission filename to match row
+            max_rows: Limit rows to inspect
+        """
+        await self.navigate_to_submissions(competition)
+        await asyncio.sleep(2)
+
+        rows = await self._collect_submission_rows(max_rows=max_rows)
+        if not rows:
+            return {"public_score": None, "private_score": None, "row_text": None}
+
+        target_text = None
+        match_type = "latest"
+        if filename:
+            for text in rows:
+                if filename in text:
+                    target_text = text
+                    match_type = "filename"
+                    break
+
+        if not target_text:
+            target_text = rows[0]
+
+        parsed = self._parse_submission_row(target_text)
+        parsed["row_text"] = target_text
+        parsed["match_type"] = match_type
+        parsed["rows_consulted"] = rows
+        return parsed
+
+    async def _collect_submission_rows(self, max_rows: int = 10) -> List[str]:
+        """Collect submission row texts from DOM or accessibility tree."""
+        rows: List[str] = []
+
+        try:
+            locator = self.page.locator("tbody tr")
+            handles = await locator.all()
+            for handle in handles[:max_rows]:
+                text = (await handle.inner_text()).strip()
+                if text:
+                    rows.append(text)
+        except Exception:
+            pass
+
+        if rows:
+            return rows
+
+        snapshot = await self.page.accessibility.snapshot()
+        return self._extract_rows_from_snapshot(snapshot, max_rows=max_rows)
+
+    def _extract_rows_from_snapshot(
+        self,
+        node: Optional[Dict],
+        *,
+        max_rows: int = 10,
+    ) -> List[str]:
+        rows: List[str] = []
+
+        def traverse(current: Optional[Dict]):
+            if not current or len(rows) >= max_rows:
+                return
+            role = (current.get("role") or "").lower()
+            if role == "row":
+                text = self._node_text(current)
+                if text:
+                    rows.append(text)
+            for child in current.get("children", []):
+                traverse(child)
+
+        traverse(node)
+        return rows
+
+    def _node_text(self, node: Dict) -> str:
+        parts: List[str] = []
+        if node.get("name"):
+            parts.append(str(node["name"]))
+        for child in node.get("children", []):
+            text = self._node_text(child)
+            if text:
+                parts.append(text)
+        return " ".join(part for part in parts if part).strip()
+
+    def _parse_submission_row(self, text: str) -> Dict[str, Optional[float]]:
+        """
+        Parse row text to extract public/private scores.
+        Falls back to first numeric tokens when labels not available.
+        """
+        def parse_label(label: str) -> Optional[float]:
+            pattern = rf"{label}\s*(?:Score)?\s*([-+]?[0-9]*\.?[0-9]+)"
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                try:
+                    return float(match.group(1))
+                except ValueError:
+                    return None
+            return None
+
+        public_score = parse_label("Public")
+        private_score = parse_label("Private")
+
+        if public_score is None:
+            numbers = re.findall(r"[-+]?[0-9]*\.?[0-9]+", text)
+            if numbers:
+                try:
+                    public_score = float(numbers[0])
+                except ValueError:
+                    public_score = None
+            if len(numbers) > 1 and private_score is None:
+                try:
+                    private_score = float(numbers[1])
+                except ValueError:
+                    private_score = None
+
+        return {
+            "public_score": public_score,
+            "private_score": private_score,
+        }
 
     async def get_current_page_data(self) -> Dict:
         """Get comprehensive data from current page"""

@@ -3,27 +3,39 @@ Baseline AutoGluon Model
 Competition: Thermophysical Property - Melting Point
 """
 
-import pandas as pd
-import numpy as np
+import argparse
+from datetime import datetime
 from pathlib import Path
 import sys
-from datetime import datetime
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from utils.config import (
-    TRAIN_PATH, TEST_PATH, SAMPLE_SUBMISSION_PATH,
-    TARGET_COLUMN, RANDOM_SEED, AUTOGLUON_TIME_LIMIT,
-    AUTOGLUON_PRESET, AUTOGLUON_PROBLEM_TYPE, AUTOGLUON_EVAL_METRIC,
-    PROJECT_ROOT
-)
-from utils.submission import create_submission
-
+import pandas as pd
 from autogluon.tabular import TabularPredictor
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.config import (  # noqa: E402
+    AUTOGLUON_EVAL_METRIC,
+    AUTOGLUON_PRESET,
+    AUTOGLUON_PROBLEM_TYPE,
+    AUTOGLUON_TIME_LIMIT,
+    PROJECT_ROOT,
+    RANDOM_SEED,
+    SAMPLE_SUBMISSION_PATH,
+    TARGET_COLUMN,
+    TEST_PATH,
+    TRAIN_PATH,
+)
+from utils.submission import create_submission  # noqa: E402
+
+TOOLS_DIR = PROJECT_ROOT.parent / "tools"
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+from submission_workflow import SubmissionRunner  # noqa: E402
 
 console = Console()
 
@@ -137,13 +149,42 @@ def make_predictions(predictor, test_df):
     return predictions
 
 
-def main():
+def parse_args():
+    parser = argparse.ArgumentParser(description="AutoGluon baseline for melting-point")
+    parser.add_argument("--skip-submit", action="store_true", help="Skip Kaggle submission workflow")
+    parser.add_argument("--auto-submit", action="store_true", help="Submit without asking for confirmation")
+    parser.add_argument("--kaggle-message", help="Custom Kaggle submission message")
+    parser.add_argument(
+        "--wait-seconds",
+        type=int,
+        default=30,
+        help="Time (seconds) to wait before scraping the Kaggle submissions page",
+    )
+    parser.add_argument(
+        "--cdp-url",
+        default="http://localhost:9222",
+        help="Playwright CDP URL used for scraping scores",
+    )
+    parser.add_argument(
+        "--skip-score-fetch",
+        action="store_true",
+        help="Do not run Playwright scraping for the latest score",
+    )
+    parser.add_argument(
+        "--skip-git",
+        action="store_true",
+        help="Do not stage/commit git changes automatically",
+    )
+    return parser.parse_args()
+
+
+def main(args):
     """Main training workflow"""
     console.print(Panel.fit(
         "[bold magenta]AutoGluon Baseline Model[/bold magenta]\n"
         f"Preset: {AUTOGLUON_PRESET}\n"
         f"Time Limit: {AUTOGLUON_TIME_LIMIT}s",
-        title="Playground Series S5E11"
+        title="Melting Point"
     ))
 
     # Load data
@@ -165,7 +206,7 @@ def main():
     # Create submission
     console.print("\n[bold blue]Creating submission...[/bold blue]")
 
-    submission_path = create_submission(
+    submission_artifact = create_submission(
         predictions=predictions,
         test_ids=test['id'],
         model_name=f"autogluon-{AUTOGLUON_PRESET}",
@@ -179,25 +220,31 @@ def main():
     )
 
     console.print(f"\n[bold green]✓ Complete![/bold green]")
-    console.print(f"Submission: {submission_path}")
+    console.print(f"Submission: {submission_artifact.path}")
     console.print(f"Local CV Score: {cv_score:.5f}")
 
-    # Display next steps
+    if args.skip_submit:
+        console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit).[/yellow]")
+    else:
+        runner = SubmissionRunner(
+            artifact=submission_artifact,
+            kaggle_message=args.kaggle_message or f"autogluon-{AUTOGLUON_PRESET} | local {cv_score:.5f}",
+            wait_seconds=args.wait_seconds,
+            cdp_url=args.cdp_url,
+            auto_submit=args.auto_submit,
+            prompt=not args.auto_submit,
+            skip_browser=args.skip_score_fetch,
+            skip_git=args.skip_git,
+        )
+        runner.execute()
+
     console.print(Panel.fit(
-        f"[bold]Next Steps:[/bold]\n\n"
-        f"1. Submit to Kaggle:\n"
-        f"   cd submissions/\n"
-        f"   kaggle competitions submit -c playground-series-s5e11 \\\n"
-        f"       -f {submission_path.name} \\\n"
-        f"       -m 'AutoGluon {AUTOGLUON_PRESET} baseline'\n\n"
-        f"2. Update public score:\n"
-        f"   python ../tools/submissions_tracker.py --project playground-series-s5e11 \\\n"
-        f"       update 1 --public <SCORE>\n\n"
-        f"3. View submissions:\n"
-        f"   python ../tools/submissions_tracker.py --project playground-series-s5e11 list",
-        title="📊 Next Steps"
+        "[bold]Tip:[/bold] Use --auto-submit to automate the pipeline or "
+        "--skip-submit to only regenerate predictions.",
+        title="Workflow",
+        border_style="cyan"
     ))
 
 
 if __name__ == "__main__":
-    main()
+    main(parse_args())

@@ -391,6 +391,57 @@ def run_fetch_score(args):
     subprocess.run(cmd, check=True)
 
 
+def fetch_kaggle_evaluation(competition_slug: str) -> str:
+    """
+    Fetch Evaluation info from Kaggle competition.
+
+    Simple approach: Use sample_submission.csv analysis + competition category.
+    Most Kaggle competitions follow standard patterns:
+    - Binary classification (0/1 predictions) → ROC AUC
+    - Regression (continuous values) → RMSE/MAE
+    - Multiclass (3+ classes) → Log Loss/Accuracy
+
+    Args:
+        competition_slug: Kaggle competition identifier (e.g., 'titanic')
+
+    Returns:
+        Evaluation hint text based on sample_submission pattern
+
+    """
+    try:
+        from pathlib import Path
+        import pandas as pd
+
+        # Try to read sample_submission.csv if it exists
+        project_root = REPO_ROOT / "projects" / "kaggle" / competition_slug
+        sample_path = project_root / "data" / "sample_submission.csv"
+
+        if sample_path.exists():
+            sample = pd.read_csv(sample_path, nrows=5)
+            if len(sample.columns) >= 2:
+                target_col = sample.columns[1]
+                target_values = sample[target_col]
+
+                # Analyze target pattern
+                if target_values.dtype in ['float64', 'float32']:
+                    # Check if probabilities (0-1 range) or continuous
+                    if (target_values >= 0).all() and (target_values <= 1).all():
+                        return "Submissions evaluated on probability predictions (0-1 range). Likely uses ROC AUC or Log Loss metric."
+                    else:
+                        return "Submissions evaluated on continuous value predictions. Likely uses RMSE or MAE metric."
+                elif target_values.dtype in ['int64', 'int32']:
+                    unique_vals = target_values.nunique()
+                    if unique_vals == 2:
+                        return "Submissions evaluated on binary classification (0/1). Likely uses ROC AUC metric."
+                    else:
+                        return f"Submissions evaluated on multiclass classification ({unique_vals} classes). Likely uses Log Loss or Accuracy metric."
+
+        return ""
+
+    except Exception:
+        return ""  # Graceful fallback
+
+
 def run_init_project(args):
     """Initialize a new competition project with standard structure."""
     import shutil
@@ -538,7 +589,72 @@ def run_init_project(args):
         except Exception:
             pass
 
-    # Interactive prompts if not provided
+    # Try AI-based detection first
+    if not problem_type or not metric:
+        try:
+            console.print(f"\n[cyan]Fetching competition details from Kaggle...[/cyan]")
+            eval_text = fetch_kaggle_evaluation(project_name)
+
+            if eval_text:
+                console.print(f"[dim]Evaluation section: {eval_text[:100]}...[/dim]")
+                console.print(f"[cyan]Asking AI to detect problem type and metric...[/cyan]")
+
+                # Import AI helper
+                sys.path.insert(0, str(Path(__file__).parent))
+                from ai_helper import call_ai_json, AIError
+
+                # Build prompt
+                prompt = f"""You are a Kaggle competition expert analyzing evaluation metrics.
+
+Given the Evaluation section from a Kaggle competition, determine:
+1. problem_type: "binary", "regression", or "multiclass"
+2. metric: AutoGluon-compatible metric name
+
+EVALUATION SECTION:
+{eval_text}
+
+AUTOGLUON METRIC MAPPING (use exact names):
+- AUC/ROC/Area Under Curve → "roc_auc"
+- RMSE/Root Mean Squared Error → "root_mean_squared_error"
+- MAE/Mean Absolute Error → "mean_absolute_error"
+- Accuracy → "accuracy"
+- Log Loss/Logarithmic Loss → "log_loss"
+- F1 Score → "f1"
+- Precision → "precision"
+- Recall → "recall"
+
+PROBLEM TYPE RULES:
+- If predicting 0/1, True/False, or probability → "binary"
+- If predicting continuous number → "regression"
+- If predicting one of 3+ categories → "multiclass"
+
+Return ONLY valid JSON (no markdown, no explanation):
+{{"problem_type": "binary|regression|multiclass", "metric": "autogluon_metric_name"}}"""
+
+                ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
+
+                # Validate response
+                if "problem_type" in ai_result and "metric" in ai_result:
+                    detected_type = ai_result["problem_type"]
+                    detected_metric = ai_result["metric"]
+
+                    if detected_type in ["binary", "regression", "multiclass"]:
+                        problem_type = problem_type or detected_type
+                        metric = metric or detected_metric
+                        console.print(f"[green]✓ AI detected ({model}): {problem_type} / {metric}[/green]")
+                    else:
+                        console.print(f"[yellow]AI returned invalid problem_type: {detected_type}[/yellow]")
+                else:
+                    console.print(f"[yellow]AI response missing required fields[/yellow]")
+
+            else:
+                console.print(f"[yellow]Could not fetch Evaluation section from Kaggle[/yellow]")
+
+        except Exception as e:
+            console.print(f"[yellow]AI detection failed: {e}[/yellow]")
+            # Continue to interactive prompts
+
+    # Interactive prompts if not provided (fallback)
     if not target_column:
         target_column = input("Target column name: ").strip() or "target"
 

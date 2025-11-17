@@ -1,0 +1,50 @@
+{
+  "dataset_name": "titanic",
+  "export_timestamp": "2025-07-15T21:09:18.296858",
+  "dataset_info": {
+    "name": "titanic",
+    "display_name": "titanic",
+    "description": "",
+    "database": {
+      "backend": "sqlite",
+      "journal_mode": "WAL",
+      "synchronous": "NORMAL",
+      "cache_size": -128000,
+      "temp_store": "FILE",
+      "mmap_size": 268435456,
+      "path": "/home/xai/.mdm/datasets/titanic/titanic.sqlite"
+    },
+    "tables": {
+      "train": "train",
+      "test": "test",
+      "sample_submission": "sample_submission",
+      "train_features": "train_features",
+      "test_features": "test_features",
+      "sample_submission_features": "sample_submission_features"
+    },
+    "problem_type": "binary_classification",
+    "target_column": "Survived",
+    "id_columns": [
+      "PassengerId"
+    ],
+    "time_column": null,
+    "group_column": null,
+    "feature_tables": {
+      "train_features": "train_features",
+      "test_features": "test_features",
+      "sample_submission_features": "sample_submission_features"
+    },
+    "registered_at": "2025-07-13T17:44:54.423911+00:00",
+    "last_updated_at": null,
+    "tags": [],
+    "source": "/home/xai/DEV/mdm/scripts/ml/competitions/Titanic",
+    "version": "1.0.0",
+    "metadata": {
+      "statistics": {
+        "row_count": 1309,
+        "memory_size_bytes": 418510,
+        "computed_at": "2025-07-13T19:44:55.104856"
+      }
+    }
+  }
+}

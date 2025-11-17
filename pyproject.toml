@@ -1,7 +1,11 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "competitions"
-version = "0.1.0"
-description = "Add your description here"
+name = "kaggle-projects"
+version = "0.2.0"
+description = "Kaggle competition projects with shared tooling"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -13,3 +17,9 @@ dependencies = [
     "autogluon>=1.0.0",
     "playwright>=1.48.0",
 ]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kaggle_tools"]

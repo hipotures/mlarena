@@ -1,0 +1,1 @@
+Optimal trial: {'model_type': 'XGBoost', 'learning_rate': 0.08024752564682532, 'max_depth': 6}

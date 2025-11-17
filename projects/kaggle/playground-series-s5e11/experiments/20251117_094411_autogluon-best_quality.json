@@ -1,0 +1,22 @@
+{
+  "experiment_id": "20251117_094411_autogluon-best_quality",
+  "timestamp": "2025-11-17 09:44:12",
+  "model_name": "autogluon-best_quality",
+  "code_path": "code/utils/submission.py",
+  "code_hash": "d4fbeb76",
+  "git": {
+    "hash": "0ffffbc7d8918ebef77157e4a32e56fb8498145d",
+    "hash_short": "0ffffbc",
+    "branch": "master",
+    "commit_message": "feat: refactor submission utils and add init-project command",
+    "has_uncommitted_changes": false,
+    "uncommitted_files": []
+  },
+  "config": {
+    "preset": "best_quality",
+    "time_limit": 28800,
+    "use_gpu": false,
+    "template": "time8-cpu"
+  },
+  "notes": "AutoGluon best_quality (28800s, gpu=False)"
+}

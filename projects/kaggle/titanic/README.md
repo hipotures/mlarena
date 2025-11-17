@@ -10,7 +10,7 @@
 Predict the probability that a borrower will pay back their loan based on financial and demographic features.
 
 ### Evaluation Metric
-**ROC AUC Score** - roc_auc (higher is better) between predicted probability and observed target.
+**ROC AUC Score** - accuracy (higher is better) between predicted probability and observed target.
 
 ### Dataset Description
 **Source:** Synthetically generated from [Loan Prediction dataset](https://www.kaggle.com/datasets/nabihazahid/loan-prediction-dataset-2025/data)

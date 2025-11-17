@@ -24,7 +24,7 @@ from rich.panel import Panel
 
 from kaggle_scraper import KaggleScraper
 from submissions_tracker import SubmissionsTracker
-from experiment_manager import ExperimentManager
+from experiment_manager import ExperimentManager, ModuleStateError
 
 console = Console()
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -93,6 +93,7 @@ class SubmissionRunner:
                     "kaggle_message": self.kaggle_message,
                     "resume_mode": resume_mode,
                 },
+                allow_restart=True,
             )
 
     def _default_message(self) -> str:
@@ -103,48 +104,55 @@ class SubmissionRunner:
 
     def execute(self) -> Optional[Dict[str, Any]]:
         """Run the submission workflow end-to-end."""
-        if self.skip_submit:
-            console.print("[yellow]Skipping Kaggle submission (flag enabled).[/yellow]")
-            if not self.resume_mode:
-                return None
-        else:
-            if self.prompt and not self.auto_submit:
-                if not self._confirm():
-                    console.print("[yellow]Submission aborted by user.[/yellow]")
-                    return None
-            self._submit_to_kaggle()
-            if self.wait_seconds > 0:
-                console.print(f"[cyan]Waiting {self.wait_seconds}s for Kaggle processing...[/cyan]")
-                time.sleep(self.wait_seconds)
-
         score_data: Optional[Dict[str, Any]] = None
-        if not self.skip_browser:
-            score_data = asyncio.run(self._fetch_scores())
-            if score_data and score_data.get("public_score") is not None:
-                self._update_tracker(score_data["public_score"], score_data=score_data)
+        try:
+            skip_only = False
+            if self.skip_submit:
+                console.print("[yellow]Skipping Kaggle submission (flag enabled).[/yellow]")
+                skip_only = not self.resume_mode
             else:
-                console.print("[yellow]Could not fetch public score via Playwright.[/yellow]")
+                if self.prompt and not self.auto_submit:
+                    if not self._confirm():
+                        console.print("[yellow]Submission aborted by user.[/yellow]")
+                        return None
+                self._submit_to_kaggle()
+                if self.wait_seconds > 0:
+                    console.print(f"[cyan]Waiting {self.wait_seconds}s for Kaggle processing...[/cyan]")
+                    time.sleep(self.wait_seconds)
 
-        if not self.skip_git:
-            self._git_commit(score_data)
-        else:
-            console.print("[yellow]Skipping git commit (flag enabled).[/yellow]")
+            if not self.skip_browser:
+                score_data = asyncio.run(self._fetch_scores())
+                if score_data and score_data.get("public_score") is not None:
+                    self._update_tracker(score_data["public_score"], score_data=score_data)
+                else:
+                    console.print("[yellow]Could not fetch public score via Playwright.[/yellow]")
 
-        if score_data:
-            public_score = score_data.get("public_score", "N/A")
-            private_score = score_data.get("private_score")
-            lines = [f"Public Score: {public_score}"]
-            if private_score is not None:
-                lines.append(f"Private Score: {private_score}")
-            console.print(
-                Panel.fit(
-                    "\n".join(lines),
-                    title="Kaggle Results",
-                    border_style="green",
+            if not self.skip_git:
+                self._git_commit(score_data)
+            else:
+                console.print("[yellow]Skipping git commit (flag enabled).[/yellow]")
+
+            if score_data:
+                public_score = score_data.get("public_score", "N/A")
+                private_score = score_data.get("private_score")
+                lines = [f"Public Score: {public_score}"]
+                if private_score is not None:
+                    lines.append(f"Private Score: {private_score}")
+                console.print(
+                    Panel.fit(
+                        "\n".join(lines),
+                        title="Kaggle Results",
+                        border_style="green",
+                    )
                 )
-            )
 
-        return score_data
+            self._finalize_experiment(score_data)
+            if skip_only:
+                return None
+            return score_data
+        except Exception as exc:
+            self._fail_experiment(str(exc))
+            raise
 
     def _confirm(self) -> bool:
         answer = input(
@@ -189,7 +197,7 @@ class SubmissionRunner:
         finally:
             await scraper.close()
 
-    def _update_tracker(self, public_score: float, score_data: Optional[Dict[str, Any]] = None):
+    def _update_tracker(self, public_score: float, score_data: Optional[Dict[str, Any]] = None) -> Optional[int]:
         tracker = SubmissionsTracker(self.artifact.project_root)
         tracker_id = self.artifact.tracker_id()
         local_cv = self.artifact.local_cv_score
@@ -207,6 +215,7 @@ class SubmissionRunner:
             )
             self.artifact.tracker_entry = entry
             tracker_id = entry["id"]
+            self.artifact.local_cv_score = local_cv
         else:
             tracker.update_scores(submission_id=tracker_id, public_score=public_score)
             if local_cv is not None and (self.artifact.tracker_entry is None or not self.artifact.tracker_entry.get("local_cv_score")):
@@ -218,16 +227,26 @@ class SubmissionRunner:
                         if self.artifact.tracker_entry:
                             self.artifact.tracker_entry["local_cv_score"] = local_cv
                         break
-        if self._experiment_manager:
-            payload = {
-                "public_score": public_score,
-                "local_cv": local_cv,
-                "tracker_id": tracker_id,
-                "submission_file": str(self.artifact.path.relative_to(self.artifact.project_root)),
-            }
-            if score_data and score_data.get("row_text"):
+        return tracker_id
+
+    def _finalize_experiment(self, score_data: Optional[Dict[str, Any]]):
+        if not self._experiment_manager:
+            return
+        submission_rel = str(self.artifact.path.relative_to(self.artifact.project_root))
+        payload = {
+            "submission_file": submission_rel,
+            "tracker_id": self.artifact.tracker_id(),
+            "local_cv": self.artifact.local_cv_score,
+        }
+        if score_data:
+            payload["public_score"] = score_data.get("public_score")
+            if score_data.get("row_text"):
                 payload["snapshot"] = score_data["row_text"]
-            self._experiment_manager.complete_module("submit", payload)
+        self._experiment_manager.complete_module("submit", payload)
+
+    def _fail_experiment(self, reason: str):
+        if self._experiment_manager:
+            self._experiment_manager.fail_module("submit", reason)
 
     def _git_commit(self, score_data: Optional[Dict[str, Any]]):
         console.print("[bold blue]Staging files for git commit...[/bold blue]")
@@ -377,7 +396,11 @@ def main():
     resume_parser.set_defaults(func=_run_resume)
 
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except ModuleStateError as exc:
+        console.print(f"[Experiment] {exc}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,19 @@ from submission_workflow import SubmissionArtifact  # noqa: E402
 from submissions_tracker import SubmissionsTracker  # noqa: E402
 
 
+def _safe_relative_code_path(path: Path) -> Optional[str]:
+    """Return path relative to project or repo root to avoid tracker warnings."""
+    if not path:
+        return None
+    bases = [PROJECT_ROOT, PROJECT_ROOT.parent]
+    for base in bases:
+        try:
+            return str(path.relative_to(base))
+        except ValueError:
+            continue
+    return str(path)
+
+
 def create_submission(
     predictions,
     test_ids,
@@ -90,6 +103,7 @@ def create_submission(
         try:
             frame = inspect.stack()[1]
             code_path = Path(frame.filename)
+            code_rel = _safe_relative_code_path(code_path) if code_path.exists() else None
 
             exp_logger = ExperimentLogger(PROJECT_ROOT)
             experiment = exp_logger.log_experiment(
@@ -109,7 +123,7 @@ def create_submission(
                 config=config,
                 experiment_id=experiment.get('experiment_id') if experiment else None,
                 git_hash=experiment['git']['hash'] if experiment else None,
-                code_path=str(code_path.relative_to(PROJECT_ROOT)) if code_path.exists() else None
+                code_path=code_rel
             )
         except Exception as e:
             print(f"Warning: Could not add to tracker: {e}")

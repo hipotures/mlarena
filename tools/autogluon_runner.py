@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from experiment_manager import ExperimentManager
+from experiment_manager import ExperimentManager, ModuleStateError
 from submission_workflow import SubmissionRunner
 
 TOOLS_ROOT = Path(__file__).resolve().parent
@@ -35,7 +35,8 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
         "time_limit": 60,
         "preset": "medium_quality",
         "use_gpu": False,
-        "hyperparameters": {"XGBoost": {}},
+        # XGB-only smoke test for quick validation.
+        "hyperparameters": {"XGB": [{}]},
     },
     "dev-cpu": {"time_limit": 300, "preset": "medium_quality", "use_gpu": False},
     "dev-gpu": {"time_limit": 300, "preset": "medium_quality", "use_gpu": True},
@@ -220,7 +221,7 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
     if not args.skip_eda_check:
         try:
             manager.require("eda")
-        except RuntimeError as exc:
+        except ModuleStateError as exc:
             console.print(f"[yellow]{exc}[/yellow]")
             return
 
@@ -228,15 +229,24 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
     params["template"] = args.template
     params["force_extreme"] = args.force_extreme
 
-    manager.start_module(
-        "model",
-        {
-            "template": params["template"],
-            "compute": params,
-        },
-    )
+    try:
+        manager.start_module(
+            "model",
+            {
+                "template": params["template"],
+                "compute": params,
+            },
+            allow_restart=True,
+        )
+    except ModuleStateError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        return
 
-    result = train_autogluon(context, params)
+    try:
+        result = train_autogluon(context, params)
+    except Exception as exc:
+        manager.fail_module("model", str(exc))
+        raise
 
     console.print(f"[bold green]✓ Training complete[/bold green]")
     console.print(f"Submission file: {result['submission'].path}")

@@ -5,11 +5,13 @@ Experiment Manager - track modular pipeline state (EDA, model, submit, etc.).
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -20,12 +22,24 @@ TOOLS_ROOT = Path(__file__).resolve().parent
 MODULES = ["eda", "model", "submit", "fetch-score"]
 
 
+class ModuleStateError(RuntimeError):
+    """Raised when pipeline module state prevents the requested action."""
+
+
+class ModuleAlreadyCompleted(ModuleStateError):
+    pass
+
+
+class ModuleAlreadyRunning(ModuleStateError):
+    pass
+
+
 def utc_now() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def generate_experiment_id() -> str:
-    return datetime.utcnow().strftime("exp-%Y%m%d-%H%M%S")
+    return datetime.now(timezone.utc).strftime("exp-%Y%m%d-%H%M%S")
 
 
 def run_git_command(args, cwd: Path) -> str:
@@ -135,24 +149,66 @@ class ExperimentManager:
     def require(self, module: str):
         entry = self.get_module(module)
         if not entry or entry.get("status") != "completed":
-            raise RuntimeError(f"Module '{module}' must complete before continuing.")
+            raise ModuleStateError(f"Module '{module}' must complete before continuing.")
 
-    def start_module(self, module: str, extra: Optional[Dict] = None):
+    def _is_pid_active(self, pid: Optional[int]) -> bool:
+        if not pid:
+            return False
+        try:
+            os.kill(pid, 0)
+        except OSError as exc:
+            if exc.errno == errno.ESRCH:
+                return False
+            if exc.errno == errno.EPERM:
+                return True
+            return False
+        else:
+            return True
+
+    def start_module(self, module: str, extra: Optional[Dict] = None, allow_restart: bool = False):
         modules = self.modules()
         entry = modules.get(module)
-        if entry and entry.get("status") == "completed":
-            raise RuntimeError(f"Module '{module}' is already completed for {self.experiment_id}")
-        entry = modules.setdefault(module, {})
-        entry.update(extra or {})
-        entry["status"] = "running"
-        entry["started_at"] = utc_now()
-        entry["updated_at"] = utc_now()
+        if entry:
+            status = entry.get("status")
+            if status == "completed":
+                raise ModuleAlreadyCompleted(
+                    f"Module '{module}' is already completed for experiment {self.experiment_id}. "
+                    "Create a new experiment ID if you need to rerun it."
+                )
+            if status == "running":
+                pid = entry.get("pid")
+                finished = entry.get("finished_at")
+                pid_active = self._is_pid_active(pid)
+                if allow_restart and (finished or not pid_active):
+                    self.fail_module(module, "Detected stale running entry", {"previous_pid": pid})
+                    entry = modules.get(module)
+                else:
+                    raise ModuleAlreadyRunning(
+                        f"Module '{module}' is already running for experiment {self.experiment_id}."
+                    )
+        new_entry = dict(extra or {})
+        new_entry["status"] = "running"
+        new_entry["started_at"] = utc_now()
+        new_entry["updated_at"] = utc_now()
+        new_entry["pid"] = os.getpid()
+        modules[module] = new_entry
         self.save()
 
     def complete_module(self, module: str, payload: Dict):
         entry = self.modules().setdefault(module, {})
         entry.update(payload)
         entry["status"] = "completed"
+        entry["finished_at"] = utc_now()
+        entry["updated_at"] = utc_now()
+        entry["pid"] = None
+        self.save()
+
+    def fail_module(self, module: str, reason: str, payload: Optional[Dict] = None):
+        entry = self.modules().setdefault(module, {})
+        entry.update(payload or {})
+        entry["status"] = "failed"
+        entry["error"] = reason
+        entry["pid"] = None
         entry["finished_at"] = utc_now()
         entry["updated_at"] = utc_now()
         self.save()
@@ -165,29 +221,33 @@ class ExperimentManager:
 
 def run_eda(args):
     manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
-    manager.start_module("eda", {"notes": args.notes or ""})
-    config = load_project_config(args.project)
-    train_df = pd.read_csv(config.TRAIN_PATH)
-    test_df = pd.read_csv(config.TEST_PATH)
-    summary = {
-        "train_shape": train_df.shape,
-        "test_shape": test_df.shape,
-        "columns": train_df.columns.tolist(),
-    }
-    if hasattr(config, "TARGET_COLUMN") and config.TARGET_COLUMN in train_df.columns:
-        summary["target_distribution"] = train_df[config.TARGET_COLUMN].value_counts(normalize=True).to_dict()
-    stats_path = manager.artifact_path("eda_summary.json")
-    with open(stats_path, "w") as f:
-        json.dump(summary, f, indent=2)
-    manager.complete_module(
-        "eda",
-        {
-            "summary_file": str(stats_path.relative_to(manager.project_root)),
+    manager.start_module("eda", {"notes": args.notes or ""}, allow_restart=True)
+    try:
+        config = load_project_config(args.project)
+        train_df = pd.read_csv(config.TRAIN_PATH)
+        test_df = pd.read_csv(config.TEST_PATH)
+        summary = {
             "train_shape": train_df.shape,
             "test_shape": test_df.shape,
-        },
-    )
-    print(f"[EDA] Experiment {manager.experiment_id} summary saved to {stats_path}")
+            "columns": train_df.columns.tolist(),
+        }
+        if hasattr(config, "TARGET_COLUMN") and config.TARGET_COLUMN in train_df.columns:
+            summary["target_distribution"] = train_df[config.TARGET_COLUMN].value_counts(normalize=True).to_dict()
+        stats_path = manager.artifact_path("eda_summary.json")
+        with open(stats_path, "w") as f:
+            json.dump(summary, f, indent=2)
+        manager.complete_module(
+            "eda",
+            {
+                "summary_file": str(stats_path.relative_to(manager.project_root)),
+                "train_shape": train_df.shape,
+                "test_shape": test_df.shape,
+            },
+        )
+        print(f"[EDA] Experiment {manager.experiment_id} summary saved to {stats_path}")
+    except Exception as exc:
+        manager.fail_module("eda", str(exc))
+        raise
 
 
 def run_list(args):
@@ -217,6 +277,13 @@ def run_model(args):
     manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
     if args.experiment_id is None:
         print(f"[Model] Using new experiment ID: {manager.experiment_id}")
+    existing = manager.get_module("model")
+    if existing and existing.get("status") == "completed":
+        print(
+            f"[Model] Module already completed for experiment {manager.experiment_id}; "
+            "create a new experiment to retrain."
+        )
+        return
     script = TOOLS_ROOT / "autogluon_runner.py"
     cmd = [
         sys.executable,
@@ -250,7 +317,11 @@ def run_model(args):
     cmd += ["--cdp-url", args.cdp_url]
     if args.kaggle_message:
         cmd += ["--kaggle-message", args.kaggle_message]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[Model] Training command failed (exit {exc.returncode}).")
+        raise SystemExit(exc.returncode)
 
 
 def _resolve_submission_filename(project: str, experiment_id: Optional[str], explicit_filename: Optional[str]) -> str:
@@ -397,7 +468,11 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except ModuleStateError as exc:
+        print(f"[Experiment] {exc}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

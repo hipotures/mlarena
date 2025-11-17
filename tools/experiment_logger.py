@@ -16,8 +16,19 @@ class ExperimentLogger:
 
     def __init__(self, project_root: Path):
         self.project_root = Path(project_root)
+        self.repo_root = self.project_root.parent
         self.experiments_dir = self.project_root / "experiments"
         self.experiments_dir.mkdir(exist_ok=True)
+
+    def _relative_code_path(self, code_path: Path) -> str:
+        """Return path relative to project or repo root, falling back to absolute."""
+        bases = [self.project_root, self.repo_root]
+        for base in bases:
+            try:
+                return str(code_path.relative_to(base))
+            except ValueError:
+                continue
+        return str(code_path)
 
     def _get_git_info(self) -> Dict[str, Any]:
         """Get git information"""
@@ -128,7 +139,7 @@ class ExperimentLogger:
             'experiment_id': experiment_id,
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'model_name': model_name,
-            'code_path': str(code_path.relative_to(self.project_root)) if code_path else None,
+            'code_path': self._relative_code_path(code_path) if code_path else None,
             'code_hash': self._create_code_hash(code_path) if code_path else None,
             'git': git_info,
             'config': config or {},

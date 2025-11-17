@@ -1,0 +1,73 @@
+{
+  "experiment_id": "init",
+  "project": "playground-series-s5e10",
+  "created_at": "2025-11-17T18:52:46Z",
+  "git": {
+    "hash": "20568a57bb8d1c2ce5286ba4add3878053e596a2",
+    "branch": "main",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "eda": {
+      "notes": "Project initialization EDA",
+      "status": "completed",
+      "started_at": "2025-11-17T18:52:46Z",
+      "updated_at": "2025-11-17T18:52:58Z",
+      "pid": null,
+      "summary_file": "experiments/init/eda_summary.json",
+      "problem_type_guess": "regression",
+      "profiles": {
+        "train": {
+          "shape": [
+            517754,
+            14
+          ],
+          "columns": [
+            "id",
+            "road_type",
+            "num_lanes",
+            "curvature",
+            "speed_limit",
+            "lighting",
+            "weather",
+            "road_signs_present",
+            "public_road",
+            "time_of_day",
+            "holiday",
+            "school_season",
+            "num_reported_accidents",
+            "accident_risk"
+          ],
+          "html": "experiments/init/eda/ydata_profile.html",
+          "json": "experiments/init/eda/ydata_profile.json",
+          "json_min": "experiments/init/eda/ydata_profile_min.json"
+        },
+        "test": {
+          "shape": [
+            172585,
+            13
+          ],
+          "columns": [
+            "id",
+            "road_type",
+            "num_lanes",
+            "curvature",
+            "speed_limit",
+            "lighting",
+            "weather",
+            "road_signs_present",
+            "public_road",
+            "time_of_day",
+            "holiday",
+            "school_season",
+            "num_reported_accidents"
+          ],
+          "html": "experiments/init/eda/ydata_profile_test.html",
+          "json": "experiments/init/eda/ydata_profile_test.json",
+          "json_min": "experiments/init/eda/ydata_profile_test_min.json"
+        }
+      },
+      "finished_at": "2025-11-17T18:52:58Z"
+    }
+  }
+}

@@ -35,4 +35,4 @@ METRIC = "roc_auc"  # Area under the ROC curve
 DEADLINE = "2025-11-30 23:59 UTC"
 
 # Submission format
-SUBMISSION_PROBAS = False  # Submit class labels (0/1), not probabilities
+SUBMISSION_PROBAS = True  # Submit probabilities (0.0-1.0) for ROC AUC metric

@@ -1,0 +1,59 @@
+templates:
+  fast-cpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 60
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+  dev-cpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 300
+        use_gpu: false
+  dev-gpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 300
+        use_gpu: true
+  best-cpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-gpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: true
+  extreme-gpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: extreme_quality
+        time_limit: 86400
+        use_gpu: true
+  time8-cpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+  eda-cpu:
+    model: autogluon_eda_features
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 600
+        use_gpu: false

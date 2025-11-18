@@ -57,3 +57,13 @@ templates:
         presets: medium_quality
         time_limit: 600
         use_gpu: false
+  tuned-cpu:
+    model: autogluon_tuned
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 600
+        use_gpu: false
+      model:
+        num_trials: 10
+        searcher: auto

@@ -1,0 +1,25 @@
+{
+  "experiment_id": "20251118_033653_autogluon_eda_features_fixed",
+  "timestamp": "2025-11-18 03:36:53",
+  "model_name": "autogluon_eda_features_fixed",
+  "code_path": "code/utils/submission.py",
+  "code_hash": "efd1747b",
+  "git": {
+    "hash": "3219c1ae02d78f87eabec72ba0c35c07546d73cd",
+    "hash_short": "3219c1a",
+    "branch": "kaggle-fork1",
+    "commit_message": "submission(playground-series-s5e11) | autogluon_tuned_fixed | local 0.92991 | public 0.92259 | rank 384/384 (7 subs)",
+    "has_uncommitted_changes": true,
+    "uncommitted_files": [
+      "?? projects/kaggle/playground-series-s5e11/regenerate_eda_features.py"
+    ]
+  },
+  "config": {
+    "preset": "medium_quality",
+    "time_limit": 600,
+    "use_gpu": false,
+    "template": "eda-cpu",
+    "note": "Regenerated from exp-20251118-010924 with feature engineering"
+  },
+  "notes": "Regenerated with SUBMISSION_PROBAS=True + feature engineering (fixed)"
+}

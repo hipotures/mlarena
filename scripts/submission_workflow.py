@@ -86,17 +86,24 @@ class SubmissionRunner:
         self.resume_mode = resume_mode
         self.experiment_id = experiment_id
         self._experiment_manager = None
+        self._submit_already_completed = False
         if experiment_id:
             project_name = artifact.project_root.name
             self._experiment_manager = ExperimentManager.load_or_create(project_name, experiment_id)
-            self._experiment_manager.start_module(
-                "submit",
-                {
-                    "kaggle_message": self.kaggle_message,
-                    "resume_mode": resume_mode,
-                },
-                allow_restart=True,
-            )
+            # Check if submit module is already completed
+            submit_entry = self._experiment_manager.modules().get("submit", {})
+            if submit_entry.get("status") == "completed":
+                console.print("[yellow]Module 'submit' already completed, updating scores only...[/yellow]")
+                self._submit_already_completed = True
+            else:
+                self._experiment_manager.start_module(
+                    "submit",
+                    {
+                        "kaggle_message": self.kaggle_message,
+                        "resume_mode": resume_mode,
+                    },
+                    allow_restart=True,
+                )
 
     def _default_message(self) -> str:
         parts = [self.artifact.model_name or "submission"]
@@ -339,10 +346,15 @@ class SubmissionRunner:
                 payload["snapshot"] = score_data["row_text"]
             if 'leaderboard' in score_data:
                 payload["leaderboard"] = score_data["leaderboard"]
-        self._experiment_manager.complete_module("submit", payload)
+
+        # If module already completed, just update data; otherwise mark as completed
+        if self._submit_already_completed:
+            self._experiment_manager.update_module("submit", payload)
+        else:
+            self._experiment_manager.complete_module("submit", payload)
 
     def _fail_experiment(self, reason: str):
-        if self._experiment_manager:
+        if self._experiment_manager and not self._submit_already_completed:
             self._experiment_manager.fail_module("submit", reason)
 
     def _git_commit(self, score_data: Optional[Dict[str, Any]]):

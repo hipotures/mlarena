@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import errno
+import importlib
 import json
 import os
 import subprocess
@@ -17,7 +18,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
 MODULES = ["eda", "model", "submit", "fetch-score"]
@@ -101,6 +101,41 @@ def load_project_config(project_name: str):
     if str(code_dir) not in sys.path:
         sys.path.insert(0, str(code_dir))
     return __import__("utils.config", fromlist=["dummy"])
+
+
+def _build_model_config(
+    config_module: Any,
+    project_root: Path,
+    experiment_id: str,
+    model_name: str,
+    template: str,
+):
+    from kaggle_tools.config_models import DatasetConfig, Hyperparameters, ModelConfig, SystemConfig
+
+    dataset_cfg = DatasetConfig(
+        train_path=config_module.TRAIN_PATH,
+        test_path=config_module.TEST_PATH,
+        target=config_module.TARGET_COLUMN,
+        id_column=getattr(config_module, "ID_COLUMN", "id"),
+        ignored_columns=list(getattr(config_module, "IGNORED_COLUMNS", [])),
+        sample_submission_path=config_module.SAMPLE_SUBMISSION_PATH,
+        problem_type=getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", None),
+        metric=getattr(config_module, "AUTOGLUON_EVAL_METRIC", None),
+        submission_probas=getattr(config_module, "SUBMISSION_PROBAS", False),
+    )
+    system_cfg = SystemConfig(
+        project_root=project_root,
+        code_dir=project_root / "code",
+        experiment_dir=project_root / "experiments" / experiment_id,
+        artifact_dir=project_root / "experiments" / experiment_id / "artifacts",
+        model_path=project_root / "experiments" / experiment_id / "artifacts" / model_name,
+        template=template,
+        experiment_id=experiment_id,
+        random_seed=getattr(config_module, "RANDOM_SEED", 42),
+        use_gpu=False,
+    )
+    hyper_cfg = Hyperparameters(presets="medium_quality", time_limit=0, use_gpu=False)
+    return ModelConfig(system=system_cfg, dataset=dataset_cfg, hyperparameters=hyper_cfg)
 
 
 PROFILE_REMOVE_KEYS = {
@@ -303,6 +338,13 @@ class ExperimentManager:
         modules[module] = new_entry
         self.save()
 
+    def update_module(self, module: str, payload: Dict):
+        """Update module data without changing status."""
+        entry = self.modules().setdefault(module, {})
+        entry.update(payload)
+        entry["updated_at"] = utc_now()
+        self.save()
+
     def complete_module(self, module: str, payload: Dict):
         entry = self.modules().setdefault(module, {})
         entry.update(payload)
@@ -340,6 +382,24 @@ def run_eda(args):
         config = load_project_config(args.project)
         train_df = pd.read_csv(config.TRAIN_PATH)
         test_df = pd.read_csv(config.TEST_PATH)
+
+        if getattr(args, "feature_model", None):
+            project_root = manager.project_root
+            code_dir = project_root / "code"
+            if str(code_dir) not in sys.path:
+                sys.path.insert(0, str(code_dir))
+            feature_module = importlib.import_module(f"models.{args.feature_model}")
+            if hasattr(feature_module, "preprocess"):
+                model_cfg = _build_model_config(
+                    config_module=config,
+                    project_root=project_root,
+                    experiment_id=manager.experiment_id,
+                    model_name=args.feature_model,
+                    template="eda",
+                )
+                print(f"[EDA] Applying feature model '{args.feature_model}' before profiling...")
+                train_df = feature_module.preprocess(train_df, model_cfg, is_train=True)
+                test_df = feature_module.preprocess(test_df, model_cfg, is_train=False)
 
         print(f"[EDA] Running ydata-profiling on {config.TRAIN_PATH}...")
         train_profile = ProfileReport(
@@ -506,7 +566,7 @@ def run_model(args):
             "create a new experiment to retrain."
         )
         return
-    script = TOOLS_ROOT / "autogluon_runner.py"
+    script = TOOLS_ROOT / "ml_runner.py"
     cmd = [
         sys.executable,
         str(script),
@@ -594,7 +654,7 @@ def run_fetch_score(args):
     cmd = [
         sys.executable,
         str(script),
-        "fetch",
+        "pull-score",
         "--project",
         args.project,
         "--filename",
@@ -1226,6 +1286,10 @@ def build_parser():
     eda_parser.add_argument("--project", required=True)
     eda_parser.add_argument("--experiment-id")
     eda_parser.add_argument("--notes")
+    eda_parser.add_argument(
+        "--feature-model",
+        help="Optional model module name; when provided, EDA runs on feature-engineered data via preprocess()",
+    )
     eda_parser.set_defaults(func=run_eda)
 
     list_parser = subparsers.add_parser("list", help="List experiments")

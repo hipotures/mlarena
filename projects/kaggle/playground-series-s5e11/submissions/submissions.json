@@ -157,5 +157,26 @@
     "experiment_id": "20251118_033202_autogluon_tuned_fixed",
     "git_hash": "0ea50bb31a4228a01e59c39fd36c8521d457dd36",
     "code_path": "code/utils/submission.py"
+  },
+  {
+    "id": 8,
+    "timestamp": "2025-11-18 03:36:53",
+    "filename": "submission-20251118033652.csv",
+    "model_name": "autogluon_eda_features_fixed",
+    "local_cv_score": 0.9330915167253794,
+    "cv_std": null,
+    "public_score": 0.92263,
+    "private_score": null,
+    "notes": "Regenerated with SUBMISSION_PROBAS=True + feature engineering (fixed)",
+    "config": {
+      "preset": "medium_quality",
+      "time_limit": 600,
+      "use_gpu": false,
+      "template": "eda-cpu",
+      "note": "Regenerated from exp-20251118-010924 with feature engineering"
+    },
+    "experiment_id": "20251118_033653_autogluon_eda_features_fixed",
+    "git_hash": "3219c1ae02d78f87eabec72ba0c35c07546d73cd",
+    "code_path": "code/utils/submission.py"
   }
 ]

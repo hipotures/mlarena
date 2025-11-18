@@ -67,3 +67,22 @@ templates:
       model:
         num_trials: 10
         searcher: auto
+  eda-6h-cpu:
+    model: autogluon_eda_features
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 21600
+        use_gpu: false
+      model:
+        leaderboard_rows: 20
+  eda-1h-gpu:
+    model: autogluon_eda_features
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: true
+      model:
+        leaderboard_rows: 20
+

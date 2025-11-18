@@ -1,0 +1,25 @@
+{
+  "experiment_id": "20251118_033202_autogluon_tuned_fixed",
+  "timestamp": "2025-11-18 03:32:02",
+  "model_name": "autogluon_tuned_fixed",
+  "code_path": "code/utils/submission.py",
+  "code_hash": "efd1747b",
+  "git": {
+    "hash": "0ea50bb31a4228a01e59c39fd36c8521d457dd36",
+    "hash_short": "0ea50bb",
+    "branch": "kaggle-fork1",
+    "commit_message": "fix: set SUBMISSION_PROBAS=True for ROC AUC metric",
+    "has_uncommitted_changes": true,
+    "uncommitted_files": [
+      "?? projects/kaggle/playground-series-s5e11/regenerate_predictions.py"
+    ]
+  },
+  "config": {
+    "preset": "medium_quality",
+    "time_limit": 600,
+    "use_gpu": false,
+    "template": "tuned-cpu",
+    "note": "Regenerated from exp-20251118-021330"
+  },
+  "notes": "Regenerated with SUBMISSION_PROBAS=True (fixed)"
+}

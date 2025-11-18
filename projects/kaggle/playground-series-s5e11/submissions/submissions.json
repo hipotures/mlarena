@@ -136,5 +136,26 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 7,
+    "timestamp": "2025-11-18 03:32:02",
+    "filename": "submission-20251118033202.csv",
+    "model_name": "autogluon_tuned_fixed",
+    "local_cv_score": 0.9299072575845085,
+    "cv_std": null,
+    "public_score": 0.92259,
+    "private_score": null,
+    "notes": "Regenerated with SUBMISSION_PROBAS=True (fixed)",
+    "config": {
+      "preset": "medium_quality",
+      "time_limit": 600,
+      "use_gpu": false,
+      "template": "tuned-cpu",
+      "note": "Regenerated from exp-20251118-021330"
+    },
+    "experiment_id": "20251118_033202_autogluon_tuned_fixed",
+    "git_hash": "0ea50bb31a4228a01e59c39fd36c8521d457dd36",
+    "code_path": "code/utils/submission.py"
   }
 ]

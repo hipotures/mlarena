@@ -69,20 +69,28 @@ def train(
         "scheduler": "local",
     }
 
+    # Force GPU usage at model level to avoid splitting across folds
+    ag_args = None
+    if config.hyperparameters.use_gpu:
+        ag_args = {"num_gpus": 1}  # Each model gets 1 GPU
+
     fit_kwargs = {
         "presets": config.hyperparameters.presets,
         "time_limit": config.hyperparameters.time_limit,
-        "num_gpus": 1 if config.hyperparameters.use_gpu else 0,
+        "num_cpus": 16,  # Total CPUs for predictor (max 16 of 32 to avoid freezing)
         "hyperparameter_tune_kwargs": hyperparameter_tune_kwargs,
+        "ag_args_fit": ag_args,  # Apply GPU to each model, not split across folds
     }
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
 
-    print(f"[AutoGluon Tuned] Starting training with hyperparameter tuning:")
-    print(f"  - Time limit: {config.hyperparameters.time_limit}s")
-    print(f"  - Preset: {config.hyperparameters.presets}")
-    print(f"  - Num trials: {num_trials}")
-    print(f"  - Searcher: {searcher}")
+    print(f"[AutoGluon Tuned] Training configuration:")
+    print(f"  Preset: {config.hyperparameters.presets}")
+    print(f"  Time limit: {config.hyperparameters.time_limit}s ({config.hyperparameters.time_limit/3600:.1f}h)")
+    print(f"  Total CPUs: {fit_kwargs['num_cpus']}")
+    print(f"  GPU per model: {1 if ag_args else 0}")
+    print(f"  HPO trials: {num_trials}")
+    print(f"  HPO searcher: {searcher}")
 
     predictor.fit(
         train_data,

@@ -57,7 +57,8 @@ def train(
     fit_kwargs = {
         "presets": config.hyperparameters.presets,
         "time_limit": config.hyperparameters.time_limit,
-        "num_gpus": 1 if config.hyperparameters.use_gpu else 0,
+        "num_cpus": 16,  # Total CPUs for predictor (max 16 of 32 to avoid freezing)
+        "num_gpus": 1 if config.hyperparameters.use_gpu else 0,  # Total GPUs for predictor
     }
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models

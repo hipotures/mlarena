@@ -225,5 +225,52 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 10,
+    "timestamp": "2025-11-19 08:44:39",
+    "filename": "submission-20251119084349.csv",
+    "model_name": "autogluon_eda_features-eda-8h-cpu",
+    "local_cv_score": 0.910863534161112,
+    "cv_std": null,
+    "public_score": 0.92396,
+    "private_score": null,
+    "notes": "template=eda-8h-cpu",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251118-232533",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251118-232533/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251118-232533/artifacts/eda-8h-cpu-autogluon_eda_features",
+        "template": "eda-8h-cpu",
+        "experiment_id": "exp-20251118-232533",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "best_quality",
+        "time_limit": 28800,
+        "use_gpu": false,
+        "excluded_models": null
+      },
+      "model": {
+        "leaderboard_rows": 20
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

@@ -126,10 +126,23 @@ def train(
     fit_kwargs = {
         "presets": config.hyperparameters.presets,
         "time_limit": config.hyperparameters.time_limit,
-        "num_gpus": 1 if config.hyperparameters.use_gpu else 0,
+        "num_cpus": 16,  # Total CPUs for predictor
+        "num_gpus": 1 if config.hyperparameters.use_gpu else 0,  # Total GPUs for predictor
     }
+
+    # With GPU, use sequential folding to avoid splitting 1 GPU across 8 parallel folds
+    if config.hyperparameters.use_gpu:
+        fit_kwargs["ag_args_ensemble"] = {"fold_fitting_strategy": "sequential_local"}
+
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
+
+    print(f"[AutoGluon EDA Features] Training configuration:")
+    print(f"  Preset: {config.hyperparameters.presets}")
+    print(f"  Time limit: {config.hyperparameters.time_limit}s ({config.hyperparameters.time_limit/3600:.1f}h)")
+    print(f"  Total CPUs: {fit_kwargs['num_cpus']}")
+    print(f"  Total GPUs: {fit_kwargs['num_gpus']}")
+    print(f"  Folding strategy: sequential (GPU)" if config.hyperparameters.use_gpu else "  Folding strategy: parallel (CPU)")
 
     predictor.fit(
         train_data,

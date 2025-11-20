@@ -50,6 +50,76 @@ templates:
         presets: best_quality
         time_limit: 28800
         use_gpu: false
+  best-cpu-fe01:
+    model: autogluon_features_01
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe02:
+    model: autogluon_features_02
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe03:
+    model: autogluon_features_03
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe04:
+    model: autogluon_features_04
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe05:
+    model: autogluon_features_05
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe06:
+    model: autogluon_features_06
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe07:
+    model: autogluon_features_07
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe08:
+    model: autogluon_features_08
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe09:
+    model: autogluon_features_09
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe10:
+    model: autogluon_features_10
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
   eda-cpu:
     model: autogluon_eda_features
     config:
@@ -85,4 +155,3 @@ templates:
         use_gpu: true
       model:
         leaderboard_rows: 20
-

@@ -86,6 +86,8 @@ def train(
     train_fe = add_features(train_df)
     feats = _drop_ignored(train_fe, config)
     y = train_df[config.dataset.target].values
+    if config.dataset.target in feats.columns:
+        feats = feats.drop(columns=[config.dataset.target])
     cat_cols = [c for c in feats.columns if feats[c].dtype == "object"]
     mappings = _build_cat_mappings(feats, cat_cols)
     feats_enc = _apply_cat_mappings(feats, cat_cols, mappings)
@@ -93,6 +95,8 @@ def train(
     if val_df is not None:
         val_fe = add_features(val_df)
         val_feats = _drop_ignored(val_fe, config)
+        if config.dataset.target in val_feats.columns:
+            val_feats = val_feats.drop(columns=[config.dataset.target])
         val_feats_enc = _apply_cat_mappings(val_feats, cat_cols, mappings)
         y_val = val_df[config.dataset.target].values
     else:
@@ -142,6 +146,8 @@ def predict(
 ) -> pd.DataFrame:
     test_fe = add_features(test_df)
     feats = _drop_ignored(test_fe, config)
+    if config.dataset.target in feats.columns:
+        feats = feats.drop(columns=[config.dataset.target])
     cat_cols = [c for c in feats.columns if feats[c].dtype == "object"]
     mappings = model.mappings or _build_cat_mappings(feats, cat_cols)
     feats_enc = _apply_cat_mappings(feats, cat_cols, mappings)

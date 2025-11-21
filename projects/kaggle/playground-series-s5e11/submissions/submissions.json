@@ -851,5 +851,52 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 24,
+    "timestamp": "2025-11-21 03:25:35",
+    "filename": "submission-20251121032444.csv",
+    "model_name": "xgb_fe_rich_model-best-cpu-xgb-fe-rich",
+    "local_cv_score": 0.9195597314405304,
+    "cv_std": null,
+    "public_score": 0.92019,
+    "private_score": null,
+    "notes": "template=best-cpu-xgb-fe-rich",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251121-022328",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251121-022328/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251121-022328/artifacts/best-cpu-xgb-fe-rich-xgb_fe_rich_model",
+        "template": "best-cpu-xgb-fe-rich",
+        "experiment_id": "exp-20251121-022328",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "best_quality",
+        "time_limit": 3600,
+        "use_gpu": false,
+        "excluded_models": null
+      },
+      "model": {
+        "leaderboard_rows": 20
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

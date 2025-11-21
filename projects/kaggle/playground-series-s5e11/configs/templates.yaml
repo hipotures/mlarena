@@ -29,6 +29,13 @@ templates:
         presets: best_quality
         time_limit: 3600
         use_gpu: false
+  best-cpu-fe00:
+    model: autogluon_features_00
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
   best-gpu:
     model: autogluon_baseline
     config:
@@ -115,6 +122,27 @@ templates:
         use_gpu: false
   best-cpu-fe10:
     model: autogluon_features_10
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-lgbm-fe-rich:
+    model: lgbm_fe_rich
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-xgb-fe-rich:
+    model: xgb_fe_rich_model
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe-rich:
+    model: autogluon_fe_rich
     config:
       hyperparameters:
         presets: best_quality

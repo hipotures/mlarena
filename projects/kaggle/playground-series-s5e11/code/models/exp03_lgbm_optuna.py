@@ -66,9 +66,15 @@ def get_default_config() -> Dict[str, Any]:
 
 
 def preprocess(train_df: pd.DataFrame, config: ModelConfig, is_train: bool = True) -> pd.DataFrame:
-    """Apply Tier 1 feature engineering."""
+    """Apply Tier 1 feature engineering and encode categoricals for LightGBM."""
     print(f"[{EXPERIMENT_NAME}] Applying Tier 1 features...")
-    return add_tier1_features(train_df)
+    processed_df = add_tier1_features(train_df)
+
+    # Convert object columns to category dtype for LightGBM
+    for col in processed_df.select_dtypes(include=['object']).columns:
+        processed_df[col] = processed_df[col].astype('category')
+
+    return processed_df
 
 
 def objective(trial: optuna.Trial, X: pd.DataFrame, y: pd.Series, n_folds: int = 5) -> float:

@@ -50,6 +50,8 @@ def _drop_ignored(df: pd.DataFrame, config: ModelConfig) -> pd.DataFrame:
 
 def _prep_features(df: pd.DataFrame, config: ModelConfig) -> Tuple[pd.DataFrame, list[str]]:
     feats = _drop_ignored(df, config)
+    if config.dataset.target in feats.columns:
+        feats = feats.drop(columns=[config.dataset.target])
     cat_cols = [c for c in feats.columns if feats[c].dtype == "object"]
     for col in cat_cols:
         feats[col] = feats[col].astype("category")

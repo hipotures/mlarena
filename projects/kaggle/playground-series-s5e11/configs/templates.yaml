@@ -183,3 +183,65 @@ templates:
         use_gpu: true
       model:
         leaderboard_rows: 20
+  # ===================================================================
+  # SERIA 5 EKSPERYMENTÓW - Feature Engineering & Model Optimization
+  # ===================================================================
+  exp01-tier1:
+    model: exp01_tier1_features
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 5400  # 1.5h
+        num_bag_folds: 5
+        num_stack_levels: 1
+        use_gpu: false
+      preprocessing:
+        feature_set: tier1_critical
+  exp02-encoding:
+    model: exp02_tier2_encoding
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 5400  # 1.5h
+        num_bag_folds: 5
+        num_stack_levels: 1
+        use_gpu: false
+      preprocessing:
+        feature_set: tier2_encoding
+        include_tier1: true
+  exp03-lgbm-optuna:
+    model: exp03_lgbm_optuna
+    config:
+      hyperparameters:
+        n_trials: 50
+        n_folds: 5
+        early_stopping_rounds: 50
+        verbose_eval: 100
+        use_gpu: false
+      preprocessing:
+        feature_set: tier1_critical
+  exp04-stacking:
+    model: exp04_stacking_ensemble
+    config:
+      hyperparameters:
+        n_folds: 5
+        early_stopping_rounds: 50
+        base_model_iterations: 500
+        use_gpu: false
+      preprocessing:
+        feature_set: tier2_encoding
+        include_tier1: true
+  exp05-transfer:
+    model: exp05_transfer_learning
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 5400
+        pretrain_time_limit: 1800
+        finetune_time_limit: 3600
+        num_bag_folds: 5
+        num_stack_levels: 1
+        use_gpu: false
+      preprocessing:
+        feature_set: tier1_with_transfer
+        use_original_dataset: true

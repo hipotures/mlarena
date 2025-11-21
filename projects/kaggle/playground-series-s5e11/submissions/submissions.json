@@ -913,5 +913,62 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 26,
+    "timestamp": "2025-11-21 12:44:52",
+    "filename": "submission-20251121124401.csv",
+    "model_name": "exp02_tier2_encoding-exp02-encoding",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.9225,
+    "private_score": null,
+    "notes": "template=exp02-encoding",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251121-100933",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251121-100933/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251121-100933/artifacts/exp02-encoding-exp02_tier2_encoding",
+        "template": "exp02-encoding",
+        "experiment_id": "exp-20251121-100933",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [
+          "id"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "best_quality",
+        "time_limit": 5400,
+        "use_gpu": false,
+        "excluded_models": null,
+        "num_bag_folds": 5,
+        "num_stack_levels": 1
+      },
+      "model": {
+        "eval_metric": "roc_auc",
+        "problem_type": "binary",
+        "leaderboard_rows": 30
+      },
+      "preprocessing": {
+        "feature_set": "tier2_encoding",
+        "include_tier1": true
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

@@ -127,6 +127,13 @@ templates:
         presets: best_quality
         time_limit: 3600
         use_gpu: false
+  best-cpu-rich-baseline:
+    model: autogluon_features_rich_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
   best-cpu-lgbm-fe-rich:
     model: lgbm_fe_rich
     config:
@@ -245,3 +252,74 @@ templates:
       preprocessing:
         feature_set: tier1_with_transfer
         use_original_dataset: true
+
+  best-cpu-fe11:
+    model: autogluon_features_11
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe12:
+    model: autogluon_features_12
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe13:
+    model: autogluon_features_13
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe14:
+    model: autogluon_features_14
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe15:
+    model: autogluon_features_15
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe16:
+    model: autogluon_features_16
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe17:
+    model: autogluon_features_17
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe18:
+    model: autogluon_features_18
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe19:
+    model: autogluon_features_19
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false
+  best-cpu-fe20:
+    model: autogluon_features_20
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 3600
+        use_gpu: false

@@ -23,6 +23,12 @@ N_FOLDS = 5
 # Target column
 TARGET_COLUMN = "loan_paid_back"
 
+# ID column (needed for submission, but not for training)
+ID_COLUMN = "id"
+
+# Columns to ignore during training (but keep in test for submission)
+IGNORED_COLUMNS = ["id"]
+
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
 AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment

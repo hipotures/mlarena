@@ -898,5 +898,20 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 25,
+    "timestamp": "2025-11-21 11:04:42",
+    "filename": "submission_exp01_20251121110113.csv",
+    "model_name": "submission_exp01_20251121110113.csv",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.92259,
+    "private_score": null,
+    "notes": "Auto-added via resume",
+    "config": {},
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

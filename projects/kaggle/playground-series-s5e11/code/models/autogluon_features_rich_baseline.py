@@ -36,6 +36,12 @@ def get_default_config() -> Dict[str, Any]:
     }
 
 
+def _safe_ratio(num: pd.Series, den: pd.Series) -> pd.Series:
+    safe_den = den.replace(0, pd.NA)
+    ratio = num / safe_den
+    return ratio.replace([np.inf, -np.inf], pd.NA).fillna(0)
+
+
 def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     enriched = base_model._engineer_features(df)
 

@@ -19,11 +19,11 @@ uv run python scripts/experiment_manager.py model \
 
 # Next, run the new feature variants from 11 to 20
 TEMPLATES=(
-  best-cpu-fe11
-  best-cpu-fe12
-  best-cpu-fe13
-  best-cpu-fe14
-  best-cpu-fe15
+#  best-cpu-fe11
+#  best-cpu-fe12
+#  best-cpu-fe13
+#  best-cpu-fe14
+#  best-cpu-fe15
   best-cpu-fe16
   best-cpu-fe17
   best-cpu-fe18

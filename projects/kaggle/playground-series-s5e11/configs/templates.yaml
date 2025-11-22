@@ -132,7 +132,7 @@ templates:
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-lgbm-fe-rich:
     model: lgbm_fe_rich
@@ -258,68 +258,68 @@ templates:
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe12:
     model: autogluon_features_12
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe13:
     model: autogluon_features_13
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe14:
     model: autogluon_features_14
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe15:
     model: autogluon_features_15
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe16:
     model: autogluon_features_16
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe17:
     model: autogluon_features_17
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe18:
     model: autogluon_features_18
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe19:
     model: autogluon_features_19
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false
   best-cpu-fe20:
     model: autogluon_features_20
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 3600
+        time_limit: 7200
         use_gpu: false

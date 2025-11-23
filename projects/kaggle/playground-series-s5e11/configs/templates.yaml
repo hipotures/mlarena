@@ -22,6 +22,39 @@ templates:
         presets: medium_quality
         time_limit: 300
         use_gpu: true
+  tabicl-fast:
+    model: tabicl_skrub
+    config:
+      model:
+        sample_fraction: 0.1
+        cv_folds: 3
+        n_estimators: 8
+        batch_size: 4
+        device: cuda
+        norm_methods:
+          - none
+          - power
+        output_labels: true
+        label_threshold: 0.5
+      hyperparameters:
+        use_gpu: true
+  tabicl-full:
+    model: tabicl_skrub
+    config:
+      model:
+        sample_fraction: 1.0
+        cv_folds: 1
+        n_estimators: 32
+        batch_size: 8
+        device: cuda
+        norm_methods:
+          - none
+          - power
+          - quantile
+        output_labels: true
+        label_threshold: 0.5
+      hyperparameters:
+        use_gpu: true
   best-cpu:
     model: autogluon_baseline
     config:

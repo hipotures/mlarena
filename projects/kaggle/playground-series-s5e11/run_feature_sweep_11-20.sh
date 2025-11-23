@@ -9,13 +9,13 @@ WAIT_SECONDS="${WAIT_SECONDS:-45}"
 CDP_URL="${CDP_URL:-http://localhost:9222}"
 
 # First, run the rich baseline experiment
-echo ">>> Running rich baseline (wait=${WAIT_SECONDS}s, CDP=${CDP_URL})"
-uv run python scripts/experiment_manager.py model \
-  --project "${PROJECT}" \
-  --template "best-cpu-rich-baseline" \
-  --auto-submit \
-  --wait-seconds "${WAIT_SECONDS}" \
-  --cdp-url "${CDP_URL}"
+#echo ">>> Running rich baseline (wait=${WAIT_SECONDS}s, CDP=${CDP_URL})"
+#uv run python scripts/experiment_manager.py model \
+  #--project "${PROJECT}" \
+  #--template "best-cpu-rich-baseline" \
+  #--auto-submit \
+  #--wait-seconds "${WAIT_SECONDS}" \
+  #--cdp-url "${CDP_URL}"
 
 # Next, run the new feature variants from 11 to 20
 TEMPLATES=(
@@ -24,8 +24,8 @@ TEMPLATES=(
 #  best-cpu-fe13
 #  best-cpu-fe14
 #  best-cpu-fe15
-  best-cpu-fe16
-  best-cpu-fe17
+#  best-cpu-fe16
+#  best-cpu-fe17
   best-cpu-fe18
   best-cpu-fe19
   best-cpu-fe20

@@ -524,7 +524,7 @@ def run_eda(args):
 
 
 def run_list(args):
-    project_root = REPO_ROOT / args.project
+    project_root = REPO_ROOT / "projects" / "kaggle" / args.project
     base_dir = project_root / "experiments"
     if not base_dir.exists():
         print("No experiments found.")
@@ -567,8 +567,11 @@ def run_model(args):
         )
         return
     script = TOOLS_ROOT / "ml_runner.py"
+    # Use venv python directly to avoid uv rebuild issues in worktrees
+    venv_python = Path(sys.executable).parent / "python3"
+    python_exe = str(venv_python) if venv_python.exists() else sys.executable
     cmd = [
-        sys.executable,
+        python_exe,
         str(script),
         "--project",
         args.project,

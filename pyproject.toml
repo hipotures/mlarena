@@ -18,6 +18,10 @@ dependencies = [
     "autogluon>=1.0.0",
     "playwright>=1.48.0",
     "ydata-profiling>=4.6.0",
+    "pydantic>=2.7.0",
+    "pyyaml>=6.0.0",
+    "tabicl>=0.1.0",
+    "skrub>=0.4.0",
 ]
 
 [tool.uv]

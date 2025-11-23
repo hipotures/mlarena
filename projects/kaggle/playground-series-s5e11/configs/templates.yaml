@@ -293,6 +293,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe12:
     model: autogluon_features_12
     config:
@@ -300,6 +302,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe13:
     model: autogluon_features_13
     config:
@@ -307,6 +311,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe14:
     model: autogluon_features_14
     config:
@@ -314,6 +320,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe15:
     model: autogluon_features_15
     config:
@@ -321,6 +329,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe16:
     model: autogluon_features_16
     config:
@@ -328,6 +338,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe17:
     model: autogluon_features_17
     config:
@@ -335,6 +347,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe18:
     model: autogluon_features_18
     config:
@@ -342,6 +356,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe19:
     model: autogluon_features_19
     config:
@@ -349,6 +365,8 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH
   best-cpu-fe20:
     model: autogluon_features_20
     config:
@@ -356,3 +374,5 @@ templates:
         presets: best_quality
         time_limit: 7200
         use_gpu: false
+        excluded_models:
+          - NN_TORCH

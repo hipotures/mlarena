@@ -25,7 +25,7 @@ TEMPLATES=(
 #  best-cpu-fe14
 #  best-cpu-fe15
 #  best-cpu-fe16
-  best-cpu-fe17
+#  best-cpu-fe17
 #  best-cpu-fe18
 #  best-cpu-fe19
   best-cpu-fe20

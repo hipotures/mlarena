@@ -88,13 +88,99 @@ def _validate_prediction_signal(predictions: pd.Series, sample_target: Optional[
             )
 
 
-def create_submission(
+def _build_submission_from_dataframe(
+    predictions: pd.DataFrame,
+    sample_df: Optional[pd.DataFrame],
+    fallback_id_col: str,
+    default_target_col: str,
+    provided_test_ids,
+):
+    submission = predictions.copy()
+    if sample_df is not None:
+        expected_cols = sample_df.columns.tolist()
+        missing = [col for col in expected_cols if col not in submission.columns]
+        if missing:
+            raise ValueError(
+                "Predictions DataFrame is missing required columns from sample_submission: "
+                f"{missing}"
+            )
+        submission = submission[expected_cols]
+        # Validate every target column based on the sample signature.
+        for column in expected_cols[1:]:
+            sample_series = sample_df[column]
+            target_type = _infer_target_type(sample_series)
+            _ensure_target_value_types(submission[column], target_type, column)
+            _validate_prediction_signal(submission[column], sample_series, column)
+        return submission
+
+    id_col = fallback_id_col
+    if id_col not in submission.columns:
+        if provided_test_ids is None:
+            raise ValueError(
+                "Predictions DataFrame must contain the ID column or provide test_ids."
+            )
+        submission.insert(0, id_col, provided_test_ids)
+    else:
+        other_cols = [col for col in submission.columns if col != id_col]
+        submission = submission[[id_col] + other_cols]
+
+    if submission.shape[1] < 2:
+        raise ValueError(
+            "Predictions DataFrame must include at least one target column besides the ID column."
+        )
+
+    for column in submission.columns[1:]:
+        _ensure_target_value_types(submission[column], None, column)
+        _validate_prediction_signal(submission[column], None, column)
+
+    return submission
+
+
+def _build_submission_from_series(
     predictions,
     test_ids,
+    sample_df: Optional[pd.DataFrame],
+    fallback_id_col: str,
+    fallback_target_col: str,
+    explicit_id_column: Optional[str],
+):
+    if test_ids is None:
+        raise ValueError("test_ids must be provided when predictions are not a DataFrame.")
+
+    if sample_df is not None:
+        id_col = sample_df.columns[0]
+        if len(sample_df.columns) != 2:
+            raise ValueError(
+                "Sample submission contains multiple target columns. "
+                "Return a DataFrame with all required columns instead of a single Series."
+            )
+        target_col = sample_df.columns[1]
+        sample_target_series = sample_df[target_col]
+        target_type = _infer_target_type(sample_target_series)
+    else:
+        id_col = explicit_id_column or fallback_id_col
+        target_col = fallback_target_col
+        sample_target_series = None
+        target_type = None
+
+    predictions_series = pd.Series(predictions)
+    _ensure_target_value_types(predictions_series, target_type, target_col)
+    _validate_prediction_signal(predictions_series, sample_target_series, target_col)
+
+    submission = pd.DataFrame({
+        id_col: test_ids,
+        target_col: predictions_series
+    })
+    return submission
+
+
+def create_submission(
+    predictions,
     project_root: Path,
     competition_name: str,
     submissions_dir: Path,
     sample_submission_path: Path,
+    test_ids=None,
     filename_prefix="submission",
     metric_name=None,
     metric_value=None,
@@ -114,8 +200,11 @@ def create_submission(
     This is the universal implementation used by all competition projects.
 
     Args:
-        predictions: Array or Series of predictions
-        test_ids: Array or Series of test IDs
+        predictions: Array, Series, or DataFrame of predictions. When passing a
+            DataFrame it should already contain the ID column and all required
+            target columns (matching sample_submission.csv).
+        test_ids: Array or Series of test IDs. Required when `predictions` is not
+            a DataFrame.
         project_root: Path to project root directory
         competition_name: Kaggle competition slug
         submissions_dir: Path to submissions directory
@@ -134,31 +223,39 @@ def create_submission(
     Returns:
         SubmissionArtifact with path and metadata
     """
-    # Read sample submission to get correct column names
-    target_type = None
     if sample_submission_path.exists():
-        sample = pd.read_csv(sample_submission_path)
-        id_col = sample.columns[0]
-        target_col = sample.columns[1]
-        sample_target_series = sample[target_col]
-        target_type = _infer_target_type(sample_target_series)
+        sample_df = pd.read_csv(sample_submission_path)
     else:
-        id_col = id_column or default_id_col
-        target_col = default_target_col
+        sample_df = None
+        if test_ids is None and not isinstance(predictions, pd.DataFrame):
+            raise ValueError(
+                f"test_ids is required when sample submission is missing ({sample_submission_path})."
+            )
         print(
             f"Warning: sample submission not found at {sample_submission_path}. "
-            f"Using columns [{id_col}, {target_col}]"
+            "Falling back to default column names."
         )
-        sample_target_series = None
-    predictions_series = pd.Series(predictions)
-    _ensure_target_value_types(predictions_series, target_type, target_col)
-    _validate_prediction_signal(predictions_series, sample_target_series, target_col)
 
-    # Create submission DataFrame
-    submission = pd.DataFrame({
-        id_col: test_ids,
-        target_col: predictions_series
-    })
+    fallback_id = id_column or default_id_col
+    fallback_target = default_target_col
+
+    if isinstance(predictions, pd.DataFrame):
+        submission = _build_submission_from_dataframe(
+            predictions,
+            sample_df,
+            fallback_id,
+            fallback_target,
+            test_ids,
+        )
+    else:
+        submission = _build_submission_from_series(
+            predictions,
+            test_ids,
+            sample_df,
+            fallback_id,
+            fallback_target,
+            id_column,
+        )
 
     # Generate filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")

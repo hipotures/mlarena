@@ -10,6 +10,14 @@ This package provides common functionality for:
 
 __version__ = "0.2.0"
 
+from .config_models import DatasetConfig, Hyperparameters, ModelConfig, SystemConfig
 from .submission import create_submission, validate_submission
 
-__all__ = ["create_submission", "validate_submission"]
+__all__ = [
+    "create_submission",
+    "validate_submission",
+    "DatasetConfig",
+    "Hyperparameters",
+    "ModelConfig",
+    "SystemConfig",
+]

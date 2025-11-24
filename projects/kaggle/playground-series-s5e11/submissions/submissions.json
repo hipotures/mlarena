@@ -1715,5 +1715,61 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 42,
+    "timestamp": "2025-11-24 22:42:24",
+    "filename": "submission-20251124224133.csv",
+    "model_name": "autogluon_features_23_target_bagging-best-cpu-fe23",
+    "local_cv_score": 0.9125221020558469,
+    "cv_std": null,
+    "public_score": 0.92348,
+    "private_score": null,
+    "notes": "template=best-cpu-fe23",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251124-133316",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251124-133316/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251124-133316/artifacts/best-cpu-fe23-autogluon_features_23_target_bagging",
+        "template": "best-cpu-fe23",
+        "experiment_id": "exp-20251124-133316",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [
+          "id"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "best_quality",
+        "time_limit": 28800,
+        "use_gpu": false,
+        "excluded_models": [
+          "NN_TORCH"
+        ],
+        "num_bag_folds": 8,
+        "num_stack_levels": 2
+      },
+      "model": {
+        "leaderboard_rows": 40,
+        "target_encoding_folds": 5,
+        "target_encoding_smoothing": 1.0,
+        "enable_woe": true
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

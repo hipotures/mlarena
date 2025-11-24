@@ -1,0 +1,42 @@
+# Add these entries to your templates.yaml file
+
+  best-cpu-fe21:
+    model: autogluon_features_21
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 10800  # 3 hours
+        num_bag_folds: 8
+        num_stack_levels: 2
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+      model:
+        leaderboard_rows: 30
+  
+  best-cpu-fe22:
+    model: autogluon_features_22_target_encoding
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 10800  # 3 hours
+        num_bag_folds: 8
+        num_stack_levels: 2
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+      model:
+        leaderboard_rows: 30
+  
+  ensemble-final:
+    model: ensemble_best_models
+    config:
+      ensemble:
+        method: weighted_average
+        calibration: true
+        models:
+          - fe17
+          - fe20
+          - fe21
+          - fe22
+          - original_best

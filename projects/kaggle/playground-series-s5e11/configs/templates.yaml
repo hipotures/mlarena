@@ -223,6 +223,34 @@ templates:
         use_gpu: true
       model:
         leaderboard_rows: 20
+
+  # Quick smoke tests for new TE+bagging variants (5 min, medium, minimal folds)
+  dev-fe23-te:
+    model: autogluon_features_23_target_bagging
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 300
+        use_gpu: false
+        num_bag_folds: 2
+        num_stack_levels: 1
+      model:
+        target_encoding_folds: 4
+        target_encoding_smoothing: 1.0
+        enable_woe: true
+  dev-fe24-te:
+    model: autogluon_features_24_target_bagging_nowoe
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 300
+        use_gpu: false
+        num_bag_folds: 2
+        num_stack_levels: 1
+      model:
+        target_encoding_folds: 4
+        target_encoding_smoothing: 1.5
+        enable_woe: false
   # ===================================================================
   # SERIA 5 EKSPERYMENTÓW - Feature Engineering & Model Optimization
   # ===================================================================
@@ -407,6 +435,40 @@ templates:
           - NN_TORCH
       model:
         leaderboard_rows: 30
+
+  best-cpu-fe23:
+    model: autogluon_features_23_target_bagging
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        num_bag_folds: 8
+        num_stack_levels: 2
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+      model:
+        leaderboard_rows: 40
+        target_encoding_folds: 5
+        target_encoding_smoothing: 1.0
+        enable_woe: true
+
+  best-cpu-fe24:
+    model: autogluon_features_24_target_bagging_nowoe
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        num_bag_folds: 8
+        num_stack_levels: 2
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+      model:
+        leaderboard_rows: 40
+        target_encoding_folds: 6
+        target_encoding_smoothing: 2.0
+        enable_woe: false
 
   # ===================================================================
   # ENSEMBLE MODELS

@@ -1609,5 +1609,58 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 40,
+    "timestamp": "2025-11-24 07:22:23",
+    "filename": "submission-20251124072133.csv",
+    "model_name": "autogluon_features_21-best-cpu-fe21",
+    "local_cv_score": 0.9116872112857046,
+    "cv_std": null,
+    "public_score": 0.92368,
+    "private_score": null,
+    "notes": "template=best-cpu-fe21",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251124-000329",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251124-000329/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251124-000329/artifacts/best-cpu-fe21-autogluon_features_21",
+        "template": "best-cpu-fe21",
+        "experiment_id": "exp-20251124-000329",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [
+          "id"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "best_quality",
+        "time_limit": 21600,
+        "use_gpu": false,
+        "excluded_models": [
+          "NN_TORCH"
+        ],
+        "num_bag_folds": 8,
+        "num_stack_levels": 2
+      },
+      "model": {
+        "leaderboard_rows": 30
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

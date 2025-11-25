@@ -151,6 +151,7 @@ def train(
     num_stack_levels = getattr(hyper_cfg, 'num_stack_levels', 1)
     use_gpu = getattr(hyper_cfg, 'use_gpu', False)
     excluded_models = getattr(hyper_cfg, 'excluded_models', None)
+    included_models = getattr(hyper_cfg, 'included_model_types', None)
 
     # Get feature pruning config
     prune_cfg = getattr(config, 'feature_prune', {})
@@ -237,6 +238,9 @@ def train(
 
     if tuning_data is not None:
         fit_kwargs['tuning_data'] = tuning_data
+
+    if included_models:
+        fit_kwargs['included_model_types'] = included_models
 
     if excluded_models:
         fit_kwargs['excluded_model_types'] = excluded_models

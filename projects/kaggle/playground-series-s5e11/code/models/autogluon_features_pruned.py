@@ -1,0 +1,194 @@
+"""
+AutoGluon with automatic feature pruning.
+
+This model uses ALL features from rich_baseline but lets AutoGluon automatically
+remove features that hurt model performance via Recursive Feature Elimination
+with Permutation Feature Importance.
+
+Key insight: Our experiments showed that MORE features = WORSE scores:
+- Original best_quality (minimal FE): 0.92434 (BEST)
+- fe17 (rich + 2 features): 0.92356
+- fe21 (ultimate combo): 0.92368
+
+Feature pruning solves this by:
+1. Training models with ALL features
+2. Measuring each feature's impact via permutation importance
+3. Removing harmful/noisy features iteratively
+4. Retraining with pruned feature set
+5. Keeping pruned version only if it improves score
+
+Expected result: 0.925+ (combines rich FE with automatic noise removal)
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
+import sys
+
+MODEL_DIR = Path(__file__).parent
+if str(MODEL_DIR) not in sys.path:
+    sys.path.insert(0, str(MODEL_DIR))
+
+# Import rich baseline to get ALL engineered features
+import autogluon_features_rich_baseline as base_model
+import numpy as np
+import pandas as pd
+from autogluon.tabular import TabularPredictor
+
+from kaggle_tools.config_models import ModelConfig
+
+VARIANT_NAME = "feature-pruned"
+
+
+def get_default_config() -> Dict[str, Any]:
+    """
+    Extended time limit because feature pruning roughly doubles training time.
+    The pruning process trains models twice: once with all features, once with pruned set.
+    """
+    return {
+        "hyperparameters": {
+            "presets": "best_quality",
+            "time_limit": 14400,  # 4 hours (pruning needs extra time)
+            "num_bag_folds": 5,   # Required for stable pruning
+            "num_stack_levels": 1,  # One level of stacking
+            "use_gpu": False,
+        },
+        "model": {
+            "leaderboard_rows": 30,
+        },
+        "feature_prune": {
+            "enabled": True,
+            "force_prune": True,
+            "prune_ratio": 0.05,      # Remove 5% worst features per round
+            "stop_threshold": 10,      # Max 10 pruning rounds
+        },
+    }
+
+
+def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Use ALL features from rich_baseline.
+    AutoGluon's feature pruning will automatically remove the harmful ones.
+    """
+    return base_model._engineer_features(df)
+
+
+def preprocess(df: pd.DataFrame, config: ModelConfig, is_train: bool = True) -> pd.DataFrame:
+    """Apply rich feature engineering - pruning happens during fit()."""
+    return _engineer_features(df)
+
+
+def train(
+    train_df: pd.DataFrame,
+    val_df: Optional[pd.DataFrame],
+    config: ModelConfig,
+    artifacts: Optional[Any] = None,
+) -> Tuple[TabularPredictor, Dict[str, Any]]:
+    """
+    Train with automatic feature pruning enabled.
+    
+    Feature pruning uses Recursive Feature Elimination (RFE) with
+    Permutation Feature Importance to identify and remove features
+    that hurt model performance.
+    """
+    print(f"[{VARIANT_NAME}] Training with AUTOMATIC FEATURE PRUNING")
+    print(f"[{VARIANT_NAME}] Initial feature count: {len(train_df.columns) - 1}")  # -1 for target
+    print(f"[{VARIANT_NAME}] AutoGluon will automatically remove harmful features")
+
+    # Prepare training data (data already preprocessed, just needs target column)
+    train_data = train_df.copy()
+
+    # Prepare validation data if provided
+    tuning_data = val_df.copy() if val_df is not None else None
+    
+    # Get hyperparameters from config
+    hyper_cfg = config.hyperparameters if hasattr(config, 'hyperparameters') else {}
+    presets = getattr(hyper_cfg, 'presets', 'best_quality')
+    time_limit = getattr(hyper_cfg, 'time_limit', 14400)
+    num_bag_folds = getattr(hyper_cfg, 'num_bag_folds', 5)
+    num_stack_levels = getattr(hyper_cfg, 'num_stack_levels', 1)
+    use_gpu = getattr(hyper_cfg, 'use_gpu', False)
+    excluded_models = getattr(hyper_cfg, 'excluded_models', None)
+    
+    # Get feature pruning config
+    prune_cfg = getattr(config, 'feature_prune', {})
+    if isinstance(prune_cfg, dict):
+        force_prune = prune_cfg.get('force_prune', True)
+    else:
+        force_prune = getattr(prune_cfg, 'force_prune', True)
+    
+    # Build feature_prune_kwargs
+    feature_prune_kwargs = {
+        'force_prune': force_prune,
+    }
+    
+    print(f"[{VARIANT_NAME}] Config: presets={presets}, time_limit={time_limit}s")
+    print(f"[{VARIANT_NAME}] Bagging: {num_bag_folds} folds, {num_stack_levels} stack levels")
+    print(f"[{VARIANT_NAME}] Feature pruning: force_prune={force_prune}")
+    
+    # Create predictor
+    predictor = TabularPredictor(
+        label=config.dataset.target,
+        path=str(config.system.model_path),
+        problem_type=config.dataset.problem_type,
+        eval_metric=config.dataset.metric,
+    )
+    
+    # Fit with feature pruning
+    fit_kwargs = {
+        'train_data': train_data,
+        'presets': presets,
+        'time_limit': time_limit,
+        'num_bag_folds': num_bag_folds,
+        'num_stack_levels': num_stack_levels,
+        'feature_prune_kwargs': feature_prune_kwargs,
+    }
+    
+    if tuning_data is not None:
+        fit_kwargs['tuning_data'] = tuning_data
+    
+    if excluded_models:
+        fit_kwargs['excluded_model_types'] = excluded_models
+    
+    if use_gpu:
+        fit_kwargs['num_gpus'] = 1
+    
+    predictor.fit(**fit_kwargs)
+    
+    # Log results
+    print(f"\n[{VARIANT_NAME}] Training complete!")
+    print(f"[{VARIANT_NAME}] Best model: {predictor.model_best}")
+    
+    # Try to get feature info from pruned models
+    try:
+        leaderboard = predictor.leaderboard(silent=True)
+        print(f"\n[{VARIANT_NAME}] Top 5 models:")
+        print(leaderboard.head())
+        
+        # Check if any models have "_Prune" suffix (indicates pruning was used)
+        pruned_models = [m for m in leaderboard['model'].tolist() if '_Prune' in m]
+        if pruned_models:
+            print(f"\n[{VARIANT_NAME}] Pruned models found: {pruned_models}")
+    except Exception as e:
+        print(f"[{VARIANT_NAME}] Could not get leaderboard: {e}")
+    
+    model_cfg = config.model if hasattr(config, 'model') else {}
+    leaderboard_rows = getattr(model_cfg, 'leaderboard_rows', 20)
+    
+    return predictor, {"leaderboard_rows": leaderboard_rows}
+
+
+def predict(
+    model: TabularPredictor,
+    test_df: pd.DataFrame,
+    config: ModelConfig,
+    artifacts: Optional[Any] = None,
+) -> pd.DataFrame:
+    """Generate predictions using the trained (and pruned) model."""
+    return base_model.predict(model, test_df, config, artifacts)
+
+
+# For direct testing
+if __name__ == "__main__":
+    print("This model uses automatic feature pruning.")
+    print("Run via experiment_manager.py with template: best-cpu-fe-pruned")

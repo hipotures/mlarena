@@ -9,33 +9,8 @@ Seria 5 eksperymentów zaprojektowanych do systematycznej optymalizacji pipeline
 **Notatka GPU (FastAI):** GPU faktycznie ruszało dopiero po przestawieniu na fastai-only (`included_model_types: [FASTAI]`) i/lub preset `medium_quality` (przy `best_quality` potrafił iść CPU). W razie kłopotów trzymaj FastAI jako jedyny model + własne `ag_args_fit` (num_gpus=1, device=cuda, batch_size=256, num_workers=0).
 
 **WAŻNE - Konfiguracja GPU dla AutoGluon:**
-AutoGluon wymaga **jawnej konfiguracji GPU dla każdego typu modelu osobno**. Samo `use_gpu: true` i `num_gpus: 1` w fit() **NIE WYSTARCZY**!
-
-Dla tree-based models (LightGBM, XGBoost, CatBoost) dodaj:
-```yaml
-hyperparameters:
-  use_gpu: true
-  GBM:
-    - ag_args_fit: {num_gpus: 1}
-  XGB:
-    - ag_args_fit: {num_gpus: 1}
-  CAT:
-    - ag_args_fit: {num_gpus: 1}
-```
-
-Dla neural networks (FastAI, NN_TORCH):
-```yaml
-hyperparameters:
-  use_gpu: true
-  FASTAI:
-    - ag_args_fit: {num_gpus: 1, device: cuda, batch_size: 256, num_workers: 0}
-  NN_TORCH:
-    - ag_args_fit: {num_gpus: 1, batch_size: 256, num_workers: 0}
-```
-
-Sprawdzenie czy GPU działa - szukaj w logach:
-- ✅ DOBRZE: `gpus=1` lub `device='cuda'` w model fitting
-- ❌ ŹLE: `gpus=0` lub `device='cpu'` - GPU nie jest używane!
+GPU w AutoGluon dla tree models jest skomplikowane. Przy best_quality preset często ignoruje GPU.
+Najlepiej działa z preset medium_quality lub z FastAI-only models.
 
 ---
 

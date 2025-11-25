@@ -1771,5 +1771,70 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 43,
+    "timestamp": "2025-11-25 02:21:52",
+    "filename": "submission-20251125022100.csv",
+    "model_name": "autogluon_features_25_fastai-best-gpu-fe25-fastai",
+    "local_cv_score": 0.9128151128725843,
+    "cv_std": null,
+    "public_score": 0.91413,
+    "private_score": null,
+    "notes": "template=best-gpu-fe25-fastai",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251125-004454",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251125-004454/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251125-004454/artifacts/best-gpu-fe25-fastai-autogluon_features_25_fastai",
+        "template": "best-gpu-fe25-fastai",
+        "experiment_id": "exp-20251125-004454",
+        "random_seed": 42,
+        "use_gpu": true
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [
+          "id"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "medium_quality",
+        "time_limit": 3600,
+        "use_gpu": true,
+        "excluded_models": null,
+        "num_bag_folds": 5,
+        "num_stack_levels": 1,
+        "ag_args_fit": {
+          "num_gpus": 1,
+          "device": "cuda",
+          "num_workers": 0,
+          "batch_size": 256,
+          "epochs": 15
+        },
+        "included_model_types": [
+          "FASTAI"
+        ],
+        "feature_prune_kwargs": {}
+      },
+      "model": {
+        "leaderboard_rows": 30,
+        "target_encoding_folds": 6,
+        "target_encoding_smoothing": 2.0,
+        "enable_woe": false
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

@@ -6,6 +6,8 @@ Seria 5 eksperymentów zaprojektowanych do systematycznej optymalizacji pipeline
 
 **Cel:** Poprawa wyniku z obecnego **0.92434 public AUC** do **0.94+ AUC**
 
+**Notatka GPU (FastAI):** GPU faktycznie ruszało dopiero po przestawieniu na fastai-only (`included_model_types: [FASTAI]`) i/lub preset `medium_quality` (przy `best_quality` potrafił iść CPU). W razie kłopotów trzymaj FastAI jako jedyny model + własne `ag_args_fit` (num_gpus=1, device=cuda, batch_size=256, num_workers=0).
+
 ---
 
 ## 📋 Podsumowanie Eksperymentów

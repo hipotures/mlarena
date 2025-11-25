@@ -201,18 +201,21 @@ def train(
         'time_limit': time_limit,
         'num_bag_folds': num_bag_folds,
         'num_stack_levels': num_stack_levels,
+        'num_cpus': 16,  # Total CPUs for predictor
+        'num_gpus': 1 if use_gpu else 0,  # Total GPUs for predictor
         'dynamic_stacking': False,  # Disable DyStack check, keep stacking enabled
         'feature_prune_kwargs': feature_prune_kwargs,
     }
+
+    # With GPU, use sequential folding to avoid splitting 1 GPU across parallel folds
+    if use_gpu:
+        fit_kwargs['ag_args_ensemble'] = {'fold_fitting_strategy': 'sequential_local'}
 
     if tuning_data is not None:
         fit_kwargs['tuning_data'] = tuning_data
 
     if excluded_models:
         fit_kwargs['excluded_model_types'] = excluded_models
-
-    if use_gpu:
-        fit_kwargs['num_gpus'] = 1
 
     predictor.fit(**fit_kwargs)
 

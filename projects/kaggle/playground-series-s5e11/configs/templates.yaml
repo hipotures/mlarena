@@ -668,13 +668,6 @@ templates:
         use_gpu: true
         excluded_models:
           - NN_TORCH
-        # Explicit GPU config for tree models (LightGBM, XGBoost, CatBoost)
-        GBM:
-          - ag_args_fit: {num_gpus: 1}
-        XGB:
-          - ag_args_fit: {num_gpus: 1}
-        CAT:
-          - ag_args_fit: {num_gpus: 1}
       feature_prune:
         enabled: true
         # Core pruning control

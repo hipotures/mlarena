@@ -614,3 +614,21 @@ templates:
             path: AutogluonModels
             weight: 0.10
             public_score: 0.92434
+
+  # Feature Pruning - removes harmful features automatically
+  best-cpu-fe-pruned:
+    model: autogluon_features_pruned
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 43200
+        num_bag_folds: 5
+        num_stack_levels: 1
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+      feature_prune:
+        enabled: true
+        force_prune: true
+      model:
+        leaderboard_rows: 30

@@ -619,7 +619,7 @@ templates:
   # FEATURE PRUNING EXPERIMENTS - Automatic feature selection
   # ===================================================================
 
-  # Quick test - single model + pruning (3 min)
+  # Quick test - XGB + GBM (for pruning) (3 min)
   quick-test-xgb-pruned:
     model: autogluon_baseline_pruned
     config:
@@ -631,6 +631,7 @@ templates:
         use_gpu: false
         included_model_types:
           - XGB
+          - GBM  # Required for feature pruning!
       feature_prune:
         enabled: true
         force_prune: true

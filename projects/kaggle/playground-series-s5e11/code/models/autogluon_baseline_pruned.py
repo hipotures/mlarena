@@ -121,8 +121,8 @@ def train(
     # Show column info BEFORE dropping
     print(f"[{VARIANT_NAME}] Columns summary:")
     print(f"  - Target column: '{config.dataset.target}'")
-    print(f"  - Ignored columns (will be dropped): {config.dataset.ignored_columns}")
-    print(f"  - ID column (will be dropped): '{config.dataset.id_column}'")
+    print(f"  - Ignored columns (dropped from TRAINING only): {config.dataset.ignored_columns}")
+    print(f"  - ID column (dropped from TRAINING only): '{config.dataset.id_column}'")
     print(f"  - Total columns before drop: {len(train_df.columns)}")
 
     # Drop ignored columns (id, etc.) before training
@@ -277,16 +277,21 @@ def predict(
     artifacts: Optional[Any] = None,
 ) -> pd.DataFrame:
     """Generate predictions using the trained (and pruned) model."""
-    # Apply same feature engineering
+    # Apply same feature engineering (keeps 'id' - AutoGluon ignores it automatically)
     test_features = _engineer_features(test_df)
 
     # Get predictions (probabilities for binary classification)
+    # AutoGluon automatically ignores columns it didn't train on (like 'id')
     if config.dataset.problem_type == "binary":
         predictions = model.predict_proba(test_features, as_multiclass=False)
     else:
         predictions = model.predict(test_features)
 
-    return pd.DataFrame({config.dataset.target: predictions})
+    # Return DataFrame with ID and predictions
+    result = pd.DataFrame()
+    result[config.dataset.id_column] = test_df[config.dataset.id_column]
+    result[config.dataset.target] = predictions
+    return result
 
 
 # For direct testing

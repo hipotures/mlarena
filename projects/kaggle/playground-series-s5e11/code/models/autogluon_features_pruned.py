@@ -71,7 +71,7 @@ def get_default_config() -> Dict[str, Any]:
             "prune_ratio": 0.05,           # 5% worst features per round
 
             # Stopping criteria
-            "stopping_round": 10,          # Stop after N rounds without improvement
+            "stopping_round": 50,          # Stop after N rounds without improvement
             "min_improvement": 1e-5,       # Minimum relative score improvement
             "max_fits": None,              # Max model fits (None = unlimited)
 
@@ -136,7 +136,7 @@ def train(
         min_fi_samples = prune_cfg.get('min_fi_samples', 10000)
         prune_threshold = prune_cfg.get('prune_threshold', 'noise')
         prune_ratio = prune_cfg.get('prune_ratio', 0.05)
-        stopping_round = prune_cfg.get('stopping_round', 10)
+        stopping_round = prune_cfg.get('stopping_round', 50)
         min_improvement = prune_cfg.get('min_improvement', 1e-5)
         max_fits = prune_cfg.get('max_fits', None)
         seed = prune_cfg.get('seed', 42)
@@ -148,7 +148,7 @@ def train(
         min_fi_samples = getattr(prune_cfg, 'min_fi_samples', 10000)
         prune_threshold = getattr(prune_cfg, 'prune_threshold', 'noise')
         prune_ratio = getattr(prune_cfg, 'prune_ratio', 0.05)
-        stopping_round = getattr(prune_cfg, 'stopping_round', 10)
+        stopping_round = getattr(prune_cfg, 'stopping_round', 50)
         min_improvement = getattr(prune_cfg, 'min_improvement', 1e-5)
         max_fits = getattr(prune_cfg, 'max_fits', None)
         seed = getattr(prune_cfg, 'seed', 42)

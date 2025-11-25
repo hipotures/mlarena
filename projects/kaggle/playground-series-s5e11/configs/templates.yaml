@@ -470,6 +470,90 @@ templates:
         target_encoding_smoothing: 2.0
         enable_woe: false
 
+  best-gpu-fe25-fastai:
+    model: autogluon_features_25_fastai
+    config:
+      hyperparameters:
+        presets: null  # explicit FastAI config below
+        time_limit: 3600
+        num_bag_folds: 5
+        num_stack_levels: 1
+        use_gpu: true
+        included_model_types:
+          - FASTAI
+        ag_args_fit:
+          num_gpus: 1
+          device: cuda
+          batch_size: 256
+          num_workers: 0
+          epochs: 15
+        FASTAI:
+          - ag_args:
+              name_suffix: "_gpu"
+            ag_args_fit:
+              num_gpus: 1
+              device: cuda
+              batch_size: 256
+              num_workers: 0
+              epochs: 15
+        feature_prune_kwargs: {}  # enable iterative feature pruning with defaults
+      model:
+        leaderboard_rows: 30
+        target_encoding_folds: 6
+        target_encoding_smoothing: 2.0
+        enable_woe: false
+
+  best-gpu-nn-only:
+    model: autogluon_features_24_target_bagging_nowoe
+    config:
+      hyperparameters:
+        presets: null
+        time_limit: 3600
+        use_gpu: true
+        included_model_types: ["NN_TORCH"]
+        NN_TORCH:
+          - {}
+          - activation: elu
+            dropout_prob: 0.10
+            hidden_size: 108
+            learning_rate: 0.0027
+            num_layers: 4
+            use_batchnorm: true
+            weight_decay: 1.3e-12
+            ag_args:
+              name_suffix: "_r79"
+              priority: -2
+            ag_args_fit:
+              num_gpus: 1
+              batch_size: 256
+              num_workers: 0
+          - activation: elu
+            dropout_prob: 0.12
+            hidden_size: 213
+            learning_rate: 0.0010
+            num_layers: 4
+            use_batchnorm: false
+            weight_decay: 5.6e-10
+            ag_args:
+              name_suffix: "_r22"
+              priority: -7
+            ag_args_fit:
+              num_gpus: 1
+              batch_size: 256
+              num_workers: 0
+        ag_args_ensemble:
+          fold_fitting_strategy: sequential_local
+        # Uncomment to add light HPO:
+        # hyperparameter_tune_kwargs:
+        #   num_trials: 4
+        #   scheduler: local
+        #   searcher: random
+      model:
+        leaderboard_rows: 30
+        target_encoding_folds: 6
+        target_encoding_smoothing: 2.0
+        enable_woe: false
+
   # ===================================================================
   # ENSEMBLE MODELS
   # ===================================================================

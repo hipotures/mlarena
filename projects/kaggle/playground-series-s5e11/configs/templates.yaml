@@ -642,7 +642,7 @@ templates:
         prune_ratio: 0.05           # 5% worst features per round
 
         # Stopping criteria
-        stopping_round: 10          # Stop after N rounds without improvement
+        stopping_round: 50          # Stop after N rounds without improvement (time limit likely hits first)
         min_improvement: 1.0e-5     # Minimum relative score improvement (0.001%)
         max_fits: null              # Max model fits (null = unlimited)
 

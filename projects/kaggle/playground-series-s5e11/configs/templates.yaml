@@ -615,7 +615,48 @@ templates:
             weight: 0.10
             public_score: 0.92434
 
-  # Feature Pruning - removes harmful features automatically
+  # ===================================================================
+  # FEATURE PRUNING EXPERIMENTS - Automatic feature selection
+  # ===================================================================
+
+  # Baseline + Minimal FE + Pruning (clean start approach)
+  best-cpu-baseline-pruned:
+    model: autogluon_baseline_pruned
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800  # 8 hours
+        num_bag_folds: 5
+        num_stack_levels: 1
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+      feature_prune:
+        enabled: true
+        # Core pruning control
+        force_prune: true           # Force all models to use pruned features
+        time_limit: null            # Auto-calculated as 30% of total time (8640s)
+
+        # Data sampling
+        max_train_samples: 50000    # Max training rows for pruning model
+        min_fi_samples: 10000       # Min validation rows for feature importance
+
+        # Pruning thresholds
+        prune_threshold: noise      # 'noise' or float - importance threshold
+        prune_ratio: 0.05           # 5% worst features per round
+
+        # Stopping criteria
+        stopping_round: 50          # Stop after N rounds without improvement (time limit likely hits first)
+        min_improvement: 1.0e-5     # Minimum relative score improvement (0.001%)
+        max_fits: null              # Max model fits (null = unlimited)
+
+        # Reproducibility
+        seed: 42
+        raise_exception: false      # Don't crash on errors
+      model:
+        leaderboard_rows: 30
+
+  # Rich Features + Pruning (noise removal approach)
   best-cpu-fe-pruned:
     model: autogluon_features_pruned
     config:

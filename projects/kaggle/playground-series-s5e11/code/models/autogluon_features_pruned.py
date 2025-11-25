@@ -116,13 +116,24 @@ def train(
     that hurt model performance.
     """
     print(f"[{VARIANT_NAME}] Training with AUTOMATIC FEATURE PRUNING")
-    print(f"[{VARIANT_NAME}] Initial feature count: {len(train_df.columns) - 1}")  # -1 for target
-    print(f"[{VARIANT_NAME}] AutoGluon will automatically remove harmful features")
+
+    # Show column info BEFORE dropping
+    print(f"[{VARIANT_NAME}] Columns summary:")
+    print(f"  - Target column: '{config.dataset.target}'")
+    print(f"  - Ignored columns (will be dropped): {config.dataset.ignored_columns}")
+    print(f"  - ID column (will be dropped): '{config.dataset.id_column}'")
+    print(f"  - Total columns before drop: {len(train_df.columns)}")
 
     # Drop ignored columns (id, etc.) before training
     features = _drop_ignored(train_df, config)
     train_data = features.copy()
     train_data[config.dataset.target] = train_df[config.dataset.target]
+
+    # Show features AFTER dropping
+    feature_cols = [col for col in features.columns if col != config.dataset.target]
+    print(f"  - Feature count after drop: {len(feature_cols)}")
+    print(f"  - Feature names: {feature_cols}")
+    print(f"[{VARIANT_NAME}] AutoGluon will automatically prune harmful features from above list")
 
     # Prepare validation data if provided
     tuning_data = None
@@ -188,6 +199,7 @@ def train(
     
     print(f"[{VARIANT_NAME}] Config: presets={presets}, time_limit={time_limit}s")
     print(f"[{VARIANT_NAME}] Bagging: {num_bag_folds} folds, {num_stack_levels} stack levels")
+    print(f"[{VARIANT_NAME}] Excluded model types: {excluded_models if excluded_models else 'None (all models enabled)'}")
     print(f"[{VARIANT_NAME}] Feature pruning:")
     print(f"  - time_limit: {prune_time_limit}s (~{int(prune_time_limit/time_limit*100)}% of total)")
     print(f"  - force_prune: {force_prune}")

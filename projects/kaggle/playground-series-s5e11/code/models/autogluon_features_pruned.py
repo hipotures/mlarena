@@ -58,9 +58,26 @@ def get_default_config() -> Dict[str, Any]:
         },
         "feature_prune": {
             "enabled": True,
-            "force_prune": True,
-            "prune_ratio": 0.05,      # Remove 5% worst features per round
-            "stop_threshold": 10,      # Max 10 pruning rounds
+            # Core pruning control
+            "force_prune": True,           # Force all models to use pruned features
+            "time_limit": None,            # Auto-calculated as 30% of total time
+
+            # Data sampling
+            "max_train_samples": 50000,    # Max training rows for pruning model
+            "min_fi_samples": 10000,       # Min validation rows for feature importance
+
+            # Pruning thresholds
+            "prune_threshold": "noise",    # 'noise' or float - importance threshold
+            "prune_ratio": 0.05,           # 5% worst features per round
+
+            # Stopping criteria
+            "stopping_round": 10,          # Stop after N rounds without improvement
+            "min_improvement": 1e-5,       # Minimum relative score improvement
+            "max_fits": None,              # Max model fits (None = unlimited)
+
+            # Reproducibility
+            "seed": 42,
+            "raise_exception": False,      # Don't crash on errors
         },
     }
 
@@ -114,17 +131,59 @@ def train(
     prune_cfg = getattr(config, 'feature_prune', {})
     if isinstance(prune_cfg, dict):
         force_prune = prune_cfg.get('force_prune', True)
+        prune_time_limit = prune_cfg.get('time_limit', None)
+        max_train_samples = prune_cfg.get('max_train_samples', 50000)
+        min_fi_samples = prune_cfg.get('min_fi_samples', 10000)
+        prune_threshold = prune_cfg.get('prune_threshold', 'noise')
+        prune_ratio = prune_cfg.get('prune_ratio', 0.05)
+        stopping_round = prune_cfg.get('stopping_round', 10)
+        min_improvement = prune_cfg.get('min_improvement', 1e-5)
+        max_fits = prune_cfg.get('max_fits', None)
+        seed = prune_cfg.get('seed', 42)
+        raise_exception = prune_cfg.get('raise_exception', False)
     else:
         force_prune = getattr(prune_cfg, 'force_prune', True)
-    
-    # Build feature_prune_kwargs
+        prune_time_limit = getattr(prune_cfg, 'time_limit', None)
+        max_train_samples = getattr(prune_cfg, 'max_train_samples', 50000)
+        min_fi_samples = getattr(prune_cfg, 'min_fi_samples', 10000)
+        prune_threshold = getattr(prune_cfg, 'prune_threshold', 'noise')
+        prune_ratio = getattr(prune_cfg, 'prune_ratio', 0.05)
+        stopping_round = getattr(prune_cfg, 'stopping_round', 10)
+        min_improvement = getattr(prune_cfg, 'min_improvement', 1e-5)
+        max_fits = getattr(prune_cfg, 'max_fits', None)
+        seed = getattr(prune_cfg, 'seed', 42)
+        raise_exception = getattr(prune_cfg, 'raise_exception', False)
+
+    # Calculate time limit for pruning (30% of total if not specified)
+    if prune_time_limit is None:
+        prune_time_limit = int(time_limit * 0.3)
+
+    # Build feature_prune_kwargs with all parameters
     feature_prune_kwargs = {
         'force_prune': force_prune,
+        'time_limit': prune_time_limit,
+        'max_train_samples': max_train_samples,
+        'min_fi_samples': min_fi_samples,
+        'prune_threshold': prune_threshold,
+        'prune_ratio': prune_ratio,
+        'stopping_round': stopping_round,
+        'min_improvement': min_improvement,
+        'max_fits': max_fits,
+        'seed': seed,
+        'raise_exception': raise_exception,
     }
     
     print(f"[{VARIANT_NAME}] Config: presets={presets}, time_limit={time_limit}s")
     print(f"[{VARIANT_NAME}] Bagging: {num_bag_folds} folds, {num_stack_levels} stack levels")
-    print(f"[{VARIANT_NAME}] Feature pruning: force_prune={force_prune}")
+    print(f"[{VARIANT_NAME}] Feature pruning:")
+    print(f"  - time_limit: {prune_time_limit}s (~{int(prune_time_limit/time_limit*100)}% of total)")
+    print(f"  - force_prune: {force_prune}")
+    print(f"  - prune_threshold: {prune_threshold}")
+    print(f"  - prune_ratio: {prune_ratio} (remove {prune_ratio*100:.1f}% worst features per round)")
+    print(f"  - stopping_round: {stopping_round} (max rounds without improvement)")
+    print(f"  - min_improvement: {min_improvement}")
+    print(f"  - max_train_samples: {max_train_samples}, min_fi_samples: {min_fi_samples}")
+    print(f"  - max_fits: {max_fits}, seed: {seed}")
     
     # Create predictor
     predictor = TabularPredictor(
@@ -141,18 +200,19 @@ def train(
         'time_limit': time_limit,
         'num_bag_folds': num_bag_folds,
         'num_stack_levels': num_stack_levels,
+        'dynamic_stacking': False,  # Disable DyStack check, keep stacking enabled
         'feature_prune_kwargs': feature_prune_kwargs,
     }
-    
+
     if tuning_data is not None:
         fit_kwargs['tuning_data'] = tuning_data
-    
+
     if excluded_models:
         fit_kwargs['excluded_model_types'] = excluded_models
-    
+
     if use_gpu:
         fit_kwargs['num_gpus'] = 1
-    
+
     predictor.fit(**fit_kwargs)
     
     # Log results

@@ -82,6 +82,13 @@ def get_default_config() -> Dict[str, Any]:
     }
 
 
+def _drop_ignored(df: pd.DataFrame, config: ModelConfig) -> pd.DataFrame:
+    """Drop ignored columns (id, etc.) before training."""
+    drop_cols = set(config.dataset.ignored_columns + [config.dataset.id_column])
+    drop_cols.discard(config.dataset.target)
+    return df.drop(columns=[col for col in drop_cols if col in df.columns], errors="ignore")
+
+
 def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Use ALL features from rich_baseline.
@@ -112,11 +119,17 @@ def train(
     print(f"[{VARIANT_NAME}] Initial feature count: {len(train_df.columns) - 1}")  # -1 for target
     print(f"[{VARIANT_NAME}] AutoGluon will automatically remove harmful features")
 
-    # Prepare training data (data already preprocessed, just needs target column)
-    train_data = train_df.copy()
+    # Drop ignored columns (id, etc.) before training
+    features = _drop_ignored(train_df, config)
+    train_data = features.copy()
+    train_data[config.dataset.target] = train_df[config.dataset.target]
 
     # Prepare validation data if provided
-    tuning_data = val_df.copy() if val_df is not None else None
+    tuning_data = None
+    if val_df is not None:
+        val_features = _drop_ignored(val_df, config)
+        tuning_data = val_features.copy()
+        tuning_data[config.dataset.target] = val_df[config.dataset.target]
     
     # Get hyperparameters from config
     hyper_cfg = config.hyperparameters if hasattr(config, 'hyperparameters') else {}

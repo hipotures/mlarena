@@ -51,25 +51,26 @@ def get_default_config() -> Dict[str, Any]:
         "feature_prune": {
             "enabled": True,
             # Core pruning control
-            "force_prune": True,           # Force all models to use pruned features
-            "time_limit": None,            # Auto-calculated as 30% of total time
+            "force_prune": True,                # Force all models to use pruned features
+            "feature_prune_time_limit": None,   # Auto-calculated as 30% of total time
 
-            # Data sampling
-            "max_train_samples": 50000,    # Max training rows for pruning model
-            "min_fi_samples": 10000,       # Min validation rows for feature importance
+            # Data sampling - 3 separate parameters per AutoGluon API
+            "max_train_samples": 100000,        # n_train_subsample: samples for training pruning model
+            "n_fi_subsample": 30000,            # Samples for computing feature importance (FI)
+            "min_fi_samples": 10000,            # Minimum validation samples threshold for FI
 
-            # Pruning thresholds
-            "prune_threshold": "noise",    # 'noise' or float - importance threshold
-            "prune_ratio": 0.05,           # 5% worst features per round
+            # Pruning thresholds - MORE CONSERVATIVE for careful feature removal
+            "prune_threshold": "noise",         # 'noise' or float - importance threshold
+            "prune_ratio": 0.01,                # 1% worst features per round
 
-            # Stopping criteria
-            "stopping_round": 50,          # Stop after N rounds without improvement
-            "min_improvement": 1e-5,       # Minimum relative score improvement
-            "max_fits": None,              # Max model fits (None = unlimited)
+            # Stopping criteria - MORE ITERATIONS for thorough refinement
+            "stopping_round": 100,              # Stop after 100 rounds without improvement
+            "min_improvement": 1e-5,            # Minimum relative score improvement
+            "max_fits": None,                   # Max model fits (None = unlimited)
 
             # Reproducibility
             "seed": 42,
-            "raise_exception": False,      # Don't crash on errors
+            "raise_exception": False,           # Don't crash on errors
         },
     }
 
@@ -261,24 +262,26 @@ def train(
     prune_cfg = getattr(config, 'feature_prune', {})
     if isinstance(prune_cfg, dict):
         force_prune = prune_cfg.get('force_prune', True)
-        prune_time_limit = prune_cfg.get('time_limit', None)
-        max_train_samples = prune_cfg.get('max_train_samples', 50000)
-        min_fi_samples = prune_cfg.get('min_fi_samples', 10000)
+        prune_time_limit = prune_cfg.get('feature_prune_time_limit', None)  # FIXED: correct param name
+        max_train_samples = prune_cfg.get('max_train_samples', 100000)
+        n_fi_subsample = prune_cfg.get('n_fi_subsample', 30000)  # FIXED: separate parameter
+        min_fi_samples = prune_cfg.get('min_fi_samples', 10000)  # FIXED: kept as separate
         prune_threshold = prune_cfg.get('prune_threshold', 'noise')
-        prune_ratio = prune_cfg.get('prune_ratio', 0.05)
-        stopping_round = prune_cfg.get('stopping_round', 50)
+        prune_ratio = prune_cfg.get('prune_ratio', 0.01)
+        stopping_round = prune_cfg.get('stopping_round', 100)
         min_improvement = prune_cfg.get('min_improvement', 1e-5)
         max_fits = prune_cfg.get('max_fits', None)
         seed = prune_cfg.get('seed', 42)
         raise_exception = prune_cfg.get('raise_exception', False)
     else:
         force_prune = getattr(prune_cfg, 'force_prune', True)
-        prune_time_limit = getattr(prune_cfg, 'time_limit', None)
-        max_train_samples = getattr(prune_cfg, 'max_train_samples', 50000)
-        min_fi_samples = getattr(prune_cfg, 'min_fi_samples', 10000)
+        prune_time_limit = getattr(prune_cfg, 'feature_prune_time_limit', None)  # FIXED: correct param name
+        max_train_samples = getattr(prune_cfg, 'max_train_samples', 100000)
+        n_fi_subsample = getattr(prune_cfg, 'n_fi_subsample', 30000)  # FIXED: separate parameter
+        min_fi_samples = getattr(prune_cfg, 'min_fi_samples', 10000)  # FIXED: kept as separate
         prune_threshold = getattr(prune_cfg, 'prune_threshold', 'noise')
-        prune_ratio = getattr(prune_cfg, 'prune_ratio', 0.05)
-        stopping_round = getattr(prune_cfg, 'stopping_round', 50)
+        prune_ratio = getattr(prune_cfg, 'prune_ratio', 0.01)
+        stopping_round = getattr(prune_cfg, 'stopping_round', 100)
         min_improvement = getattr(prune_cfg, 'min_improvement', 1e-5)
         max_fits = getattr(prune_cfg, 'max_fits', None)
         seed = getattr(prune_cfg, 'seed', 42)
@@ -288,15 +291,16 @@ def train(
     if prune_time_limit is None:
         prune_time_limit = int(time_limit * 0.3)
 
-    # Build feature_prune_kwargs with all parameters
+    # Build feature_prune_kwargs with all parameters (names from AutoGluon test_tabular_feature_prune)
     feature_prune_kwargs = {
         'force_prune': force_prune,
         'feature_prune_time_limit': prune_time_limit,
-        'n_train_subsample': max_train_samples,
-        'n_fi_subsample': min_fi_samples,  # Correct parameter name
+        'n_train_subsample': max_train_samples,     # Samples for training pruning model
+        'n_fi_subsample': n_fi_subsample,           # Samples for computing feature importance
+        'min_fi_samples': min_fi_samples,           # Minimum validation samples threshold
         'prune_threshold': prune_threshold,
         'prune_ratio': prune_ratio,
-        'stopping_round': stopping_round,  # Correct parameter name
+        'stopping_round': stopping_round,
         'min_improvement': min_improvement,
         'max_fits': max_fits,
         'seed': seed,
@@ -305,7 +309,8 @@ def train(
 
     print(f"[{VARIANT_NAME}] Config: presets={presets}, time_limit={time_limit}s")
     print(f"[{VARIANT_NAME}] Bagging: {num_bag_folds} folds, {num_stack_levels} stack levels")
-    print(f"[{VARIANT_NAME}] Excluded model types: {excluded_models if excluded_models else 'None (all models enabled)'}")
+    print(f"[{VARIANT_NAME}] Included model types: {included_models if included_models else 'All models'}")
+    print(f"[{VARIANT_NAME}] Excluded model types: {excluded_models if excluded_models else 'None'}")
     print(f"[{VARIANT_NAME}] Feature pruning:")
     print(f"  - feature_prune_time_limit: {prune_time_limit}s (~{int(prune_time_limit/time_limit*100)}% of total)")
     print(f"  - force_prune: {force_prune}")
@@ -313,7 +318,9 @@ def train(
     print(f"  - prune_ratio: {prune_ratio} (remove {prune_ratio*100:.1f}% worst features per round)")
     print(f"  - stopping_round: {stopping_round} (max rounds without improvement)")
     print(f"  - min_improvement: {min_improvement}")
-    print(f"  - max_train_samples: {max_train_samples}, min_fi_samples: {min_fi_samples}")
+    print(f"  - n_train_subsample: {max_train_samples} (samples for training pruning model)")
+    print(f"  - n_fi_subsample: {n_fi_subsample} (samples for computing FI)")
+    print(f"  - min_fi_samples: {min_fi_samples} (minimum validation samples threshold)")
     print(f"  - max_fits: {max_fits}, seed: {seed}")
 
     # Create predictor

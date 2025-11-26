@@ -184,16 +184,15 @@ def train(
     if prune_time_limit is None:
         prune_time_limit = int(time_limit * 0.3)
 
-    # Build feature_prune_kwargs with all parameters
-    # Use 'feature_prune_time_limit' not 'time_limit' to avoid duplicate argument error
+    # Build feature_prune_kwargs with all parameters (names from AutoGluon tests)
     feature_prune_kwargs = {
         'force_prune': force_prune,
-        'feature_prune_time_limit': prune_time_limit,  # Correct parameter name!
-        'max_train_samples': max_train_samples,
+        'feature_prune_time_limit': prune_time_limit,
+        'n_train_subsample': max_train_samples,  # Correct name: n_train_subsample
         'min_fi_samples': min_fi_samples,
         'prune_threshold': prune_threshold,
         'prune_ratio': prune_ratio,
-        'stopping_round': stopping_round,
+        'stop_threshold': stopping_round,  # Correct name: stop_threshold
         'min_improvement': min_improvement,
         'max_fits': max_fits,
         'seed': seed,

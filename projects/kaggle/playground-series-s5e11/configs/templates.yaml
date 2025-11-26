@@ -633,8 +633,32 @@ templates:
           - XGB
           - GBM  # Required for feature pruning!
           - CAT
-          - FASTAI
-          - NN_TORCH
+      feature_prune:
+        enabled: true
+        force_prune: true
+        prune_ratio: 0.05
+        stopping_round: 10
+        min_improvement: 1.0e-5
+        max_fits: null
+        seed: 42
+        raise_exception: false
+      model:
+        leaderboard_rows: 5
+
+  # Pruning + top 10 engineered features from best variants (same config as quick-test)
+  best-cpu-prune01:
+    model: autogluon_prune01
+    config:
+      hyperparameters:
+        presets: medium_quality
+        time_limit: 180
+        num_bag_folds: 3
+        num_stack_levels: 0
+        use_gpu: false
+        included_model_types:
+          - XGB
+          - GBM  # Required for feature pruning!
+          - CAT
       feature_prune:
         enabled: true
         force_prune: true

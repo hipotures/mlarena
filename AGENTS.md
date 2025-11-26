@@ -138,16 +138,22 @@ uv run python scripts/experiment_manager.py model \
 ```
 
 **AutoGluon Templates** (replaces manual time-limit/preset configuration):
-| Template       | Time  | Preset           | GPU | Use Case |
-|----------------|------:|------------------|-----|----------|
-| `fast-cpu`     | 60s   | `medium_quality` | ❌  | XGBoost-only smoke test |
-| `dev-cpu`      | 300s  | `medium_quality` | ❌  | Quick iteration |
-| `dev-gpu`      | 300s  | `medium_quality` | ✅  | Quick iteration (GPU) |
-| `best-cpu`     | 1h    | `best_quality`   | ❌  | High-quality ensemble |
-| `best-gpu`     | 1h    | `best_quality`   | ✅  | High-quality ensemble (GPU) |
-| `extreme-gpu`  | 24h   | `extreme_quality`| ✅  | Max quality (prompts if >30k rows) |
+| Template       | Time  | Preset    | GPU | Use Case |
+|----------------|------:|-----------|-----|----------|
+| `fast-cpu`     | 60s   | `medium`  | ❌  | XGBoost-only smoke test |
+| `dev-cpu`      | 300s  | `medium`  | ❌  | Quick iteration |
+| `dev-gpu`      | 300s  | `medium`  | ✅  | Quick iteration (GPU) |
+| `best-cpu`     | 1h    | `best`    | ❌  | High-quality ensemble |
+| `best-gpu`     | 1h    | `best`    | ✅  | High-quality ensemble (GPU) |
+| `extreme-gpu`  | 24h   | `extreme` | ✅  | Cutting-edge foundation models (TabPFNv2, TabICL, Mitra) |
 
 Template overrides available: `--time-limit`, `--preset`, `--use-gpu 0/1`
+
+**⚠️ AutoGluon Preset Names** (updated in AutoGluon 1.0+):
+- Available presets: `medium`, `good`, `high`, `best`, `extreme` (v1.4+)
+- Old names deprecated: `medium_quality`, `good_quality`, `high_quality`, `best_quality`
+- `extreme` preset: Uses foundation models (TabPFNv2, TabICL, Mitra, TabM), requires GPU, best for datasets <30k samples
+- See: https://auto.gluon.ai/stable/tutorials/tabular/tabular-essentials.html
 
 **Custom Templates**: Projects can define custom templates in `configs/templates.yaml` combining specific models with hyperparameters. See [configs/README.md](projects/kaggle/playground-series-s5e11/configs/README.md) for complete structure and examples (feature engineering variants, excluded models, custom parameters, etc.)
 
@@ -189,7 +195,7 @@ uv run python scripts/autogluon_runner.py \
 uv run python scripts/autogluon_runner.py \
     --project [competition-name] \
     --time-limit 1800 \
-    --preset high_quality \
+    --preset high \
     --use-gpu 1 \
     --skip-submit
 ```
@@ -345,7 +351,7 @@ TARGET_COLUMN = "target_name"  # CRITICAL: must match actual column
 AUTOGLUON_PROBLEM_TYPE = "binary"  # or "regression", "multiclass"
 AUTOGLUON_EVAL_METRIC = "roc_auc"  # or "mean_absolute_error", etc.
 AUTOGLUON_TIME_LIMIT = 600  # seconds
-AUTOGLUON_PRESET = "medium_quality"
+AUTOGLUON_PRESET = "medium"
 
 # Model settings
 RANDOM_SEED = 42

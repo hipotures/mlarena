@@ -1335,7 +1335,7 @@ def build_parser():
     model_parser.add_argument("--preset")
     model_parser.add_argument("--use-gpu", type=int, choices=[0, 1])
     model_parser.add_argument("--force-extreme", action="store_true")
-    model_parser.add_argument("--ag-smoke", action="store_true", help="AutoGluon smoke test: 10%% data, medium_quality preset, 300s time limit (implies --skip-submit unless --auto-submit)")
+    model_parser.add_argument("--ag-smoke", action="store_true", help="AutoGluon smoke test: medium preset, 300s time limit (implies --skip-submit unless --auto-submit)")
     model_parser.add_argument("--skip-submit", action="store_true")
     model_parser.add_argument("--auto-submit", action="store_true")
     model_parser.add_argument("--skip-score-fetch", action="store_true")

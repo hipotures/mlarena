@@ -107,7 +107,7 @@ def _apply_cli_overrides(args: argparse.Namespace) -> Dict[str, Any]:
     # --ag-smoke FORCE overrides (highest priority)
     if args.ag_smoke:
         hyper["time_limit"] = 300
-        hyper["presets"] = "medium_quality"
+        hyper["presets"] = "medium"
         # Ignore other CLI args when --ag-smoke is active
     else:
         # Normal CLI overrides
@@ -262,34 +262,11 @@ class MLRunner:
         else:
             val_df = None
 
-        # Apply --ag-smoke sampling BEFORE printing shape
-        if self.args.ag_smoke:
-            train_df = self._apply_smoke_sampling(train_df)
-            if val_df is not None:
-                val_df = self._apply_smoke_sampling(val_df)
-
         console.print(f"Train shape: {train_df.shape}, Test shape: {test_df.shape}")
         if self.args.ag_smoke:
-            console.print("[yellow]--ag-smoke active: using 10% sampled data[/yellow]")
+            console.print("[yellow]--ag-smoke active: medium preset, 300s time limit[/yellow]")
 
         return train_df, val_df, test_df
-
-    def _apply_smoke_sampling(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply 10% stratified sampling for --ag-smoke mode."""
-        target_col = self.dataset_config.target
-        problem_type = self.dataset_config.problem_type
-
-        # Stratified for classification, random for regression
-        if problem_type in ["binary", "multiclass"]:
-            # Stratified sampling - preserve target distribution
-            sampled = df.groupby(target_col, group_keys=False).apply(
-                lambda x: x.sample(frac=0.1, random_state=42)
-            )
-        else:
-            # Random sampling for regression
-            sampled = df.sample(frac=0.1, random_state=42)
-
-        return sampled.reset_index(drop=True)
 
     def _run_preprocess(
         self,

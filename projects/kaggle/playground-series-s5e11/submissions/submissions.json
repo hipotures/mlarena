@@ -2271,5 +2271,75 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 51,
+    "timestamp": "2025-11-26 17:00:19",
+    "filename": "submission-20251126165942.csv",
+    "model_name": "autogluon_prune02-best-cpu-prune02",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.88304,
+    "private_score": null,
+    "notes": "template=best-cpu-prune02",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251126-152855",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251126-152855/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251126-152855/artifacts/best-cpu-prune02-autogluon_prune02",
+        "template": "best-cpu-prune02",
+        "experiment_id": "exp-20251126-152855",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [
+          "id"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "medium_quality",
+        "time_limit": 1800,
+        "use_gpu": false,
+        "excluded_models": null,
+        "num_bag_folds": 5,
+        "num_stack_levels": 1,
+        "included_model_types": [
+          "XGB",
+          "GBM",
+          "CAT"
+        ]
+      },
+      "model": {
+        "leaderboard_rows": 30
+      },
+      "feature_prune": {
+        "enabled": true,
+        "force_prune": true,
+        "time_limit": null,
+        "max_train_samples": 100000,
+        "min_fi_samples": 30000,
+        "prune_threshold": "noise",
+        "prune_ratio": 0.01,
+        "stopping_round": 100,
+        "min_improvement": 1e-05,
+        "max_fits": null,
+        "seed": 42,
+        "raise_exception": false
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

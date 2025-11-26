@@ -783,75 +783,86 @@ templates:
         leaderboard_rows: 30
 
   # Comprehensive Notebook Features + Pruning (from s5e11-single-xgboost-advanced-fe.ipynb)
+  # FIXED: Corrected parameter names to match AutoGluon API:
+  #   - time_limit → feature_prune_time_limit (was ambiguous with hyperparameters.time_limit)
+  #   - Added n_fi_subsample as separate parameter (was missing, different from min_fi_samples)
+  #   - Kept min_fi_samples as separate parameter per AutoGluon tests
   best-cpu-prune02:
     model: autogluon_prune02
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 28800  # 8 hours
+        time_limit: 28800  # 8 hours - TOTAL training time (passed to predictor.fit())
         num_bag_folds: 5
         num_stack_levels: 1
         use_gpu: false
-        excluded_models:
-          - NN_TORCH
+        included_model_types:
+          - XGB
+          - GBM  # Required for feature pruning!
+          - CAT
       feature_prune:
         enabled: true
         # Core pruning control
-        force_prune: true           # Force all models to use pruned features
-        time_limit: null            # Auto-calculated as 30% of total time (~8640s)
+        force_prune: true                    # Force all models to use pruned features
+        feature_prune_time_limit: null       # Time for pruning only (auto = 30% of total = ~8640s)
 
-        # Data sampling
-        max_train_samples: 50000    # Max training rows for pruning model
-        min_fi_samples: 10000       # Min validation rows for feature importance
+        # Data sampling - 3 separate parameters per AutoGluon API
+        max_train_samples: 100000            # n_train_subsample: samples for training pruning model
+        n_fi_subsample: 30000                # Samples for computing feature importance (FI)
+        min_fi_samples: 10000                # Minimum validation samples threshold for FI
 
-        # Pruning thresholds
-        prune_threshold: noise      # 'noise' or float - importance threshold
-        prune_ratio: 0.05           # 5% worst features per round
+        # Pruning thresholds - MORE CONSERVATIVE for careful feature removal
+        prune_threshold: noise               # 'noise' or float - importance threshold
+        prune_ratio: 0.01                    # 1% worst features per round
 
-        # Stopping criteria
-        stopping_round: 50          # Stop after N rounds without improvement
-        min_improvement: 1.0e-5     # Minimum relative score improvement (0.001%)
-        max_fits: null              # Max model fits (null = unlimited)
+        # Stopping criteria - MORE ITERATIONS for thorough refinement
+        stopping_round: 100                  # Stop after 100 rounds without improvement
+        min_improvement: 1.0e-5              # Minimum relative score improvement (0.001%)
+        max_fits: null                       # Max model fits (null = unlimited)
 
         # Reproducibility
         seed: 42
-        raise_exception: false      # Don't crash on errors
+        raise_exception: false               # Don't crash on errors
       model:
         leaderboard_rows: 30
 
   # Comprehensive Notebook Features + Pruning + GPU (from s5e11-single-xgboost-advanced-fe.ipynb)
+  # FIXED: Same corrections as best-cpu-prune02 (see comments above)
   best-gpu-prune02:
     model: autogluon_prune02
     config:
       hyperparameters:
         presets: best_quality
-        time_limit: 28800  # 8 hours
+        time_limit: 28800  # 8 hours - TOTAL training time (passed to predictor.fit())
         num_bag_folds: 5
         num_stack_levels: 1
         use_gpu: true
-        excluded_models:
-          - NN_TORCH
+        included_model_types:
+          - XGB
+          - GBM  # Required for feature pruning!
+          - CAT
       feature_prune:
         enabled: true
         # Core pruning control
-        force_prune: true           # Force all models to use pruned features
-        time_limit: null            # Auto-calculated as 30% of total time (~8640s)
+        force_prune: true                    # Force all models to use pruned features
+        feature_prune_time_limit: null       # Time for pruning only (auto = 30% of total = ~8640s)
 
-        # Data sampling
-        max_train_samples: 50000    # Max training rows for pruning model
-        min_fi_samples: 10000       # Min validation rows for feature importance
+        # Data sampling - 3 separate parameters per AutoGluon API
+        max_train_samples: 100000            # n_train_subsample: samples for training pruning model
+        n_fi_subsample: 30000                # Samples for computing feature importance (FI)
+        min_fi_samples: 10000                # Minimum validation samples threshold for FI
 
-        # Pruning thresholds
-        prune_threshold: noise      # 'noise' or float - importance threshold
-        prune_ratio: 0.05           # 5% worst features per round
+        # Pruning thresholds - MORE CONSERVATIVE for careful feature removal
+        prune_threshold: noise               # 'noise' or float - importance threshold
+        prune_ratio: 0.01                    # 1% worst features per round
 
-        # Stopping criteria
-        stopping_round: 50          # Stop after N rounds without improvement
-        min_improvement: 1.0e-5     # Minimum relative score improvement (0.001%)
-        max_fits: null              # Max model fits (null = unlimited)
+        # Stopping criteria - MORE ITERATIONS for thorough refinement
+        stopping_round: 100                  # Stop after 100 rounds without improvement
+        min_improvement: 1.0e-5              # Minimum relative score improvement (0.001%)
+        max_fits: null                       # Max model fits (null = unlimited)
 
         # Reproducibility
         seed: 42
-        raise_exception: false      # Don't crash on errors
+        raise_exception: false               # Don't crash on errors
       model:
         leaderboard_rows: 30

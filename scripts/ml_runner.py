@@ -62,6 +62,7 @@ def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser.add_argument("--preset")
     parser.add_argument("--use-gpu", type=int, choices=[0, 1])
     parser.add_argument("--force-extreme", action="store_true", help="Deprecated compatibility flag")
+    parser.add_argument("--ag-smoke", action="store_true", help="AutoGluon smoke test mode")
     parser.add_argument("--skip-submit", action="store_true")
     parser.add_argument("--auto-submit", action="store_true")
     parser.add_argument("--skip-score-fetch", action="store_true")
@@ -102,12 +103,23 @@ def _load_templates(project_root: Path) -> Dict[str, Any]:
 def _apply_cli_overrides(args: argparse.Namespace) -> Dict[str, Any]:
     overrides: Dict[str, Any] = {}
     hyper = overrides.setdefault("hyperparameters", {})
-    if args.time_limit is not None:
-        hyper["time_limit"] = args.time_limit
-    if args.preset is not None:
-        hyper["presets"] = args.preset
+
+    # --ag-smoke FORCE overrides (highest priority)
+    if args.ag_smoke:
+        hyper["time_limit"] = 300
+        hyper["presets"] = "medium_quality"
+        # Ignore other CLI args when --ag-smoke is active
+    else:
+        # Normal CLI overrides
+        if args.time_limit is not None:
+            hyper["time_limit"] = args.time_limit
+        if args.preset is not None:
+            hyper["presets"] = args.preset
+
+    # GPU setting applies regardless of --ag-smoke
     if args.use_gpu is not None:
         hyper["use_gpu"] = bool(args.use_gpu)
+
     return overrides
 
 
@@ -133,6 +145,16 @@ class MLRunner:
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.dataset_config = self._build_dataset_config()
         self.config = self._build_model_config()
+
+        # Validate --ag-smoke is used only with AutoGluon
+        if args.ag_smoke:
+            if not self.model_name.startswith("autogluon"):
+                raise ValueError(
+                    f"--ag-smoke can only be used with AutoGluon models. "
+                    f"Template '{self.template_name}' uses model '{self.model_name}'. "
+                    f"Use --ag-smoke only with autogluon_* models."
+                )
+            console.print("[yellow]--ag-smoke mode activated for AutoGluon[/yellow]")
 
     def _load_model_module(self):
         model_path = self.project.root / "code" / "models" / f"{self.model_name}.py"
@@ -239,8 +261,35 @@ class MLRunner:
             val_df = pd.read_csv(val_path)
         else:
             val_df = None
+
+        # Apply --ag-smoke sampling BEFORE printing shape
+        if self.args.ag_smoke:
+            train_df = self._apply_smoke_sampling(train_df)
+            if val_df is not None:
+                val_df = self._apply_smoke_sampling(val_df)
+
         console.print(f"Train shape: {train_df.shape}, Test shape: {test_df.shape}")
+        if self.args.ag_smoke:
+            console.print("[yellow]--ag-smoke active: using 10% sampled data[/yellow]")
+
         return train_df, val_df, test_df
+
+    def _apply_smoke_sampling(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply 10% stratified sampling for --ag-smoke mode."""
+        target_col = self.dataset_config.target
+        problem_type = self.dataset_config.problem_type
+
+        # Stratified for classification, random for regression
+        if problem_type in ["binary", "multiclass"]:
+            # Stratified sampling - preserve target distribution
+            sampled = df.groupby(target_col, group_keys=False).apply(
+                lambda x: x.sample(frac=0.1, random_state=42)
+            )
+        else:
+            # Random sampling for regression
+            sampled = df.sample(frac=0.1, random_state=42)
+
+        return sampled.reset_index(drop=True)
 
     def _run_preprocess(
         self,
@@ -372,10 +421,19 @@ def run(args: argparse.Namespace):
         console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit or KAGGLE_SKIP_SUBMIT).[/yellow]")
         return
 
+    # Build submission description
+    if args.kaggle_message:
+        description = args.kaggle_message
+    else:
+        description = f"{context.name} | {args.template}"
+        if local_cv:
+            description += f" | local {local_cv:.5f}"
+        if args.ag_smoke:
+            description += " | smoke"
+
     submission_runner = SubmissionRunner(
         artifact=submission_artifact,
-        kaggle_message=args.kaggle_message
-        or f"{context.name} | {args.template} | local {local_cv:.5f}" if local_cv else f"{context.name} | {args.template}",
+        kaggle_message=description,
         wait_seconds=args.wait_seconds,
         cdp_url=args.cdp_url,
         auto_submit=args.auto_submit,

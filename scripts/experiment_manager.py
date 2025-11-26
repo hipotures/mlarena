@@ -580,6 +580,9 @@ def run_model(args):
         "--experiment-id",
         manager.experiment_id,
     ]
+    # --ag-smoke implies --skip-submit unless --auto-submit is explicitly set
+    if args.ag_smoke and not args.auto_submit:
+        args.skip_submit = True
     if args.skip_submit:
         cmd.append("--skip-submit")
     if args.auto_submit:
@@ -590,6 +593,8 @@ def run_model(args):
         cmd.append("--skip-git")
     if args.force_extreme:
         cmd.append("--force-extreme")
+    if args.ag_smoke:
+        cmd.append("--ag-smoke")
     if args.require_eda:
         cmd.append("--require-eda")
     if args.skip_eda_check:
@@ -1330,6 +1335,7 @@ def build_parser():
     model_parser.add_argument("--preset")
     model_parser.add_argument("--use-gpu", type=int, choices=[0, 1])
     model_parser.add_argument("--force-extreme", action="store_true")
+    model_parser.add_argument("--ag-smoke", action="store_true", help="AutoGluon smoke test: 10%% data, medium_quality preset, 300s time limit (implies --skip-submit unless --auto-submit)")
     model_parser.add_argument("--skip-submit", action="store_true")
     model_parser.add_argument("--auto-submit", action="store_true")
     model_parser.add_argument("--skip-score-fetch", action="store_true")

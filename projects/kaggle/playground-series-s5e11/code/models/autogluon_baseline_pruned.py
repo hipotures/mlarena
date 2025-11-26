@@ -185,9 +185,10 @@ def train(
         prune_time_limit = int(time_limit * 0.3)
 
     # Build feature_prune_kwargs with all parameters
-    # NOTE: Do NOT include 'time_limit' here - it causes duplicate argument error
+    # Use 'feature_prune_time_limit' not 'time_limit' to avoid duplicate argument error
     feature_prune_kwargs = {
         'force_prune': force_prune,
+        'feature_prune_time_limit': prune_time_limit,  # Correct parameter name!
         'max_train_samples': max_train_samples,
         'min_fi_samples': min_fi_samples,
         'prune_threshold': prune_threshold,
@@ -203,6 +204,7 @@ def train(
     print(f"[{VARIANT_NAME}] Bagging: {num_bag_folds} folds, {num_stack_levels} stack levels")
     print(f"[{VARIANT_NAME}] Excluded model types: {excluded_models if excluded_models else 'None (all models enabled)'}")
     print(f"[{VARIANT_NAME}] Feature pruning:")
+    print(f"  - feature_prune_time_limit: {prune_time_limit}s (~{int(prune_time_limit/time_limit*100)}% of total)")
     print(f"  - force_prune: {force_prune}")
     print(f"  - prune_threshold: {prune_threshold}")
     print(f"  - prune_ratio: {prune_ratio} (remove {prune_ratio*100:.1f}% worst features per round)")

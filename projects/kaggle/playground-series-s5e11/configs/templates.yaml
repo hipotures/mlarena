@@ -632,6 +632,9 @@ templates:
         included_model_types:
           - XGB
           - GBM  # Required for feature pruning!
+          - CAT
+          - FASTAI
+          - NN_TORCH
       feature_prune:
         enabled: true
         force_prune: true

@@ -44,6 +44,32 @@ class DatasetConfig(ExtraModel):
     submission_probas: bool = True
 
 
+class PreprocessingConfig(ExtraModel):
+    """Feature engineering configuration."""
+
+    feat_stage: Dict[str, Any] = Field(default_factory=dict)
+    cv_stage: Dict[str, Any] = Field(default_factory=dict)
+    storage_format: str = "parquet"  # parquet or csv
+    save_transformed_data: bool = True
+    compression: str = "snappy"
+
+
+class OptunaConfig(ExtraModel):
+    """Optuna hyperparameter tuning configuration."""
+
+    storage: str = ""  # "sqlite:///experiments/{exp_id}/artifacts/optuna/study.db"
+    study_name: str = ""
+    direction: str = "maximize"  # or "minimize"
+    n_trials: int = 50
+    timeout: Optional[int] = None  # seconds
+    n_jobs: int = 1
+    cv_folds: int = 5
+    early_stopping_rounds: int = 50
+    sampler: str = "TPESampler"
+    pruner: str = "MedianPruner"
+    param_space: Dict[str, Dict[str, List]] = Field(default_factory=dict)
+
+
 class Hyperparameters(ExtraModel):
     """General-purpose bucket for template-controlled training knobs."""
 
@@ -51,6 +77,9 @@ class Hyperparameters(ExtraModel):
     time_limit: Optional[int] = None
     use_gpu: bool = False
     excluded_models: Optional[List[str]] = None
+
+    # NEW: Optuna preset reference
+    preset: Optional[str] = None  # References configs/presets/{preset}.yaml
 
 
 class ModelConfig(ExtraModel):
@@ -65,6 +94,10 @@ class ModelConfig(ExtraModel):
     dataset: DatasetConfig
     hyperparameters: Hyperparameters = Field(default_factory=Hyperparameters)
     model: Dict[str, Any] = Field(default_factory=dict)
+
+    # NEW fields for Optuna system
+    preprocessing: PreprocessingConfig = Field(default_factory=PreprocessingConfig)
+    optuna: OptunaConfig = Field(default_factory=OptunaConfig)
 
     def as_plain_dict(self) -> Dict[str, Any]:
         """Return a JSON-serialisable representation."""

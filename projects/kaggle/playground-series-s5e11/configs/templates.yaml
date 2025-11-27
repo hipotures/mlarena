@@ -627,7 +627,7 @@ templates:
         presets: medium_quality
         time_limit: 180
         num_bag_folds: 3
-        num_stack_levels: 0
+        num_stack_levels: 1
         use_gpu: false
         included_model_types:
           - XGB
@@ -638,10 +638,11 @@ templates:
         force_prune: true
         prune_ratio: 0.05
         stopping_round: 10
-        min_improvement: 1.0e-5
+        min_improvement: 1.0e-6
         max_fits: null
-        seed: 42
+        seed: 43
         raise_exception: false
+        feature_prune_time_limit: null
       model:
         leaderboard_rows: 5
 
@@ -791,8 +792,8 @@ templates:
     model: autogluon_prune02
     config:
       hyperparameters:
-        presets: best_quality
-        time_limit: 28800  # 8 hours - TOTAL training time (passed to predictor.fit())
+        presets: best
+        time_limit: 216000
         num_bag_folds: 5
         num_stack_levels: 1
         use_gpu: false

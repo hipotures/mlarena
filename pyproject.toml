@@ -32,7 +32,9 @@ dependencies = [
 ]
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=9.0.1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kaggle_tools"]

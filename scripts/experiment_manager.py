@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
-MODULES = ["eda", "model", "submit", "fetch-score"]
+MODULES = ["eda", "feat", "model", "tune", "stack", "submit", "fetch-score"]
 
 
 class ModuleStateError(RuntimeError):
@@ -613,6 +613,129 @@ def run_model(args):
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         print(f"[Model] Training command failed (exit {exc.returncode}).")
+        raise SystemExit(exc.returncode)
+
+
+def run_feat(args):
+    """Run feature engineering module (feat)."""
+    manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+    if args.experiment_id is None:
+        print(f"[Feat] Using new experiment ID: {manager.experiment_id}")
+
+    existing = manager.get_module("feat")
+    if existing and existing.get("status") == "completed" and not args.force:
+        print(
+            f"[Feat] Module already completed for experiment {manager.experiment_id}; "
+            "use --force to rerun."
+        )
+        return
+
+    script = TOOLS_ROOT / "feature_runner.py"
+    if not script.exists():
+        print(f"[Feat] ERROR: {script} not implemented yet (Week 2-3)")
+        print(f"[Feat] Placeholder: Would run feature engineering with feature_set={getattr(args, 'feature_set', 'default')}")
+        return
+
+    cmd = [
+        sys.executable,
+        str(script),
+        "--project",
+        args.project,
+        "--experiment-id",
+        manager.experiment_id,
+    ]
+
+    if hasattr(args, 'feature_set') and args.feature_set:
+        cmd += ["--feature-set", args.feature_set]
+
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[Feat] Feature engineering failed (exit {exc.returncode}).")
+        raise SystemExit(exc.returncode)
+
+
+def run_tune(args):
+    """Run Optuna hyperparameter tuning module (tune)."""
+    manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+    if args.experiment_id is None:
+        print(f"[Tune] Using new experiment ID: {manager.experiment_id}")
+
+    existing = manager.get_module("tune")
+    if existing and existing.get("status") == "completed" and not args.force:
+        print(
+            f"[Tune] Module already completed for experiment {manager.experiment_id}; "
+            "use --force to rerun."
+        )
+        return
+
+    script = TOOLS_ROOT / "optuna_runner.py"
+    if not script.exists():
+        print(f"[Tune] ERROR: {script} not implemented yet (Week 2-3)")
+        print(f"[Tune] Placeholder: Would run Optuna tuning with model={getattr(args, 'model', 'xgboost')}, preset={getattr(args, 'preset', 'quick')}")
+        return
+
+    cmd = [
+        sys.executable,
+        str(script),
+        "--project",
+        args.project,
+        "--experiment-id",
+        manager.experiment_id,
+    ]
+
+    if hasattr(args, 'model') and args.model:
+        cmd += ["--model", args.model]
+    if hasattr(args, 'preset') and args.preset:
+        cmd += ["--preset", args.preset]
+    if hasattr(args, 'n_trials') and args.n_trials:
+        cmd += ["--n-trials", str(args.n_trials)]
+
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[Tune] Hyperparameter tuning failed (exit {exc.returncode}).")
+        raise SystemExit(exc.returncode)
+
+
+def run_stack(args):
+    """Run model stacking/ensembling module (stack)."""
+    manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+    if args.experiment_id is None:
+        print(f"[Stack] Using new experiment ID: {manager.experiment_id}")
+
+    existing = manager.get_module("stack")
+    if existing and existing.get("status") == "completed" and not args.force:
+        print(
+            f"[Stack] Module already completed for experiment {manager.experiment_id}; "
+            "use --force to rerun."
+        )
+        return
+
+    script = TOOLS_ROOT / "stacking_runner.py"
+    if not script.exists():
+        print(f"[Stack] ERROR: {script} not implemented yet (Week 2-3)")
+        print(f"[Stack] Placeholder: Would run stacking with method={getattr(args, 'method', 'weighted_average')}")
+        return
+
+    cmd = [
+        sys.executable,
+        str(script),
+        "--project",
+        args.project,
+        "--experiment-id",
+        manager.experiment_id,
+    ]
+
+    if hasattr(args, 'base_experiments') and args.base_experiments:
+        cmd += ["--base-experiments", args.base_experiments]
+    if hasattr(args, 'method') and args.method:
+        cmd += ["--method", args.method]
+
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[Stack] Stacking failed (exit {exc.returncode}).")
         raise SystemExit(exc.returncode)
 
 
@@ -1346,6 +1469,30 @@ def build_parser():
     model_parser.add_argument("--cdp-url", default="http://localhost:9222")
     model_parser.add_argument("--kaggle-message")
     model_parser.set_defaults(func=run_model)
+
+    feat_parser = subparsers.add_parser("feat", help="Run feature engineering module")
+    feat_parser.add_argument("--project", required=True)
+    feat_parser.add_argument("--experiment-id")
+    feat_parser.add_argument("--feature-set", help="Feature set name (e.g., tier1_critical)")
+    feat_parser.add_argument("--force", action="store_true", help="Force rerun if already completed")
+    feat_parser.set_defaults(func=run_feat)
+
+    tune_parser = subparsers.add_parser("tune", help="Run Optuna hyperparameter tuning module")
+    tune_parser.add_argument("--project", required=True)
+    tune_parser.add_argument("--experiment-id")
+    tune_parser.add_argument("--model", choices=["xgboost", "lightgbm", "catboost"], default="xgboost", help="Model to tune")
+    tune_parser.add_argument("--preset", choices=["quick", "thorough", "extreme"], default="quick", help="Optuna preset")
+    tune_parser.add_argument("--n-trials", type=int, help="Override number of trials")
+    tune_parser.add_argument("--force", action="store_true", help="Force rerun if already completed")
+    tune_parser.set_defaults(func=run_tune)
+
+    stack_parser = subparsers.add_parser("stack", help="Run model stacking/ensembling module")
+    stack_parser.add_argument("--project", required=True)
+    stack_parser.add_argument("--experiment-id")
+    stack_parser.add_argument("--base-experiments", help="Comma-separated list of base experiment IDs")
+    stack_parser.add_argument("--method", choices=["weighted_average", "rank_average", "meta_learner"], default="weighted_average", help="Stacking method")
+    stack_parser.add_argument("--force", action="store_true", help="Force rerun if already completed")
+    stack_parser.set_defaults(func=run_stack)
 
     submit_parser = subparsers.add_parser("submit", help="Submit an existing CSV and update experiment")
     submit_parser.add_argument("--project", required=True)

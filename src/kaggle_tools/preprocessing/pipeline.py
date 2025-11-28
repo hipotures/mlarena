@@ -293,12 +293,12 @@ class FeaturePipeline:
 
         return pipeline
 
-    def _create_transformer(self, transformer_name: str, stage: str):
+    def _create_transformer(self, transformer_config: dict | str, stage: str):
         """
-        Create transformer instance by name.
+        Create transformer instance from config.
 
         Args:
-            transformer_name: Name of transformer class
+            transformer_config: Either a dict with 'type' and params, or a string class name
             stage: "feat" or "cv"
 
         Returns:
@@ -307,6 +307,14 @@ class FeaturePipeline:
         Raises:
             ImportError: If transformer not found
         """
+        # Parse config
+        if isinstance(transformer_config, dict):
+            transformer_name = transformer_config.get("type")
+            transformer_kwargs = {k: v for k, v in transformer_config.items() if k != "type"}
+        else:
+            transformer_name = transformer_config
+            transformer_kwargs = {}
+
         # Import from appropriate module based on stage
         try:
             if stage == "feat":
@@ -318,7 +326,7 @@ class FeaturePipeline:
 
                 transformer_class = getattr(cv_stage, transformer_name)
 
-            return transformer_class()
+            return transformer_class(**transformer_kwargs)
 
         except (ImportError, AttributeError) as e:
             raise ImportError(

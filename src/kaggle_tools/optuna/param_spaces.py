@@ -50,9 +50,15 @@ def suggest_from_config(trial: optuna.Trial, param_name: str, param_spec: List) 
     step = param_spec[3] if len(param_spec) > 3 else None
 
     if param_type == "int":
-        return trial.suggest_int(param_name, min_val, max_val, step=step)
+        if step is not None:
+            return trial.suggest_int(param_name, min_val, max_val, step=step)
+        else:
+            return trial.suggest_int(param_name, min_val, max_val)
     elif param_type == "float":
-        return trial.suggest_float(param_name, min_val, max_val, step=step)
+        if step is not None:
+            return trial.suggest_float(param_name, min_val, max_val, step=step)
+        else:
+            return trial.suggest_float(param_name, min_val, max_val)
     elif param_type == "log":
         return trial.suggest_float(param_name, min_val, max_val, log=True)
     else:

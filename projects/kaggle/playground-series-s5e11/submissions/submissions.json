@@ -2554,5 +2554,20 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 55,
+    "timestamp": "2025-11-28 04:38:45",
+    "filename": "ensemble-meta-20251128034955.csv",
+    "model_name": "ensemble-meta-20251128034955.csv",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.92262,
+    "private_score": null,
+    "notes": "Auto-added via resume",
+    "config": {},
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

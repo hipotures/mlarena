@@ -8,6 +8,7 @@ Repository for managing Kaggle competition projects with standardized structure 
 - [Project Structure](#project-structure)
 - [Creating a New Competition Project](#creating-a-new-competition-project)
 - [Workflow](#workflow)
+- [Optuna Hyperparameter Tuning System](#optuna-hyperparameter-tuning-system)
 - [Submission Tracking](#submission-tracking)
 - [Best Practices](#best-practices)
 - [Utilities](#utilities)
@@ -97,6 +98,71 @@ Use `uv run python tools/experiment_manager.py list --project playground-series-
 ### Troubleshooting Templates
 
 `fast-cpu` is a 60-second XGBoost-only smoke test that is ideal for verifying code paths before launching a long run. `extreme-gpu` enforces a confirmation prompt if the training set exceeds 30k rows, preventing accidental day-long jobs on gigantic data. When AutoGluon raises (e.g., invalid hyperparameter), the experiment manager records the module as `failed`, allowing you to rerun the step with the same ID once the issue is fixed.
+
+## Optuna Hyperparameter Tuning System
+
+The repository includes a comprehensive Optuna-based system for hyperparameter tuning, feature engineering, and model ensembling. This system provides:
+
+- **Feature Engineering** - Transform features with data leakage protection (two-stage pipeline)
+- **Hyperparameter Tuning** - Optimize XGBoost/LightGBM/CatBoost with Optuna TPE sampler
+- **Model Ensembling** - Blend predictions using weighted/rank/power averaging or meta-learning
+
+### Quick Start
+
+```bash
+# 1. Tune XGBoost (100 trials, 2h)
+uv run python scripts/optuna_runner.py \
+    --project playground-series-s5e11 \
+    --model xgboost \
+    --preset thorough
+
+# 2. Train with best params
+uv run python scripts/experiment_manager.py model \
+    --project playground-series-s5e11 \
+    --model xgboost_optuna \
+    --auto-submit
+
+# 3. Ensemble multiple models
+uv run python scripts/stacking_runner.py \
+    --project playground-series-s5e11 \
+    --models xgb.csv lgb.csv cat.csv \
+    --blend-method weighted \
+    --blend-weights 0.5 0.3 0.2
+```
+
+### Key Features
+
+**Data Leakage Protection:**
+- `feat_stage` - Global transformers (fitted on full train, safe)
+- `cv_stage` - Per-fold transformers (fitted per CV fold, prevents leakage)
+
+**Hyperparameter Tuning:**
+- Three presets: `quick` (20 trials, 30min), `thorough` (100 trials, 2h), `extreme` (500 trials, 24h)
+- SQLite persistence for resume support
+- Optuna dashboard for visualization (http://localhost:8080)
+- Early stopping and pruning for efficiency
+
+**Model Ensembling:**
+- Weighted blending (manual or optimized weights)
+- Rank averaging (robust to outliers)
+- Power averaging (emphasizes confident predictions)
+- Meta-learning stacking (future enhancement)
+
+### Documentation
+
+- **Quick Start:** [docs/OPTUNA_QUICKSTART.md](docs/OPTUNA_QUICKSTART.md) - 5-minute guide
+- **Complete Guide:** [docs/OPTUNA_GUIDE.md](docs/OPTUNA_GUIDE.md) - Full documentation with examples
+- **Unit Tests:** `tests/test_data_leakage.py`, `tests/test_optuna_e2e.py`
+
+### Architecture
+
+```
+ExperimentManager
+  ├── feat   → feature_runner.py → FeaturePipeline
+  ├── tune   → optuna_runner.py → StudyManager + CVObjective
+  ├── model  → Train with best params (xgboost_optuna.py, etc.)
+  └── stack  → stacking_runner.py → Blenders + MetaLearner
+```
 
 ## Submission Tracking
 

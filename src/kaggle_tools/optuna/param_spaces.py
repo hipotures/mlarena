@@ -49,8 +49,17 @@ def suggest_from_config(trial: optuna.Trial, param_name: str, param_spec: List) 
     min_val, max_val, param_type = param_spec[:3]
     step = param_spec[3] if len(param_spec) > 3 else None
 
-    if param_type == "int":
+    # Convert to numeric (YAML can return strings)
+    if param_type in ["int", "float", "log"]:
+        min_val = float(min_val)
+        max_val = float(max_val)
         if step is not None:
+            step = float(step)
+
+    if param_type == "int":
+        min_val, max_val = int(min_val), int(max_val)
+        if step is not None:
+            step = int(step)
             return trial.suggest_int(param_name, min_val, max_val, step=step)
         else:
             return trial.suggest_int(param_name, min_val, max_val)

@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -126,21 +127,12 @@ def run_feature_engineering(
     config_module = project_ctx["config"]
 
     # Initialize experiment manager
-    exp_manager = ExperimentManager(project_name)
-
-    if not experiment_id:
-        # Create new experiment
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        experiment_id = f"exp-{timestamp}"
-        exp_manager.create_experiment(
-            experiment_id=experiment_id,
-            module="feat",
-            notes=f"Feature engineering: {feature_set}",
-        )
+    exp_manager = ExperimentManager.load_or_create(project_name, experiment_id)
+    experiment_id = exp_manager.experiment_id
 
     # Check module state
     try:
-        exp_manager.start_module(experiment_id, "feat", force=force)
+        exp_manager.start_module("feat", extra={"feature_set": feature_set}, allow_restart=force)
     except ModuleStateError as e:
         console.print(f"[red]✗[/red] {e}")
         sys.exit(1)
@@ -197,7 +189,7 @@ def run_feature_engineering(
 
         if preview:
             console.print("\n[yellow]Preview mode - not saving outputs[/yellow]")
-            exp_manager.complete_module(experiment_id, "feat", metadata={
+            exp_manager.complete_module("feat", {
                 "preview": True,
                 "feature_set": feature_set,
             })
@@ -234,10 +226,10 @@ def run_feature_engineering(
         console.print(f"[green]✓[/green] Saved to: {output_dir}")
 
         # Complete module
-        exp_manager.complete_module(experiment_id, "feat", metadata={
+        exp_manager.complete_module("feat", {
             "feature_set": feature_set,
-            "train_shape": train_transformed.shape,
-            "test_shape": test_transformed.shape if test_transformed is not None else None,
+            "train_shape": list(train_transformed.shape),
+            "test_shape": list(test_transformed.shape) if test_transformed is not None else None,
             "storage_format": storage_format,
             "n_features_original": len(train_df.columns),
             "n_features_transformed": len(train_transformed.columns),
@@ -247,7 +239,7 @@ def run_feature_engineering(
         console.print(f"[dim]Experiment ID: {experiment_id}[/dim]")
 
     except Exception as e:
-        exp_manager.fail_module(experiment_id, "feat", error=str(e))
+        exp_manager.fail_module("feat", str(e))
         console.print(f"\n[red]✗ Error:[/red] {e}")
         raise
 

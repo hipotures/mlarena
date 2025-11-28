@@ -245,7 +245,8 @@ def run_optuna_tuning(
     project_ctx = load_project_context(project_name)
 
     # Initialize experiment manager
-    exp_manager = ExperimentManager(project_name)
+    exp_manager = ExperimentManager.load_or_create(project_name, experiment_id)
+    experiment_id = exp_manager.experiment_id
 
     if not experiment_id:
         # Create new experiment
@@ -260,7 +261,7 @@ def run_optuna_tuning(
     # Check module state
     if not resume:
         try:
-            exp_manager.start_module(experiment_id, "tune", force=force)
+            exp_manager.start_module("tune", allow_restart=force)
         except ModuleStateError as e:
             console.print(f"[red]✗[/red] {e}")
             sys.exit(1)
@@ -302,8 +303,17 @@ def run_optuna_tuning(
 
         # Drop ID column if present
         id_column = getattr(project_ctx["config"], "ID_COLUMN", "id")
-        if id_column in X.columns:
-            X = X.drop(columns=[id_column])
+        if id_column in train_df.columns:
+            train_df = train_df.drop(columns=[id_column])
+
+        # For XGBoost/LightGBM: drop categorical columns (keep only numeric + freq encoded)
+        if model_name in ["xgboost", "lightgbm"]:
+            categorical_cols = list(train_df.select_dtypes(include=['object', 'category']).columns)
+            if target_column in categorical_cols:
+                categorical_cols.remove(target_column)
+            if categorical_cols:
+                console.print(f"[yellow]Dropping {len(categorical_cols)} categorical columns for {model_name}: {categorical_cols}[/yellow]")
+                train_df = train_df.drop(columns=categorical_cols)
 
         # Get model class and param space
         model_class = get_model_class(model_name)
@@ -342,8 +352,8 @@ def run_optuna_tuning(
         console.print(f"\n[cyan]Creating CV objective...[/cyan]")
         objective = CVObjective(
             model_class=model_class,
-            X=X.values if hasattr(X, 'values') else X,
-            y=y.values if hasattr(y, 'values') else y,
+            train_df=train_df,
+            target_col=target_column,
             param_space_fn=lambda trial: param_space_fn(
                 trial,
                 optuna_config.param_space.get(model_name, {})
@@ -407,7 +417,7 @@ def run_optuna_tuning(
         console.print(f"[green]✓[/green] Exported trials: {trials_file}")
 
         # Complete module
-        exp_manager.complete_module(experiment_id, "tune", metadata={
+        exp_manager.complete_module("tune", {
             "model": model_name,
             "preset": preset,
             "best_value": best_value,
@@ -429,7 +439,7 @@ def run_optuna_tuning(
                 console.print("\n[yellow]Dashboard closed[/yellow]")
 
     except Exception as e:
-        exp_manager.fail_module(experiment_id, "tune", error=str(e))
+        exp_manager.fail_module("tune", str(e))
         console.print(f"\n[red]✗ Error:[/red] {e}")
         raise
 

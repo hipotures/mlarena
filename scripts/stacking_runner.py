@@ -212,7 +212,8 @@ def run_stacking(
     project_ctx = load_project_context(project_name)
 
     # Initialize experiment manager
-    exp_manager = ExperimentManager(project_name)
+    exp_manager = ExperimentManager.load_or_create(project_name, experiment_id)
+    experiment_id = exp_manager.experiment_id
 
     if not experiment_id:
         # Create new experiment
@@ -226,7 +227,7 @@ def run_stacking(
 
     # Check module state
     try:
-        exp_manager.start_module(experiment_id, "stack", force=force)
+        exp_manager.start_module("stack", allow_restart=force)
     except ModuleStateError as e:
         console.print(f"[red]✗[/red] {e}")
         sys.exit(1)
@@ -346,14 +347,14 @@ def run_stacking(
             if blend_method == "power":
                 metadata["blend_power"] = blend_power
 
-        exp_manager.complete_module(experiment_id, "stack", metadata=metadata)
+        exp_manager.complete_module("stack", metadata)
 
         console.print(f"\n[green]✓[/green] Ensemble completed!")
         console.print(f"[dim]Experiment ID: {experiment_id}[/dim]")
         console.print(f"[dim]Output: {output_path}[/dim]")
 
     except Exception as e:
-        exp_manager.fail_module(experiment_id, "stack", error=str(e))
+        exp_manager.fail_module("stack", str(e))
         console.print(f"\n[red]✗ Error:[/red] {e}")
         raise
 

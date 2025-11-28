@@ -1,0 +1,28 @@
+preprocessing:
+  storage_format: parquet
+  compression: snappy
+  save_transformed_data: true
+
+  feat_stage:
+    enabled: true
+    transformers:
+      - type: StandardScalerTransformer
+        columns:
+          - annual_income
+          - debt_to_income_ratio
+          - credit_score
+          - loan_amount
+          - interest_rate
+      - type: FrequencyEncodingTransformer
+        columns:
+          - gender
+          - marital_status
+          - education_level
+          - employment_status
+          - loan_purpose
+          - grade_subgrade
+        normalize: true
+
+  cv_stage:
+    enabled: false  # Disabled - use in CVObjective instead
+    transformers: []

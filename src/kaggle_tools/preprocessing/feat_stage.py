@@ -5,7 +5,7 @@ These transformers can be fitted on the entire train set because they don't
 depend on the target variable in ways that would leak validation information.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import numpy as np
 import pandas as pd
@@ -271,5 +271,65 @@ class BinningTransformer(BaseTransformer):
                 include_lowest=True,
                 duplicates="drop",
             )
+
+        return result
+
+
+class FrequencyEncodingTransformer(BaseTransformer):
+    """
+    Frequency encoding (replace category with its frequency).
+
+    Safe because: Does not depend on target variable.
+    Note: Category frequencies may differ between train/val if data is not i.i.d.,
+    but this is not data leakage in the traditional sense.
+    """
+
+    def __init__(self, columns: List[str], normalize: bool = True):
+        """
+        Initialize frequency encoding transformer.
+
+        Args:
+            columns: Categorical columns to encode
+            normalize: If True, use relative frequency (0-1), else absolute counts
+        """
+        super().__init__()
+        self.columns = columns
+        self.normalize = normalize
+        self._freq_maps: Dict[str, Dict] = {}
+
+    def fit(self, df: pd.DataFrame) -> "FrequencyEncodingTransformer":
+        """
+        Compute frequency of each category.
+
+        Args:
+            df: Training DataFrame
+
+        Returns:
+            self
+        """
+        for col in self.columns:
+            if col in df.columns:
+                self._freq_maps[col] = df[col].value_counts(normalize=self.normalize).to_dict()
+
+        self.fitted = True
+        return self
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply frequency encoding.
+
+        Args:
+            df: DataFrame to transform
+
+        Returns:
+            DataFrame with frequency-encoded columns
+        """
+        self._check_fitted()
+        result = df.copy()
+
+        for col, freq_map in self._freq_maps.items():
+            if col in result.columns:
+                # Map categories to frequencies, use 0 for unseen categories
+                result[f"{col}_freq"] = result[col].map(freq_map).fillna(0)
 
         return result

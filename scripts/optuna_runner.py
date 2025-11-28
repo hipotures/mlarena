@@ -306,13 +306,23 @@ def run_optuna_tuning(
         if id_column in train_df.columns:
             train_df = train_df.drop(columns=[id_column])
 
-        # For XGBoost/LightGBM: drop categorical columns (keep only numeric + freq encoded)
-        if model_name in ["xgboost", "lightgbm"]:
+        # For XGBoost: convert object columns to 'category' dtype (required for enable_categorical=True)
+        if model_name == "xgboost":
+            categorical_cols = list(train_df.select_dtypes(include=['object']).columns)
+            if target_column in categorical_cols:
+                categorical_cols.remove(target_column)
+            if categorical_cols:
+                console.print(f"[cyan]Converting {len(categorical_cols)} columns to category dtype for XGBoost: {categorical_cols}[/cyan]")
+                for col in categorical_cols:
+                    train_df[col] = train_df[col].astype('category')
+
+        # For LightGBM: drop categorical columns (doesn't have good native categorical support)
+        elif model_name == "lightgbm":
             categorical_cols = list(train_df.select_dtypes(include=['object', 'category']).columns)
             if target_column in categorical_cols:
                 categorical_cols.remove(target_column)
             if categorical_cols:
-                console.print(f"[yellow]Dropping {len(categorical_cols)} categorical columns for {model_name}: {categorical_cols}[/yellow]")
+                console.print(f"[yellow]Dropping {len(categorical_cols)} categorical columns for LightGBM (use freq encoding instead)[/yellow]")
                 train_df = train_df.drop(columns=categorical_cols)
 
         # Get model class and param space

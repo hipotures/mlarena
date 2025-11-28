@@ -104,6 +104,7 @@ def xgboost_param_space(trial: optuna.Trial, config: Dict[str, List]) -> Dict[st
         "objective": "binary:logistic",  # Override based on problem type
         "tree_method": "hist",
         "random_state": 42,
+        "enable_categorical": True,  # Native categorical support (XGBoost 1.5+)
     }
 
     # Add defaults if not in params

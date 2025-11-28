@@ -6,6 +6,7 @@ preprocessing:
   feat_stage:
     enabled: true
     transformers:
+      # Numeric scaling (safe, no target dependency)
       - type: StandardScalerTransformer
         columns:
           - annual_income
@@ -13,6 +14,10 @@ preprocessing:
           - credit_score
           - loan_amount
           - interest_rate
+
+      # Frequency encoding (ADDITIONAL feature, originals preserved)
+      # Creates *_freq columns with category frequency
+      # XGBoost will use BOTH original categories AND frequency features
       - type: FrequencyEncodingTransformer
         columns:
           - gender

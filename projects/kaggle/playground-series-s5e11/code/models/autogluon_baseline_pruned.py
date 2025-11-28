@@ -81,20 +81,53 @@ def _drop_ignored(df: pd.DataFrame, config: ModelConfig) -> pd.DataFrame:
 
 def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    MINIMAL feature engineering - only essential transforms.
+    Stable numeric feature engineering (no per-frame encoding).
 
-    Strategy: Start with clean base + let pruning remove what doesn't help.
+    Strategy: deterministic transforms on numeric fields + grade parsing; no
+    factorize/count-encoding so train/test stay aligned.
     """
     enriched = df.copy()
 
-    # Log transforms (stabilize distributions)
-    enriched["log_annual_income"] = np.log1p(enriched["annual_income"])
-    enriched["log_loan_amount"] = np.log1p(enriched["loan_amount"])
+    # Base aliases for readability
+    annual_income = enriched["annual_income"]
+    loan_amount = enriched["loan_amount"]
+    debt_ratio = enriched["debt_to_income_ratio"]
+    credit_score = enriched["credit_score"]
+    interest_rate = enriched["interest_rate"]
 
-    # Single key ratio
-    enriched["loan_to_income_ratio"] = enriched["loan_amount"] / (enriched["annual_income"] + 1)
+    # Ratios and debt metrics
+    enriched["income_loan_ratio"] = annual_income / (loan_amount + 1)
+    enriched["loan_to_income"] = loan_amount / (annual_income + 1)
+    enriched["total_debt"] = debt_ratio * annual_income
+    enriched["available_income"] = annual_income * (1 - debt_ratio)
+    enriched["debt_burden"] = debt_ratio * loan_amount
 
-    # NO buckets, NO interactions, NO flags
+    # Payment analysis
+    enriched["monthly_payment"] = loan_amount * interest_rate / 1200
+    enriched["payment_to_income"] = enriched["monthly_payment"] / (annual_income / 12 + 1)
+    enriched["affordability"] = enriched["available_income"] / (loan_amount + 1)
+
+    # Risk scoring-style aggregates
+    enriched["default_risk"] = (
+        debt_ratio * 0.40 +
+        (850 - credit_score) / 850 * 0.35 +
+        interest_rate / 100 * 0.25
+    )
+    enriched["credit_utilization"] = credit_score * (1 - debt_ratio)
+    enriched["credit_interest_product"] = credit_score * interest_rate / 100
+
+    # Log transforms (stabilize heavy-tailed distributions)
+    enriched["annual_income_log"] = np.log1p(annual_income)
+    enriched["loan_amount_log"] = np.log1p(loan_amount)
+
+    # Grade parsing to stable numeric indicators
+    grade_series = enriched["grade_subgrade"].fillna("").astype(str)
+    enriched["grade_letter"] = grade_series.str[0]
+    enriched["grade_number"] = pd.to_numeric(grade_series.str[1], errors="coerce")
+    grade_map = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7}
+    enriched["grade_rank"] = enriched["grade_letter"].map(grade_map)
+
+    # Keep originals; no categorical encodings here (AutoGluon will handle)
     return enriched
 
 

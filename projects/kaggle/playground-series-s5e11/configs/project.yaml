@@ -37,8 +37,9 @@ preprocessing:
 
 # Optuna Hyperparameter Tuning Configuration
 optuna:
-  # Storage (SQLite database for study persistence)
-  storage: "sqlite:///experiments/optuna.db"
+  # Storage (SQLite database for study persistence). If omitted, defaults to
+  # experiments/{experiment_id}/optuna/study.db per run.
+  # storage: "sqlite:///experiments/optuna.db"
 
   # Study configuration
   study_name: "default_study"

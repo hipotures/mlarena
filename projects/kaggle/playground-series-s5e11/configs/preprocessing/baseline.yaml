@@ -6,7 +6,6 @@ preprocessing:
   feat_stage:
     enabled: true
     transformers:
-      # Numeric scaling (safe, no target dependency)
       - type: StandardScalerTransformer
         columns:
           - annual_income
@@ -15,10 +14,10 @@ preprocessing:
           - loan_amount
           - interest_rate
 
-      # Frequency encoding (ADDITIONAL feature, originals preserved)
-      # Creates *_freq columns with category frequency
-      # XGBoost will use BOTH original categories AND frequency features
-      - type: FrequencyEncodingTransformer
+  cv_stage:
+    enabled: true
+    transformers:
+      - type: TargetEncodingTransformer
         columns:
           - gender
           - marital_status
@@ -26,8 +25,6 @@ preprocessing:
           - employment_status
           - loan_purpose
           - grade_subgrade
-        normalize: true
-
-  cv_stage:
-    enabled: false  # Disabled - use in CVObjective instead
-    transformers: []
+        target: loan_paid_back
+        smoothing: 10.0
+        min_samples_leaf: 5

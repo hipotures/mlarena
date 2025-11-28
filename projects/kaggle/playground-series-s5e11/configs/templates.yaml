@@ -405,6 +405,35 @@ templates:
         excluded_models:
           - NN_TORCH
 
+  # Optuna templates (lightweight smoke configs)
+  xgb-optuna-quick:
+    model: xgboost_optuna
+    config:
+      hyperparameters:
+        preset: quick
+      optuna:
+        n_trials: 2
+        timeout: 120
+        cv_folds: 3
+  lgbm-optuna-quick:
+    model: lightgbm_optuna
+    config:
+      hyperparameters:
+        preset: quick
+      optuna:
+        n_trials: 2
+        timeout: 120
+        cv_folds: 3
+  catboost-optuna-quick:
+    model: catboost_optuna
+    config:
+      hyperparameters:
+        preset: quick
+      optuna:
+        n_trials: 2
+        timeout: 120
+        cv_folds: 3
+
   # ===================================================================
   # ULTIMATE OPTIMIZATION - FE21 & FE22
   # ===================================================================

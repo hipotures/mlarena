@@ -655,6 +655,8 @@ templates:
       hyperparameters:
         presets: medium_quality
         time_limit: 180
+        num_bag_folds: 7
+        num_stack_levels: 2
         use_gpu: false
         included_model_types:
           - XGB
@@ -667,7 +669,7 @@ templates:
         stopping_round: 50
         min_improvement: 1.0e-6
         max_fits: null
-        seed: 43
+        seed: 44
         raise_exception: false
         feature_prune_time_limit: null
       model:
@@ -821,8 +823,8 @@ templates:
       hyperparameters:
         presets: best
         time_limit: 216000
-        num_bag_folds: 5
-        num_stack_levels: 1
+        num_bag_folds: 7
+        num_stack_levels: 2
         use_gpu: false
         included_model_types:
           - XGB

@@ -2794,5 +2794,230 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 57,
+    "timestamp": "2025-11-29 10:42:46",
+    "filename": "submission-20251129104210.csv",
+    "model_name": "autogluon_baseline_pruned-quick-test-xgb-pruned",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.92412,
+    "private_score": null,
+    "notes": "template=quick-test-xgb-pruned",
+    "config": {
+      "system": {
+        "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11",
+        "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/code",
+        "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251128-210835",
+        "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251128-210835/artifacts",
+        "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/experiments/exp-20251128-210835/artifacts/quick-test-xgb-pruned-autogluon_baseline_pruned",
+        "template": "quick-test-xgb-pruned",
+        "experiment_id": "exp-20251128-210835",
+        "random_seed": 42,
+        "use_gpu": false
+      },
+      "dataset": {
+        "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/train.csv",
+        "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/test.csv",
+        "target": "loan_paid_back",
+        "id_column": "id",
+        "ignored_columns": [
+          "id"
+        ],
+        "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e11/data/sample_submission.csv",
+        "problem_type": "binary",
+        "metric": "roc_auc",
+        "submission_probas": true
+      },
+      "hyperparameters": {
+        "presets": "best",
+        "time_limit": 200000,
+        "use_gpu": false,
+        "excluded_models": null,
+        "preset": null,
+        "num_bag_folds": 7,
+        "num_stack_levels": 2,
+        "included_model_types": [
+          "XGB",
+          "GBM",
+          "CAT"
+        ]
+      },
+      "model": {
+        "leaderboard_rows": 5
+      },
+      "preprocessing": {
+        "feat_stage": {
+          "enabled": false,
+          "transformers": []
+        },
+        "cv_stage": {
+          "enabled": false,
+          "transformers": []
+        },
+        "storage_format": "parquet",
+        "save_transformed_data": true,
+        "compression": "snappy"
+      },
+      "optuna": {
+        "storage": "",
+        "study_name": "default_study",
+        "direction": "maximize",
+        "n_trials": 50,
+        "timeout": null,
+        "n_jobs": 1,
+        "cv_folds": 5,
+        "early_stopping_rounds": 50,
+        "sampler": "TPESampler",
+        "pruner": "MedianPruner",
+        "param_space": {
+          "xgboost": {
+            "learning_rate": [
+              0.001,
+              0.3,
+              "log"
+            ],
+            "max_depth": [
+              3,
+              10,
+              "int"
+            ],
+            "min_child_weight": [
+              1,
+              10,
+              "int"
+            ],
+            "subsample": [
+              0.5,
+              1.0,
+              "float"
+            ],
+            "colsample_bytree": [
+              0.5,
+              1.0,
+              "float"
+            ],
+            "gamma": [
+              0.0,
+              5.0,
+              "float"
+            ],
+            "reg_alpha": [
+              0.0,
+              10.0,
+              "log"
+            ],
+            "reg_lambda": [
+              0.0,
+              10.0,
+              "log"
+            ]
+          },
+          "lightgbm": {
+            "learning_rate": [
+              0.001,
+              0.3,
+              "log"
+            ],
+            "num_leaves": [
+              15,
+              255,
+              "int"
+            ],
+            "max_depth": [
+              3,
+              12,
+              "int"
+            ],
+            "min_child_samples": [
+              5,
+              100,
+              "int"
+            ],
+            "subsample": [
+              0.5,
+              1.0,
+              "float"
+            ],
+            "colsample_bytree": [
+              0.5,
+              1.0,
+              "float"
+            ],
+            "reg_alpha": [
+              0.0,
+              10.0,
+              "log"
+            ],
+            "reg_lambda": [
+              0.0,
+              10.0,
+              "log"
+            ]
+          },
+          "catboost": {
+            "learning_rate": [
+              0.001,
+              0.3,
+              "log"
+            ],
+            "depth": [
+              4,
+              10,
+              "int"
+            ],
+            "l2_leaf_reg": [
+              0.1,
+              10.0,
+              "log"
+            ],
+            "bagging_temperature": [
+              0.0,
+              1.0,
+              "float"
+            ],
+            "random_strength": [
+              0.0,
+              10.0,
+              "float"
+            ]
+          }
+        },
+        "load_if_exists": true,
+        "sampler_kwargs": {},
+        "pruner_kwargs": {
+          "n_startup_trials": 5,
+          "n_warmup_steps": 10
+        }
+      },
+      "feature_prune": {
+        "enabled": true,
+        "force_prune": true,
+        "time_limit": null,
+        "max_train_samples": 50000,
+        "min_fi_samples": 10000,
+        "prune_threshold": "noise",
+        "prune_ratio": 0.05,
+        "stopping_round": 50,
+        "min_improvement": 1e-06,
+        "max_fits": null,
+        "seed": 44,
+        "raise_exception": false,
+        "feature_prune_time_limit": null
+      },
+      "stacking": {
+        "blend_method": "weighted",
+        "blend_power": 2.0,
+        "meta_model": "logistic",
+        "calibration": {
+          "enabled": false,
+          "method": "isotonic"
+        }
+      }
+    },
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

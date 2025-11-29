@@ -100,21 +100,11 @@ def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     enriched["loan_to_income"] = loan_amount / (annual_income + 1)
     enriched["total_debt"] = debt_ratio * annual_income
     enriched["available_income"] = annual_income * (1 - debt_ratio)
-    enriched["debt_burden"] = debt_ratio * loan_amount
 
     # Payment analysis
     enriched["monthly_payment"] = loan_amount * interest_rate / 1200
     enriched["payment_to_income"] = enriched["monthly_payment"] / (annual_income / 12 + 1)
     enriched["affordability"] = enriched["available_income"] / (loan_amount + 1)
-
-    # Risk scoring-style aggregates
-    enriched["default_risk"] = (
-        debt_ratio * 0.40 +
-        (850 - credit_score) / 850 * 0.35 +
-        interest_rate / 100 * 0.25
-    )
-    enriched["credit_utilization"] = credit_score * (1 - debt_ratio)
-    enriched["credit_interest_product"] = credit_score * interest_rate / 100
 
     # Log transforms (stabilize heavy-tailed distributions)
     enriched["annual_income_log"] = np.log1p(annual_income)

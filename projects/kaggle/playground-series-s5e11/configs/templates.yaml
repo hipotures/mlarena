@@ -783,7 +783,7 @@ templates:
           - CAT
         hyperparameter_tune_kwargs:
           searcher: random
-          num_trials: 24
+          num_trials: 44
           scheduler: local
           time_limit: 65000
       feature_prune:

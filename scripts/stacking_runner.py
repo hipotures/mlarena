@@ -633,7 +633,7 @@ def run_stacking(
         console.print(f"[green]✓[/green] Saved ensemble submission: {output_path}")
 
         # Display ensemble statistics
-        display_ensemble_stats(predictions, ensemble_pred, model_names)
+        display_ensemble_stats(predictions, ensemble_pred, model_names, project_ctx["name"], output_path)
 
         # Complete module
         metadata = {
@@ -668,7 +668,9 @@ def run_stacking(
 def display_ensemble_stats(
     predictions: List[pd.Series],
     ensemble_pred: pd.Series,
-    model_names: List[str]
+    model_names: List[str],
+    project_name: str,
+    output_path: Path,
 ) -> None:
     """Display ensemble statistics."""
     table = Table(title="Ensemble Statistics")
@@ -719,8 +721,8 @@ def display_ensemble_stats(
     console.print(
         f"\n[yellow]Next steps:[/yellow] "
         f"Submit with "
-        f"`python scripts/experiment_manager.py submit --project {project_ctx['name']} "
-        f"--filename {Path(str(table.title) if hasattr(table, 'title') else 'submission.csv').name}` "
+        f"`python scripts/experiment_manager.py submit --project {project_name} "
+        f"--filename {output_path.name}` "
         f"or rerun stack with `--output-name` of your choice."
     )
 

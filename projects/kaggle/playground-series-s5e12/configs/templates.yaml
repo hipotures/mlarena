@@ -59,6 +59,11 @@ templates:
         time_limit: 28800
         use_gpu: true
         included_model_types: ["NN_TORCH"]
+        NN_TORCH:
+          - ag_args_fit:
+              num_gpus: 1
+              num_workers: 0
+              batch_size: 256
 
   cpu-gbm-8h:
     model: autogluon_baseline
@@ -95,6 +100,10 @@ templates:
         time_limit: 28800
         use_gpu: true
         included_model_types: ["FASTAI"]
+        FASTAI:
+          - ag_args_fit:
+              num_gpus: 1
+              num_workers: 0
 
   cpu-rf-8h:
     model: autogluon_baseline

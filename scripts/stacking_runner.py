@@ -633,7 +633,18 @@ def run_stacking(
         console.print(f"[green]✓[/green] Saved ensemble submission: {output_path}")
 
         # Display ensemble statistics
-        display_ensemble_stats(predictions, ensemble_pred, model_names, project_ctx["name"], output_path)
+        tracker_map = None
+        if model_files:
+            try:
+                tracker_entries = load_tracker_scores(project_ctx)
+                tracker_map = {}
+                for mf, stem in zip(model_files, model_names):
+                    entry = next((e for e in tracker_entries if e.get("filename") == Path(mf).name), None)
+                    if entry:
+                        tracker_map[stem] = entry.get("local_cv_score")
+            except Exception:
+                tracker_map = None
+        display_ensemble_stats(predictions, ensemble_pred, model_names, project_ctx["name"], output_path, tracker_map)
 
         # Complete module
         metadata = {
@@ -671,10 +682,12 @@ def display_ensemble_stats(
     model_names: List[str],
     project_name: str,
     output_path: Path,
+    local_cv_map: Dict[str, Optional[float]] | None = None,
 ) -> None:
     """Display ensemble statistics."""
     table = Table(title="Ensemble Statistics")
     table.add_column("Model", style="cyan")
+    table.add_column("Local CV", style="yellow")
     table.add_column("Mean", style="yellow")
     table.add_column("Std", style="yellow")
     table.add_column("Correlation", style="green")
@@ -682,8 +695,14 @@ def display_ensemble_stats(
     # Individual models
     for i, (pred, name) in enumerate(zip(predictions, model_names)):
         corr = pred.corr(ensemble_pred)
+        lcv = "-"
+        if local_cv_map is not None:
+            lval = local_cv_map.get(name)
+            if isinstance(lval, (int, float)):
+                lcv = f"{lval:.5f}"
         table.add_row(
             name,
+            lcv,
             f"{pred.mean():.5f}",
             f"{pred.std():.5f}",
             f"{corr:.5f}"
@@ -692,6 +711,7 @@ def display_ensemble_stats(
     # Ensemble
     table.add_row(
         "[bold]Ensemble[/bold]",
+        "-",
         f"[bold]{ensemble_pred.mean():.5f}[/bold]",
         f"[bold]{ensemble_pred.std():.5f}[/bold]",
         "[bold]1.00000[/bold]"

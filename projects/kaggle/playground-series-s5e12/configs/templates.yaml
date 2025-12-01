@@ -114,6 +114,24 @@ templates:
         use_gpu: false
         included_model_types: ["XT"]
 
+  cpu-knn-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["KNN"]
+
+  cpu-ebm-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["EBM"]
+
   cpu-nonn-8h:
     model: autogluon_baseline
     config:

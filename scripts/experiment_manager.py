@@ -19,9 +19,12 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 import yaml
+from rich.console import Console
+from rich.table import Table
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
-MODULES = ["eda", "feat", "model", "tune", "stack", "submit", "fetch-score"]
+MODULES = ["eda", "feat", "model", "predict", "tune", "stack", "submit", "fetch-score"]
+console = Console()
 
 
 class ModuleStateError(RuntimeError):
@@ -102,6 +105,36 @@ def load_project_config(project_name: str):
     if str(code_dir) not in sys.path:
         sys.path.insert(0, str(code_dir))
     return __import__("utils.config", fromlist=["dummy"])
+
+
+def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        # utc_now uses trailing Z
+        clean = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(clean)
+    except Exception:
+        return None
+
+
+def _format_duration(start: Optional[datetime], end: Optional[datetime]) -> str:
+    if not start:
+        return "-"
+    end_time = end or datetime.now(timezone.utc)
+    delta = end_time - start
+    seconds = int(delta.total_seconds())
+    minutes, sec = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    # Format as HHh MMm (rounded down to minutes)
+    return f"{hours:02d}h {minutes:02d}m"
+
+
+def _format_ts(ts_str: Optional[str]) -> str:
+    dt = _parse_timestamp(ts_str)
+    if not dt:
+        return "-"
+    return dt.strftime("%Y%m%d %H%M%S")
 
 
 def _build_model_config(
@@ -528,8 +561,22 @@ def run_list(args):
     project_root = REPO_ROOT / "projects" / "kaggle" / args.project
     base_dir = project_root / "experiments"
     if not base_dir.exists():
-        print("No experiments found.")
+        console.print("[yellow]No experiments found.[/yellow]")
         return
+    compact = getattr(args, "compact", False)
+    table = Table(title=f"Experiments for {args.project}", show_lines=False)
+    table.add_column("Experiment", style="cyan", no_wrap=True)
+    table.add_column("Last State", style="green")
+    table.add_column("Module", style="cyan")
+    table.add_column("Template", style="magenta")
+    table.add_column("Local CV", justify="right")
+    table.add_column("Public", justify="right")
+    table.add_column("Started", style="dim")
+    table.add_column("Elapsed", style="dim")
+    if not compact:
+        table.add_column("Submission", overflow="fold")
+        table.add_column("Git", style="dim")
+
     for dir_path in sorted(base_dir.glob("exp-*")):
         state_path = dir_path / "state.json"
         if not state_path.exists():
@@ -537,8 +584,63 @@ def run_list(args):
         with open(state_path) as f:
             data = json.load(f)
         modules = data.get("modules", {})
-        statuses = ", ".join(f"{k}:{v.get('status')}" for k, v in modules.items())
-        print(f"{data['experiment_id']} - {statuses}")
+        model_mod = modules.get("model", {})
+        predict_mod = modules.get("predict", {})
+        submit_mod = modules.get("submit", {})
+
+        # Determine last touched module by updated_at/finished_at/started_at
+        last_module = "-"
+        last_status = "-"
+        last_ts = None
+        last_entry: Dict[str, Any] = {}
+        for name, mod in modules.items():
+            ts = mod.get("updated_at") or mod.get("finished_at") or mod.get("started_at")
+            if ts and (last_ts is None or ts > last_ts):
+                last_ts = ts
+                last_module = name
+                last_status = mod.get("status", "-")
+                last_entry = mod
+
+        template = model_mod.get("template") or predict_mod.get("template") or "-"
+        local_cv = model_mod.get("local_cv")
+        local_cv_str = f"{local_cv:.5f}" if isinstance(local_cv, (int, float)) else "-"
+        public_score = submit_mod.get("public_score")
+        public_str = f"{public_score:.5f}" if isinstance(public_score, (int, float)) else "-"
+        started_ts = (
+            last_entry.get("started_at")
+            or model_mod.get("started_at")
+            or predict_mod.get("started_at")
+            or data.get("created_at")
+        )
+        finished_ts = last_entry.get("finished_at")
+        started_dt = _parse_timestamp(started_ts)
+        finished_dt = _parse_timestamp(finished_ts)
+        elapsed = _format_duration(started_dt, finished_dt)
+
+        submission_file = predict_mod.get("submission_file") or model_mod.get("submission_file") or "-"
+        if submission_file and submission_file != "-" and not compact:
+            submission_name = Path(str(submission_file)).name
+            submission_short = f".../{submission_name}"
+        else:
+            submission_short = "-"
+
+        row = [
+            data.get("experiment_id", "-"),
+            last_status,
+            last_module,
+            template,
+            local_cv_str,
+            public_str,
+            _format_ts(started_ts),
+            elapsed,
+        ]
+        if not compact:
+            git_hash = (data.get("git") or {}).get("hash")
+            git_short = git_hash[:7] if git_hash else "-"
+            row.extend([submission_short, git_short])
+        table.add_row(*row)
+
+    console.print(table)
 
 
 def run_modules(args):
@@ -614,6 +716,50 @@ def run_model(args):
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         print(f"[Model] Training command failed (exit {exc.returncode}).")
+        raise SystemExit(exc.returncode)
+
+
+def run_predict(args):
+    """Run prediction-only module (uses trained model artifacts)."""
+    if not args.experiment_id:
+        raise ValueError("--experiment-id is required for predict stage")
+
+    manager = ExperimentManager.load_existing(args.project, args.experiment_id)
+    if args.experiment_id is None:
+        print(f"[Predict] Using experiment ID: {manager.experiment_id}")
+
+    script = TOOLS_ROOT / "ml_runner.py"
+    venv_python = Path(sys.executable).parent / "python3"
+    python_exe = str(venv_python) if venv_python.exists() else sys.executable
+    cmd = [
+        python_exe,
+        str(script),
+        "--project",
+        args.project,
+        "--experiment-id",
+        manager.experiment_id,
+        "--stage",
+        "predict",
+    ]
+    if args.template:
+        cmd += ["--template", args.template]
+    if args.skip_submit:
+        cmd.append("--skip-submit")
+    if args.auto_submit:
+        cmd.append("--auto-submit")
+    if args.skip_score_fetch:
+        cmd.append("--skip-score-fetch")
+    if args.skip_git:
+        cmd.append("--skip-git")
+    cmd += ["--wait-seconds", str(args.wait_seconds)]
+    cmd += ["--cdp-url", args.cdp_url]
+    if args.kaggle_message:
+        cmd += ["--kaggle-message", args.kaggle_message]
+
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[Predict] Prediction command failed (exit {exc.returncode}).")
         raise SystemExit(exc.returncode)
 
 
@@ -758,10 +904,12 @@ def _resolve_submission_filename(project: str, experiment_id: Optional[str], exp
     if not experiment_id:
         raise ValueError("Provide --experiment-id or --filename")
     manager = ExperimentManager.load_existing(project, experiment_id)
+    predict_module = manager.get_module("predict")
     model_module = manager.get_module("model")
-    if not model_module or not model_module.get("submission_file"):
+    source_module = predict_module or model_module
+    if not source_module or not source_module.get("submission_file"):
         raise RuntimeError(f"Experiment {experiment_id} has no recorded submission file")
-    submission_path = Path(model_module["submission_file"])
+    submission_path = Path(source_module["submission_file"])
     return submission_path.name
 
 
@@ -1501,7 +1649,14 @@ def build_parser():
 
     list_parser = subparsers.add_parser("list", help="List experiments")
     list_parser.add_argument("--project", required=True)
-    list_parser.set_defaults(func=run_list)
+    list_parser.add_argument(
+        "--compact",
+        "--short",
+        dest="compact",
+        action="store_true",
+        help="Compact view (omit submission/git columns)",
+    )
+    list_parser.set_defaults(func=run_list, compact=False)
 
     modules_parser = subparsers.add_parser("modules", help="List available modules")
     modules_parser.set_defaults(func=run_modules)
@@ -1545,6 +1700,19 @@ def build_parser():
     model_parser.add_argument("--cdp-url", default="http://localhost:9222")
     model_parser.add_argument("--kaggle-message")
     model_parser.set_defaults(func=run_model)
+
+    predict_parser = subparsers.add_parser("predict", help="Run prediction module (no training)")
+    predict_parser.add_argument("--project", required=True)
+    predict_parser.add_argument("--experiment-id", required=True)
+    predict_parser.add_argument("--template", help="Optional template override (defaults to recorded template)")
+    predict_parser.add_argument("--skip-submit", action="store_true")
+    predict_parser.add_argument("--auto-submit", action="store_true")
+    predict_parser.add_argument("--skip-score-fetch", action="store_true")
+    predict_parser.add_argument("--skip-git", action="store_true")
+    predict_parser.add_argument("--wait-seconds", type=int, default=30)
+    predict_parser.add_argument("--cdp-url", default="http://localhost:9222")
+    predict_parser.add_argument("--kaggle-message")
+    predict_parser.set_defaults(func=run_predict)
 
     feat_parser = subparsers.add_parser("feat", help="Run feature engineering module")
     feat_parser.add_argument("--project", required=True)

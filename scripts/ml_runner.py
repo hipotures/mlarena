@@ -56,7 +56,13 @@ def load_project_context(project_name: str) -> ProjectContext:
 def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run template-driven ML models")
     parser.add_argument("--project", default=default_project, required=True)
-    parser.add_argument("--template", required=True, help="Template name defined in configs/templates.yaml")
+    parser.add_argument("--template", help="Template name defined in configs/templates.yaml")
+    parser.add_argument(
+        "--stage",
+        choices=["all", "train", "predict"],
+        default="all",
+        help="Pipeline stage to run: train only, predict only, or both (default).",
+    )
     parser.add_argument("--experiment-id")
     parser.add_argument("--time-limit", type=int)
     parser.add_argument("--preset")
@@ -131,20 +137,40 @@ class MLRunner:
         template_name: str,
         template_payload: Dict[str, Any],
         args: argparse.Namespace,
+        *,
+        stage: str = "all",
+        config_override: Optional[ModelConfig] = None,
+        model_name_override: Optional[str] = None,
+        training_summary_override: Optional[Dict[str, Any]] = None,
+        snapshot_override: Optional[Path] = None,
     ):
         self.project = project
         self.manager = manager
         self.template_name = template_name
         self.template_payload = template_payload
         self.args = args
-        self.model_name = template_payload["model"]
+        self.stage = stage
+        self.model_name = model_name_override or template_payload.get("model")
+        if not self.model_name:
+            raise ValueError("Model name is required to run the ML pipeline.")
+
         self.model_module = self._load_model_module()
-        self.experiment_dir = self.project.root / "experiments" / self.manager.experiment_id
+        self.config = config_override
+        if self.config is not None:
+            self.dataset_config = self.config.dataset
+            self.experiment_dir = self.config.system.experiment_dir
+            self.artifact_dir = self.config.system.artifact_dir
+        else:
+            self.experiment_dir = self.project.root / "experiments" / self.manager.experiment_id
+            self.artifact_dir = self.experiment_dir / "artifacts"
+            self.dataset_config = self._build_dataset_config()
+            self.config = self._build_model_config()
+
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
-        self.artifact_dir = self.experiment_dir / "artifacts"
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
-        self.dataset_config = self._build_dataset_config()
-        self.config = self._build_model_config()
+
+        self.training_summary_override = training_summary_override or {}
+        self.snapshot_override = snapshot_override
 
         # Validate --ag-smoke is used only with AutoGluon
         if args.ag_smoke:
@@ -235,7 +261,8 @@ class MLRunner:
             Panel.fit(
                 f"[bold magenta]{self.project.name}[/bold magenta]\n"
                 f"Template: {self.template_name}\n"
-                f"Model: {self.model_name}",
+                f"Model: {self.model_name}\n"
+                f"Stage: {self.stage}",
                 title="ML Runner",
             )
         )
@@ -244,10 +271,22 @@ class MLRunner:
         train_df, val_df, test_df = self._run_preprocess(train_df, val_df, test_df)
         artifacts = self._prepare_artifacts(train_df)
 
-        model, training_summary = self._train_model(train_df, val_df, artifacts)
-        predictions = self._run_predictions(model, test_df, artifacts)
-        submission = self._save_submission(predictions, training_summary)
-        snapshot_path = self._snapshot_code()
+        model = None
+        training_summary: Dict[str, Any] = {}
+        snapshot_path: Optional[Path] = None
+        submission = None
+
+        if self.stage in {"all", "train"}:
+            model, training_summary, snapshot_path = self._run_training(train_df, val_df, artifacts)
+        else:
+            training_summary = self._load_training_summary_from_state()
+            snapshot_path = self.snapshot_override
+            model = self._load_trained_model()
+
+        if self.stage in {"all", "predict"}:
+            submission = self._run_predict(model, test_df, artifacts, training_summary)
+        else:
+            console.print("[yellow]Stage set to 'train' → skipping prediction/submission.[/yellow]")
 
         return {
             "submission": submission,
@@ -339,18 +378,132 @@ class MLRunner:
         console.print(f"[dim]Code snapshot at {snapshot_dir.relative_to(self.project.root)}[/dim]")
         return snapshot_dir
 
+    def _relative_to_project(self, path: Path) -> str:
+        try:
+            return str(path.relative_to(self.project.root))
+        except ValueError:
+            return str(path)
+
+    def _load_training_summary_from_state(self) -> Dict[str, Any]:
+        if self.training_summary_override:
+            return dict(self.training_summary_override)
+        model_entry = self.manager.get_module("model") or {}
+        return dict(model_entry.get("training_summary") or {})
+
+    def _load_trained_model(self):
+        load_fn = getattr(self.model_module, "load_model", None)
+        if callable(load_fn):
+            return load_fn(self.config)
+        try:
+            from autogluon.tabular import TabularPredictor
+
+            model_path = self.config.system.model_path
+            if model_path.exists():
+                console.print(f"[cyan]Loading model from {model_path}...[/cyan]")
+                return TabularPredictor.load(str(model_path))
+        except Exception as exc:  # pragma: no cover - fallback logging only
+            console.print(f"[yellow]Autogluon loader fallback failed: {exc}[/yellow]")
+        raise RuntimeError(
+            "Model reload not implemented for this model. "
+            "Provide a load_model(config) helper in the model module."
+        )
+
+    def _run_training(
+        self,
+        train_df: pd.DataFrame,
+        val_df: Optional[pd.DataFrame],
+        artifacts,
+    ) -> Tuple[Any, Dict[str, Any], Path]:
+        try:
+            self.manager.start_module(
+                "model",
+                {
+                    "template": self.template_name,
+                    "model": self.model_name,
+                },
+                allow_restart=True,
+            )
+        except ModuleStateError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            raise
+
+        try:
+            model, training_summary = self._train_model(train_df, val_df, artifacts)
+            snapshot_path = self._snapshot_code()
+            payload = {
+                "template": self.template_name,
+                "model": self.model_name,
+                "local_cv": training_summary.get("local_cv"),
+                "training_summary": training_summary,
+                "config": self.config.as_plain_dict(),
+                "code_snapshot": str(self._relative_to_project(snapshot_path)),
+                "model_path": str(self._relative_to_project(self.config.system.model_path)),
+            }
+            self.manager.complete_module("model", payload)
+            return model, training_summary, snapshot_path
+        except Exception as exc:
+            self.manager.fail_module("model", str(exc))
+            raise
+
+    def _run_predict(
+        self,
+        model: Any,
+        test_df: pd.DataFrame,
+        artifacts,
+        training_summary: Dict[str, Any],
+    ):
+        try:
+            self.manager.require("model")
+        except ModuleStateError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            raise
+
+        try:
+            self.manager.start_module(
+                "predict",
+                {
+                    "template": self.template_name,
+                    "model": self.model_name,
+                },
+                allow_restart=True,
+            )
+        except ModuleStateError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            return None
+
+        try:
+            predictions = self._run_predictions(model, test_df, artifacts)
+            submission = self._save_submission(predictions, training_summary)
+            payload = {
+                "template": self.template_name,
+                "model": self.model_name,
+                "local_cv": training_summary.get("local_cv"),
+                "submission_file": str(self._relative_to_project(submission.path)),
+                "model_path": str(self._relative_to_project(self.config.system.model_path)),
+            }
+            self.manager.complete_module("predict", payload)
+            return submission
+        except Exception as exc:
+            self.manager.fail_module("predict", str(exc))
+            raise
+
 
 def run(args: argparse.Namespace):
     context = load_project_context(args.project)
     templates = _load_templates(context.root)
-    if args.template not in templates:
-        raise RuntimeError(f"Template '{args.template}' not defined for project {args.project}")
+    stage = args.stage or "all"
 
-    manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
-    if args.experiment_id is None:
-        console.print(f"[bold blue]Using experiment ID:[/bold blue] {manager.experiment_id}")
+    if stage == "predict" and not args.experiment_id:
+        raise RuntimeError("--experiment-id is required when running stage=predict")
 
-    require_eda = args.require_eda and not args.skip_eda_check
+    if stage == "predict":
+        manager = ExperimentManager.load_existing(args.project, args.experiment_id)
+    else:
+        manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+        if args.experiment_id is None:
+            console.print(f"[bold blue]Using experiment ID:[/bold blue] {manager.experiment_id}")
+
+    require_eda = stage in {"all", "train"} and args.require_eda and not args.skip_eda_check
     if require_eda:
         try:
             manager.require("eda")
@@ -358,55 +511,65 @@ def run(args: argparse.Namespace):
             console.print(f"[yellow]{exc}[/yellow]")
             return
 
-    template_payload = templates[args.template]
-    runner = MLRunner(context, manager, args.template, template_payload, args)
+    model_entry = manager.get_module("model") or {}
+    template_name = args.template or model_entry.get("template")
+    if not template_name:
+        raise RuntimeError("Template is required (pass --template or ensure it is recorded in state.json).")
+
+    template_payload = templates.get(template_name)
+    if template_payload is None and stage != "predict":
+        raise RuntimeError(f"Template '{template_name}' not defined for project {args.project}")
+    if template_payload is None:
+        template_payload = {"model": model_entry.get("model", "autogluon_baseline"), "config": {}}
+
+    config_override = None
+    training_summary_override = None
+    snapshot_override = None
+    if stage == "predict":
+        config_dict = model_entry.get("config")
+        if not config_dict:
+            raise RuntimeError(f"Experiment {manager.experiment_id} has no saved config; cannot run predict.")
+        config_override = ModelConfig.model_validate(config_dict)
+        training_summary_override = model_entry.get("training_summary") or {}
+        snapshot_str = model_entry.get("code_snapshot")
+        if snapshot_str:
+            snapshot_path = Path(snapshot_str)
+            snapshot_override = snapshot_path if snapshot_path.is_absolute() else (context.root / snapshot_path)
+
+    runner = MLRunner(
+        context,
+        manager,
+        template_name,
+        template_payload,
+        args,
+        stage=stage,
+        config_override=config_override,
+        model_name_override=model_entry.get("model"),
+        training_summary_override=training_summary_override,
+        snapshot_override=snapshot_override,
+    )
 
     try:
-        manager.start_module(
-            "model",
-            {
-                "template": args.template,
-                "model": template_payload["model"],
-            },
-            allow_restart=True,
-        )
+        result = runner.execute()
     except ModuleStateError as exc:
         console.print(f"[yellow]{exc}[/yellow]")
         return
 
-    try:
-        result = runner.execute()
-    except Exception as exc:
-        manager.fail_module("model", str(exc))
-        raise
-
-    submission_artifact = result["submission"]
-    snapshot_path = result["snapshot_path"]
-    training_summary = result["training_summary"]
+    submission_artifact = result.get("submission")
+    training_summary = result.get("training_summary") or {}
     local_cv = training_summary.get("local_cv")
 
-    manager.complete_module(
-        "model",
-        {
-            "template": args.template,
-            "model": template_payload["model"],
-            "local_cv": local_cv,
-            "training_summary": training_summary,
-            "submission_file": str(submission_artifact.path.relative_to(context.root)),
-            "config": runner.config.as_plain_dict(),
-            "code_snapshot": str(snapshot_path.relative_to(context.root)),
-        },
-    )
+    if stage not in {"all", "predict"} or submission_artifact is None:
+        return
 
     if args.skip_submit or os.environ.get("KAGGLE_SKIP_SUBMIT"):
         console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit or KAGGLE_SKIP_SUBMIT).[/yellow]")
         return
 
-    # Build submission description
     if args.kaggle_message:
         description = args.kaggle_message
     else:
-        description = f"{context.name} | {args.template}"
+        description = f"{context.name} | {template_name}"
         if local_cv:
             description += f" | local {local_cv:.5f}"
         if args.ag_smoke:

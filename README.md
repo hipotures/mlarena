@@ -86,8 +86,9 @@ All shared tools (runner, submissions tracker, validation) rely on these fields,
 Every experiment is broken into modules tracked in `experiments/<id>/state.json`. Use `tools/experiment_manager.py` to orchestrate the flow:
 
 1. **EDA** – `uv run python tools/experiment_manager.py eda --project playground-series-s5e11`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
-2. **Model** – `uv run python tools/experiment_manager.py model --project playground-series-s5e11 --experiment-id exp-20251117-020830 --template dev-gpu [--auto-submit]`. This wraps `tools/autogluon_runner.py`, which supports templates such as `fast-cpu`, `dev-{cpu,gpu}`, `best-{cpu,gpu}`, and `extreme-gpu` (24h, prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
-3. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python tools/experiment_manager.py submit --project playground-series-s5e11 --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
+2. **Model (train)** – `uv run python tools/experiment_manager.py model --project playground-series-s5e11 --experiment-id exp-20251117-020830 --template gpu-dev-5m [--auto-submit]`. This wraps the template-driven `tools/ml_runner.py` and records training results (local CV, model path) as soon as training finishes. Core templates now follow the `[cpu|gpu]-<purpose>-<time>` scheme: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `cpu-best-8h`, and `gpu-extreme-24h` (prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
+3. **Predict** – `uv run python tools/experiment_manager.py predict --project playground-series-s5e11 --experiment-id exp-... [--template gpu-dev-5m]` reuses the trained model to generate a submission and completes the `predict` module before any submit step. The `model` command runs this automatically unless you stop at training.
+4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python tools/experiment_manager.py submit --project playground-series-s5e11 --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
 
 Use `uv run python tools/experiment_manager.py list --project playground-series-s5e11` to inspect module statuses, and `uv run python tools/experiment_manager.py modules` to show the available module names.
 
@@ -282,24 +283,25 @@ Every competition now shares a single runner: `tools/autogluon_runner.py`. Call 
 
 | Template     | Time Limit | Preset           | GPU | Notes |
 |--------------|-----------:|------------------|-----|-------|
-| `fast-cpu`   | 60 s       | `medium_quality` | ❌  | XGBoost only, smoke tests |
-| `dev-cpu`    | 300 s      | `medium_quality` | ❌  | default stack |
-| `dev-gpu`    | 300 s      | `medium_quality` | ✅  | default stack |
-| `best-cpu`   | 3600 s     | `best_quality`   | ❌  | high-quality ensemble |
-| `best-gpu`   | 3600 s     | `best_quality`   | ✅  | high-quality ensemble |
-| `extreme-gpu`| 24 h       | `extreme_quality`| ✅  | ≤30k rows, prompts before run |
+| `cpu-fast-1m`   | 60 s       | `medium_quality` | ❌  | XGBoost-only smoke test |
+| `cpu-dev-5m`    | 300 s      | `medium_quality` | ❌  | default stack (CPU) |
+| `gpu-dev-5m`    | 300 s      | `medium_quality` | ✅  | default stack (GPU) |
+| `cpu-best-1h`   | 3600 s     | `best_quality`   | ❌  | high-quality ensemble |
+| `gpu-best-1h`   | 3600 s     | `best_quality`   | ✅  | high-quality ensemble |
+| `cpu-best-8h`   | 28800 s    | `best_quality`   | ❌  | long CPU run |
+| `gpu-extreme-24h`| 24 h      | `extreme_quality`| ✅  | ≤30k rows, prompts before run |
 
 Example:
 
 ```bash
 uv run python tools/autogluon_runner.py \
     --project playground-series-s5e11 \
-    --template best-gpu \
+    --template gpu-best-1h \
     --auto-submit \
     --wait-seconds 45
 ```
 
-`fast-cpu` is intended purely for smoke testing—it limits AutoGluon to a single XGBoost learner for ~60 seconds. `extreme-gpu` prompts with the training-row count if the dataset exceeds 30k rows so you can abort before launching a marathon job. Overrides such as `--time-limit`, `--preset`, or `--use-gpu 0/1` are available when needed.
+`cpu-fast-1m` is intended purely for smoke testing—it limits AutoGluon to a single XGBoost learner for ~60 seconds. `gpu-extreme-24h` prompts with the training-row count if the dataset exceeds 30k rows so you can abort before launching a marathon job. Overrides such as `--time-limit`, `--preset`, or `--use-gpu 0/1` are available when needed.
 
 ## Experiment Workflow
 

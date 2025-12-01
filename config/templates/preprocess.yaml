@@ -24,5 +24,6 @@ templates:
         folds: 5
         smoothing: 10.0
         min_samples_leaf: 20
+        seed: 42
       categorical_overrides: []
       numeric_overrides: []

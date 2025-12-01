@@ -134,6 +134,9 @@ def _add_binning_features(df: pl.DataFrame, num_cols: list[str], cfg: Dict[str, 
     uniform_bins = cfg.get("uniform_bins", []) or []
     log1p_bins = cfg.get("log1p_bins", []) or []
 
+    if not (quantile_bins or uniform_bins or log1p_bins):
+        return df
+
     new_cols = []
     for col in num_cols:
         values = df[col].to_numpy()
@@ -281,43 +284,40 @@ def _process_polars(
     pair_limit = int(cfg.get("pairwise_cat_limit", 0) or 0)
     te_cfg = cfg.get("target_encoding", {}) or {}
 
-    processed = df.clone()
+    cat_cols = _infer_categorical_columns(df, meta, cat_overrides, num_overrides)
+    num_cols = _numeric_columns(df, cat_cols, meta)
 
-    cat_cols = _infer_categorical_columns(processed, meta, cat_overrides, num_overrides)
-    num_cols = _numeric_columns(processed, cat_cols, meta)
-
+    # Fill and clean in one with_columns
+    exprs = []
     if fill_missing or string_clean:
-        fill_exprs = []
         for col in cat_cols:
-            expr = pl.col(col).cast(pl.Utf8)
+            e = pl.col(col).cast(pl.Utf8)
             if fill_missing:
-                expr = expr.fill_null(MISSING_TOKEN)
+                e = e.fill_null(MISSING_TOKEN)
             if string_clean:
-                expr = expr.str.strip_chars().str.to_lowercase()
-            fill_exprs.append(expr.alias(col))
-        for col in num_cols:
-            expr = pl.col(col)
-            if fill_missing:
-                median_val = processed[col].median()
-                expr = expr.fill_null(median_val)
-            fill_exprs.append(expr.alias(col))
-        if fill_exprs:
-            processed = processed.with_columns(fill_exprs)
+                e = e.str.strip_chars().str.to_lowercase()
+            exprs.append(e.alias(col))
+        if fill_missing:
+            medians = df.select([pl.col(c).median().alias(c) for c in num_cols]).to_dicts()[0] if num_cols else {}
+            for col in num_cols:
+                exprs.append(pl.col(col).fill_null(medians.get(col)).alias(col))
+    if exprs:
+        df = df.with_columns(exprs)
 
-    processed = _add_binning_features(processed, num_cols, cfg)
-    processed = _add_rounding_features(processed, num_cols, round_multipliers)
-    processed = _add_digit_features(processed, num_cols, digit_mods)
+    df = _add_binning_features(df, num_cols, cfg)
+    df = _add_rounding_features(df, num_cols, round_multipliers)
+    df = _add_digit_features(df, num_cols, digit_mods)
 
-    new_cat_cols = _infer_categorical_columns(processed, meta, cat_overrides, num_overrides)
-    cat_cols = sorted(list(new_cat_cols))
+    updated_cat_cols = _infer_categorical_columns(df, meta, cat_overrides, num_overrides)
+    cat_cols = sorted(list(updated_cat_cols))
 
     if pair_limit > 1 and len(cat_cols) > 1:
-        processed = _add_pairwise_cats(processed, cat_cols, pair_limit)
-        combo_cols = [c for c in processed.columns if "__" in c]
+        df = _add_pairwise_cats(df, cat_cols, pair_limit)
+        combo_cols = [c for c in df.columns if "__" in c]
         cat_cols = sorted(list(set(cat_cols).union(combo_cols)))
 
     # Convert to pandas for target encoding
-    pd_df = processed.to_pandas()
+    pd_df = df.to_pandas()
 
     te_enabled = bool(te_cfg.get("enabled", True)) and meta.get("target") in pd_df.columns
     if te_enabled:

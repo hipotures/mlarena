@@ -2,14 +2,14 @@
 
 This directory contains configuration files for the competition project.
 
-## templates.yaml
+## templates/model.yaml
 
-Defines experiment templates that combine model implementations with their hyperparameter configurations.
+Defines experiment templates that combine model implementations with their hyperparameter configurations. Preprocess templates live alongside in `templates/preprocess.yaml`.
 
 ### File Location
 
 ```
-projects/kaggle/playground-series-s5e11/configs/templates.yaml
+projects/kaggle/playground-series-s5e11/templates/model.yaml
 ```
 
 ### Structure
@@ -38,7 +38,7 @@ templates:
 #### Top Level
 
 - **`<template-name>`** (string): Unique identifier for the template
-  - Used with `--template` flag in `experiment_manager.py` and `ml_runner.py`
+  - Used with `--model-template` flag in `ml_runner.py`
   - Convention: `{compute}-{variant}` (e.g., `best-cpu-fe11`, `dev-gpu`, `exp01-tier1`)
 
 - **`model`** (string): Python module name from `code/models/`

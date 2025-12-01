@@ -63,7 +63,7 @@ uv run python scripts/submissions_tracker.py --project [competition-name] list
    - `code/utils/submission.py`: Lightweight wrapper that injects config into `src/kaggle_tools`
    - `code/models/`: Model implementations
    - `code/exploration/`: EDA scripts
-   - `configs/templates.yaml`: Experiment templates (model + hyperparameters) - see [configs/README.md](projects/kaggle/playground-series-s5e11/configs/README.md) for detailed structure documentation
+   - `templates/model.yaml`: Experiment templates (model + hyperparameters) - see [configs/README.md](projects/kaggle/playground-series-s5e11/configs/README.md) for detailed structure documentation
 
 4. **Tracking Layer**: Automatic experiment → submission → git linkage
    - Every `create_submission()` call captures git hash, creates code snapshot
@@ -155,7 +155,7 @@ Template overrides available: `--time-limit`, `--preset`, `--use-gpu 0/1`
 - `extreme` preset: Uses foundation models (TabPFNv2, TabICL, Mitra, TabM), requires GPU, best for datasets <30k samples
 - See: https://auto.gluon.ai/stable/tutorials/tabular/tabular-essentials.html
 
-**Custom Templates**: Projects can define custom templates in `configs/templates.yaml` combining specific models with hyperparameters. See [configs/README.md](projects/kaggle/playground-series-s5e11/configs/README.md) for complete structure and examples (feature engineering variants, excluded models, custom parameters, etc.)
+**Custom Templates**: Projects can define custom templates in `templates/model.yaml` (and `templates/preprocess.yaml`) combining specific models with hyperparameters. See [configs/README.md](projects/kaggle/playground-series-s5e11/configs/README.md) for complete structure and examples (feature engineering variants, excluded models, custom parameters, etc.)
 
 **4. Resume/fetch score later (if browser offline):**
 ```bash

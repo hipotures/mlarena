@@ -218,7 +218,7 @@ uv run python scripts/ml_runner.py \
    - Ten który nie overfittuje
 
 7. **Uruchom zwycięzcę na dłużej:**
-   - Zmodyfikuj `time_limit` w `configs/templates.yaml`
+   - Zmodyfikuj `time_limit` w `templates/model.yaml`
    - Zmień 5400 (1.5h) na 14400 (4h) lub 28800 (8h)
    - Przetrenuj ponownie
 

@@ -1,1 +1,1 @@
-/mnt/ml/kaggle-fork1/config/templates/kaggle_competition/code/models/autogluon_baseline_fe.py
+../../../../../config/code/models/autogluon_baseline_fe.py

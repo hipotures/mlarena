@@ -29,6 +29,7 @@ dependencies = [
     "lightgbm>=4.0.0",
     "catboost>=1.2.0",
     "pyarrow>=14.0.0",
+    "polars>=1.8.0",
 ]
 
 [tool.uv]

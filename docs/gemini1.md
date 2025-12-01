@@ -11,7 +11,7 @@
   - Obsługa predykcji: Przyjęcie, że wszystkie modele zwrócą DataFrame z kolumną id i target, działa dla standardowych konkursów,
     ale warto przewidzieć projekty wielokolumnowe (np. wielowyjściowe regresje, segmentacje). Runner mógłby pobierać strukturę z
     config lub sample_submission zamiast wymuszać konkretny kształt (docs/ml_code_separation_design.md:99-117).
-  - Template’y i konfigi: Fajnie, że configs/templates.yaml mapuje nazwę template → model + parametry, ale przyda się jasna
+  - Template’y i konfigi: Fajnie, że templates/model.yaml mapuje nazwę template → model + parametry, ale przyda się jasna
     kolejność nakładania: baza z code/models/.../get_default_config(), globalny config projektu, template, a na koniec flagi CLI.
     Dobrze też zautomatyzować walidację YAML (np. schema), żeby literówki w model lub brak kluczy wychwycić przed uruchomieniem
     (docs/ml_code_separation_design.md:123-158).

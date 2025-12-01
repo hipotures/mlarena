@@ -25,7 +25,7 @@ from rich.panel import Panel
 from rich.table import Table
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
-MODULES = ["eda", "feat", "model", "predict", "tune", "stack", "submit", "fetch-score"]
+MODULES = ["eda", "preprocess", "feat", "model", "predict", "tune", "stack", "submit", "fetch-score"]
 console = Console()
 
 
@@ -1586,13 +1586,14 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
     console.print(table)
 
     # Show default templates with key parameters
-    templates_path = project_root / "configs" / "templates.yaml"
+    model_templates_path = project_root / "templates" / "model.yaml"
+    preprocess_templates_path = project_root / "templates" / "preprocess.yaml"
     try:
-        templates_cfg = yaml.safe_load(templates_path.read_text()) or {}
-        templates = templates_cfg.get("templates", {})
-        if templates:
-            console.print("\n[cyan]Default templates:[/cyan]")
-            for name, payload in templates.items():
+        model_cfg = yaml.safe_load(model_templates_path.read_text()) or {}
+        model_templates = model_cfg.get("templates", {})
+        if model_templates:
+            console.print("\n[cyan]Model templates:[/cyan]")
+            for name, payload in model_templates.items():
                 hyper = (payload.get("config") or {}).get("hyperparameters") or {}
                 preset = hyper.get("presets") or hyper.get("preset")
                 time_limit = hyper.get("time_limit")
@@ -1606,7 +1607,19 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
                     parts.append(f"gpu={'yes' if use_gpu else 'no'}")
                 console.print(f"  - {name}: {', '.join(parts) if parts else 'no hyperparameters defined'}")
     except Exception as exc:
-        console.print(f"[yellow]Could not read templates.yaml: {exc}[/yellow]")
+        console.print(f"[yellow]Could not read model templates: {exc}[/yellow]")
+
+    try:
+        preprocess_cfg = yaml.safe_load(preprocess_templates_path.read_text()) or {}
+        preprocess_templates = preprocess_cfg.get("templates", {})
+        if preprocess_templates:
+            console.print("\n[cyan]Preprocess templates:[/cyan]")
+            for name, payload in preprocess_templates.items():
+                module = payload.get("module")
+                cache = payload.get("cache")
+                console.print(f"  - {name}: module={module}, cache={'yes' if cache else 'no'}")
+    except Exception as exc:
+        console.print(f"[yellow]Could not read preprocess templates: {exc}[/yellow]")
 
     console.print("\n[cyan]Next steps:[/cyan]")
     console.print(f"  1. Review configuration: {project_root}/code/utils/config.py")

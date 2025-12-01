@@ -6,10 +6,14 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
+import pickle
 import shutil
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from hashlib import sha1
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -24,6 +28,10 @@ from submission_workflow import SubmissionRunner
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 console = Console()
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass
@@ -56,12 +64,16 @@ def load_project_context(project_name: str) -> ProjectContext:
 def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run template-driven ML models")
     parser.add_argument("--project", default=default_project, required=True)
-    parser.add_argument("--template", help="Template name defined in configs/templates.yaml")
+    parser.add_argument("--model-template", help="Model template name defined in templates/model.yaml")
+    parser.add_argument("--preprocess-template", default="identity", help="Preprocess template name defined in templates/preprocess.yaml")
+    parser.add_argument("--use-preprocessed", action="store_true", help="(Deprecated) use cached preprocessing if available")
+    parser.add_argument("--recompute-preprocess", action="store_true", help="Force rebuild preprocessing cache, ignoring existing cache")
+    parser.add_argument("--template", help="Deprecated: use --model-template instead")
     parser.add_argument(
         "--stage",
-        choices=["all", "train", "predict"],
+        choices=["all", "train", "predict", "preprocess"],
         default="all",
-        help="Pipeline stage to run: train only, predict only, or both (default).",
+        help="Pipeline stage to run: preprocess only, train, predict, or both (default).",
     )
     parser.add_argument("--experiment-id")
     parser.add_argument("--time-limit", type=int)
@@ -97,12 +109,11 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     return yaml.safe_load(path.read_text()) or {}
 
 
-def _load_templates(project_root: Path) -> Dict[str, Any]:
-    templates_path = project_root / "configs" / "templates.yaml"
-    data = _load_yaml(templates_path)
+def _load_template_file(path: Path, kind: str) -> Dict[str, Any]:
+    data = _load_yaml(path)
     templates = data.get("templates", {})
     if not templates:
-        raise RuntimeError(f"No templates defined in {templates_path}")
+        raise RuntimeError(f"No {kind} templates defined in {path}")
     return templates
 
 
@@ -134,8 +145,8 @@ class MLRunner:
         self,
         project: ProjectContext,
         manager: ExperimentManager,
-        template_name: str,
-        template_payload: Dict[str, Any],
+        model_template_name: Optional[str],
+        model_template_payload: Optional[Dict[str, Any]],
         args: argparse.Namespace,
         *,
         stage: str = "all",
@@ -143,34 +154,50 @@ class MLRunner:
         model_name_override: Optional[str] = None,
         training_summary_override: Optional[Dict[str, Any]] = None,
         snapshot_override: Optional[Path] = None,
+        preprocess_template_name: str = "identity",
+        preprocess_template_payload: Optional[Dict[str, Any]] = None,
+        preprocess_config_override: Optional[Dict[str, Any]] = None,
     ):
         self.project = project
         self.manager = manager
-        self.template_name = template_name
-        self.template_payload = template_payload
+        self.template_name = model_template_name
+        self.template_payload = model_template_payload or {}
         self.args = args
         self.stage = stage
-        self.model_name = model_name_override or template_payload.get("model")
-        if not self.model_name:
-            raise ValueError("Model name is required to run the ML pipeline.")
+        self.model_name = model_name_override or self.template_payload.get("model")
 
-        self.model_module = self._load_model_module()
-        self.config = config_override
-        if self.config is not None:
-            self.dataset_config = self.config.dataset
-            self.experiment_dir = self.config.system.experiment_dir
-            self.artifact_dir = self.config.system.artifact_dir
-        else:
-            self.experiment_dir = self.project.root / "experiments" / self.manager.experiment_id
-            self.artifact_dir = self.experiment_dir / "artifacts"
-            self.dataset_config = self._build_dataset_config()
-            self.config = self._build_model_config()
+        self.experiment_dir = self.project.root / "experiments" / self.manager.experiment_id
+        self.artifact_dir = self.experiment_dir / "artifacts"
+        self.dataset_config = self._build_dataset_config()
+
+        self.config = None
+        self.model_module = None
+        if self.stage != "preprocess":
+            if not self.model_name:
+                raise ValueError("Model name is required to run the ML pipeline.")
+            self.model_module = self._load_model_module()
+            if config_override is not None:
+                self.config = config_override
+                self.dataset_config = self.config.dataset
+                self.experiment_dir = self.config.system.experiment_dir
+                self.artifact_dir = self.config.system.artifact_dir
+            else:
+                self.config = self._build_model_config()
 
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
         self.training_summary_override = training_summary_override or {}
         self.snapshot_override = snapshot_override
+
+        self.preprocess_template_name = preprocess_template_name
+        self.preprocess_payload = preprocess_template_payload or {"module": "identity", "config": {}}
+        self.preprocess_config = preprocess_config_override or (self.preprocess_payload.get("config") or {})
+        self.preprocess_module_name = self.preprocess_payload.get("module", "identity")
+        self.features_dir: Optional[Path] = None
+        self.preprocess_cache_sig: Optional[str] = None
+        self.preprocess_module = self._load_preprocess_module()
+        self.preprocess_record: Dict[str, Any] = {}
 
         # Validate --ag-smoke is used only with AutoGluon
         if args.ag_smoke:
@@ -190,6 +217,17 @@ class MLRunner:
         module = importlib.util.module_from_spec(spec)
         if not spec.loader:
             raise RuntimeError(f"Unable to load module spec for {model_path}")
+        spec.loader.exec_module(module)
+        return module
+
+    def _load_preprocess_module(self):
+        module_path = self.project.root / "code" / "preprocessing" / f"{self.preprocess_module_name}.py"
+        if not module_path.exists():
+            raise FileNotFoundError(f"Preprocess file not found: {module_path}")
+        spec = importlib.util.spec_from_file_location(self.preprocess_module_name, module_path)
+        module = importlib.util.module_from_spec(spec)
+        if not spec.loader:
+            raise RuntimeError(f"Unable to load module spec for {module_path}")
         spec.loader.exec_module(module)
         return module
 
@@ -261,6 +299,7 @@ class MLRunner:
             Panel.fit(
                 f"[bold magenta]{self.project.name}[/bold magenta]\n"
                 f"Template: {self.template_name}\n"
+                f"Preprocess: {self.preprocess_template_name}\n"
                 f"Model: {self.model_name}\n"
                 f"Stage: {self.stage}",
                 title="ML Runner",
@@ -268,7 +307,30 @@ class MLRunner:
         )
 
         train_df, val_df, test_df = self._load_data()
-        train_df, val_df, test_df = self._run_preprocess(train_df, val_df, test_df)
+        if self.stage in {"all", "train", "preprocess"}:
+            try:
+                self.manager.start_module(
+                    "preprocess",
+                    {"template": self.preprocess_template_name, "module": self.preprocess_module_name},
+                    allow_restart=True,
+                )
+            except ModuleStateError as exc:
+                console.print(f"[yellow]{exc}[/yellow]")
+                if self.stage == "preprocess":
+                    return {}
+                if self.stage in {"all", "train"}:
+                    raise
+            try:
+                train_df, val_df, test_df = self._run_preprocess(train_df, val_df, test_df)
+                if self.preprocess_record:
+                    self.manager.complete_module("preprocess", self.preprocess_record)
+            except Exception as exc:
+                self.manager.fail_module("preprocess", str(exc))
+                raise
+            if self.stage == "preprocess":
+                return {"preprocess": self.preprocess_record}
+        else:
+            train_df, val_df, test_df = self._run_preprocess(train_df, val_df, test_df)
         artifacts = self._prepare_artifacts(train_df)
 
         model = None
@@ -278,10 +340,13 @@ class MLRunner:
 
         if self.stage in {"all", "train"}:
             model, training_summary, snapshot_path = self._run_training(train_df, val_df, artifacts)
-        else:
+        elif self.stage == "predict":
             training_summary = self._load_training_summary_from_state()
             snapshot_path = self.snapshot_override
             model = self._load_trained_model()
+        else:  # preprocess-only
+            console.print("[yellow]Stage set to 'preprocess' → skipping model/prediction.[/yellow]")
+            return {"preprocess": self.preprocess_record}
 
         if self.stage in {"all", "predict"}:
             submission = self._run_predict(model, test_df, artifacts, training_summary)
@@ -317,14 +382,134 @@ class MLRunner:
         val_df: Optional[pd.DataFrame],
         test_df: pd.DataFrame,
     ) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame]:
-        preprocess_fn = getattr(self.model_module, "preprocess", None)
-        if not callable(preprocess_fn):
-            return train_df, val_df, test_df
-        console.print("[cyan]Running preprocessing hooks...[/cyan]")
-        train_processed = preprocess_fn(train_df, self.config, is_train=True)
-        val_processed = preprocess_fn(val_df, self.config, is_train=False) if val_df is not None else None
-        test_processed = preprocess_fn(test_df, self.config, is_train=False)
-        return train_processed, val_processed, test_processed
+        """
+        Run preprocessing template with caching support.
+        """
+        preprocess_config = self._prepare_preprocess_config()
+        self.features_dir, self.preprocess_cache_sig = self._compute_features_dir(preprocess_config)
+        paths = self._feature_paths()
+        use_cache = not self.args.recompute_preprocess
+
+        if use_cache:
+            cached = self._load_preprocess_cache(paths)
+            if cached:
+                train_fe, val_fe, test_fe, state_dict, meta = cached
+                self.preprocess_record = self._build_preprocess_record(
+                    paths, state_dict, meta, used_cached=True, resolved_config=preprocess_config, cache_sig=self.preprocess_cache_sig or ""
+                )
+                console.print("[cyan]Loaded cached preprocessed features.[/cyan]")
+                return train_fe, val_fe, test_fe
+            if self.stage == "predict":
+                raise RuntimeError("Preprocessed features not found; cannot run predict without cache. Rerun training first.")
+
+        fit_fn = getattr(self.preprocess_module, "fit_transform", None)
+        if not callable(fit_fn):
+            raise RuntimeError(f"Preprocess module '{self.preprocess_module_name}' missing fit_transform()")
+
+        console.print(f"[cyan]Running preprocessing template: {self.preprocess_template_name}[/cyan]")
+        train_fe, val_fe, test_fe, state_dict = fit_fn(train_df, val_df, test_df, preprocess_config)
+        meta = {
+            "template": self.preprocess_template_name,
+            "module": self.preprocess_module_name,
+            "config": self.preprocess_config,
+            "saved_at": utc_now(),
+            "shapes": {
+                "train": list(train_fe.shape),
+                "val": list(val_fe.shape) if val_fe is not None else None,
+                "test": list(test_fe.shape),
+            },
+            "state_keys": sorted(list(state_dict.keys())) if isinstance(state_dict, dict) else [],
+        }
+        self._save_preprocess_cache(paths, train_fe, val_fe, test_fe, state_dict, meta)
+        self.preprocess_record = self._build_preprocess_record(
+            paths, state_dict, meta, used_cached=False, resolved_config=preprocess_config, cache_sig=self.preprocess_cache_sig or ""
+        )
+        return train_fe, val_fe, test_fe
+
+    def _feature_paths(self) -> Dict[str, Path]:
+        if not self.features_dir:
+            raise RuntimeError("features_dir not initialized; call _compute_features_dir first")
+        return {
+            "train": self.features_dir / "train_fe.parquet",
+            "val": self.features_dir / "val_fe.parquet",
+            "test": self.features_dir / "test_fe.parquet",
+            "state": self.features_dir / "state.pkl",
+            "meta": self.features_dir / "state.meta.json",
+        }
+
+    def _prepare_preprocess_config(self) -> Dict[str, Any]:
+        cfg = json.loads(json.dumps(self.preprocess_config)) if self.preprocess_config else {}
+        cfg["_dataset"] = {
+            "target": self.dataset_config.target,
+            "id_column": self.dataset_config.id_column,
+            "ignored_columns": self.dataset_config.ignored_columns,
+        }
+        return cfg
+
+    def _compute_features_dir(self, resolved_config: Dict[str, Any]) -> Tuple[Path, str]:
+        payload = {"template": self.preprocess_template_name, "config": resolved_config}
+        sig = sha1(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[:16]
+        path = self.project.root / "preprocess_cache" / self.preprocess_template_name / sig
+        path.mkdir(parents=True, exist_ok=True)
+        return path, sig
+
+    def _save_preprocess_cache(
+        self,
+        paths: Dict[str, Path],
+        train_df: pd.DataFrame,
+        val_df: Optional[pd.DataFrame],
+        test_df: pd.DataFrame,
+        state_dict: Dict[str, Any],
+        meta: Dict[str, Any],
+    ):
+        train_df.to_parquet(paths["train"])
+        if val_df is not None:
+            val_df.to_parquet(paths["val"])
+        test_df.to_parquet(paths["test"])
+        with open(paths["state"], "wb") as f:
+            pickle.dump(state_dict, f)
+        paths["meta"].write_text(json.dumps(meta, indent=2))
+
+    def _load_preprocess_cache(
+        self, paths: Dict[str, Path]
+    ) -> Optional[Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Dict[str, Any], Dict[str, Any]]]:
+        required = [paths["train"], paths["test"], paths["state"]]
+        if not all(p.exists() for p in required):
+            return None
+        train_df = pd.read_parquet(paths["train"])
+        val_df = pd.read_parquet(paths["val"]) if paths["val"].exists() else None
+        test_df = pd.read_parquet(paths["test"])
+        with open(paths["state"], "rb") as f:
+            state = pickle.load(f)
+        meta = json.loads(paths["meta"].read_text()) if paths["meta"].exists() else {}
+        return train_df, val_df, test_df, state, meta
+
+    def _build_preprocess_record(
+        self,
+        paths: Dict[str, Path],
+        state: Dict[str, Any],
+        meta: Dict[str, Any],
+        used_cached: bool,
+        resolved_config: Dict[str, Any],
+        cache_sig: str,
+    ):
+        return {
+            "template": self.preprocess_template_name,
+            "module": self.preprocess_module_name,
+            "config": self.preprocess_config,
+            "resolved_config": resolved_config,
+            "used_cached": used_cached,
+            "cache": {
+                "train": self._relative_to_project(paths["train"]),
+                "val": self._relative_to_project(paths["val"]) if paths["val"].exists() else None,
+                "test": self._relative_to_project(paths["test"]),
+                "state": self._relative_to_project(paths["state"]),
+                "meta": self._relative_to_project(paths["meta"]),
+            },
+            "cache_sig": cache_sig,
+            "state_keys": sorted(list(state.keys())) if isinstance(state, dict) else [],
+            "meta": meta,
+        }
 
     def _prepare_artifacts(self, train_df: pd.DataFrame):
         prepare_fn = getattr(self.model_module, "prepare_artifacts", None)
@@ -363,7 +548,7 @@ class MLRunner:
             test_ids=None,
             model_name=f"{self.model_name}-{self.template_name}",
             local_cv_score=training_summary.get("local_cv"),
-            notes=f"template={self.template_name}",
+            notes=f"template={self.template_name}; preprocess={self.preprocess_template_name}",
             config=self.config.as_plain_dict(),
             track=False,
         )
@@ -438,6 +623,7 @@ class MLRunner:
                 "config": self.config.as_plain_dict(),
                 "code_snapshot": str(self._relative_to_project(snapshot_path)),
                 "model_path": str(self._relative_to_project(self.config.system.model_path)),
+                "preprocess": self.preprocess_record,
             }
             self.manager.complete_module("model", payload)
             return model, training_summary, snapshot_path
@@ -490,11 +676,16 @@ class MLRunner:
 
 def run(args: argparse.Namespace):
     context = load_project_context(args.project)
-    templates = _load_templates(context.root)
+    templates_dir = context.root / "templates"
+    preprocess_templates = _load_template_file(templates_dir / "preprocess.yaml", "preprocess")
+    model_templates = _load_template_file(templates_dir / "model.yaml", "model")
     stage = args.stage or "all"
 
     if stage == "predict" and not args.experiment_id:
         raise RuntimeError("--experiment-id is required when running stage=predict")
+    if stage == "preprocess":
+        # Model template optional; skip model validation
+        pass
 
     if stage == "predict":
         manager = ExperimentManager.load_existing(args.project, args.experiment_id)
@@ -512,19 +703,32 @@ def run(args: argparse.Namespace):
             return
 
     model_entry = manager.get_module("model") or {}
-    template_name = args.template or model_entry.get("template")
-    if not template_name:
-        raise RuntimeError("Template is required (pass --template or ensure it is recorded in state.json).")
+    preprocess_entry = model_entry.get("preprocess") or {}
 
-    template_payload = templates.get(template_name)
-    if template_payload is None and stage != "predict":
-        raise RuntimeError(f"Template '{template_name}' not defined for project {args.project}")
+    preprocess_template_name = args.preprocess_template or preprocess_entry.get("template") or "identity"
+    model_template_name = args.model_template or args.template or model_entry.get("template")
+    if stage != "preprocess" and not model_template_name:
+        raise RuntimeError("Model template is required (pass --model-template).")
+
+    preprocess_payload = preprocess_templates.get(preprocess_template_name)
+    if preprocess_payload is None and stage != "predict":
+        raise RuntimeError(f"Preprocess template '{preprocess_template_name}' not defined for project {args.project}")
+    if preprocess_payload is None:
+        preprocess_payload = {
+            "module": preprocess_entry.get("module", "identity"),
+            "config": preprocess_entry.get("config", {}),
+        }
+
+    template_payload = model_templates.get(model_template_name) if model_template_name else None
+    if template_payload is None and stage not in {"predict", "preprocess"}:
+        raise RuntimeError(f"Model template '{model_template_name}' not defined for project {args.project}")
     if template_payload is None:
         template_payload = {"model": model_entry.get("model", "autogluon_baseline"), "config": {}}
 
     config_override = None
     training_summary_override = None
     snapshot_override = None
+    preprocess_config_override = None
     if stage == "predict":
         config_dict = model_entry.get("config")
         if not config_dict:
@@ -535,21 +739,25 @@ def run(args: argparse.Namespace):
         if snapshot_str:
             snapshot_path = Path(snapshot_str)
             snapshot_override = snapshot_path if snapshot_path.is_absolute() else (context.root / snapshot_path)
+        preprocess_config_override = preprocess_entry.get("config") or {}
 
     runner = MLRunner(
         context,
         manager,
-        template_name,
-        template_payload,
+        model_template_name if stage != "preprocess" else None,
+        template_payload if stage != "preprocess" else None,
         args,
         stage=stage,
         config_override=config_override,
         model_name_override=model_entry.get("model"),
         training_summary_override=training_summary_override,
         snapshot_override=snapshot_override,
+        preprocess_template_name=preprocess_template_name,
+        preprocess_template_payload=preprocess_payload,
+        preprocess_config_override=preprocess_config_override,
     )
 
-    if any([args.time_limit is not None, args.preset, args.use_gpu is not None, args.ag_smoke]):
+    if stage != "preprocess" and any([args.time_limit is not None, args.preset, args.use_gpu is not None, args.ag_smoke]):
         hp = runner.config.hyperparameters
         console.print(
             f"[dim]Overrides → preset={hp.presets or '<template>'} "

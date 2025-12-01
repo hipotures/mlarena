@@ -44,6 +44,7 @@ wheels/
 **/AutogluonModels/
 **/wandb/
 **/mlruns/
+**/preprocess_cache/
 
 # Misc binaries & temporary artifacts
 *.log

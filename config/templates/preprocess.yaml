@@ -1,0 +1,28 @@
+templates:
+  identity:
+    module: identity
+    config: {}
+    cache: true
+  baseline_ag:
+    module: identity
+    config: {}
+    cache: true
+  fe_set1:
+    module: fe_set1
+    cache: true
+    config:
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+      categorical_overrides: []
+      numeric_overrides: []

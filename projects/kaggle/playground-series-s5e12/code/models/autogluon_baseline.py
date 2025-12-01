@@ -1,1 +1,1 @@
-../../../../../config/templates/kaggle_competition/code/models/autogluon_baseline.py
+../../../../../config/code/models/autogluon_baseline.py

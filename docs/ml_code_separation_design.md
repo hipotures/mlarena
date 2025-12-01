@@ -125,7 +125,7 @@ def get_default_config() -> Dict[str, Any]:
 Template określa, który model uruchomić:
 
 ```yaml
-# configs/templates.yaml
+# templates/model.yaml
 
 templates:
   fast-cpu:
@@ -223,7 +223,7 @@ uv run python scripts/experiment_manager.py model \
 ```
 
 Experiment manager:
-1. Odczytuje template z `configs/templates.yaml`
+1. Odczytuje template z `templates/model.yaml`
 2. Uruchamia `ml_runner.py` z odpowiednimi parametrami
 3. Runner dynamicznie ładuje kod z `code/models/{model_name}.py`
 4. Snapshuje cały katalog `code/` do `experiments/exp-{timestamp}/code_snapshot/`

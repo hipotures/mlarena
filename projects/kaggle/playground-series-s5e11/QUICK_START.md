@@ -146,12 +146,12 @@ uv sync
 ```
 
 ### Problem: Eksperyment trwa >2h
-Zmniejsz w `configs/templates.yaml`:
+Zmniejsz w `templates/model.yaml`:
 - `time_limit: 5400` → `3600` (1h)
 - `n_trials: 50` → `30` (dla Optuna)
 
 ### Problem: Memory error
-Zmniejsz w `configs/templates.yaml`:
+Zmniejsz w `templates/model.yaml`:
 - `num_bag_folds: 5` → `3`
 - Użyj `presets: medium_quality` zamiast `best_quality`
 

@@ -64,6 +64,19 @@ def train(
     included_models = getattr(config.hyperparameters, "included_model_types", None)
     if included_models:
         fit_kwargs["included_model_types"] = included_models
+    # Forward any model-specific hyperparameters (e.g., NN_TORCH, FASTAI) to AutoGluon.
+    hyper_dict = config.hyperparameters.model_dump(exclude_none=True)
+    known_keys = {
+        "presets",
+        "time_limit",
+        "use_gpu",
+        "excluded_models",
+        "included_model_types",
+        "preset",
+    }
+    model_hparams = {k: v for k, v in hyper_dict.items() if k not in known_keys}
+    if model_hparams:
+        fit_kwargs["hyperparameters"] = model_hparams
 
     predictor.fit(
         train_data,

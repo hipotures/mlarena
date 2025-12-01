@@ -35,12 +35,14 @@ class WeightedBlender:
         """
         self.weights = weights
 
-    def blend(self, predictions: List[pd.Series]) -> pd.Series:
+    def blend(self, predictions: List[pd.Series], weights: Optional[List[float]] = None) -> pd.Series:
         """
         Blend predictions using weighted average.
 
         Args:
             predictions: List of prediction Series from different models
+            weights: Optional weights to use for blending. If omitted, uses
+                self.weights or defaults to uniform.
 
         Returns:
             Blended predictions as Series
@@ -54,15 +56,19 @@ class WeightedBlender:
         n_models = len(predictions)
 
         # Use uniform weights if not provided
-        if self.weights is None:
-            weights = np.ones(n_models) / n_models
+        # Choose weights in priority order: explicit arg -> self.weights -> uniform
+        if weights is None:
+            if self.weights is None:
+                weights = np.ones(n_models) / n_models
+            else:
+                weights = np.array(self.weights)
         else:
-            weights = np.array(self.weights)
+            weights = np.array(weights)
 
-            # Validate weights
-            if len(weights) != n_models:
-                raise ValueError(
-                    f"Number of weights ({len(weights)}) must match "
+        # Validate weights
+        if len(weights) != n_models:
+            raise ValueError(
+                f"Number of weights ({len(weights)}) must match "
                     f"number of predictions ({n_models})"
                 )
 
@@ -153,12 +159,14 @@ class PowerBlender:
         self.weights = weights
         self.power = power
 
-    def blend(self, predictions: List[pd.Series]) -> pd.Series:
+    def blend(self, predictions: List[pd.Series], power: Optional[float] = None, weights: Optional[List[float]] = None) -> pd.Series:
         """
         Blend predictions using power averaging.
 
         Args:
             predictions: List of prediction Series
+            power: Optional override for power parameter
+            weights: Optional weights to use for blending
 
         Returns:
             Blended predictions
@@ -169,26 +177,31 @@ class PowerBlender:
         n_models = len(predictions)
 
         # Use uniform weights if not provided
-        if self.weights is None:
-            weights = np.ones(n_models) / n_models
+        # Choose weights and power
+        if weights is None:
+            if self.weights is None:
+                weights = np.ones(n_models) / n_models
+            else:
+                weights = np.array(self.weights)
         else:
-            weights = np.array(self.weights)
+            weights = np.array(weights)
+        power = self.power if power is None else power
 
-            if len(weights) != n_models:
-                raise ValueError(
-                    f"Number of weights ({len(weights)}) must match "
-                    f"number of predictions ({n_models})"
-                )
+        if len(weights) != n_models:
+            raise ValueError(
+                f"Number of weights ({len(weights)}) must match "
+                f"number of predictions ({n_models})"
+            )
 
-            if not np.isclose(weights.sum(), 1.0):
-                raise ValueError(f"Weights must sum to 1.0, got: {weights.sum()}")
+        if not np.isclose(weights.sum(), 1.0):
+            raise ValueError(f"Weights must sum to 1.0, got: {weights.sum()}")
 
         # Power average: (sum(w_i * p_i^k))^(1/k)
         result = pd.Series(0.0, index=predictions[0].index)
 
         for pred, weight in zip(predictions, weights):
-            result += weight * (pred ** self.power)
+            result += weight * (pred ** power)
 
-        result = result ** (1.0 / self.power)
+        result = result ** (1.0 / power)
 
         return result

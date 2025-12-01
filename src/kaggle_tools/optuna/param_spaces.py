@@ -69,6 +69,9 @@ def suggest_from_config(trial: optuna.Trial, param_name: str, param_spec: List) 
         else:
             return trial.suggest_float(param_name, min_val, max_val)
     elif param_type == "log":
+        # Optuna requires low > 0 for log sampling
+        if min_val <= 0:
+            min_val = max(min_val, 1e-6)
         return trial.suggest_float(param_name, min_val, max_val, log=True)
     else:
         raise ValueError(f"Unknown param type: {param_type}")

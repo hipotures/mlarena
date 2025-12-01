@@ -5,7 +5,7 @@ This module provides CVObjective class that runs K-fold cross-validation
 for each Optuna trial with early stopping and pruning support.
 """
 
-from typing import Callable, Any
+from typing import Callable, Any, Optional, Dict
 import numpy as np
 import pandas as pd
 
@@ -41,31 +41,20 @@ class CVObjective:
     def __init__(
         self,
         model_class: type,
-        train_df: pd.DataFrame,
-        target_col: str,
-        param_space_fn: Callable,
-        metric_fn: Callable,
+        train_df: Optional[pd.DataFrame] = None,
+        target_col: Optional[str] = None,
+        param_space_fn: Callable = None,
+        metric_fn: Callable = None,
         cv_folds: int = 5,
         early_stopping_rounds: int = 50,
         random_seed: int = 42,
         stratified: bool = True,
         use_gpu: bool = False,
+        X: Optional[pd.DataFrame] = None,
+        y: Optional[pd.Series] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize CV objective.
-
-        Args:
-            model_class: Model class to instantiate (e.g., XGBClassifier)
-            train_df: Training DataFrame
-            target_col: Target column name
-            param_space_fn: Function that takes trial and returns hyperparameters
-            metric_fn: Metric function (higher is better)
-            cv_folds: Number of CV folds
-            early_stopping_rounds: Early stopping rounds for model training
-            random_seed: Random seed for reproducibility
-            stratified: Use stratified K-fold (for classification)
-            use_gpu: Enable GPU for training
-        """
+        """Initialize CV objective supporting either DataFrame+target_col or explicit X/y."""
         self.model_class = model_class
         self.train_df = train_df
         self.target_col = target_col
@@ -76,10 +65,15 @@ class CVObjective:
         self.random_seed = random_seed
         self.stratified = stratified
         self.use_gpu = use_gpu
+        self.X = X
+        self.y = y
+        self.model_kwargs = model_kwargs or {}
 
-        # Prepare data
-        self.X = train_df.drop(columns=[target_col])
-        self.y = train_df[target_col]
+        if self.X is None or self.y is None:
+            if train_df is None or target_col is None:
+                raise ValueError("Provide either (train_df and target_col) or (X and y) to CVObjective.")
+            self.X = train_df.drop(columns=[target_col])
+            self.y = train_df[target_col]
 
     def __call__(self, trial: optuna.Trial) -> float:
         """
@@ -118,7 +112,7 @@ class CVObjective:
             y_train, y_val = self.y.iloc[train_idx], self.y.iloc[val_idx]
 
             # Instantiate model with trial hyperparameters
-            model = self.model_class(**params)
+            model = self.model_class(**params, **self.model_kwargs)
 
             # Train model with early stopping
             try:

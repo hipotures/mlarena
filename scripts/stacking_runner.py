@@ -41,9 +41,13 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import optuna
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import StratifiedKFold
 
 from experiment_manager import ExperimentManager, ModuleStateError
 
@@ -55,6 +59,7 @@ if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from kaggle_tools.stacking import WeightedBlender, RankBlender, PowerBlender, MetaLearner
+from kaggle_tools.optuna import CVObjective, xgboost_param_space, lightgbm_param_space, catboost_param_space
 
 console = Console()
 
@@ -124,6 +129,150 @@ def load_model_predictions(
     return predictions, model_names
 
 
+def load_oof_predictions(
+    project_ctx: Dict[str, Any],
+    oof_files: List[str],
+) -> pd.DataFrame:
+    """
+    Load out-of-fold predictions for meta-learning.
+
+    Expects each OOF file to have ID column and target prediction column.
+    """
+    id_column = project_ctx["config"].ID_COLUMN
+    target_column = project_ctx["config"].TARGET_COLUMN
+
+    if len(oof_files) == 0:
+        raise ValueError("No OOF files provided.")
+
+    oof_frames = []
+    for file_path in oof_files:
+        path = Path(file_path)
+        if not path.exists():
+            path = project_ctx["submissions_dir"] / file_path
+        if not path.exists():
+            raise FileNotFoundError(f"OOF file not found: {file_path}")
+        df = pd.read_csv(path)
+        missing = [col for col in [id_column, target_column] if col not in df.columns]
+        if missing:
+            raise ValueError(f"OOF file {file_path} missing columns: {missing}")
+        oof_frames.append(df[[id_column, target_column]].rename(columns={target_column: path.stem}))
+    # Merge on id
+    result = oof_frames[0]
+    for frame in oof_frames[1:]:
+        result = result.merge(frame, on=id_column, how="inner")
+    return result
+
+
+def _param_space_fn(name: str):
+    if name == "xgboost":
+        return xgboost_param_space
+    if name == "lightgbm":
+        return lightgbm_param_space
+    if name == "catboost":
+        return catboost_param_space
+    raise ValueError(f"Unknown base model: {name}")
+
+
+def _model_class(name: str):
+    if name == "xgboost":
+        import xgboost as xgb
+        return xgb.XGBClassifier
+    if name == "lightgbm":
+        import lightgbm as lgb
+        return lgb.LGBMClassifier
+    if name == "catboost":
+        import catboost as cb
+        return cb.CatBoostClassifier
+    raise ValueError(f"Unknown base model: {name}")
+
+
+def _load_optuna_param_space(project_root: Path) -> Dict[str, Any]:
+    cfg_path = project_root / "configs" / "project.yaml"
+    if not cfg_path.exists():
+        return {}
+    cfg = yaml.safe_load(cfg_path.read_text()) or {}
+    return cfg.get("optuna", {}).get("param_space", {})
+
+
+def tune_best_params(model_name: str, X: pd.DataFrame, y: pd.Series, param_space_cfg: Dict[str, Any], n_trials: int, timeout: int, cv_folds: int) -> Dict[str, Any]:
+    param_space_fn = _param_space_fn(model_name)
+    model_cls = _model_class(model_name)
+    model_kwargs: Dict[str, Any] = {}
+    if model_name == "catboost":
+        cat_features = [i for i, col in enumerate(X.columns) if str(X[col].dtype) == "category"]
+        model_kwargs = {"cat_features": cat_features, "verbose": False}
+
+    def objective(trial: optuna.Trial) -> float:
+        params = param_space_fn(trial, param_space_cfg)
+        # Ensure categorical flags for XGBoost
+        if model_name == "xgboost":
+            params.setdefault("enable_categorical", True)
+            params.setdefault("tree_method", "hist")
+        if model_name == "catboost":
+            params.pop("verbose", None)
+        obj = CVObjective(
+            model_class=model_cls,
+            X=X,
+            y=y,
+            param_space_fn=lambda t: params,
+            metric_fn=roc_auc_score,
+            cv_folds=cv_folds,
+            early_stopping_rounds=50,
+            random_seed=42,
+            model_kwargs=model_kwargs,
+        )
+        return obj(trial)
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=n_trials, timeout=timeout, show_progress_bar=False)
+    return study.best_params
+
+
+def generate_oof_and_preds(model_name: str, best_params: Dict[str, Any], X: pd.DataFrame, y: pd.Series, test_df: pd.DataFrame, cv_folds: int, id_column: str, target_column: str) -> tuple[pd.Series, pd.Series]:
+    skf = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    oof = pd.Series(0.0, index=X.index)
+    test_preds = np.zeros(len(test_df))
+
+    for train_idx, val_idx in skf.split(X, y):
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+
+        model_cls = _model_class(model_name)
+        params = dict(best_params)
+        if model_name == "xgboost":
+            params.setdefault("enable_categorical", True)
+            params.setdefault("tree_method", "hist")
+            model = model_cls(**params, n_estimators=300, random_state=42)
+        elif model_name == "lightgbm":
+            params.setdefault("objective", "binary")
+            params.setdefault("metric", "auc")
+            model = model_cls(**params, n_estimators=300, random_state=42)
+        else:  # catboost
+            params.pop("verbose", None)
+            cat_features = [i for i, col in enumerate(X_train.columns) if str(X_train[col].dtype) == "category"]
+            model = model_cls(
+                **params,
+                iterations=300,
+                random_state=42,
+                cat_features=cat_features,
+                verbose=False,
+            )
+
+        model.fit(X_train, y_train)
+        if hasattr(model, "predict_proba"):
+            val_pred = model.predict_proba(X_val)[:, 1]
+            test_pred = model.predict_proba(test_df)[:, 1]
+        else:
+            val_pred = model.predict(X_val)
+            test_pred = model.predict(test_df)
+
+        oof.iloc[val_idx] = val_pred
+        test_preds += test_pred / cv_folds
+
+    test_series = pd.Series(test_preds, index=test_df.index)
+    return oof, test_series
+
+
 def optimize_blend_weights(
     predictions: List[pd.Series],
     train_labels: pd.Series,
@@ -181,13 +330,18 @@ def optimize_blend_weights(
 
 def run_stacking(
     project_name: str,
-    model_files: List[str],
+    model_files: List[str] | None,
     experiment_id: str | None = None,
     strategy: str = "blend",
     blend_method: str = "weighted",
     blend_weights: List[float] | None = None,
     blend_power: float = 2.0,
     meta_model: str = "logistic",
+    oof_files: List[str] | None = None,
+    meta_base_models: List[str] | None = None,
+    meta_n_trials: int = 10,
+    meta_cv_folds: int = 3,
+    meta_timeout: int = 600,
     optimize: bool = False,
     output_name: str | None = None,
     force: bool = False,
@@ -238,7 +392,7 @@ def run_stacking(
         f"Project: {project_name}\n"
         f"Experiment: {experiment_id}\n"
         f"Strategy: {strategy}\n"
-        f"Models: {len(model_files)}\n"
+        f"Models: {len(model_files) if model_files else 0}\n"
         f"Method: {blend_method if strategy == 'blend' else meta_model}\n"
         f"Optimize: {optimize}",
         title="Configuration",
@@ -246,15 +400,16 @@ def run_stacking(
     ))
 
     try:
-        # Load predictions
-        predictions, model_names = load_model_predictions(project_ctx, model_files)
+        predictions: List[pd.Series] = []
+        model_names: List[str] = []
 
-        # Validate all have same length
-        if len(set(len(p) for p in predictions)) > 1:
-            raise ValueError("All model predictions must have the same length")
-
-        n_predictions = len(predictions[0])
-        console.print(f"[green]✓[/green] Loaded {len(predictions)} models with {n_predictions} predictions each")
+        # For blend or meta with provided models/OOF, load predictions
+        if model_files:
+            predictions, model_names = load_model_predictions(project_ctx, model_files)
+            if len(set(len(p) for p in predictions)) > 1:
+                raise ValueError("All model predictions must have the same length")
+            n_predictions = len(predictions[0])
+            console.print(f"[green]✓[/green] Loaded {len(predictions)} models with {n_predictions} predictions each")
 
         # Run ensemble strategy
         if strategy == "blend":
@@ -286,20 +441,105 @@ def run_stacking(
 
             elif blend_method == "power":
                 blender = PowerBlender()
-                ensemble_pred = blender.blend(predictions, power=blend_power)
+                ensemble_pred = blender.blend(predictions, power=blend_power, weights=blend_weights.tolist())
                 console.print(f"[green]✓[/green] Power averaging (power={blend_power})")
 
             else:
                 raise ValueError(f"Unknown blend method: {blend_method}")
 
         elif strategy == "meta":
-            # Meta-learning strategy (requires OOF predictions)
-            console.print("[yellow]⚠[/yellow] Meta-learning requires out-of-fold predictions")
-            console.print("[yellow]⚠[/yellow] This feature requires model training integration (not fully implemented)")
+            target_column = project_ctx["config"].TARGET_COLUMN
+            id_column = project_ctx["config"].ID_COLUMN
+            train_df = pd.read_csv(project_ctx["root"] / "data" / "train.csv")
+            test_df = pd.read_csv(project_ctx["root"] / "data" / "test.csv")
 
-            # For now, fall back to simple averaging
-            console.print("[yellow]⚠[/yellow] Falling back to simple averaging")
-            ensemble_pred = sum(predictions) / len(predictions)
+            if oof_files:
+                if len(oof_files) != len(predictions):
+                    raise ValueError("--oof-files must match number of models when provided.")
+                # Use provided OOF + provided test predictions
+                oof_df = load_oof_predictions(project_ctx, oof_files)
+                merged = oof_df.merge(train_df[[id_column, target_column]], on=id_column, how="inner")
+                X_meta = merged[oof_df.columns.drop(id_column)]
+                y_meta = merged[target_column]
+                test_meta = pd.concat(predictions, axis=1)
+                test_meta.columns = model_names
+            else:
+                # Auto-generate OOF + test preds for base models
+                optuna_param_space = _load_optuna_param_space(project_ctx["root"])
+                auto_models = meta_base_models or ["xgboost", "lightgbm", "catboost"]
+                cv_folds = meta_cv_folds
+                n_trials = meta_n_trials
+                timeout = meta_timeout
+
+                # Prepare features (drop id/target, cast categoricals)
+                feature_drop = [target_column]
+                if id_column in train_df.columns:
+                    feature_drop.append(id_column)
+                X_full = train_df.drop(columns=feature_drop)
+                test_features = test_df.drop(columns=[id_column], errors="ignore")
+                cat_cols = X_full.select_dtypes(include=["object"]).columns
+                if len(cat_cols) > 0:
+                    X_full[cat_cols] = X_full[cat_cols].astype("category")
+                    test_features[cat_cols] = test_features[cat_cols].astype("category")
+                y_full = train_df[target_column]
+
+                auto_oof = []
+                auto_test_preds = []
+                auto_names = []
+
+                for base_model in auto_models:
+                    if base_model not in optuna_param_space:
+                        raise ValueError(f"Param space for {base_model} not found in project optuna config.")
+                    console.print(f"[cyan]Auto-generating OOF for {base_model} (trials={n_trials}, cv={cv_folds})[/cyan]")
+                    best_params = tune_best_params(
+                        base_model,
+                        X_full,
+                        y_full,
+                        optuna_param_space[base_model],
+                        n_trials=n_trials,
+                        timeout=timeout,
+                        cv_folds=cv_folds,
+                    )
+                    oof_series, test_series = generate_oof_and_preds(
+                        base_model,
+                        best_params,
+                        X_full,
+                        y_full,
+                        test_features,
+                        cv_folds,
+                        id_column,
+                        target_column,
+                    )
+                    auto_oof.append(oof_series)
+                    auto_test_preds.append(test_series)
+                    auto_names.append(base_model)
+
+                # Build meta matrices
+                X_meta = pd.concat(auto_oof, axis=1)
+                X_meta.columns = auto_names
+                X_meta[target_column] = y_full
+                y_meta = X_meta[target_column]
+                X_meta = X_meta.drop(columns=[target_column])
+
+                test_meta = pd.concat(auto_test_preds, axis=1)
+                test_meta.columns = auto_names
+                test_meta.index = test_df.index
+                model_names = auto_names
+                predictions = [test_meta[col] for col in test_meta.columns]
+
+            # Train meta-model
+            if meta_model == "logistic":
+                from sklearn.linear_model import LogisticRegression
+                meta = LogisticRegression(max_iter=1000)
+                meta.fit(X_meta, y_meta)
+                ensemble_pred = pd.Series(meta.predict_proba(test_meta)[:, 1], index=test_meta.index)
+            elif meta_model == "ridge":
+                from sklearn.linear_model import Ridge
+                meta = Ridge()
+                meta.fit(X_meta, y_meta)
+                ensemble_pred = pd.Series(meta.predict(test_meta), index=test_meta.index)
+            else:
+                raise ValueError(f"Unsupported meta-model: {meta_model}")
 
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
@@ -308,12 +548,14 @@ def run_stacking(
         target_column = project_ctx["config"].TARGET_COLUMN
         id_column = project_ctx["config"].ID_COLUMN
 
-        # Load ID column from first model file
-        first_model_path = project_ctx["submissions_dir"] / model_files[0]
-        if not first_model_path.exists():
-            first_model_path = Path(model_files[0])
-
-        id_df = pd.read_csv(first_model_path)[[id_column]]
+        # Load ID column
+        if strategy == "meta" and not oof_files:
+            id_df = pd.DataFrame({id_column: test_df[id_column].values})
+        else:
+            first_model_path = project_ctx["submissions_dir"] / model_files[0]
+            if not first_model_path.exists():
+                first_model_path = Path(model_files[0])
+            id_df = pd.read_csv(first_model_path)[[id_column]]
 
         submission = id_df.copy()
         submission[target_column] = ensemble_pred
@@ -346,6 +588,9 @@ def run_stacking(
                 metadata["blend_weights"] = blend_weights.tolist()
             if blend_method == "power":
                 metadata["blend_power"] = blend_power
+        else:
+            metadata["meta_model"] = meta_model
+            metadata["meta_base_models"] = model_names
 
         exp_manager.complete_module("stack", metadata)
 
@@ -423,8 +668,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         nargs="+",
-        required=True,
-        help="Submission CSV files to ensemble"
+        help="Submission CSV files (required for blend, optional for meta when auto-generating OOF)"
     )
     parser.add_argument(
         "--experiment-id",
@@ -456,9 +700,38 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--meta-model",
-        choices=["logistic", "ridge", "xgboost"],
+        choices=["logistic", "ridge"],
         default="logistic",
         help="Meta-learner model (for meta strategy)"
+    )
+    parser.add_argument(
+        "--meta-base-models",
+        nargs="+",
+        default=["xgboost", "lightgbm", "catboost"],
+        help="Base models to auto-generate OOF/preds for meta strategy (ignored if --oof-files provided)"
+    )
+    parser.add_argument(
+        "--meta-n-trials",
+        type=int,
+        default=10,
+        help="Optuna trials per base model when auto-generating OOF"
+    )
+    parser.add_argument(
+        "--meta-cv-folds",
+        type=int,
+        default=3,
+        help="CV folds for OOF/meta generation"
+    )
+    parser.add_argument(
+        "--meta-timeout",
+        type=int,
+        default=600,
+        help="Timeout (seconds) per base model tuning when auto-generating OOF"
+    )
+    parser.add_argument(
+        "--oof-files",
+        nargs="+",
+        help="OOF prediction CSVs aligned with --models for meta strategy (must include ID column and target column)"
     )
     parser.add_argument(
         "--optimize",
@@ -481,7 +754,7 @@ def main():
     args = parse_args()
 
     # Validate weights if provided
-    if args.blend_weights and len(args.blend_weights) != len(args.models):
+    if args.blend_weights and args.models and len(args.blend_weights) != len(args.models):
         console.print(f"[red]✗ Error:[/red] Number of weights ({len(args.blend_weights)}) must match number of models ({len(args.models)})")
         sys.exit(1)
 
@@ -495,6 +768,11 @@ def main():
             blend_weights=args.blend_weights,
             blend_power=args.blend_power,
             meta_model=args.meta_model,
+            oof_files=args.oof_files,
+            meta_base_models=args.meta_base_models,
+            meta_n_trials=args.meta_n_trials,
+            meta_cv_folds=args.meta_cv_folds,
+            meta_timeout=args.meta_timeout,
             optimize=args.optimize,
             output_name=args.output_name,
             force=args.force,

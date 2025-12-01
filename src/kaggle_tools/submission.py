@@ -94,6 +94,7 @@ def _build_submission_from_dataframe(
     fallback_id_col: str,
     default_target_col: str,
     provided_test_ids,
+    force_probabilities: bool = False,
 ):
     submission = predictions.copy()
     if sample_df is not None:
@@ -109,6 +110,8 @@ def _build_submission_from_dataframe(
         for column in expected_cols[1:]:
             sample_series = sample_df[column]
             target_type = _infer_target_type(sample_series)
+            if force_probabilities and target_type == "int":
+                target_type = "float"
             _ensure_target_value_types(submission[column], target_type, column)
             _validate_prediction_signal(submission[column], sample_series, column)
         return submission
@@ -143,6 +146,7 @@ def _build_submission_from_series(
     fallback_id_col: str,
     fallback_target_col: str,
     explicit_id_column: Optional[str],
+    force_probabilities: bool = False,
 ):
     if test_ids is None:
         raise ValueError("test_ids must be provided when predictions are not a DataFrame.")
@@ -157,6 +161,8 @@ def _build_submission_from_series(
         target_col = sample_df.columns[1]
         sample_target_series = sample_df[target_col]
         target_type = _infer_target_type(sample_target_series)
+        if force_probabilities and target_type == "int":
+            target_type = "float"
     else:
         id_col = explicit_id_column or fallback_id_col
         target_col = fallback_target_col
@@ -193,6 +199,7 @@ def create_submission(
     default_target_col: str = "target",
     id_column: Optional[str] = None,
     default_id_col: str = "id",
+    submission_probas: Optional[bool] = None,
 ):
     """
     Create a submission file with timestamp and optional metric info.
@@ -219,6 +226,8 @@ def create_submission(
         config: Model configuration dictionary
         track: Whether to add to submissions tracker (default: True)
         default_target_col: Default target column name if sample not found
+        submission_probas: If True, allow probability outputs even when the sample
+            target column is integer-typed (skip int-only enforcement).
 
     Returns:
         SubmissionArtifact with path and metadata
@@ -246,6 +255,7 @@ def create_submission(
             fallback_id,
             fallback_target,
             test_ids,
+            force_probabilities=bool(submission_probas),
         )
     else:
         submission = _build_submission_from_series(
@@ -255,6 +265,7 @@ def create_submission(
             fallback_id,
             fallback_target,
             id_column,
+            force_probabilities=bool(submission_probas),
         )
 
     # Generate filename with timestamp
@@ -323,13 +334,19 @@ def create_submission(
     )
 
 
-def validate_submission(submission_path: Path, sample_submission_path: Path) -> bool:
+def validate_submission(
+    submission_path: Path,
+    sample_submission_path: Path,
+    submission_probas: bool = False,
+) -> bool:
     """
     Validate submission format against sample submission.
 
     Args:
         submission_path: Path to submission file
         sample_submission_path: Path to sample_submission.csv
+        submission_probas: If True, allow probability outputs even when the sample
+            uses integer placeholders.
 
     Returns:
         bool: True if valid, raises exception otherwise
@@ -354,6 +371,8 @@ def validate_submission(submission_path: Path, sample_submission_path: Path) -> 
         "ID column mismatch"
 
     target_type = _infer_target_type(sample.iloc[:, 1])
+    if submission_probas and target_type == "int":
+        target_type = "float"
     _ensure_target_value_types(submission.iloc[:, 1], target_type, sample.columns[1])
 
     print("✓ Submission format is valid")

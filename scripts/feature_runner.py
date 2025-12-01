@@ -204,6 +204,13 @@ def run_feature_engineering(
         # Save pipeline
         pipeline.save(output_dir / "pipeline")
 
+        # Save transformed data + metadata (parquet + feature_metadata.json)
+        pipeline.save_transformed_data(
+            output_dir / "pipeline",
+            train_transformed,
+            test_transformed if test_transformed is not None else train_transformed,
+        )
+
         # Save transformed dataframes
         storage_format = preprocessing_config.storage_format
         if storage_format == "parquet":

@@ -1129,6 +1129,8 @@ Given the Evaluation section from a Kaggle competition, determine:
 1. problem_type: "binary", "regression", or "multiclass"
 2. metric: AutoGluon-compatible metric name
 3. submit_probabilities: true if the competition expects probability outputs in the submission (e.g., ROC AUC or log loss), false if it expects class labels or numeric values directly (e.g., accuracy, MAE)
+   - If the text says to "predict a probability" or gives a sample with decimal probabilities, this MUST be true even if the sample shows 0/1 placeholders.
+   - If the metric is ROC AUC or Log Loss, submit_probabilities must be true.
 
 EVALUATION SECTION:
 {eval_text}
@@ -1188,6 +1190,28 @@ Return ONLY valid JSON (no markdown, no explanation):
         else:
             console.print(f"[yellow]Could not fetch Evaluation section from Kaggle[/yellow]")
 
+    # Heuristic fallback for probability submissions (e.g., ROC AUC/log loss wording)
+    if submit_probabilities is None:
+        lower_eval = eval_text.lower() if eval_text else ""
+        proba_keywords = [
+            "predict a probability",
+            "predict probabilities",
+            "probability for",
+            "probabilities for",
+            "probability of",
+            "probability values",
+            "roc auc",
+            "auc",
+            "log loss",
+            "logloss",
+            "cross entropy",
+            "cross-entropy",
+            "brier",
+        ]
+        proba_metrics = {"roc_auc", "log_loss", "brier_score"}
+        if (metric and metric in proba_metrics) or any(k in lower_eval for k in proba_keywords):
+            submit_probabilities = True
+
     # Interactive prompts if not provided (fallback)
     if not target_column:
         target_column = input("Target column name: ").strip() or "target"
@@ -1226,7 +1250,8 @@ Return ONLY valid JSON (no markdown, no explanation):
         cleaned_ignored.append(col)
     ignored_columns = cleaned_ignored
 
-    submit_probabilities = getattr(args, "submit_probabilities", None)
+    if getattr(args, "submit_probabilities", None) is not None:
+        submit_probabilities = args.submit_probabilities
     ignored_columns_literal = repr(ignored_columns)
 
     # Create config.py with customized values

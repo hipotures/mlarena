@@ -184,15 +184,24 @@ class SubmissionRunner:
             "-c",
             self.artifact.competition,
             "-f",
-            str(self.artifact.path.name),
+            str(self.artifact.path),  # absolute path to avoid cwd/path issues
             "-m",
             self.kaggle_message,
         ]
-        subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=self.artifact.path.parent,
-            check=True,
+            capture_output=True,
+            text=True,
         )
+        if result.returncode != 0:
+            # Surface Kaggle CLI error details instead of silent 400
+            raise RuntimeError(
+                f"Kaggle submit failed (exit {result.returncode}):\n"
+                f"stdout: {result.stdout}\n"
+                f"stderr: {result.stderr}"
+            )
+
         console.print("[green]✓ Kaggle submission command completed[/green]")
 
     def _fetch_scores(self) -> Optional[Dict[str, Any]]:

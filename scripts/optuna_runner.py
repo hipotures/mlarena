@@ -111,7 +111,8 @@ def load_optuna_config(
     project_ctx: Dict[str, Any],
     model_name: str,
     preset: Optional[str] = None,
-    overrides: Optional[Dict[str, Any]] = None
+    overrides: Optional[Dict[str, Any]] = None,
+    experiment_id: Optional[str] = None,
 ) -> OptunaConfig:
     """
     Load Optuna configuration with priority:
@@ -154,7 +155,12 @@ def load_optuna_config(
 
     # Set defaults for storage and study_name if not present
     if "storage" not in config_dict:
-        config_dict["storage"] = f"sqlite:///{project_ctx['experiments_dir']}/optuna.db"
+        base = project_ctx["experiments_dir"]
+        if experiment_id:
+            base = base / experiment_id / "optuna"
+        storage_path = base / "study.db"
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        config_dict["storage"] = f"sqlite:///{storage_path}"
 
     if "study_name" not in config_dict:
         config_dict["study_name"] = f"{model_name}_study"
@@ -275,7 +281,7 @@ def run_optuna_tuning(
     if cv_folds is not None:
         overrides["cv_folds"] = cv_folds
 
-    optuna_config = load_optuna_config(project_ctx, model_name, preset, overrides)
+    optuna_config = load_optuna_config(project_ctx, model_name, preset, overrides, experiment_id)
 
     # Display configuration
     console.print(Panel(

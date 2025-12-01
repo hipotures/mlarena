@@ -201,6 +201,10 @@ class MLRunner:
         merged = _deep_merge(merged, template_config)
         merged = _deep_merge(merged, cli_overrides)
 
+        # Avoid passing duplicate keys that conflict with explicit ModelConfig args
+        merged.pop("system", None)
+        merged.pop("dataset", None)
+
         hyper_payload = merged.pop("hyperparameters", {})
         model_payload = merged.pop("model", {})
 

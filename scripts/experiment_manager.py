@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 import yaml
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
@@ -563,23 +564,27 @@ def run_list(args):
     if not base_dir.exists():
         console.print("[yellow]No experiments found.[/yellow]")
         return
-    compact = getattr(args, "compact", False)
+    view_table = getattr(args, "show_table", False)
+    view_table_compact = getattr(args, "show_table_compact", False)
+    use_vertical = not view_table and not view_table_compact
+
     table = Table(title=f"Experiments for {args.project}", show_lines=False)
-    table.add_column("Experiment", style="cyan", no_wrap=True)
-    table.add_column("Last State", style="green")
-    table.add_column("Module", style="cyan")
-    table.add_column("Template", style="magenta")
-    if not compact:
-        table.add_column("Preset", style="magenta")
-        table.add_column("GPU", justify="right")
-        table.add_column("TimeLimit", justify="right")
-    table.add_column("Local CV", justify="right")
-    table.add_column("Public", justify="right")
-    table.add_column("Started", style="dim")
-    table.add_column("Elapsed", style="dim")
-    if not compact:
-        table.add_column("Submission", overflow="fold")
-        table.add_column("Git", style="dim")
+    if view_table or view_table_compact:
+        table.add_column("Experiment", style="cyan", no_wrap=True)
+        table.add_column("Last State", style="green")
+        table.add_column("Module", style="cyan")
+        table.add_column("Template", style="magenta")
+        if view_table:
+            table.add_column("Preset", style="magenta")
+            table.add_column("GPU", justify="right")
+            table.add_column("TimeLimit", justify="right")
+        table.add_column("Local CV", justify="right")
+        table.add_column("Public", justify="right")
+        table.add_column("Started", style="dim")
+        table.add_column("Elapsed", style="dim")
+        if view_table:
+            table.add_column("Submission", overflow="fold")
+            table.add_column("Git", style="dim")
 
     for dir_path in sorted(base_dir.glob("exp-*")):
         state_path = dir_path / "state.json"
@@ -639,33 +644,58 @@ def run_list(args):
         elapsed = _format_duration(started_dt, finished_dt)
 
         submission_file = predict_mod.get("submission_file") or model_mod.get("submission_file") or "-"
-        if submission_file and submission_file != "-" and not compact:
+        submission_short = "-"
+        if submission_file and submission_file != "-":
             submission_name = Path(str(submission_file)).name
             submission_short = f".../{submission_name}"
+
+        if use_vertical:
+            lines = [
+                f"[cyan]{data.get('experiment_id','-')}[/cyan]",
+                f"  [dim]state[/dim]: [white]{last_status}[/white] ([white]{last_module}[/white])",
+                f"  [dim]template[/dim]: [white]{template}[/white]",
+                f"  [dim]preset[/dim]: [white]{preset_str}[/white]",
+                f"  [dim]gpu[/dim]: [white]{use_gpu_str}[/white]",
+                f"  [dim]time_limit[/dim]: [white]{time_limit_str}[/white]",
+                f"  [dim]local_cv[/dim]: [white]{local_cv_str}[/white]",
+                f"  [dim]public[/dim]: [white]{public_str}[/white]",
+                f"  [dim]started[/dim]: [white]{_format_ts(started_ts)}[/white]",
+                f"  [dim]elapsed[/dim]: [white]{elapsed}[/white]",
+                f"  [dim]submission[/dim]: [white]{submission_short if submission_short != '-' else '<none>'}[/white]",
+                f"  [dim]git[/dim]: [white]{(data.get('git') or {}).get('hash', '-')[:7]}[/white]",
+            ]
+            console.print(
+                Panel.fit(
+                    "\n".join(lines),
+                    title=None,
+                    border_style="blue",
+                )
+            )
         else:
-            submission_short = "-"
+            row = [
+                data.get("experiment_id", "-"),
+                last_status,
+                last_module,
+                template,
+            ]
+            if view_table:
+                row.extend([preset_str, use_gpu_str, time_limit_str])
+            row.extend(
+                [
+                    local_cv_str,
+                    public_str,
+                    _format_ts(started_ts),
+                    elapsed,
+                ]
+            )
+            if view_table:
+                git_hash = (data.get("git") or {}).get("hash")
+                git_short = git_hash[:7] if git_hash else "-"
+                row.extend([submission_short, git_short])
+            table.add_row(*row)
 
-        row = [
-            data.get("experiment_id", "-"),
-            last_status,
-            last_module,
-            template,
-        ]
-        if not compact:
-            row.extend([preset_str, use_gpu_str, time_limit_str])
-        row.extend([
-            local_cv_str,
-            public_str,
-            _format_ts(started_ts),
-            elapsed,
-        ])
-        if not compact:
-            git_hash = (data.get("git") or {}).get("hash")
-            git_short = git_hash[:7] if git_hash else "-"
-            row.extend([submission_short, git_short])
-        table.add_row(*row)
-
-    console.print(table)
+    if not use_vertical:
+        console.print(table)
 
 
 def run_modules(args):
@@ -1675,13 +1705,16 @@ def build_parser():
     list_parser = subparsers.add_parser("list", help="List experiments")
     list_parser.add_argument("--project", required=True)
     list_parser.add_argument(
-        "--compact",
-        "--short",
-        dest="compact",
+        "--show-table",
         action="store_true",
-        help="Compact view (omit submission/git columns)",
+        help="Show table view (wide) instead of vertical list",
     )
-    list_parser.set_defaults(func=run_list, compact=False)
+    list_parser.add_argument(
+        "--show-table-compact",
+        action="store_true",
+        help="Show compact table view (no preset/gpu/time/submission/git)",
+    )
+    list_parser.set_defaults(func=run_list, show_table=False, show_table_compact=False)
 
     modules_parser = subparsers.add_parser("modules", help="List available modules")
     modules_parser.set_defaults(func=run_modules)

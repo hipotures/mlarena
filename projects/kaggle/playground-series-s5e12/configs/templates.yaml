@@ -104,6 +104,7 @@ templates:
           - ag_args_fit:
               num_gpus: 1
               num_workers: 0
+              batch_size: 256
 
   cpu-rf-8h:
     model: autogluon_baseline

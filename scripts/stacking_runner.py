@@ -170,6 +170,21 @@ def load_tracker_scores(project_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     return json.loads(tracker_path.read_text())
 
 
+def select_models_from_tracker(project_ctx: Dict[str, Any], source: str, top_n: int) -> List[str]:
+    tracker = load_tracker_scores(project_ctx)
+    key = "public_score" if source == "public" else "local_cv_score"
+    scored = [s for s in tracker if s.get(key) is not None and s.get("filename")]
+    if not scored:
+        raise RuntimeError(f"No submissions in tracker with '{key}' available.")
+    scored = sorted(scored, key=lambda x: x[key], reverse=True)
+    if top_n > len(scored):
+        top_n = len(scored)
+    selected = scored[:top_n]
+    files = [s["filename"] for s in selected]
+    console.print(f"[green]✓[/green] Selected top {len(files)} models by {source}: {files}")
+    return files
+
+
 def build_weights_from_tracker(
     project_ctx: Dict[str, Any],
     model_files: List[str],
@@ -369,6 +384,7 @@ def run_stacking(
     blend_weights: List[float] | None = None,
     blend_power: float = 2.0,
     auto_weights: str | None = None,
+    top_n: int | None = None,
     meta_model: str = "logistic",
     oof_files: List[str] | None = None,
     meta_base_models: List[str] | None = None,
@@ -391,6 +407,7 @@ def run_stacking(
         blend_weights: Manual blend weights (or None for equal/optimized)
         blend_power: Power parameter for power blending
         auto_weights: Auto weights source (public/local)
+        top_n: When using auto-weights, optionally pick top-N models from tracker by that metric
         meta_model: Meta-learner model (logistic, ridge, xgboost)
         optimize: Optimize blend weights using validation data
         output_name: Output submission filename (auto-generated if None)
@@ -438,6 +455,9 @@ def run_stacking(
         model_names: List[str] = []
 
         # For blend or meta with provided models/OOF, load predictions
+        if not model_files and auto_weights and top_n:
+            model_files = select_models_from_tracker(project_ctx, auto_weights, top_n)
+
         if model_files:
             predictions, model_names = load_model_predictions(project_ctx, model_files)
             if len(set(len(p) for p in predictions)) > 1:
@@ -745,6 +765,11 @@ def parse_args() -> argparse.Namespace:
         help="Auto-build weights from submissions tracker using public or local scores (blend strategy)"
     )
     parser.add_argument(
+        "--top-n",
+        type=int,
+        help="When using --auto-weights, optionally select top-N models by that metric from tracker (defaults to all provided)"
+    )
+    parser.add_argument(
         "--meta-model",
         choices=["logistic", "ridge"],
         default="logistic",
@@ -814,6 +839,7 @@ def main():
             blend_weights=args.blend_weights,
             blend_power=args.blend_power,
             auto_weights=args.auto_weights,
+            top_n=args.top_n,
             meta_model=args.meta_model,
             oof_files=args.oof_files,
             meta_base_models=args.meta_base_models,

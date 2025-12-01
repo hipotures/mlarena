@@ -201,5 +201,20 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 2,
+    "timestamp": "2025-12-01 03:10:50",
+    "filename": "submission-20251201031049.csv",
+    "model_name": "autogluon_baseline-dev-cpu-proba",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.69689,
+    "private_score": null,
+    "notes": "probability submission from existing predictor exp-20251201-020026",
+    "config": {},
+    "experiment_id": "20251201_031050_autogluon_baseline-dev-cpu-proba",
+    "git_hash": "8af62f6ee41fdecd3778869da2035418aa6c7013",
+    "code_path": "code/utils/submission.py"
   }
 ]

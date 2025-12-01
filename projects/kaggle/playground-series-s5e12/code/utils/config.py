@@ -39,4 +39,4 @@ AUTOGLUON_EVAL_METRIC = "roc_auc"  # evaluation metric
 COMPETITION_NAME = "playground-series-s5e12"
 METRIC = "roc_auc"
 # Submission format
-SUBMISSION_PROBAS = False
+SUBMISSION_PROBAS = True

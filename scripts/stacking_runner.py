@@ -163,6 +163,38 @@ def load_oof_predictions(
     return result
 
 
+def load_tracker_scores(project_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    tracker_path = project_ctx["submissions_dir"] / "submissions.json"
+    if not tracker_path.exists():
+        raise FileNotFoundError(f"Tracker not found at {tracker_path}")
+    return json.loads(tracker_path.read_text())
+
+
+def build_weights_from_tracker(
+    project_ctx: Dict[str, Any],
+    model_files: List[str],
+    source: str,
+) -> List[float]:
+    """
+    Build weights from submissions tracker using public or local scores.
+    """
+    tracker = load_tracker_scores(project_ctx)
+    key = "public_score" if source == "public" else "local_cv_score"
+    weights = []
+    for model_file in model_files:
+        name = Path(model_file).name
+        entry = next((s for s in tracker if s.get("filename") == name), None)
+        score = entry.get(key) if entry else None
+        weights.append(score if score is not None else 0.0)
+    arr = np.array(weights, dtype=float)
+    if np.all(arr == 0):
+        console.print(f"[yellow]Tracker has no {source} scores for provided models; falling back to equal weights.[/yellow]")
+        return [1.0 / len(model_files)] * len(model_files)
+    arr = arr / arr.sum()
+    console.print(f"[green]✓[/green] Weights from {source} scores: {arr}")
+    return arr.tolist()
+
+
 def _param_space_fn(name: str):
     if name == "xgboost":
         return xgboost_param_space
@@ -336,6 +368,7 @@ def run_stacking(
     blend_method: str = "weighted",
     blend_weights: List[float] | None = None,
     blend_power: float = 2.0,
+    auto_weights: str | None = None,
     meta_model: str = "logistic",
     oof_files: List[str] | None = None,
     meta_base_models: List[str] | None = None,
@@ -357,6 +390,7 @@ def run_stacking(
         blend_method: Blending method (weighted, rank, power)
         blend_weights: Manual blend weights (or None for equal/optimized)
         blend_power: Power parameter for power blending
+        auto_weights: Auto weights source (public/local)
         meta_model: Meta-learner model (logistic, ridge, xgboost)
         optimize: Optimize blend weights using validation data
         output_name: Output submission filename (auto-generated if None)
@@ -414,6 +448,14 @@ def run_stacking(
         # Run ensemble strategy
         if strategy == "blend":
             # Blending strategy
+            if auto_weights:
+                if not model_files:
+                    raise ValueError("--auto-weights requires --models files")
+                if blend_method not in {"weighted", "power"}:
+                    console.print("[yellow]Auto-weights require weighted/power blend; switching blend_method to weighted.[/yellow]")
+                    blend_method = "weighted"
+                blend_weights = build_weights_from_tracker(project_ctx, model_files, auto_weights)
+
             if optimize:
                 # Optimize weights (requires validation data)
                 # For now, use equal weights - TODO: implement validation split
@@ -425,11 +467,9 @@ def run_stacking(
                 # Equal weights
                 blend_weights = [1.0 / len(predictions)] * len(predictions)
 
-            # Normalize weights
-            blend_weights = np.array(blend_weights) / np.sum(blend_weights)
-
             # Apply blending method
             if blend_method == "weighted":
+                blend_weights = np.array(blend_weights) / np.sum(blend_weights)
                 blender = WeightedBlender()
                 ensemble_pred = blender.blend(predictions, blend_weights.tolist())
                 console.print(f"[green]✓[/green] Weighted blending with weights: {blend_weights}")
@@ -440,6 +480,7 @@ def run_stacking(
                 console.print(f"[green]✓[/green] Rank averaging (robust to outliers)")
 
             elif blend_method == "power":
+                blend_weights = np.array(blend_weights) / np.sum(blend_weights)
                 blender = PowerBlender()
                 ensemble_pred = blender.blend(predictions, power=blend_power, weights=blend_weights.tolist())
                 console.print(f"[green]✓[/green] Power averaging (power={blend_power})")
@@ -699,6 +740,11 @@ def parse_args() -> argparse.Namespace:
         help="Power parameter for power blending"
     )
     parser.add_argument(
+        "--auto-weights",
+        choices=["public", "local"],
+        help="Auto-build weights from submissions tracker using public or local scores (blend strategy)"
+    )
+    parser.add_argument(
         "--meta-model",
         choices=["logistic", "ridge"],
         default="logistic",
@@ -767,6 +813,7 @@ def main():
             blend_method=args.blend_method,
             blend_weights=args.blend_weights,
             blend_power=args.blend_power,
+            auto_weights=args.auto_weights,
             meta_model=args.meta_model,
             oof_files=args.oof_files,
             meta_base_models=args.meta_base_models,

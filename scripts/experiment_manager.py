@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
+import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
 MODULES = ["eda", "feat", "model", "tune", "stack", "submit", "fetch-score"]
@@ -1329,6 +1330,29 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
     table.add_row("Location", str(project_root))
 
     console.print(table)
+
+    # Show default templates with key parameters
+    templates_path = project_root / "configs" / "templates.yaml"
+    try:
+        templates_cfg = yaml.safe_load(templates_path.read_text()) or {}
+        templates = templates_cfg.get("templates", {})
+        if templates:
+            console.print("\n[cyan]Default templates:[/cyan]")
+            for name, payload in templates.items():
+                hyper = (payload.get("config") or {}).get("hyperparameters") or {}
+                preset = hyper.get("presets") or hyper.get("preset")
+                time_limit = hyper.get("time_limit")
+                use_gpu = hyper.get("use_gpu")
+                parts = []
+                if preset:
+                    parts.append(f"preset {preset}")
+                if time_limit is not None:
+                    parts.append(f"time_limit {time_limit}s")
+                if use_gpu is not None:
+                    parts.append(f"gpu={'yes' if use_gpu else 'no'}")
+                console.print(f"  - {name}: {', '.join(parts) if parts else 'no hyperparameters defined'}")
+    except Exception as exc:
+        console.print(f"[yellow]Could not read templates.yaml: {exc}[/yellow]")
 
     console.print("\n[cyan]Next steps:[/cyan]")
     console.print(f"  1. Review configuration: {project_root}/code/utils/config.py")

@@ -168,7 +168,7 @@ def _build_model_config(
         random_seed=getattr(config_module, "RANDOM_SEED", 42),
         use_gpu=False,
     )
-    hyper_cfg = Hyperparameters(presets="medium_quality", time_limit=0, use_gpu=False)
+    hyper_cfg = Hyperparameters(presets="medium", time_limit=0, use_gpu=False)
     return ModelConfig(system=system_cfg, dataset=dataset_cfg, hyperparameters=hyper_cfg)
 
 
@@ -1436,7 +1436,7 @@ IGNORED_COLUMNS = {ignored_columns_literal}
 
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
-AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment
+AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
 AUTOGLUON_PROBLEM_TYPE = "{problem_type}"  # binary, regression, multiclass
 AUTOGLUON_EVAL_METRIC = "{metric}"  # evaluation metric
 

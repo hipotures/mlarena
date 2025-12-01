@@ -3,7 +3,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: medium_quality
+        presets: medium
         time_limit: 60
         use_gpu: false
         excluded_models:
@@ -12,42 +12,42 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: medium_quality
+        presets: medium
         time_limit: 300
         use_gpu: false
   gpu-dev-5m:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: medium_quality
+        presets: medium
         time_limit: 300
         use_gpu: true
   cpu-best-1h:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 3600
         use_gpu: false
   gpu-best-1h:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 3600
         use_gpu: true
   gpu-extreme-24h:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: extreme_quality
+        presets: extreme
         time_limit: 86400
         use_gpu: true
   cpu-best-8h:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
 
@@ -55,7 +55,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: true
         included_model_types: ["NN_TORCH"]
@@ -64,7 +64,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["GBM"]
@@ -73,7 +73,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["CAT"]
@@ -82,7 +82,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["XGB"]
@@ -91,7 +91,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: true
         included_model_types: ["FASTAI"]
@@ -100,7 +100,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["RF"]
@@ -109,7 +109,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["XT"]
@@ -118,7 +118,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["KNN"]
@@ -127,7 +127,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["EBM"]
@@ -136,7 +136,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["GBM", "CAT", "XGB", "RF", "XT", "KNN", "LR"]
@@ -145,7 +145,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: false
         included_model_types: ["GBM", "CAT", "XGB"]
@@ -154,7 +154,7 @@ templates:
     model: autogluon_baseline
     config:
       hyperparameters:
-        presets: best_quality
+        presets: best
         time_limit: 28800
         use_gpu: true
         included_model_types: ["GBM", "CAT", "XGB"]

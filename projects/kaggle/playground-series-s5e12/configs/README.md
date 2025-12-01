@@ -52,7 +52,7 @@ templates:
 AutoGluon `TabularPredictor.fit()` parameters:
 
 - **`presets`** (string): AutoGluon quality preset
-  - Values: `medium_quality`, `best_quality`, `high_quality`, `extreme_quality`
+  - Values: `medium`, `best`, `high`, `extreme`
   - Higher quality = more models, longer training
 
 - **`time_limit`** (integer): Training time limit in seconds
@@ -140,7 +140,7 @@ best-cpu:
   model: autogluon_baseline
   config:
     hyperparameters:
-      presets: best_quality
+      presets: best
       time_limit: 3600
       use_gpu: false
 ```
@@ -154,7 +154,7 @@ best-cpu-fe11:
   model: autogluon_features_11
   config:
     hyperparameters:
-      presets: best_quality
+      presets: best
       time_limit: 7200
       use_gpu: false
       excluded_models:
@@ -170,7 +170,7 @@ dev-gpu:
   model: autogluon_baseline
   config:
     hyperparameters:
-      presets: medium_quality
+      presets: medium
       time_limit: 300
       use_gpu: true
 ```
@@ -230,7 +230,7 @@ fast-cpu:
   model: autogluon_baseline
   config:
     hyperparameters:
-      presets: medium_quality
+      presets: medium
       time_limit: 60
       use_gpu: false
       excluded_models:
@@ -246,7 +246,7 @@ best-cpu-stable:
   model: autogluon_baseline
   config:
     hyperparameters:
-      presets: best_quality
+      presets: best
       time_limit: 3600
       use_gpu: false
       excluded_models:
@@ -265,7 +265,7 @@ best-cpu-fe00:
   model: autogluon_features_00
   config:
     hyperparameters:
-      presets: best_quality
+      presets: best
       time_limit: 3600
       use_gpu: false
 
@@ -274,7 +274,7 @@ best-cpu-fe01:
   model: autogluon_features_01
   config:
     hyperparameters:
-      presets: best_quality
+      presets: best
       time_limit: 3600
       use_gpu: false
 
@@ -283,7 +283,7 @@ best-cpu-fe02:
   model: autogluon_features_02
   config:
     hyperparameters:
-      presets: best_quality
+      presets: best
       time_limit: 3600
       use_gpu: false
 ```

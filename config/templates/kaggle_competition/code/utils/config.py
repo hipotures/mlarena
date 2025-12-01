@@ -34,7 +34,7 @@ IGNORED_COLUMNS: list[str] = []
 
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
-AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment
+AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
 AUTOGLUON_PROBLEM_TYPE = "binary"  # binary classification
 AUTOGLUON_EVAL_METRIC = "roc_auc"  # ROC AUC Score
 

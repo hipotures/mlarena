@@ -15,7 +15,7 @@ from kaggle_tools.config_models import ModelConfig
 def get_default_config() -> Dict[str, Any]:
     return {
         "hyperparameters": {
-            "presets": "medium_quality",
+            "presets": "medium",
             "time_limit": 300,
             "use_gpu": False,
         },

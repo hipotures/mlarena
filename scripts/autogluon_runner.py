@@ -34,17 +34,17 @@ console = Console()
 TEMPLATES: Dict[str, Dict[str, Any]] = {
     "fast-cpu": {
         "time_limit": 60,
-        "preset": "medium_quality",
+        "preset": "medium",
         "use_gpu": False,
         # XGB-only smoke test for quick validation.
         "hyperparameters": {"XGB": [{}]},
     },
-    "dev-cpu": {"time_limit": 300, "preset": "medium_quality", "use_gpu": False},
-    "dev-gpu": {"time_limit": 300, "preset": "medium_quality", "use_gpu": True},
-    "best-cpu": {"time_limit": 3600, "preset": "best_quality", "use_gpu": False},
-    "best-gpu": {"time_limit": 3600, "preset": "best_quality", "use_gpu": True},
-    "extreme-gpu": {"time_limit": 24 * 3600, "preset": "extreme_quality", "use_gpu": True},
-    "time8-cpu": {"time_limit": 8 * 3600, "preset": "best_quality", "use_gpu": False},
+    "dev-cpu": {"time_limit": 300, "preset": "medium", "use_gpu": False},
+    "dev-gpu": {"time_limit": 300, "preset": "medium", "use_gpu": True},
+    "best-cpu": {"time_limit": 3600, "preset": "best", "use_gpu": False},
+    "best-gpu": {"time_limit": 3600, "preset": "best", "use_gpu": True},
+    "extreme-gpu": {"time_limit": 24 * 3600, "preset": "extreme", "use_gpu": True},
+    "time8-cpu": {"time_limit": 8 * 3600, "preset": "best", "use_gpu": False},
 }
 
 
@@ -150,7 +150,7 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
     console.print(f"Train shape: {train_df.shape}, Test shape: {test_df.shape}")
     console.print(f"Target distribution:\n{train_df[cfg.TARGET_COLUMN].value_counts(normalize=True)}")
 
-    if params["preset"] == "extreme_quality" and len(train_df) > 30000:
+    if params["preset"] == "extreme" and len(train_df) > 30000:
         if not confirm_extreme(len(train_df), params.get("force_extreme", False)):
             console.print("[yellow]Stopping because extreme template was not confirmed.[/yellow]")
             sys.exit(1)

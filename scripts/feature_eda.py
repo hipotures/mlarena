@@ -80,7 +80,7 @@ def build_model_config(project_root: Path, cfg_module, args) -> ModelConfig:
         random_seed=getattr(cfg_module, "RANDOM_SEED", 42),
         use_gpu=False,
     )
-    hyper = Hyperparameters(presets="medium_quality", time_limit=0, use_gpu=False)
+    hyper = Hyperparameters(presets="medium", time_limit=0, use_gpu=False)
     return ModelConfig(system=system, dataset=dataset, hyperparameters=hyper)
 
 

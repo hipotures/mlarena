@@ -256,7 +256,7 @@ predictor = TabularPredictor(
 predictor.fit(
     train_data=train_df,
     time_limit=3600,  # seconds
-    presets='medium_quality'  # or 'best_quality', 'high_quality'
+    presets='medium'  # or 'good', 'high', 'best', 'extreme'
 )
 
 # Make predictions
@@ -283,13 +283,13 @@ Every competition now shares a single runner: `tools/autogluon_runner.py`. Call 
 
 | Template     | Time Limit | Preset           | GPU | Notes |
 |--------------|-----------:|------------------|-----|-------|
-| `cpu-fast-1m`   | 60 s       | `medium_quality` | ❌  | XGBoost-only smoke test |
-| `cpu-dev-5m`    | 300 s      | `medium_quality` | ❌  | default stack (CPU) |
-| `gpu-dev-5m`    | 300 s      | `medium_quality` | ✅  | default stack (GPU) |
-| `cpu-best-1h`   | 3600 s     | `best_quality`   | ❌  | high-quality ensemble |
-| `gpu-best-1h`   | 3600 s     | `best_quality`   | ✅  | high-quality ensemble |
-| `cpu-best-8h`   | 28800 s    | `best_quality`   | ❌  | long CPU run |
-| `gpu-extreme-24h`| 24 h      | `extreme_quality`| ✅  | ≤30k rows, prompts before run |
+| `cpu-fast-1m`   | 60 s       | `medium` | ❌  | XGBoost-only smoke test |
+| `cpu-dev-5m`    | 300 s      | `medium` | ❌  | default stack (CPU) |
+| `gpu-dev-5m`    | 300 s      | `medium` | ✅  | default stack (GPU) |
+| `cpu-best-1h`   | 3600 s     | `best`   | ❌  | high-quality ensemble |
+| `gpu-best-1h`   | 3600 s     | `best`   | ✅  | high-quality ensemble |
+| `cpu-best-8h`   | 28800 s    | `best`   | ❌  | long CPU run |
+| `gpu-extreme-24h`| 24 h      | `extreme`| ✅  | ≤30k rows, prompts before run |
 
 Example:
 

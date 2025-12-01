@@ -106,7 +106,24 @@ class SubmissionRunner:
                 )
 
     def _default_message(self) -> str:
-        parts = [self.artifact.model_name or "submission"]
+        parts = []
+        exp_id = self.experiment_id or (self.artifact.tracker_entry or {}).get("experiment_id")
+        if exp_id:
+            parts.append(exp_id)
+            try:
+                mgr = ExperimentManager.load_existing(self.artifact.project_root.name, exp_id)
+                stack_mod = mgr.get_module("stack")
+                if stack_mod:
+                    strategy = stack_mod.get("strategy") or "stack"
+                    method = stack_mod.get("blend_method") or stack_mod.get("meta_model")
+                    n_models = stack_mod.get("n_models")
+                    parts.append(f"{strategy}{':' + method if method else ''}")
+                    if n_models:
+                        parts.append(f"models {n_models}")
+            except Exception:
+                pass
+
+        parts.append(self.artifact.model_name or self.artifact.filename)
         if self.artifact.local_cv_score is not None:
             parts.append(f"local {self.artifact.local_cv_score:.5f}")
         return " | ".join(parts)

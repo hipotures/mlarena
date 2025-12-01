@@ -510,7 +510,7 @@ def _run_submit(args):
     artifact = _build_artifact_from_filename(args.project, args.filename)
     runner = SubmissionRunner(
         artifact=artifact,
-        kaggle_message=args.kaggle_message or f"submit {args.filename}",
+        kaggle_message=args.kaggle_message,
         wait_seconds=args.wait_seconds,
         cdp_url=args.cdp_url,
         auto_submit=True,

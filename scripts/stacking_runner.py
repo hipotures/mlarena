@@ -716,6 +716,14 @@ def display_ensemble_stats(
     elif avg_corr < 0.7:
         console.print(f"  [green]✓ Good diversity - models are complementary[/green]")
 
+    console.print(
+        f"\n[yellow]Next steps:[/yellow] "
+        f"Submit with "
+        f"`python scripts/experiment_manager.py submit --project {project_ctx['name']} "
+        f"--filename {Path(str(table.title) if hasattr(table, 'title') else 'submission.csv').name}` "
+        f"or rerun stack with `--output-name` of your choice."
+    )
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

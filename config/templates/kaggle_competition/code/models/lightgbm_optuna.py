@@ -82,17 +82,27 @@ def train(
     # Setup Optuna artifacts directory
     optuna_dir = config.system.artifact_dir / "optuna"
     optuna_dir.mkdir(parents=True, exist_ok=True)
+    legacy_optuna_dir = config.system.experiment_dir / "optuna"
+    legacy_optuna_dir.mkdir(parents=True, exist_ok=True)
     best_params_file = optuna_dir / "best_params_lightgbm.json"
+    legacy_best = legacy_optuna_dir / "best_params_lightgbm.json"
 
     # Check if study already completed
     if best_params_file.exists():
         print(f"Loading cached best params from {best_params_file}")
         with open(best_params_file) as f:
             best_params = json.load(f)
+    elif legacy_best.exists():
+        print(f"Loading cached best params from legacy path {legacy_best}")
+        with open(legacy_best) as f:
+            best_params = json.load(f)
     else:
         print("Running Optuna hyperparameter search...")
 
         # Create study manager
+        if not config.optuna.storage:
+            config.optuna.storage = f"sqlite:///{optuna_dir / 'study.db'}"
+
         study_manager = StudyManager(config.optuna)
         study = study_manager.create_or_load_study()
 
@@ -103,11 +113,14 @@ def train(
         else:
             metric_fn = roc_auc_score
 
+        if "lightgbm" not in config.optuna.param_space:
+            raise ValueError("Optuna param_space for 'lightgbm' not found in config.optuna.param_space")
+
         # Create CV objective
         objective = CVObjective(
             model_class=lgb.LGBMClassifier,
-            X=X_train.values,
-            y=y_train.values,
+            train_df=train_df,
+            target_col=config.dataset.target,
             param_space_fn=lambda trial: lightgbm_param_space(
                 trial, config.optuna.param_space.get("lightgbm", {})
             ),

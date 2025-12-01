@@ -16,6 +16,7 @@ from .config import (
     SAMPLE_SUBMISSION_PATH,
     SUBMISSIONS_DIR,
     TARGET_COLUMN,
+    SUBMISSION_PROBAS,
 )
 
 try:
@@ -82,7 +83,8 @@ def create_submission(
         config=config,
         track=track,
         default_target_col=TARGET_COLUMN,
-        id_column=ID_COLUMN
+        id_column=ID_COLUMN,
+        submission_probas=SUBMISSION_PROBAS,
     )
 
 
@@ -98,5 +100,6 @@ def validate_submission(submission_path):
     """
     return submission_utils.validate_submission(
         submission_path=Path(submission_path),
-        sample_submission_path=SAMPLE_SUBMISSION_PATH
+        sample_submission_path=SAMPLE_SUBMISSION_PATH,
+        submission_probas=SUBMISSION_PROBAS,
     )

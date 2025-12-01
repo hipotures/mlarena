@@ -419,5 +419,20 @@
     "experiment_id": null,
     "git_hash": null,
     "code_path": null
+  },
+  {
+    "id": 4,
+    "timestamp": "2025-12-01 16:25:50",
+    "filename": "submission-blend-top5-local.csv",
+    "model_name": "submission-blend-top5-local.csv",
+    "local_cv_score": null,
+    "cv_std": null,
+    "public_score": 0.69655,
+    "private_score": null,
+    "notes": "Auto-added via resume",
+    "config": {},
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null
   }
 ]

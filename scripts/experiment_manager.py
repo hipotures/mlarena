@@ -10,6 +10,7 @@ import errno
 import importlib
 import json
 import os
+import math
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -612,7 +613,10 @@ def run_list(args):
 
         template = model_mod.get("template") or predict_mod.get("template") or "-"
         local_cv = model_mod.get("local_cv")
-        local_cv_str = f"{local_cv:.5f}" if isinstance(local_cv, (int, float)) else "-"
+        if isinstance(local_cv, (int, float)) and not math.isnan(local_cv):
+            local_cv_str = f"{local_cv:.5f}"
+        else:
+            local_cv_str = "-"
         public_score = submit_mod.get("public_score")
         public_str = f"{public_score:.5f}" if isinstance(public_score, (int, float)) else "-"
         config_data = model_mod.get("config") or {}

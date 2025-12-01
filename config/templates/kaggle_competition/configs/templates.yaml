@@ -1,5 +1,5 @@
 templates:
-  fast-cpu:
+  cpu-fast-1m:
     model: autogluon_baseline
     config:
       hyperparameters:
@@ -8,45 +8,135 @@ templates:
         use_gpu: false
         excluded_models:
           - NN_TORCH
-  dev-cpu:
+  cpu-dev-5m:
     model: autogluon_baseline
     config:
       hyperparameters:
         presets: medium_quality
         time_limit: 300
         use_gpu: false
-  dev-gpu:
+  gpu-dev-5m:
     model: autogluon_baseline
     config:
       hyperparameters:
         presets: medium_quality
         time_limit: 300
         use_gpu: true
-  best-cpu:
+  cpu-best-1h:
     model: autogluon_baseline
     config:
       hyperparameters:
         presets: best_quality
         time_limit: 3600
         use_gpu: false
-  best-gpu:
+  gpu-best-1h:
     model: autogluon_baseline
     config:
       hyperparameters:
         presets: best_quality
         time_limit: 3600
         use_gpu: true
-  extreme-gpu:
+  gpu-extreme-24h:
     model: autogluon_baseline
     config:
       hyperparameters:
         presets: extreme_quality
         time_limit: 86400
         use_gpu: true
-  time8-cpu:
+  cpu-best-8h:
     model: autogluon_baseline
     config:
       hyperparameters:
         presets: best_quality
         time_limit: 28800
         use_gpu: false
+
+  gpu-torch-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: true
+        included_model_types: ["NN_TORCH"]
+
+  cpu-gbm-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["GBM"]
+
+  cpu-cat-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["CAT"]
+
+  cpu-xgb-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["XGB"]
+
+  gpu-fastai-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: true
+        included_model_types: ["FASTAI"]
+
+  cpu-rf-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["RF"]
+
+  cpu-xt-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["XT"]
+
+  cpu-nonn-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["GBM", "CAT", "XGB", "RF", "XT", "KNN", "LR"]
+
+  cpu-boost-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["GBM", "CAT", "XGB"]
+
+  gpu-boost-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: true
+        included_model_types: ["GBM", "CAT", "XGB"]

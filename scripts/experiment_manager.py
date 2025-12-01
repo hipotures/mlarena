@@ -569,6 +569,10 @@ def run_list(args):
     table.add_column("Last State", style="green")
     table.add_column("Module", style="cyan")
     table.add_column("Template", style="magenta")
+    if not compact:
+        table.add_column("Preset", style="magenta")
+        table.add_column("GPU", justify="right")
+        table.add_column("TimeLimit", justify="right")
     table.add_column("Local CV", justify="right")
     table.add_column("Public", justify="right")
     table.add_column("Started", style="dim")
@@ -606,6 +610,23 @@ def run_list(args):
         local_cv_str = f"{local_cv:.5f}" if isinstance(local_cv, (int, float)) else "-"
         public_score = submit_mod.get("public_score")
         public_str = f"{public_score:.5f}" if isinstance(public_score, (int, float)) else "-"
+        config_data = model_mod.get("config") or {}
+        hyper = config_data.get("hyperparameters") or {}
+        preset_str = hyper.get("presets") or hyper.get("preset") or "-"
+        use_gpu_val = hyper.get("use_gpu")
+        use_gpu_str = "-" if use_gpu_val is None else str(int(bool(use_gpu_val)))
+        time_limit_val = hyper.get("time_limit")
+        if isinstance(time_limit_val, (int, float)) and time_limit_val:
+            if time_limit_val >= 3600:
+                hours = time_limit_val / 3600
+                time_limit_str = f"{hours:.1f}h"
+            elif time_limit_val >= 60:
+                minutes = time_limit_val / 60
+                time_limit_str = f"{minutes:.0f}m"
+            else:
+                time_limit_str = f"{int(time_limit_val)}s"
+        else:
+            time_limit_str = "-"
         started_ts = (
             last_entry.get("started_at")
             or model_mod.get("started_at")
@@ -629,11 +650,15 @@ def run_list(args):
             last_status,
             last_module,
             template,
+        ]
+        if not compact:
+            row.extend([preset_str, use_gpu_str, time_limit_str])
+        row.extend([
             local_cv_str,
             public_str,
             _format_ts(started_ts),
             elapsed,
-        ]
+        ])
         if not compact:
             git_hash = (data.get("git") or {}).get("hash")
             git_short = git_hash[:7] if git_hash else "-"

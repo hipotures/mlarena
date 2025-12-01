@@ -50,3 +50,86 @@ templates:
         presets: best_quality
         time_limit: 28800
         use_gpu: false
+
+  nn-8h-gpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: true
+        included_model_types: ["NN_TORCH"]
+
+  gbm-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["GBM"]
+
+  cat-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["CAT"]
+
+  xgb-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["XGB"]
+
+  fastai-8h-gpu:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: true
+        included_model_types: ["FASTAI"]
+
+  rf-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["RF"]
+
+  xt-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["XT"]
+
+  cpu-boost-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        excluded_models:
+          - NN_TORCH
+          - FASTAI
+
+  gbm-cat-xgb-8h:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        presets: best_quality
+        time_limit: 28800
+        use_gpu: false
+        included_model_types: ["GBM", "CAT", "XGB"]

@@ -88,5 +88,8 @@ for tpl in "${TEMPLATES[@]}"; do
     cmd+=(--use-gpu 0)
   fi
 
+  if [[ -n "${PRESET}" || -n "${TIME_LIMIT}" || "${GPU_ENABLED}" == true ]]; then
+    echo "    overrides: preset=${PRESET:-<template-default>} time_limit=${TIME_LIMIT:-<template-default>} use_gpu=${GPU_ENABLED}"
+  fi
   "${cmd[@]}"
 done

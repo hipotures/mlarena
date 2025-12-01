@@ -1,0 +1,64 @@
+# Extreme preset - Exhaustive hyperparameter search
+# Use for: Final push, top leaderboard positions
+# Time: ~24 hours
+# WARNING: Very computationally expensive!
+
+optuna:
+  n_trials: 500
+  timeout: 86400  # 24 hours
+  cv_folds: 10
+  early_stopping_rounds: 100
+  sampler: TPESampler
+  pruner: MedianPruner
+
+  param_space:
+    xgboost:
+      learning_rate: [0.0001, 0.5, log]
+      max_depth: [2, 12, int]
+      min_child_weight: [1, 15, int]
+      subsample: [0.4, 1.0, float]
+      colsample_bytree: [0.4, 1.0, float]
+      colsample_bylevel: [0.4, 1.0, float]
+      colsample_bynode: [0.4, 1.0, float]
+      gamma: [0.0, 10.0, float]
+      reg_alpha: [1e-10, 1000.0, log]
+      reg_lambda: [1e-10, 1000.0, log]
+      max_delta_step: [0, 10, int]
+      scale_pos_weight: [0.5, 2.0, float]
+
+    lightgbm:
+      learning_rate: [0.0001, 0.5, log]
+      num_leaves: [10, 512, int]
+      min_data_in_leaf: [1, 200, int]
+      feature_fraction: [0.4, 1.0, float]
+      bagging_fraction: [0.4, 1.0, float]
+      bagging_freq: [1, 15, int]
+      lambda_l1: [1e-10, 1000.0, log]
+      lambda_l2: [1e-10, 1000.0, log]
+      min_gain_to_split: [0.0, 5.0, float]
+      max_depth: [3, 15, int]
+
+    catboost:
+      learning_rate: [0.0001, 0.5, log]
+      depth: [3, 12, int]
+      l2_leaf_reg: [0.1, 50.0, float]
+      border_count: [32, 512, int]
+      bagging_temperature: [0.0, 2.0, float]
+      random_strength: [0.0, 10.0, float]
+      grow_policy: [SymmetricTree, Depthwise, Lossguide]
+
+preprocessing:
+  feat_stage:
+    enabled: true
+    transformers:
+      - LogTransformer
+      - StandardScalerTransformer
+      - PolynomialFeaturesTransformer
+      - BinningTransformer
+  cv_stage:
+    enabled: true
+    transformers:
+      - TargetEncodingTransformer
+      - FrequencyEncodingTransformer
+      - WeightOfEvidenceTransformer
+      - TargetAggregatesTransformer

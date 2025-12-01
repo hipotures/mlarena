@@ -1,0 +1,46 @@
+# Quick preset - Fast hyperparameter search for smoke testing
+# Use for: Quick iteration, debugging, sanity checks
+# Time: ~30 minutes
+
+optuna:
+  n_trials: 20
+  timeout: 1800  # 30 minutes
+  cv_folds: 3
+  early_stopping_rounds: 30
+  sampler: TPESampler
+  pruner: MedianPruner
+
+  param_space:
+    xgboost:
+      learning_rate: [0.01, 0.3, log]
+      max_depth: [3, 8, int]
+      min_child_weight: [1, 7, int]
+      subsample: [0.6, 1.0, float]
+      colsample_bytree: [0.6, 1.0, float]
+      gamma: [0.0, 2.0, float]
+      reg_alpha: [1e-5, 10.0, log]
+      reg_lambda: [1e-5, 10.0, log]
+
+    lightgbm:
+      learning_rate: [0.01, 0.3, log]
+      num_leaves: [20, 150, int]
+      min_data_in_leaf: [10, 50, int]
+      feature_fraction: [0.6, 1.0, float]
+      bagging_fraction: [0.6, 1.0, float]
+      bagging_freq: [1, 7, int]
+      lambda_l1: [1e-5, 10.0, log]
+      lambda_l2: [1e-5, 10.0, log]
+
+    catboost:
+      learning_rate: [0.01, 0.3, log]
+      depth: [4, 8, int]
+      l2_leaf_reg: [1.0, 7.0, float]
+      border_count: [32, 128, int]
+      bagging_temperature: [0.0, 0.8, float]
+
+preprocessing:
+  feat_stage:
+    enabled: true
+    transformers: []
+  cv_stage:
+    enabled: false

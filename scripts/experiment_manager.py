@@ -690,6 +690,18 @@ def run_tune(args):
         cmd += ["--preset", args.preset]
     if hasattr(args, 'n_trials') and args.n_trials:
         cmd += ["--n-trials", str(args.n_trials)]
+    if hasattr(args, 'timeout') and args.timeout:
+        cmd += ["--timeout", str(args.timeout)]
+    if hasattr(args, 'cv_folds') and args.cv_folds:
+        cmd += ["--cv-folds", str(args.cv_folds)]
+    if getattr(args, "use_transformed", False):
+        cmd.append("--use-transformed")
+    if getattr(args, "resume", False):
+        cmd.append("--resume")
+    if getattr(args, "force", False):
+        cmd.append("--force")
+    if getattr(args, "dashboard", False):
+        cmd.append("--dashboard")
 
     try:
         subprocess.run(cmd, check=True)
@@ -986,6 +998,21 @@ def run_init_project(args):
     # README.md (will customize later)
     shutil.copy(template_project / "README.md", project_root / "README.md")
     console.print("  [green]✓[/green] README.md")
+
+    # configs/ (templates + presets for ml_runner)
+    shutil.copytree(
+        template_project / "configs",
+        project_root / "configs",
+        dirs_exist_ok=True,
+    )
+    console.print("  [green]✓[/green] configs/ (templates + presets)")
+
+    # AutoGluon baseline model
+    shutil.copy(
+        template_project / "code/models/autogluon_baseline.py",
+        project_root / "code/models/autogluon_baseline.py",
+    )
+    console.print("  [green]✓[/green] code/models/autogluon_baseline.py")
 
     # code/utils/submission.py (wrapper - use as-is)
     shutil.copy(
@@ -1483,7 +1510,12 @@ def build_parser():
     tune_parser.add_argument("--model", choices=["xgboost", "lightgbm", "catboost"], default="xgboost", help="Model to tune")
     tune_parser.add_argument("--preset", choices=["quick", "thorough", "extreme"], default="quick", help="Optuna preset")
     tune_parser.add_argument("--n-trials", type=int, help="Override number of trials")
+    tune_parser.add_argument("--timeout", type=int, help="Override timeout in seconds")
+    tune_parser.add_argument("--cv-folds", type=int, help="Override number of CV folds")
+    tune_parser.add_argument("--use-transformed", action="store_true", help="Use transformed features from feat module")
+    tune_parser.add_argument("--resume", action="store_true", help="Resume existing study if present")
     tune_parser.add_argument("--force", action="store_true", help="Force rerun if already completed")
+    tune_parser.add_argument("--dashboard", action="store_true", help="Launch optuna-dashboard UI")
     tune_parser.set_defaults(func=run_tune)
 
     stack_parser = subparsers.add_parser("stack", help="Run model stacking/ensembling module")

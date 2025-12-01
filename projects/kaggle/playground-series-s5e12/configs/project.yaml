@@ -1,0 +1,130 @@
+# Default project configuration for Optuna system
+# This file is copied during init-project and can be customized per competition
+
+# Feature Engineering Configuration
+preprocessing:
+  # Storage format for transformed features
+  storage_format: parquet  # parquet (recommended) or csv
+  compression: snappy      # snappy, gzip, or None
+  save_transformed_data: true
+
+  # feat_stage: Global transformers (fitted on full train, safe for leakage)
+  feat_stage:
+    enabled: false
+    transformers: []
+    # Example transformers (uncomment to enable):
+    # - type: LogTransformer
+    #   columns: [feature1, feature2]
+    #   offset: 1e-8
+    # - type: StandardScalerTransformer
+    #   columns: all_numeric
+    # - type: PolynomialFeaturesTransformer
+    #   degree: 2
+    #   interaction_only: true
+
+  # cv_stage: Per-fold transformers (fitted per CV fold, RISKY for leakage)
+  cv_stage:
+    enabled: false
+    transformers: []
+    # Example transformers (uncomment to enable):
+    # - type: TargetEncodingTransformer
+    #   columns: [cat_feature1, cat_feature2]
+    #   smoothing: 10.0
+    #   min_samples_leaf: 5
+    # - type: FrequencyEncodingTransformer
+    #   columns: [cat_feature1]
+    #   normalize: true
+
+# Optuna Hyperparameter Tuning Configuration
+optuna:
+  # Storage (SQLite database for study persistence)
+  storage: "sqlite:///experiments/optuna.db"
+
+  # Study configuration
+  study_name: "default_study"
+  direction: maximize  # maximize or minimize
+  load_if_exists: true  # Resume interrupted studies
+
+  # Search configuration
+  n_trials: 50
+  timeout: null  # seconds (null = no timeout)
+  n_jobs: 1      # parallel trials (use >1 for distributed search)
+
+  # Cross-validation
+  cv_folds: 5
+  early_stopping_rounds: 50
+
+  # Sampler and Pruner
+  sampler: TPESampler  # TPESampler, RandomSampler, GridSampler, CmaEsSampler
+  sampler_kwargs: {}
+  pruner: MedianPruner  # MedianPruner, HyperbandPruner, SuccessiveHalvingPruner
+  pruner_kwargs:
+    n_startup_trials: 5
+    n_warmup_steps: 10
+
+  # Parameter space per model (see presets/ for examples)
+  param_space:
+    xgboost:
+      learning_rate: [0.001, 0.3, log]
+      max_depth: [3, 10, int]
+      min_child_weight: [1, 10, int]
+      subsample: [0.5, 1.0, float]
+      colsample_bytree: [0.5, 1.0, float]
+      gamma: [0.0, 5.0, float]
+      reg_alpha: [0.0, 10.0, log]
+      reg_lambda: [0.0, 10.0, log]
+
+    lightgbm:
+      learning_rate: [0.001, 0.3, log]
+      num_leaves: [15, 255, int]
+      max_depth: [3, 12, int]
+      min_child_samples: [5, 100, int]
+      subsample: [0.5, 1.0, float]
+      colsample_bytree: [0.5, 1.0, float]
+      reg_alpha: [0.0, 10.0, log]
+      reg_lambda: [0.0, 10.0, log]
+
+    catboost:
+      learning_rate: [0.001, 0.3, log]
+      depth: [4, 10, int]
+      l2_leaf_reg: [0.1, 10.0, log]
+      bagging_temperature: [0.0, 1.0, float]
+      random_strength: [0.0, 10.0, float]
+
+# Stacking/Ensemble Configuration
+stacking:
+  # Default blending method
+  blend_method: weighted  # weighted, rank, power
+
+  # Power blending parameter (for power method)
+  blend_power: 2.0
+
+  # Meta-learner (for meta-learning strategy)
+  meta_model: logistic  # logistic, ridge, xgboost
+
+  # Calibration (post-processing)
+  calibration:
+    enabled: false
+    method: isotonic  # isotonic or sigmoid
+
+# System Configuration
+system:
+  random_seed: 42
+  verbose: true
+
+# Model-specific overrides (optional)
+# Uncomment to override defaults for specific models
+# xgboost:
+#   n_estimators: 1000
+#   early_stopping_rounds: 50
+#   verbose: true
+#
+# lightgbm:
+#   n_estimators: 1000
+#   early_stopping_rounds: 50
+#   verbose: -1
+#
+# catboost:
+#   iterations: 1000
+#   early_stopping_rounds: 50
+#   verbose: False

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 usage() {
   cat <<'EOF'
@@ -52,7 +52,6 @@ BASE_TEMPLATES=(
   cpu-xgb-8h
   cpu-rf-8h
   cpu-xt-8h
-  cpu-knn-8h
   cpu-ebm-8h
 )
 
@@ -91,5 +90,7 @@ for tpl in "${TEMPLATES[@]}"; do
   if [[ -n "${PRESET}" || -n "${TIME_LIMIT}" || "${GPU_ENABLED}" == true ]]; then
     echo "    overrides: preset=${PRESET:-<template-default>} time_limit=${TIME_LIMIT:-<template-default>} use_gpu=${GPU_ENABLED}"
   fi
-  "${cmd[@]}"
+  if ! "${cmd[@]}"; then
+    echo "    [warn] Template ${tpl} failed; continuing to next."
+  fi
 done

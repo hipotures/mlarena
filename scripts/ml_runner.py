@@ -549,6 +549,14 @@ def run(args: argparse.Namespace):
         snapshot_override=snapshot_override,
     )
 
+    if any([args.time_limit is not None, args.preset, args.use_gpu is not None, args.ag_smoke]):
+        hp = runner.config.hyperparameters
+        console.print(
+            f"[dim]Overrides → preset={hp.presets or '<template>'} "
+            f"time_limit={hp.time_limit or '<template>'} "
+            f"use_gpu={int(bool(hp.use_gpu))}[/dim]"
+        )
+
     try:
         result = runner.execute()
     except ModuleStateError as exc:

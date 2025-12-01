@@ -1215,12 +1215,34 @@ def run_init_project(args):
     )
     console.print("  [green]✓[/green] configs/ (templates + presets)")
 
-    # AutoGluon baseline model
-    shutil.copy(
-        template_project / "code/models/autogluon_baseline.py",
-        project_root / "code/models/autogluon_baseline.py",
-    )
-    console.print("  [green]✓[/green] code/models/autogluon_baseline.py")
+    # AutoGluon baseline model (symlink to shared template)
+    baseline_src = template_project / "code/models/autogluon_baseline.py"
+    baseline_dst = project_root / "code/models/autogluon_baseline.py"
+    try:
+        if baseline_dst.is_symlink() or baseline_dst.exists():
+            baseline_dst.unlink()
+        os.symlink(baseline_src, baseline_dst)
+        console.print("  [green]✓[/green] code/models/autogluon_baseline.py (symlink)")
+    except OSError as exc:
+        shutil.copy(baseline_src, baseline_dst)
+        console.print(
+            f"  [yellow]![/yellow] code/models/autogluon_baseline.py copied (symlink failed: {exc})"
+        )
+
+    # AutoGluon baseline FE model (link to shared template to avoid per-project edits)
+    fe_src = template_project / "code/models/autogluon_baseline_fe.py"
+    fe_dst = project_root / "code/models/autogluon_baseline_fe.py"
+    try:
+        if fe_dst.is_symlink() or fe_dst.exists():
+            fe_dst.unlink()
+        os.symlink(fe_src, fe_dst)
+        console.print("  [green]✓[/green] code/models/autogluon_baseline_fe.py (symlink)")
+    except OSError as exc:
+        # Fallback: copy if symlink unsupported (e.g., limited permissions)
+        shutil.copy(fe_src, fe_dst)
+        console.print(
+            f"  [yellow]![/yellow] code/models/autogluon_baseline_fe.py copied (symlink failed: {exc})"
+        )
 
     # code/utils/submission.py (wrapper - use as-is)
     shutil.copy(

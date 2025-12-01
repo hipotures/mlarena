@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -170,14 +171,86 @@ def load_tracker_scores(project_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     return json.loads(tracker_path.read_text())
 
 
+def _safe_read_json(path: Path) -> Optional[Dict[str, Any]]:
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+def build_tracker_cache_from_state(project_ctx: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    cache: Dict[str, Dict[str, Any]] = {}
+    state_files = sorted((project_ctx["experiments_dir"]).glob("exp-*/state.json"))
+    for sf in state_files:
+        data = _safe_read_json(sf)
+        if not data:
+            continue
+        modules = data.get("modules", {})
+        predict_mod = modules.get("predict", {})
+        model_mod = modules.get("model", {})
+        submission_file = predict_mod.get("submission_file") or model_mod.get("submission_file")
+        if not submission_file:
+            continue
+        filename = Path(submission_file).name
+        local_cv = predict_mod.get("local_cv") or model_mod.get("local_cv")
+        public_score = predict_mod.get("public_score") or modules.get("submit", {}).get("public_score")
+        template = predict_mod.get("template") or model_mod.get("template")
+        cache[filename] = {
+            "filename": filename,
+            "local_cv_score": local_cv,
+            "public_score": public_score,
+            "template": template,
+        }
+    return cache
+
+
+def merged_tracker_entries(project_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Merge submissions tracker with experiment state cache (fills missing scores)."""
+    try:
+        tracker_entries = load_tracker_scores(project_ctx)
+    except FileNotFoundError:
+        tracker_entries = []
+    cache = build_tracker_cache_from_state(project_ctx)
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for entry in tracker_entries:
+        fname = entry.get("filename")
+        if not fname:
+            continue
+        merged[fname] = entry
+
+    for fname, entry in cache.items():
+        existing = merged.get(fname)
+        if existing:
+            if existing.get("local_cv_score") is None and entry.get("local_cv_score") is not None:
+                existing["local_cv_score"] = entry.get("local_cv_score")
+            if existing.get("public_score") is None and entry.get("public_score") is not None:
+                existing["public_score"] = entry.get("public_score")
+            if existing.get("template") is None and entry.get("template") is not None:
+                existing["template"] = entry.get("template")
+        else:
+            merged[fname] = entry
+    return list(merged.values())
+
+
 def select_models_from_tracker(project_ctx: Dict[str, Any], source: str, top_n: int) -> List[str]:
-    tracker = load_tracker_scores(project_ctx)
+    tracker = merged_tracker_entries(project_ctx)
     key = "public_score" if source == "public" else "local_cv_score"
-    scored = [s for s in tracker if s.get(key) is not None and s.get("filename")]
+    scored = []
+    for s in tracker:
+        val = s.get(key)
+        if val is None:
+            continue
+        if isinstance(val, (float, np.floating)) and math.isnan(val):
+            continue
+        if not s.get("filename"):
+            continue
+        scored.append(s)
     if not scored:
         raise RuntimeError(f"No submissions in tracker with '{key}' available.")
     scored = sorted(scored, key=lambda x: x[key], reverse=True)
     if top_n > len(scored):
+        console.print(f"[yellow]Requested top {top_n} but only {len(scored)} models have {source} scores; using {len(scored)}.[/yellow]")
         top_n = len(scored)
     selected = scored[:top_n]
     files = [s["filename"] for s in selected]
@@ -193,21 +266,56 @@ def build_weights_from_tracker(
     """
     Build weights from submissions tracker using public or local scores.
     """
-    tracker = load_tracker_scores(project_ctx)
+    tracker = merged_tracker_entries(project_ctx)
     key = "public_score" if source == "public" else "local_cv_score"
     weights = []
     for model_file in model_files:
         name = Path(model_file).name
         entry = next((s for s in tracker if s.get("filename") == name), None)
         score = entry.get(key) if entry else None
-        weights.append(score if score is not None else 0.0)
+        if score is None or (isinstance(score, (float, np.floating)) and math.isnan(score)):
+            weights.append(0.0)
+        else:
+            weights.append(score)
     arr = np.array(weights, dtype=float)
+    arr = np.nan_to_num(arr, nan=0.0)
     if np.all(arr == 0):
         console.print(f"[yellow]Tracker has no {source} scores for provided models; falling back to equal weights.[/yellow]")
         return [1.0 / len(model_files)] * len(model_files)
     arr = arr / arr.sum()
     console.print(f"[green]✓[/green] Weights from {source} scores: {arr}")
     return arr.tolist()
+
+
+def build_local_cv_map(project_ctx: Dict[str, Any], model_files: List[str], model_names: List[str]) -> Dict[str, Optional[float]]:
+    """Return map of model name -> local CV using tracker + state cache."""
+    entries = merged_tracker_entries(project_ctx)
+    by_filename = {e.get("filename"): e for e in entries if e.get("filename")}
+    result: Dict[str, Optional[float]] = {}
+    for mf, name in zip(model_files, model_names):
+        fname = Path(mf).name
+        entry = by_filename.get(fname)
+        if not entry:
+            result[name] = None
+            continue
+        lcv = entry.get("local_cv_score")
+        if isinstance(lcv, (float, np.floating)) and math.isnan(lcv):
+            result[name] = None
+        else:
+            result[name] = lcv if isinstance(lcv, (int, float)) else None
+    return result
+
+
+def build_template_map(project_ctx: Dict[str, Any], model_files: List[str], model_names: List[str]) -> Dict[str, Optional[str]]:
+    """Return map of model name -> template (if available)."""
+    entries = merged_tracker_entries(project_ctx)
+    by_filename = {e.get("filename"): e for e in entries if e.get("filename")}
+    result: Dict[str, Optional[str]] = {}
+    for mf, name in zip(model_files, model_names):
+        fname = Path(mf).name
+        entry = by_filename.get(fname)
+        result[name] = entry.get("template") if entry else None
+    return result
 
 
 def _param_space_fn(name: str):
@@ -633,18 +741,19 @@ def run_stacking(
         console.print(f"[green]✓[/green] Saved ensemble submission: {output_path}")
 
         # Display ensemble statistics
-        tracker_map = None
-        if model_files:
-            try:
-                tracker_entries = load_tracker_scores(project_ctx)
-                tracker_map = {}
-                for mf, stem in zip(model_files, model_names):
-                    entry = next((e for e in tracker_entries if e.get("filename") == Path(mf).name), None)
-                    if entry:
-                        tracker_map[stem] = entry.get("local_cv_score")
-            except Exception:
-                tracker_map = None
-        display_ensemble_stats(predictions, ensemble_pred, model_names, project_ctx["name"], output_path, tracker_map)
+        local_cv_map = build_local_cv_map(project_ctx, model_files, model_names) if model_files else None
+        template_map = build_template_map(project_ctx, model_files, model_names) if model_files else None
+        weight_list = blend_weights if strategy == "blend" else None
+        display_ensemble_stats(
+            predictions,
+            ensemble_pred,
+            model_names,
+            project_ctx["name"],
+            output_path,
+            local_cv_map,
+            weight_list,
+            template_map,
+        )
 
         # Complete module
         metadata = {
@@ -683,38 +792,55 @@ def display_ensemble_stats(
     project_name: str,
     output_path: Path,
     local_cv_map: Dict[str, Optional[float]] | None = None,
+    weights: Optional[List[float]] = None,
+    template_map: Dict[str, Optional[str]] | None = None,
 ) -> None:
     """Display ensemble statistics."""
     table = Table(title="Ensemble Statistics")
     table.add_column("Model", style="cyan")
+    table.add_column("Template", style="cyan")
     table.add_column("Local CV", style="yellow")
     table.add_column("Mean", style="yellow")
     table.add_column("Std", style="yellow")
     table.add_column("Correlation", style="green")
+    table.add_column("Weight", style="magenta")
+
+    def _fmt_val(val: Optional[float]) -> str:
+        if val is None:
+            return "-"
+        try:
+            if isinstance(val, (float, np.floating)) and (math.isnan(val) or math.isinf(val)):
+                return "-"
+            return f"{float(val):.5f}"
+        except Exception:
+            return "-"
 
     # Individual models
     for i, (pred, name) in enumerate(zip(predictions, model_names)):
         corr = pred.corr(ensemble_pred)
-        lcv = "-"
-        if local_cv_map is not None:
-            lval = local_cv_map.get(name)
-            if isinstance(lval, (int, float)):
-                lcv = f"{lval:.5f}"
+        lcv = local_cv_map.get(name) if local_cv_map else None
+        w = weights[i] if weights is not None and i < len(weights) else None
+        template = template_map.get(name) if template_map else None
         table.add_row(
             name,
-            lcv,
-            f"{pred.mean():.5f}",
-            f"{pred.std():.5f}",
-            f"{corr:.5f}"
+            template or "-",
+            _fmt_val(lcv),
+            _fmt_val(np.nanmean(pred)),
+            _fmt_val(np.nanstd(pred)),
+            _fmt_val(corr),
+            _fmt_val(w),
         )
 
     # Ensemble
+    ens_weight = 1.0 if weights is not None else None
     table.add_row(
         "[bold]Ensemble[/bold]",
         "-",
-        f"[bold]{ensemble_pred.mean():.5f}[/bold]",
-        f"[bold]{ensemble_pred.std():.5f}[/bold]",
-        "[bold]1.00000[/bold]"
+        "-",
+        f"[bold]{_fmt_val(np.nanmean(ensemble_pred))}[/bold]",
+        f"[bold]{_fmt_val(np.nanstd(ensemble_pred))}[/bold]",
+        "[bold]1.00000[/bold]",
+        _fmt_val(ens_weight),
     )
 
     console.print(table)
@@ -728,22 +854,26 @@ def display_ensemble_stats(
             corr = predictions[i].corr(predictions[j])
             correlations.append(corr)
 
-    avg_corr = np.mean(correlations)
-    console.print(f"  Average pairwise correlation: {avg_corr:.5f}")
-    console.print(f"  Min correlation: {min(correlations):.5f}")
-    console.print(f"  Max correlation: {max(correlations):.5f}")
+    correlations = [c for c in correlations if c is not None and not (isinstance(c, float) and math.isnan(c))]
+    if correlations:
+        avg_corr = float(np.mean(correlations))
+        console.print(f"  Average pairwise correlation: {avg_corr:.5f}")
+        console.print(f"  Min correlation: {min(correlations):.5f}")
+        console.print(f"  Max correlation: {max(correlations):.5f}")
 
-    if avg_corr > 0.95:
-        console.print(f"  [yellow]⚠ High correlation - models may be too similar[/yellow]")
-    elif avg_corr < 0.7:
-        console.print(f"  [green]✓ Good diversity - models are complementary[/green]")
+        if avg_corr > 0.95:
+            console.print(f"  [yellow]⚠ High correlation - models may be too similar[/yellow]")
+        elif avg_corr < 0.7:
+            console.print(f"  [green]✓ Good diversity - models are complementary[/green]")
+    else:
+        console.print("  Correlation stats: -")
 
     console.print(
-        f"\n[yellow]Next steps:[/yellow] "
-        f"Submit with "
-        f"`python scripts/experiment_manager.py submit --project {project_name} "
-        f"--filename {output_path.name}` "
-        f"or rerun stack with `--output-name` of your choice."
+        "\n[yellow]Next steps:[/yellow]\n"
+        "python scripts/experiment_manager.py submit \\\n"
+        f"  --project {project_name} \\\n"
+        f"  --filename {output_path.name}\n"
+        "(add --output-name to pick a different filename)"
     )
 
 

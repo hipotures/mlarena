@@ -61,6 +61,9 @@ def train(
     }
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
+    included_models = getattr(config.hyperparameters, "included_model_types", None)
+    if included_models:
+        fit_kwargs["included_model_types"] = included_models
 
     predictor.fit(
         train_data,

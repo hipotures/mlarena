@@ -85,7 +85,11 @@ def train(
     )
 
     leaderboard = predictor.leaderboard(train_data, silent=True)
-    local_cv = float(leaderboard.iloc[0]["score_val"]) if not leaderboard.empty else None
+    local_cv = None
+    if not leaderboard.empty and "score_val" in leaderboard:
+        scores = leaderboard["score_val"].dropna()
+        if not scores.empty:
+            local_cv = float(scores.max())
     summary = {"local_cv": local_cv}
     return predictor, summary
 

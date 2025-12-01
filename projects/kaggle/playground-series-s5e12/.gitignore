@@ -15,6 +15,7 @@ data/*.zip
 # Experiment outputs
 experiments/*.params
 experiments/*.journal
+experiments/*/artifacts/
 *.journal
 
 # Jupyter

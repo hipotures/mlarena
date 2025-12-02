@@ -509,6 +509,7 @@ def _process_pipeline(
     cat_overrides = set(cfg.get("categorical_overrides") or [])
     num_overrides = set(cfg.get("numeric_overrides") or [])
 
+    te_features_enabled = bool(cfg.get("target_encoding_features", True))
     cat_cols, num_cols = _infer_cols(df, meta, cat_overrides, num_overrides)
     fill_missing = bool(cfg.get("fill_missing", True))
     string_clean = bool(cfg.get("string_clean", True))
@@ -550,7 +551,7 @@ def _process_pipeline(
         cat_cols.extend(combo_cols)
 
     te_cfg = cfg.get("target_encoding", {}) or {}
-    te_enabled = bool(te_cfg.get("enabled", True))
+    te_enabled = te_features_enabled and bool(te_cfg.get("enabled", True))
     target = meta.get("target")
 
     if te_enabled and target and (target in df.columns or te_state):

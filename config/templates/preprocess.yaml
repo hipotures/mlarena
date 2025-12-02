@@ -27,3 +27,4 @@ templates:
         seed: 42
       categorical_overrides: []
       numeric_overrides: []
+      correlation_threshold: 0.99

@@ -419,11 +419,26 @@ class MLRunner:
                 "test": list(test_fe.shape),
             },
             "state_keys": sorted(list(state_dict.keys())) if isinstance(state_dict, dict) else [],
+            "drop_summary": state_dict.get("drop_summary", {}) if isinstance(state_dict, dict) else {},
         }
         self._save_preprocess_cache(paths, train_fe, val_fe, test_fe, state_dict, meta)
         self.preprocess_record = self._build_preprocess_record(
             paths, state_dict, meta, used_cached=False, resolved_config=preprocess_config, cache_sig=self.preprocess_cache_sig or ""
         )
+        drop_info = meta.get("drop_summary") or state_dict.get("drop_summary") if isinstance(state_dict, dict) else {}
+        console.print(
+            f"[cyan]Preprocessed shapes[/cyan]: "
+            f"train={meta['shapes']['train']}, "
+            f"val={meta['shapes']['val']}, "
+            f"test={meta['shapes']['test']}"
+        )
+        if drop_info:
+            console.print(
+                f"[cyan]Feature selection[/cyan]: "
+                f"before={drop_info.get('before','?')} "
+                f"const_dropped={drop_info.get('const_dropped','?')} "
+                f"corr_dropped={drop_info.get('corr_dropped','?')}"
+            )
         return train_fe, val_fe, test_fe
 
     def _feature_paths(self) -> Dict[str, Path]:

@@ -142,10 +142,10 @@ class SubmissionRunner:
         _add(exp_id)
         _add(f"local {local:.5f}" if local is not None else None)
         _add(model_token)
-        _add(filename_token)
         _add(f"features: {fc}" if fc is not None else None)
         _add("smoke" if smoke else None)
         _add(stack_suffix)
+        _add(filename_token)  # filename last per requested ordering
 
         return " | ".join(parts)
 

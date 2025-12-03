@@ -179,8 +179,12 @@ def _add_binning_features(df: pl.DataFrame, num_cols: list[str], cfg: Dict[str, 
     if not (quantile_bins or uniform_bins or log1p_bins):
         return df
 
+    # Optional: limit binning to specific columns to mitigate drift
+    target_cols = cfg.get("quantile_cols")
+    cols_to_bin = [c for c in num_cols if (not target_cols or c in target_cols)]
+
     exprs: List[pl.Expr] = []
-    for col in num_cols:
+    for col in cols_to_bin:
         for q in quantile_bins:
             exprs.append(
                 pl.col(col)

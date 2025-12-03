@@ -143,9 +143,14 @@ templates:
       target_encoding_features: false
       fill_missing: true
       string_clean: true
-      quantile_bins: []
+      quantile_bins: [10, 20]
       uniform_bins: []
       log1p_bins: []
+      quantile_cols:
+        - physical_activity_minutes_per_week
+        - triglycerides
+        - cholesterol_total
+        - ldl_cholesterol
       target_encoding:
         enabled: true
         folds: 5

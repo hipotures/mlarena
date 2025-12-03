@@ -17,7 +17,7 @@ TEST_PATH = DATA_DIR / "test.csv"
 SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv"
 
 # Model settings
-RANDOM_SEED = 42
+RANDOM_SEED = 47
 N_FOLDS = 5
 
 # Target column

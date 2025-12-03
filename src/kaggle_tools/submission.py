@@ -200,6 +200,7 @@ def create_submission(
     id_column: Optional[str] = None,
     default_id_col: str = "id",
     submission_probas: Optional[bool] = None,
+    feature_count: Optional[int] = None,
 ):
     """
     Create a submission file with timestamp and optional metric info.
@@ -228,6 +229,7 @@ def create_submission(
         default_target_col: Default target column name if sample not found
         submission_probas: If True, allow probability outputs even when the sample
             target column is integer-typed (skip int-only enforcement).
+        feature_count: Number of features used for training (after drops).
 
     Returns:
         SubmissionArtifact with path and metadata
@@ -315,7 +317,8 @@ def create_submission(
                 config=config,
                 experiment_id=experiment.get('experiment_id') if experiment else None,
                 git_hash=experiment['git']['hash'] if experiment else None,
-                code_path=code_rel
+                code_path=code_rel,
+                feature_count=feature_count,
             )
         except Exception as e:
             print(f"Warning: Could not add to tracker: {e}")
@@ -330,7 +333,8 @@ def create_submission(
         model_name=model_name or filename_prefix,
         local_cv_score=local_cv_score or metric_value,
         notes=notes,
-        config=config
+        config=config,
+        feature_count=feature_count,
     )
 
 

@@ -181,6 +181,8 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
     train_no_id = train_df.drop(columns=[c for c in drop_candidates if c in train_df.columns])
     test_no_id = test_df.drop(columns=[c for c in drop_candidates if c in test_df.columns])
 
+    feature_count = len(train_no_id.columns) - (1 if cfg.TARGET_COLUMN in train_no_id.columns else 0)
+
     predictor.fit(
         train_no_id,
         presets=params["preset"],
@@ -225,6 +227,8 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
         },
         track=False,  # Disable legacy ExperimentLogger - use experiment_manager tracking instead
     )
+    # Attach feature count for downstream tracking (message, tracker)
+    submission_artifact.feature_count = feature_count
 
     validate_fn = getattr(context.submission_module, "validate_submission", None)
     if callable(validate_fn):
@@ -235,6 +239,7 @@ def train_autogluon(context: ProjectContext, params: Dict[str, Any]) -> Dict[str
         "submission": submission_artifact,
         "best_score": best_score,
         "train_rows": len(train_df),
+        "feature_count": feature_count,
     }
 
 
@@ -291,6 +296,7 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
         {
             "template": params["template"],
             "local_cv": result["best_score"],
+            "feature_count": result.get("feature_count"),
             "submission_file": str(result["submission"].path.relative_to(context.root)),
             "config": params,
             "code_snapshot": str(snapshot_path.relative_to(context.root)),
@@ -301,9 +307,18 @@ def run(args: argparse.Namespace, default_project: Optional[str] = None):
         console.print("[yellow]Skipping Kaggle submission workflow (--skip-submit or KAGGLE_SKIP_SUBMIT).[/yellow]")
         return
 
+    default_message = SubmissionRunner.build_message(
+        result["submission"],
+        experiment_id=manager.experiment_id,
+        local_score=result.get("best_score"),
+        model_label=params.get("preset"),
+        feature_count=result.get("feature_count"),
+        smoke=bool(args.ag_smoke),
+    )
+
     runner = SubmissionRunner(
         artifact=result["submission"],
-        kaggle_message=args.kaggle_message or f"{context.name} | {params['preset']} | local {result['best_score']:.5f}",
+        kaggle_message=args.kaggle_message or default_message,
         wait_seconds=args.wait_seconds,
         cdp_url=args.cdp_url,
         auto_submit=args.auto_submit,

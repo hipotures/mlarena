@@ -21,7 +21,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import sys
+import json
 
+import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 
@@ -46,6 +48,7 @@ class SubmissionArtifact:
     local_cv_score: Optional[float] = None
     notes: str = ""
     config: Optional[Dict[str, Any]] = None
+    feature_count: Optional[int] = None
 
     def tracker_id(self) -> Optional[int]:
         if self.tracker_entry:
@@ -55,6 +58,96 @@ class SubmissionArtifact:
 
 class SubmissionRunner:
     """End-to-end Kaggle submission pipeline."""
+
+    @staticmethod
+    def _compute_feature_count(artifact: SubmissionArtifact) -> Optional[int]:
+        """Determine feature count from artifact metadata or project config."""
+        count = getattr(artifact, "feature_count", None)
+        if count is None and artifact.tracker_entry:
+            count = artifact.tracker_entry.get("feature_count")
+
+        train_path = None
+        target_col = None
+        ignored_cols: List[str] = []
+        dataset_cfg = (artifact.config or {}).get("dataset") if isinstance(artifact.config, dict) else None
+        if dataset_cfg:
+            train_path = dataset_cfg.get("train_path")
+            target_col = dataset_cfg.get("target")
+            ignored_cols = list(dataset_cfg.get("ignored_columns") or [])
+            id_col = dataset_cfg.get("id_column")
+            if id_col and id_col not in ignored_cols:
+                ignored_cols.append(id_col)
+
+        if train_path is None or target_col is None:
+            try:
+                project_root, config = _load_project_context(artifact.project_root.name)
+                train_path = train_path or getattr(config, "TRAIN_PATH", None)
+                target_col = target_col or getattr(config, "TARGET_COLUMN", None)
+                ignored_cols = ignored_cols or list(getattr(config, "IGNORED_COLUMNS", []))
+                id_col = getattr(config, "ID_COLUMN", None)
+                if id_col and id_col not in ignored_cols:
+                    ignored_cols.append(id_col)
+                # Prefer absolute paths
+                if train_path and not Path(train_path).is_absolute():
+                    train_path = (project_root / train_path).resolve()
+            except Exception:
+                pass
+
+        if count is None and train_path and Path(train_path).exists():
+            try:
+                df = pd.read_csv(train_path, nrows=0)
+                columns = list(df.columns)
+                feature_cols = [
+                    col for col in columns
+                    if col != target_col and col not in set(ignored_cols or [])
+                ]
+                count = len(feature_cols)
+            except Exception:
+                count = None
+
+        return count
+
+    @classmethod
+    def build_message(
+        cls,
+        artifact: SubmissionArtifact,
+        *,
+        experiment_id: Optional[str] = None,
+        local_score: Optional[float] = None,
+        model_label: Optional[str] = None,
+        feature_count: Optional[int] = None,
+        smoke: bool = False,
+        stack_suffix: Optional[str] = None,
+    ) -> str:
+        fc = feature_count if feature_count is not None else cls._compute_feature_count(artifact)
+        exp_id = experiment_id or (artifact.tracker_entry or {}).get("experiment_id")
+        local = local_score if local_score is not None else artifact.local_cv_score
+        model_token = model_label or artifact.model_name
+        filename_token = artifact.filename
+        if model_token and filename_token and str(model_token).strip() == str(filename_token).strip():
+            model_token = None  # avoid duplicate tokens
+
+        parts: List[str] = []
+        seen: set[str] = set()
+
+        def _add(token: Optional[str]):
+            if token is None:
+                return
+            tok = str(token).strip()
+            if not tok or tok in seen:
+                return
+            parts.append(tok)
+            seen.add(tok)
+
+        _add(exp_id)
+        _add(f"local {local:.5f}" if local is not None else None)
+        _add(model_token)
+        _add(filename_token)
+        _add(f"features: {fc}" if fc is not None else None)
+        _add("smoke" if smoke else None)
+        _add(stack_suffix)
+
+        return " | ".join(parts)
 
     def __init__(
         self,
@@ -73,7 +166,7 @@ class SubmissionRunner:
         experiment_id: Optional[str] = None,
     ):
         self.artifact = artifact
-        self.kaggle_message = kaggle_message or self._default_message()
+        self.experiment_id = experiment_id
         self.wait_seconds = wait_seconds
         self.cdp_url = cdp_url
         self.auto_submit = auto_submit
@@ -84,7 +177,7 @@ class SubmissionRunner:
         self.extra_stage_paths = extra_stage_paths or []
         self.repo_root = artifact.project_root.parent
         self.resume_mode = resume_mode
-        self.experiment_id = experiment_id
+        self._feature_count_cache: Optional[int] = None
         self._experiment_manager = None
         self._submit_already_completed = False
         if experiment_id:
@@ -95,21 +188,38 @@ class SubmissionRunner:
             if submit_entry.get("status") == "completed":
                 console.print("[yellow]Module 'submit' already completed, updating scores only...[/yellow]")
                 self._submit_already_completed = True
-            else:
-                self._experiment_manager.start_module(
-                    "submit",
-                    {
-                        "kaggle_message": self.kaggle_message,
-                        "resume_mode": resume_mode,
-                    },
-                    allow_restart=True,
-                )
+
+        # Build message after ExperimentManager init so stack info can be picked up
+        self.kaggle_message = kaggle_message or self._default_message()
+
+        if experiment_id and not self._submit_already_completed:
+            self._experiment_manager.start_module(
+                "submit",
+                {
+                    "kaggle_message": self.kaggle_message,
+                    "resume_mode": resume_mode,
+                },
+                allow_restart=True,
+            )
+
+    def _print_submission_message(self):
+        """Display the exact Kaggle message and submission details before prompting."""
+        fc = self._resolve_feature_count()
+        lines = [
+            f"[bold]Kaggle message:[/bold] {self.kaggle_message}",
+            f"File: {self.artifact.filename}",
+            f"Competition: {self.artifact.competition}",
+        ]
+        if fc is not None:
+            lines.append(f"Features: {fc}")
+        if self.experiment_id:
+            lines.append(f"Experiment: {self.experiment_id}")
+        console.print(Panel.fit("\n".join(lines), title="Submission Preview", border_style="cyan"))
 
     def _default_message(self) -> str:
-        parts = []
         exp_id = self.experiment_id or (self.artifact.tracker_entry or {}).get("experiment_id")
+        stack_suffix = None
         if exp_id:
-            parts.append(exp_id)
             try:
                 mgr = ExperimentManager.load_existing(self.artifact.project_root.name, exp_id)
                 stack_mod = mgr.get_module("stack")
@@ -117,16 +227,27 @@ class SubmissionRunner:
                     strategy = stack_mod.get("strategy") or "stack"
                     method = stack_mod.get("blend_method") or stack_mod.get("meta_model")
                     n_models = stack_mod.get("n_models")
-                    parts.append(f"{strategy}{':' + method if method else ''}")
+                    stack_suffix = f"{strategy}{':' + method if method else ''}"
                     if n_models:
-                        parts.append(f"models {n_models}")
+                        stack_suffix += f" models {n_models}"
             except Exception:
                 pass
 
-        parts.append(self.artifact.model_name or self.artifact.filename)
-        if self.artifact.local_cv_score is not None:
-            parts.append(f"local {self.artifact.local_cv_score:.5f}")
-        return " | ".join(parts)
+        return self.build_message(
+            self.artifact,
+            experiment_id=exp_id,
+            local_score=self.artifact.local_cv_score,
+            model_label=self.artifact.model_name,
+            feature_count=self._resolve_feature_count(),
+            stack_suffix=stack_suffix,
+        )
+
+    def _resolve_feature_count(self) -> Optional[int]:
+        """Determine feature count from artifact metadata or project config."""
+        if self._feature_count_cache is not None:
+            return self._feature_count_cache
+        self._feature_count_cache = self._compute_feature_count(self.artifact)
+        return self._feature_count_cache
 
     def execute(self) -> Optional[Dict[str, Any]]:
         """Run the submission workflow end-to-end."""
@@ -137,6 +258,7 @@ class SubmissionRunner:
                 console.print("[yellow]Skipping Kaggle submission (flag enabled).[/yellow]")
                 skip_only = not self.resume_mode
             else:
+                self._print_submission_message()
                 if self.prompt and not self.auto_submit:
                     if not self._confirm():
                         console.print("[yellow]Submission aborted by user.[/yellow]")
@@ -331,6 +453,7 @@ class SubmissionRunner:
         local_cv = self.artifact.local_cv_score
         if local_cv is None and score_data:
             local_cv = score_data.get("local_cv")
+        feature_count = getattr(self.artifact, "feature_count", None) or self._resolve_feature_count()
         if tracker_id is None:
             console.print("[yellow]Tracker entry missing; creating new submission entry.[/yellow]")
             entry = tracker.add_submission(
@@ -340,10 +463,12 @@ class SubmissionRunner:
                 notes=self.artifact.notes or "Auto-added via resume",
                 config=self.artifact.config,
                 public_score=public_score,
+                feature_count=feature_count,
             )
             self.artifact.tracker_entry = entry
             tracker_id = entry["id"]
             self.artifact.local_cv_score = local_cv
+            self.artifact.feature_count = feature_count
         else:
             tracker.update_scores(submission_id=tracker_id, public_score=public_score)
             if local_cv is not None and (self.artifact.tracker_entry is None or not self.artifact.tracker_entry.get("local_cv_score")):
@@ -354,6 +479,15 @@ class SubmissionRunner:
                         self.artifact.local_cv_score = local_cv
                         if self.artifact.tracker_entry:
                             self.artifact.tracker_entry["local_cv_score"] = local_cv
+                        break
+            if feature_count is not None and (self.artifact.tracker_entry is None or not self.artifact.tracker_entry.get("feature_count")):
+                for sub in tracker.submissions:
+                    if sub["id"] == tracker_id:
+                        sub["feature_count"] = feature_count
+                        tracker._save_submissions()
+                        self.artifact.feature_count = feature_count
+                        if self.artifact.tracker_entry:
+                            self.artifact.tracker_entry["feature_count"] = feature_count
                         break
         return tracker_id
 
@@ -366,6 +500,9 @@ class SubmissionRunner:
             "tracker_id": self.artifact.tracker_id(),
             "local_cv": self.artifact.local_cv_score,
         }
+        feature_count = getattr(self.artifact, "feature_count", None) or self._resolve_feature_count()
+        if feature_count is not None:
+            payload["feature_count"] = feature_count
         if score_data:
             payload["public_score"] = score_data.get("public_score")
             if score_data.get("row_text"):
@@ -454,6 +591,33 @@ def _load_project_context(project_name: str):
     return project_root, config
 
 
+def _infer_experiment_from_submission(project_root: Path, filename: str) -> Dict[str, Any]:
+    """Attempt to infer experiment metadata from state files referencing the submission."""
+    experiments_dir = project_root / "experiments"
+    if not experiments_dir.exists():
+        return {}
+
+    for state_path in experiments_dir.glob("exp-*/state.json"):
+        try:
+            payload = json.loads(state_path.read_text())
+        except Exception:
+            continue
+        predict_mod = (payload.get("modules") or {}).get("predict") or {}
+        submission_file = predict_mod.get("submission_file")
+        if not submission_file:
+            continue
+        sub_name = Path(submission_file).name
+        if sub_name != filename:
+            continue
+        return {
+            "experiment_id": payload.get("experiment_id"),
+            "local_cv": predict_mod.get("local_cv"),
+            "model_label": predict_mod.get("template") or predict_mod.get("model"),
+            "feature_count": predict_mod.get("feature_count"),
+        }
+    return {}
+
+
 def _build_artifact_from_filename(project_name: str, filename: str) -> SubmissionArtifact:
     project_root, config = _load_project_context(project_name)
     submission_path = project_root / "submissions" / filename
@@ -462,10 +626,16 @@ def _build_artifact_from_filename(project_name: str, filename: str) -> Submissio
 
     tracker = SubmissionsTracker(project_root)
     tracker_entry = next((s for s in tracker.submissions if s["filename"] == filename), None)
-    model_name = (tracker_entry or {}).get("model_name", filename)
-    local_cv = (tracker_entry or {}).get("local_cv_score")
-    notes = (tracker_entry or {}).get("notes", "")
-    config_dict = (tracker_entry or {}).get("config")
+    inferred = _infer_experiment_from_submission(project_root, filename)
+
+    tracker_entry = tracker_entry or {}
+    if inferred.get("experiment_id") and not tracker_entry.get("experiment_id"):
+        tracker_entry["experiment_id"] = inferred["experiment_id"]
+    model_name = tracker_entry.get("model_name") or inferred.get("model_label") or filename
+    local_cv = tracker_entry.get("local_cv_score", inferred.get("local_cv"))
+    notes = tracker_entry.get("notes", "")
+    config_dict = tracker_entry.get("config")
+    feature_count = tracker_entry.get("feature_count", inferred.get("feature_count"))
 
     return SubmissionArtifact(
         path=submission_path,
@@ -478,6 +648,7 @@ def _build_artifact_from_filename(project_name: str, filename: str) -> Submissio
         local_cv_score=local_cv,
         notes=notes,
         config=config_dict,
+        feature_count=feature_count,
     )
 
 
@@ -513,8 +684,8 @@ def _run_submit(args):
         kaggle_message=args.kaggle_message,
         wait_seconds=args.wait_seconds,
         cdp_url=args.cdp_url,
-        auto_submit=True,
-        prompt=False,
+        auto_submit=False,
+        prompt=True,
         skip_submit=False,
         skip_browser=args.skip_score_fetch,
         skip_git=args.skip_git,

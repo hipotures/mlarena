@@ -1,33 +1,48 @@
 """
 Optimized Feature-engineering + target-encoding module using pure Polars logic.
+Includes GPU-accelerated Feature Selection using XGBoost (inference on GPU).
 
 Highlights:
 - Polars-native binning (`cut`/`qcut`), rounding, digit features, pairwise cat combos
 - Target encoding fully in Polars (fold-wise), maps stored for inference
-- Optional feature selection: drop constant + highly correlated numeric columns
+- Feature Selection Stage 1: Drop constant + Redundant (Joint Cardinality) + Correlated
+- Feature Selection Stage 2: Permutation Importance on GPU via XGBoost
+  (Solves the CPU bottleneck by moving inference to GPU)
 - Outputs pandas DataFrames for downstream model compatibility
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+import os
+import pyarrow as pa
 
 import numpy as np
 import pandas as pd
 import polars as pl
+from sklearn.metrics import roc_auc_score, mean_squared_error
+
+# Try importing XGBoost (Preferred for GPU Inference)
+try:
+    import xgboost as xgb
+    XGB_AVAILABLE = True
+except ImportError:
+    XGB_AVAILABLE = False
+
+# Try importing cuDF (RAPIDS) for full GPU pipeline
+try:
+    import cudf
+    CUDF_AVAILABLE = True
+except ImportError:
+    CUDF_AVAILABLE = False
 
 MISSING_TOKEN = "<MISSING>"
 
 # Polars type buckets
 INT_TYPES = {
-    pl.Int8,
-    pl.Int16,
-    pl.Int32,
-    pl.Int64,
-    pl.UInt8,
-    pl.UInt16,
-    pl.UInt32,
-    pl.UInt64,
+    pl.Int8, pl.Int16, pl.Int32, pl.Int64,
+    pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64,
 }
 FLOAT_TYPES = {pl.Float32, pl.Float64}
 
@@ -260,92 +275,281 @@ def _apply_te_inference_polars(df: pl.DataFrame, te_state: Dict[str, Any]) -> pl
 
 def _identify_drop_cols(df: pl.DataFrame, cfg: Dict[str, Any], meta: Dict[str, Any]) -> List[str]:
     """
-    Identifies constant and redundant columns.
-    Uses joint cardinality to drop isomorphic categorical/bin features (e.g., log vs linear bins).
+    Stage 1: Drop Constant + Redundant (Joint Cardinality) + Correlated
     """
     target = meta.get("target")
     before = len(df.columns)
-
     candidates = [c for c in df.columns if c != target]
     if not candidates:
         return []
 
-    # Precompute n_unique for all candidates
     n_unique_map = df.select([pl.col(c).n_unique().alias(c) for c in candidates]).row(0, named=True)
-
     drop_cols = set()
 
-    # Constant columns
+    # Constant
     for col, nu in n_unique_map.items():
-        if nu <= 1:
-            drop_cols.add(col)
+        if nu <= 1: drop_cols.add(col)
 
-    # Redundant categoricals via joint cardinality
+    # Redundant Categorical
     candidates_by_nu: Dict[int, List[str]] = {}
     for col, nu in n_unique_map.items():
-        if col in drop_cols:
-            continue
-        if df.schema[col] in FLOAT_TYPES:
-            continue
+        if col in drop_cols: continue
+        if df.schema[col] in FLOAT_TYPES: continue
         candidates_by_nu.setdefault(nu, []).append(col)
 
     for nu, cols_group in candidates_by_nu.items():
-        if len(cols_group) < 2:
-            continue
+        if len(cols_group) < 2: continue
         cols_group.sort(key=lambda x: (len(x), x))
         for i in range(len(cols_group)):
             c1 = cols_group[i]
-            if c1 in drop_cols:
-                continue
+            if c1 in drop_cols: continue
             for j in range(i + 1, len(cols_group)):
                 c2 = cols_group[j]
-                if c2 in drop_cols:
-                    continue
+                if c2 in drop_cols: continue
                 pair_unique = df.select(pl.struct([c1, c2]).n_unique()).item()
-                if pair_unique == nu:
-                    drop_cols.add(c2)
+                if pair_unique == nu: drop_cols.add(c2)
 
-    # Correlated numeric columns
+    # Correlated Numeric
     corr_drop = set()
     corr_threshold = float(cfg.get("correlation_threshold", 0.99))
     if corr_threshold < 1.0:
-        num_candidates = [
-            c for c in df.columns
-            if c not in drop_cols and c != target and df.schema[c] in (INT_TYPES | FLOAT_TYPES)
-        ]
+        num_candidates = [c for c in df.columns if c not in drop_cols and c != target and df.schema[c] in (INT_TYPES | FLOAT_TYPES)]
         if len(num_candidates) > 1:
             try:
-                import cudf
-                pdf = cudf.from_arrow(df.select(num_candidates).to_arrow())
-                corr_matrix_df = pdf.corr()
-                cols = corr_matrix_df.columns.to_pandas().tolist()
-                mat = corr_matrix_df.to_numpy()
+                # Use cuDF if available for correlation
+                if CUDF_AVAILABLE:
+                    pdf = cudf.from_arrow(df.select(num_candidates).to_arrow())
+                else:
+                    pdf = df.select(num_candidates).to_pandas() # fallback
+                
+                # Check backend
+                if hasattr(pdf, 'to_pandas'): # It's cudf
+                    corr_matrix = pdf.corr().to_pandas()
+                else:
+                    corr_matrix = pdf.corr()
+                    
+                cols = corr_matrix.columns.tolist()
+                mat = corr_matrix.to_numpy()
             except Exception:
+                # Fallback to Polars CPU
                 corr_pl = df.select(num_candidates).corr()
                 cols = corr_pl.columns
                 mat = corr_pl.to_numpy()
 
             for i in range(len(cols)):
                 c1 = cols[i]
-                if c1 in drop_cols:
-                    continue
+                if c1 in drop_cols: continue
                 for j in range(i + 1, len(cols)):
                     c2 = cols[j]
-                    if c2 in drop_cols:
-                        continue
+                    if c2 in drop_cols: continue
                     if abs(mat[i, j]) > corr_threshold:
                         corr_drop.add(c2)
 
     drop_cols.update(corr_drop)
-
-    cfg["_drop_summary"] = {
-        "before": before,
-        "after": before - len(drop_cols),
-        "const_dropped": len({c for c, nu in n_unique_map.items() if nu <= 1}),
-        "corr_dropped": len(corr_drop),
-        "dropped_count": len(drop_cols),
-    }
+    cfg["_drop_summary_stage1"] = {"before": before, "after": before - len(drop_cols), "dropped_count": len(drop_cols)}
     return list(drop_cols)
+
+
+def _run_permutation_selection_gpu(
+    df: pl.DataFrame, target: str, cfg: Dict[str, Any]
+) -> Tuple[List[str], Dict[str, Any]]:
+    """
+    Stage 2: GPU-Accelerated Permutation Importance using XGBoost.
+    Uses 'gpu_predictor' to force inference on GPU, solving CPU bottlenecks.
+    """
+    if not XGB_AVAILABLE:
+        print("XGBoost not installed. Skipping selection.")
+        return df.columns, {}
+
+    features = [c for c in df.columns if c != target]
+    if not features:
+        return df.columns, {}
+
+    # 1. Prepare Data
+    # Convert Polars -> Pandas -> (Optional) cuDF
+    df_pd = df.to_pandas()
+    df_pd = df_pd.sample(frac=1.0, random_state=42).reset_index(drop=True)
+    split_idx = int(len(df_pd) * 0.8)
+    
+    train_pd = df_pd.iloc[:split_idx].copy()
+    val_pd = df_pd.iloc[split_idx:].copy()
+
+    # Determine Metric & Objective
+    n_unique_target = df[target].n_unique()
+    if n_unique_target <= 2:
+        objective = "binary:logistic"
+        eval_metric = "auc"
+        maximize = True
+        def scorer(y_true, y_pred):
+            return roc_auc_score(y_true, y_pred)
+    else:
+        objective = "reg:squarederror"
+        eval_metric = "rmse"
+        maximize = False
+        def scorer(y_true, y_pred):
+            return mean_squared_error(y_true, y_pred, squared=False)
+
+    # 2. Setup XGBoost with GPU
+    xgb_params = {
+        "tree_method": "hist",
+        "device": "cuda",             # Use GPU for training
+        "objective": objective,
+        "eval_metric": eval_metric,
+        "verbosity": 0,
+        "max_depth": 6,
+        "learning_rate": 0.05,
+        "n_estimators": 150,
+        "predictor": "gpu_predictor", # FORCE GPU INFERENCE
+    }
+
+    # Handle dtypes for XGBoost (no object/string allowed)
+    eda_types = _load_eda_types(cfg)
+    if eda_types:
+        for df_ in (train_pd, val_pd):
+            for col, kind in eda_types.items():
+                if col not in df_.columns or col == target:
+                    continue
+                if kind == "numeric":
+                    df_.loc[:, col] = pd.to_numeric(df_[col], errors="coerce")
+                elif kind == "categorical":
+                    df_.loc[:, col] = df_[col].astype("category")
+
+    # Force any remaining non-numeric columns to category to avoid object dtypes
+    for df_ in (train_pd, val_pd):
+        for c in df_.columns:
+            if c == target:
+                continue
+            if not pd.api.types.is_numeric_dtype(df_[c]):
+                df_.loc[:, c] = df_[c].astype("category")
+
+    for df_ in (train_pd, val_pd):
+        for c in df_.columns:
+            if c == target:
+                continue
+            if pd.api.types.is_object_dtype(df_[c]) or pd.api.types.is_string_dtype(df_[c]):
+                coerced = pd.to_numeric(df_[c], errors="coerce")
+                if coerced.notna().sum() == len(df_[c]):
+                    df_.loc[:, c] = coerced
+                else:
+                    df_.loc[:, c] = df_[c].astype("category")
+        obj_cols = df_.select_dtypes(include=["object"]).columns.tolist()
+        if obj_cols:
+            df_.loc[:, obj_cols] = df_.loc[:, obj_cols].astype("category")
+    cat_cols = train_pd.select_dtypes(include=['category']).columns.tolist()
+
+    # Extra safety: ensure no object dtypes remain before train/predict
+    for df_ in (train_pd, val_pd):
+        obj_cols = df_.select_dtypes(include=["object"]).columns.tolist()
+        if obj_cols:
+            df_.loc[:, obj_cols] = df_.loc[:, obj_cols].astype("category")
+
+    # 3. Train Probe Model
+    # If cuDF is available, move data to GPU to avoid CPU shuffling later
+    for df_ in (train_pd, val_pd):
+        obj_cols = df_.select_dtypes(include=["object"]).columns.tolist()
+        if obj_cols:
+            df_.loc[:, obj_cols] = df_.loc[:, obj_cols].astype("category")
+
+    if CUDF_AVAILABLE:
+        print("Using RAPIDS (cuDF) for full-GPU permutation loop...")
+        X_train = cudf.DataFrame.from_pandas(train_pd.drop(columns=[target]))
+        y_train = cudf.Series.from_pandas(train_pd[target])
+        X_val = cudf.DataFrame.from_pandas(val_pd.drop(columns=[target]))
+        y_val_cpu = val_pd[target].values # Keep true labels on CPU for scoring
+    else:
+        print("Using Pandas + XGBoost GPU Predictor...")
+        X_train = train_pd.drop(columns=[target]).copy()
+        y_train = train_pd[target].copy()
+        X_val = val_pd.drop(columns=[target]).copy()
+        obj_cols = X_train.select_dtypes(include=["object"]).columns.tolist()
+        if obj_cols:
+            X_train.loc[:, obj_cols] = X_train.loc[:, obj_cols].astype("category")
+            X_val.loc[:, obj_cols] = X_val.loc[:, obj_cols].astype("category")
+        obj_cols_val = X_val.select_dtypes(include=["object"]).columns.tolist()
+        if obj_cols_val:
+            X_val.loc[:, obj_cols_val] = X_val.loc[:, obj_cols_val].astype("category")
+        y_val_cpu = val_pd[target].values # Keep true labels on CPU for scoring
+
+    # Final guard: encode all non-numeric columns as category codes (avoids object)
+    def _encode_df(df: pd.DataFrame) -> pd.DataFrame:
+        def encode_col(col: pd.Series):
+            if pd.api.types.is_numeric_dtype(col):
+                return col
+            return col.astype("category").cat.codes
+        return df.apply(encode_col)
+
+    X_train = _encode_df(X_train)
+    X_val = _encode_df(X_val)
+
+    # Train
+    # enable_categorical=True is needed for pandas categorical
+    model = xgb.XGBModel(**xgb_params, enable_categorical=True)
+    model.fit(X_train, y_train)
+
+    # 4. Baseline Score
+    baseline_preds = model.predict(X_val)
+    # Move preds to CPU if they are on GPU (cupy/cudf)
+    if hasattr(baseline_preds, 'get'): 
+        baseline_preds = baseline_preds.get()
+    
+    baseline_score = scorer(y_val_cpu, baseline_preds)
+    print(f"Baseline Score ({eval_metric}): {baseline_score:.5f} | objective={objective} | features={len(features)}")
+
+    # 5. Permutation Loop
+    keep_features = []
+    drop_stats = []
+
+    # If cuDF, columns are on GPU. Shuffling is fast.
+    # If Pandas, columns are on CPU. Shuffling is slow, but predict is GPU.
+    
+    col_list = features
+    
+    for col in col_list:
+        # Backup column
+        if CUDF_AVAILABLE:
+            save_col = X_val[col].copy()
+            # GPU Shuffle
+            X_val[col] = X_val[col].sample(frac=1.0).values
+        else:
+            save_col = X_val[col].values.copy()
+            # CPU Shuffle
+            X_val[col] = np.random.permutation(X_val[col].values)
+        
+        # Predict (GPU)
+        shuff_preds = model.predict(X_val)
+        if hasattr(shuff_preds, 'get'): shuff_preds = shuff_preds.get()
+        
+        shuff_score = scorer(y_val_cpu, shuff_preds)
+        
+        # Restore column
+        if CUDF_AVAILABLE:
+            X_val[col] = save_col
+        else:
+            X_val[col] = save_col
+
+        # Calc Importance
+        if maximize: # AUC
+            imp = baseline_score - shuff_score # Positive = Useful
+        else: # RMSE
+            imp = shuff_score - baseline_score # Positive = Useful (error increased)
+
+        if imp > 0.00001: 
+            keep_features.append(col)
+        else:
+            drop_stats.append((col, imp))
+
+    print(f"Permutation Selection: Dropped {len(drop_stats)} features. Kept {len(keep_features)}.")
+    if drop_stats:
+        worst = sorted(drop_stats, key=lambda x: x[1])[:5]
+        print("Worst (harmful/neutral) features:", worst)
+    
+    final_cols = keep_features + [target]
+    stats = {
+        "baseline": baseline_score,
+        "dropped": len(drop_stats),
+        "worst_harmful": sorted(drop_stats, key=lambda x: x[1])[:10]
+    }
+    return final_cols, stats
 
 
 def _process_pipeline(
@@ -385,7 +589,6 @@ def _process_pipeline(
     df = _add_rounding_features(df, num_cols, cfg.get("round_multipliers", []))
     df = _add_digit_features(df, num_cols, cfg.get("digit_mods", []))
 
-    # update cat cols after new string features
     cat_cols_current = set(cat_cols)
     for c in df.columns:
         if c in cat_cols_current or c in num_cols or c in meta.get("ignored_columns", []):
@@ -429,21 +632,40 @@ def fit_transform(
     meta = _dataset_meta(config)
     cfg = {k: v for k, v in config.items() if k != "_dataset"}
     id_col = meta.get("id_column")
+    sample_frac = float(cfg.get("sample_frac", 1.0) or 1.0)
+    sample_seed = int(cfg.get("sample_seed", 42))
+
+    if sample_frac < 1.0:
+        print(f"[fe_set4] Sampling train data: frac={sample_frac}")
+        train_df = train_df.sample(frac=sample_frac, random_state=sample_seed).reset_index(drop=True)
+
+    # Avoid multiprocessing semaphore issues in polars conversions
+    os.environ.setdefault("POLARS_NO_THREADING", "1")
+
     train_ids = train_df[id_col].copy() if id_col and id_col in train_df else None
     val_ids = val_df[id_col].copy() if val_df is not None and id_col and id_col in val_df else None
     test_ids = test_df[id_col].copy() if id_col and id_col in test_df else None
 
-    pl_train = _drop_ignored(pl.from_pandas(train_df), meta)
-    pl_val = _drop_ignored(pl.from_pandas(val_df), meta) if val_df is not None else None
-    pl_test = _drop_ignored(pl.from_pandas(test_df), meta)
+    pl_train = _drop_ignored(pl.from_arrow(pa.Table.from_pandas(train_df, preserve_index=False)), meta)
+    pl_val = _drop_ignored(pl.from_arrow(pa.Table.from_pandas(val_df, preserve_index=False)), meta) if val_df is not None else None
+    pl_test = _drop_ignored(pl.from_arrow(pa.Table.from_pandas(test_df, preserve_index=False)), meta)
 
+    # 1. Generate Features
     pl_train, te_state, cat_cols, num_cols = _process_pipeline(pl_train, meta, cfg, None, True)
 
-    # Feature selection on train only
+    # 2. Stage 1: Drop Duplicates/Corr
     to_drop = _identify_drop_cols(pl_train, cfg, meta)
     final_cols = [c for c in pl_train.columns if c not in to_drop]
     pl_train = pl_train.select(final_cols)
+    
+    # 3. Stage 2: Permutation Selection (GPU XGBoost)
+    perm_stats = {}
+    if cfg.get("selection_enabled", False):
+        print(f"Starting Permutation Selection on GPU (XGBoost)... [features={len(pl_train.columns)-1}]")
+        final_cols, perm_stats = _run_permutation_selection_gpu(pl_train, meta["target"], cfg)
+        pl_train = pl_train.select(final_cols)
 
+    # 4. Apply to Val/Test
     pl_val_out = None
     if pl_val is not None:
         pl_val, _, _, _ = _process_pipeline(pl_val, meta, cfg, te_state, False)
@@ -454,7 +676,7 @@ def fit_transform(
     valid_test_cols = [c for c in final_cols if c in pl_test.columns]
     pl_test_out = pl_test.select(valid_test_cols).to_pandas()
 
-    # Reattach ID column for downstream submission creation.
+    # Reattach ID
     if id_col and train_ids is not None:
         pl_train_out = pl_train.to_pandas()
         pl_train_out[id_col] = train_ids.reset_index(drop=True)
@@ -468,7 +690,7 @@ def fit_transform(
         pl_test_out[id_col] = test_ids.reset_index(drop=True)
 
     state = {
-        "version": "1.0-polars",
+        "version": "1.0-gpu-xgb",
         "template": "fe_set1",
         "dataset": meta,
         "config": cfg,
@@ -481,16 +703,14 @@ def fit_transform(
             "val": list(pl_val_out.shape) if pl_val_out is not None else None,
             "test": list(pl_test_out.shape),
         },
-        "drop_summary": cfg.get("_drop_summary", {}),
+        "drop_summary_stage1": cfg.get("_drop_summary_stage1", {}),
+        "perm_selection_stats": perm_stats
     }
 
     return pl_train_out, pl_val_out, pl_test_out, state
 
-
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
-    if df is None:
-        return None
-
+    if df is None: return None
     meta = state_dict.get("dataset") or _dataset_meta(config)
     cfg = state_dict.get("config") or {k: v for k, v in config.items() if k != "_dataset"}
     te_state = state_dict.get("target_encoding")

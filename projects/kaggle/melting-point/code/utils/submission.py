@@ -42,6 +42,7 @@ def create_submission(
     cv_std: Optional[float] = None,
     notes: str = "",
     config: Optional[Dict] = None,
+    feature_count: Optional[int] = None,
     track: bool = True
 ):
     """
@@ -60,6 +61,7 @@ def create_submission(
         cv_std: Standard deviation of CV score
         notes: Additional notes
         config: Model configuration dictionary
+        feature_count: Number of features used for training (after drops)
         track: Whether to add to submissions tracker (default: True)
 
     Returns:
@@ -80,6 +82,7 @@ def create_submission(
         cv_std=cv_std,
         notes=notes,
         config=config,
+        feature_count=feature_count,
         track=track,
         default_target_col=TARGET_COLUMN,
         id_column=ID_COLUMN

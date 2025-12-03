@@ -11,6 +11,7 @@ templates:
     module: fe_set1
     cache: true
     config:
+      target_encoding_features: false
       fill_missing: true
       string_clean: true
       quantile_bins: [20, 100]
@@ -28,3 +29,185 @@ templates:
       categorical_overrides: []
       numeric_overrides: []
       correlation_threshold: 0.99
+  fe_set2:
+    module: fe_set2
+    cache: true
+    config:
+      target_encoding_features: false
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      # GPU RFE is optional; leave disabled by default
+      rfe_enabled: true
+      rfe_n_features: 50
+      rfe_step:  5
+  fe_set3:
+    module: fe_set3
+    cache: true
+    config:
+      target_encoding_features: false
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      # GPU permutation selection (Stage 2)
+      selection_enabled: true
+      selection_holdout_frac: 0.2
+      selection_epsilon: 0.0
+  fe_set4:
+    module: fe_set4
+    cache: true
+    config:
+      target_encoding_features: false
+      sample_frac: 1.0
+      sample_seed: 42
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      # GPU permutation selection via XGBoost (Stage 2)
+      selection_enabled: true
+      selection_holdout_frac: 0.2
+      selection_epsilon: 0.0
+  fe_set4_smoke:
+    module: fe_set4
+    cache: true
+    config:
+      target_encoding_features: false
+      sample_frac: 0.2   # 20% subset for quick smoke runs
+      sample_seed: 42
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      selection_enabled: true
+      selection_holdout_frac: 0.2
+      selection_epsilon: 0.0
+  fe_set6:
+    module: fe_set6
+    cache: true
+    config:
+      target_encoding_features: false
+      fill_missing: true
+      string_clean: true
+      quantile_bins: []
+      uniform_bins: []
+      log1p_bins: []
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      skewed_cols: ["physical_activity_minutes_per_week"]
+  fe_set4:
+    module: fe_set4
+    cache: true
+    config:
+      target_encoding_features: false
+      sample_frac: 1.0
+      sample_seed: 42
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      # GPU permutation selection via XGBoost (Stage 2)
+      selection_enabled: true
+      selection_holdout_frac: 0.2
+      selection_epsilon: 0.0
+  fe_set4_smoke:
+    module: fe_set4
+    cache: true
+    config:
+      target_encoding_features: false
+      sample_frac: 0.2   # 20% subset for quick smoke runs
+      sample_seed: 42
+      fill_missing: true
+      string_clean: true
+      quantile_bins: [20, 100]
+      uniform_bins: [20]
+      log1p_bins: [20]
+      round_multipliers: [1, 10, 100]
+      digit_mods: [3, 5, 7, 10]
+      pairwise_cat_limit: 8
+      target_encoding:
+        enabled: true
+        folds: 5
+        smoothing: 10.0
+        min_samples_leaf: 20
+        seed: 42
+      categorical_overrides: []
+      numeric_overrides: []
+      correlation_threshold: 0.99
+      selection_enabled: true
+      selection_holdout_frac: 0.2
+      selection_epsilon: 0.0

@@ -47,7 +47,8 @@ class SubmissionsTracker:
         config: Optional[Dict] = None,
         experiment_id: Optional[str] = None,
         git_hash: Optional[str] = None,
-        code_path: Optional[str] = None
+        code_path: Optional[str] = None,
+        feature_count: Optional[int] = None
     ) -> Dict:
         """
         Add a new submission to tracking
@@ -64,6 +65,7 @@ class SubmissionsTracker:
             experiment_id: Experiment ID from experiment logger
             git_hash: Git commit hash
             code_path: Path to code file used
+            feature_count: Number of features used for training (after drops)
 
         Returns:
             Dictionary with submission details
@@ -81,7 +83,8 @@ class SubmissionsTracker:
             "config": config or {},
             "experiment_id": experiment_id,
             "git_hash": git_hash,
-            "code_path": code_path
+            "code_path": code_path,
+            "feature_count": feature_count,
         }
 
         self.submissions.append(submission)

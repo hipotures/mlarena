@@ -1,11 +1,12 @@
 """
-Optimized Feature-engineering + target-encoding module using pure Polars logic.
+Medical-first preprocessing set with lightweight transformations.
 
-Highlights:
-- Polars-native binning (`cut`/`qcut`), rounding, digit features, pairwise cat combos
-- Target encoding fully in Polars (fold-wise), maps stored for inference
-- Optional feature selection: drop constant + highly correlated numeric columns
-- Outputs pandas DataFrames for downstream model compatibility
+Adds:
+- Blood pressure metrics (pulse pressure, MAP, hypertension flag) + age*systolic interaction
+- Lipid ratios (total/HDL, LDL/HDL, triglycerides/HDL)
+- BMI medical categories + age*BMI interaction
+- Skew fix: log1p for physical_activity_minutes_per_week
+- Optional binning + target encoding reused from prior sets
 """
 
 from __future__ import annotations
@@ -94,6 +95,83 @@ def _infer_cols(df: pl.DataFrame, meta: Dict[str, Any], cat_over: set[str], num_
     return sorted(set(cat_cols)), sorted(set(num_cols))
 
 
+def _safe_ratio(numerator: pl.Expr, denominator: pl.Expr) -> pl.Expr:
+    """Compute ratio guarding against division by zero/null."""
+    return (
+        pl.when(denominator.is_null() | (denominator == 0))
+        .then(None)
+        .otherwise(numerator / denominator)
+    )
+
+
+def _add_medical_features(df: pl.DataFrame, cat_cols: List[str], num_cols: List[str]) -> tuple[pl.DataFrame, List[str], List[str]]:
+    cols = set(df.columns)
+    exprs: List[pl.Expr] = []
+    new_num: List[str] = []
+    new_cat: List[str] = []
+
+    # 1. Blood pressure metrics
+    if "systolic_bp" in cols and "diastolic_bp" in cols:
+        exprs.append((pl.col("systolic_bp") - pl.col("diastolic_bp")).alias("bp_pulse_pressure"))
+        exprs.append(
+            (pl.col("diastolic_bp") + (pl.col("systolic_bp") - pl.col("diastolic_bp")) / 3).alias("bp_map")
+        )
+        exprs.append(
+            ((pl.col("systolic_bp") > 140) | (pl.col("diastolic_bp") > 90))
+            .cast(pl.Int8)
+            .fill_null(0)
+            .alias("bp_hypertension_flag")
+        )
+        new_num.extend(["bp_pulse_pressure", "bp_map"])
+        new_cat.append("bp_hypertension_flag")
+
+    if "age" in cols and "systolic_bp" in cols:
+        exprs.append((pl.col("age") * pl.col("systolic_bp")).alias("interaction_age_systolic_bp"))
+        new_num.append("interaction_age_systolic_bp")
+
+    # 2. Cholesterol and lipids
+    if "hdl_cholesterol" in cols:
+        hdl = pl.col("hdl_cholesterol")
+        if "cholesterol_total" in cols:
+            exprs.append(_safe_ratio(pl.col("cholesterol_total"), hdl).alias("chol_ratio_total_hdl"))
+            new_num.append("chol_ratio_total_hdl")
+        if "ldl_cholesterol" in cols:
+            exprs.append(_safe_ratio(pl.col("ldl_cholesterol"), hdl).alias("chol_ratio_ldl_hdl"))
+            new_num.append("chol_ratio_ldl_hdl")
+        if "triglycerides" in cols:
+            exprs.append(_safe_ratio(pl.col("triglycerides"), hdl).alias("chol_ratio_tg_hdl"))
+            new_num.append("chol_ratio_tg_hdl")
+
+    # 3. BMI medical categories + age interaction
+    if "bmi" in cols:
+        exprs.append(
+            pl.when(pl.col("bmi") < 18.5)
+            .then(0)
+            .when(pl.col("bmi") < 25.0)
+            .then(1)
+            .when(pl.col("bmi") < 30.0)
+            .then(2)
+            .otherwise(3)
+            .alias("bmi_category_medical")
+        )
+        new_cat.append("bmi_category_medical")
+        if "age" in cols:
+            exprs.append((pl.col("age") * pl.col("bmi")).alias("interaction_age_bmi"))
+            new_num.append("interaction_age_bmi")
+
+    if exprs:
+        df = df.with_columns(exprs)
+
+    for c in new_num:
+        if c not in num_cols:
+            num_cols.append(c)
+    for c in new_cat:
+        if c not in cat_cols:
+            cat_cols.append(c)
+
+    return df, cat_cols, num_cols
+
+
 def _add_binning_features(df: pl.DataFrame, num_cols: list[str], cfg: Dict[str, Any]) -> pl.DataFrame:
     quantile_bins = cfg.get("quantile_bins", []) or []
     uniform_bins = cfg.get("uniform_bins", []) or []
@@ -142,126 +220,10 @@ def _add_binning_features(df: pl.DataFrame, num_cols: list[str], cfg: Dict[str, 
     return df
 
 
-def _add_rounding_features(df: pl.DataFrame, num_cols: list[str], multipliers: list[int]) -> pl.DataFrame:
-    if not multipliers:
-        return df
-    exprs: List[pl.Expr] = []
-    for col in num_cols:
-        col_expr = pl.col(col)
-        for m in multipliers:
-            if m <= 0:
-                continue
-            exprs.append(((col_expr / m).round(0) * m).alias(f"{col}_round_{m}"))
-            exprs.append(((col_expr / m).floor() * m).alias(f"{col}_floor_{m}"))
-    if exprs:
-        df = df.with_columns(exprs)
-    return df
-
-
-def _add_digit_features(df: pl.DataFrame, num_cols: list[str], digit_mods: list[int]) -> pl.DataFrame:
-    if not digit_mods:
-        return df
-    exprs: List[pl.Expr] = []
-    for col in num_cols:
-        c = pl.col(col)
-        int_part = c.floor().abs().cast(pl.Int64)
-        frac_part = (c - c.floor()).abs()
-        exprs.append((int_part % 10).alias(f"{col}_int_last_digit"))
-        exprs.append(((int_part // 10) % 10).alias(f"{col}_int_first_digit"))
-        exprs.append((frac_part * 10).floor().cast(pl.Int64).alias(f"{col}_frac_first_digit"))
-        for mod in digit_mods:
-            if mod <= 0:
-                continue
-            exprs.append((int_part % mod).alias(f"{col}_mod_{mod}"))
-    if exprs:
-        df = df.with_columns(exprs)
-    return df
-
-
-def _add_pairwise_cats(df: pl.DataFrame, cat_cols: List[str], limit: int) -> pl.DataFrame:
-    if limit < 1 or len(cat_cols) < 2:
-        return df
-    exprs: List[pl.Expr] = []
-    top = cat_cols[:limit]
-    for i in range(len(top)):
-        for j in range(i + 1, len(top)):
-            c1, c2 = top[i], top[j]
-            exprs.append(pl.concat_str([pl.col(c1).cast(pl.Utf8), pl.col(c2).cast(pl.Utf8)], separator="|").alias(f"{c1}__{c2}"))
-    if exprs:
-        df = df.with_columns(exprs)
-    return df
-
-
-def _calc_te_map(df: pl.DataFrame, col: str, target: str, smoothing: float, min_leaf: int, global_mean: float) -> pl.DataFrame:
-    agg = df.group_by(col).agg(
-        [
-            pl.count(target).alias("count"),
-            pl.mean(target).alias("mean"),
-        ]
-    )
-    agg = agg.with_columns(
-        pl.when(pl.col("count") >= min_leaf)
-        .then((pl.col("count") * pl.col("mean") + smoothing * global_mean) / (pl.col("count") + smoothing))
-        .otherwise(pl.lit(global_mean))
-        .alias("encoding")
-    )
-    return agg.select([col, "encoding"])
-
-
-def _fit_target_encoding_polars(
-    df: pl.DataFrame,
-    target_col: str,
-    cat_cols: list[str],
-    folds: int,
-    smoothing: float,
-    min_leaf: int,
-    seed: int,
-) -> Tuple[pl.DataFrame, Dict[str, Any]]:
-    global_mean = df.select(pl.mean(target_col)).item()
-    df_folds = df.with_columns((pl.int_range(0, pl.len()).shuffle(seed=seed) % folds).alias("__fold__"))
-
-    inference_maps: Dict[str, Dict[Any, float]] = {}
-    for col in cat_cols:
-        full_map = _calc_te_map(df, col, target_col, smoothing, min_leaf, global_mean)
-        inference_maps[col] = {k: v for k, v in full_map.iter_rows()}
-
-    final_parts = []
-    for fold_idx in range(folds):
-        train_fold = df_folds.filter(pl.col("__fold__") != fold_idx)
-        val_fold = df_folds.filter(pl.col("__fold__") == fold_idx)
-        val_enriched = val_fold
-        for col in cat_cols:
-            fmap = _calc_te_map(train_fold, col, target_col, smoothing, min_leaf, global_mean).rename({"encoding": f"{col}_te"})
-            val_enriched = val_enriched.join(fmap, on=col, how="left")
-            val_enriched = val_enriched.with_columns(pl.col(f"{col}_te").fill_null(global_mean))
-        final_parts.append(val_enriched)
-
-    out_df = pl.concat(final_parts).drop("__fold__")
-    te_state = {"global_mean": global_mean, "maps": inference_maps, "cols": cat_cols}
-    return out_df, te_state
-
-
-def _apply_te_inference_polars(df: pl.DataFrame, te_state: Dict[str, Any]) -> pl.DataFrame:
-    global_mean = te_state["global_mean"]
-    cols = te_state["cols"]
-    maps = te_state["maps"]
-    for col in cols:
-        mapping = maps.get(col, {})
-        if not mapping:
-            df = df.with_columns(pl.lit(global_mean).alias(f"{col}_te"))
-            continue
-        map_df = pl.DataFrame({col: list(mapping.keys()), f"{col}_te": list(mapping.values())})
-        if df.schema.get(col) and df.schema[col] != map_df.schema[col]:
-            map_df = map_df.with_columns(pl.col(col).cast(df.schema[col]))
-        df = df.join(map_df, on=col, how="left")
-        df = df.with_columns(pl.col(f"{col}_te").fill_null(global_mean))
-    return df
-
-
 def _identify_drop_cols(df: pl.DataFrame, cfg: Dict[str, Any], meta: Dict[str, Any]) -> List[str]:
     """
     Identifies constant and redundant columns.
-    Uses joint cardinality to drop isomorphic categorical/bin features (e.g., log vs linear bins).
+    Uses joint cardinality to drop isomorphic categorical/bin features.
     """
     target = meta.get("target")
     before = len(df.columns)
@@ -358,6 +320,7 @@ def _process_pipeline(
     cat_overrides = set(cfg.get("categorical_overrides") or [])
     num_overrides = set(cfg.get("numeric_overrides") or [])
 
+    te_features_enabled = bool(cfg.get("target_encoding_features", True))
     cat_cols, num_cols = _infer_cols(df, meta, cat_overrides, num_overrides)
     fill_missing = bool(cfg.get("fill_missing", True))
     string_clean = bool(cfg.get("string_clean", True))
@@ -380,26 +343,39 @@ def _process_pipeline(
     if exprs:
         df = df.with_columns(exprs)
 
-    df = _add_binning_features(df, num_cols, cfg)
-    df = _add_rounding_features(df, num_cols, cfg.get("round_multipliers", []))
-    df = _add_digit_features(df, num_cols, cfg.get("digit_mods", []))
+    # Skew fix for specified columns
+    skewed_cols = cfg.get("skewed_cols", ["physical_activity_minutes_per_week"])
+    log_exprs: List[pl.Expr] = []
+    for c in skewed_cols:
+        if c in df.columns:
+            new_col = f"{c}_log1p"
+            log_exprs.append(pl.col(c).log1p().alias(new_col))
+            if new_col not in num_cols:
+                num_cols.append(new_col)
+    if log_exprs:
+        df = df.with_columns(log_exprs)
 
-    # update cat cols after new string features
+    # Domain medical features
+    df, cat_cols, num_cols = _add_medical_features(df, cat_cols, num_cols)
+
+    # Binning (optional)
+    df = _add_binning_features(df, num_cols, cfg)
+
+    # update cat cols after new string bin features
+    ignore_cols = set(meta.get("ignored_columns") or [])
+    if meta.get("id_column"):
+        ignore_cols.add(meta["id_column"])
+    if meta.get("target"):
+        ignore_cols.add(meta["target"])
     cat_cols_current = set(cat_cols)
     for c in df.columns:
-        if c in cat_cols_current or c in num_cols or c in meta.get("ignored_columns", []):
+        if c in cat_cols_current or c in num_cols or c in ignore_cols:
             continue
         if any(tok in c for tok in ("_q", "_u", "_logq")):
             cat_cols.append(c)
 
-    pair_limit = int(cfg.get("pairwise_cat_limit", 0) or 0)
-    if pair_limit > 1:
-        df = _add_pairwise_cats(df, cat_cols, pair_limit)
-        combo_cols = [c for c in df.columns if "__" in c]
-        cat_cols.extend(combo_cols)
-
     te_cfg = cfg.get("target_encoding", {}) or {}
-    te_enabled = bool(te_cfg.get("enabled", True))
+    te_enabled = te_features_enabled and bool(te_cfg.get("enabled", True))
     target = meta.get("target")
 
     if te_enabled and target and (target in df.columns or te_state):
@@ -419,6 +395,72 @@ def _process_pipeline(
     return df, te_state, set(cat_cols), num_cols
 
 
+def _calc_te_map(df: pl.DataFrame, col: str, target: str, smoothing: float, min_leaf: int, global_mean: float) -> pl.DataFrame:
+    agg = df.group_by(col).agg(
+        [
+            pl.count(target).alias("count"),
+            pl.mean(target).alias("mean"),
+        ]
+    )
+    agg = agg.with_columns(
+        pl.when(pl.col("count") >= min_leaf)
+        .then((pl.col("count") * pl.col("mean") + smoothing * global_mean) / (pl.col("count") + smoothing))
+        .otherwise(pl.lit(global_mean))
+        .alias("encoding")
+    )
+    return agg.select([col, "encoding"])
+
+
+def _fit_target_encoding_polars(
+    df: pl.DataFrame,
+    target_col: str,
+    cat_cols: list[str],
+    folds: int,
+    smoothing: float,
+    min_leaf: int,
+    seed: int,
+) -> Tuple[pl.DataFrame, Dict[str, Any]]:
+    global_mean = df.select(pl.mean(target_col)).item()
+    df_folds = df.with_columns((pl.int_range(0, pl.len()).shuffle(seed=seed) % folds).alias("__fold__"))
+
+    inference_maps: Dict[str, Dict[Any, float]] = {}
+    for col in cat_cols:
+        full_map = _calc_te_map(df, col, target_col, smoothing, min_leaf, global_mean)
+        inference_maps[col] = {k: v for k, v in full_map.iter_rows()}
+
+    final_parts = []
+    for fold_idx in range(folds):
+        train_fold = df_folds.filter(pl.col("__fold__") != fold_idx)
+        val_fold = df_folds.filter(pl.col("__fold__") == fold_idx)
+        val_enriched = val_fold
+        for col in cat_cols:
+            fmap = _calc_te_map(train_fold, col, target_col, smoothing, min_leaf, global_mean).rename({"encoding": f"{col}_te"})
+            val_enriched = val_enriched.join(fmap, on=col, how="left")
+            val_enriched = val_enriched.with_columns(pl.col(f"{col}_te").fill_null(global_mean))
+        final_parts.append(val_enriched)
+
+    out_df = pl.concat(final_parts).drop("__fold__")
+    te_state = {"global_mean": global_mean, "maps": inference_maps, "cols": cat_cols}
+    return out_df, te_state
+
+
+def _apply_te_inference_polars(df: pl.DataFrame, te_state: Dict[str, Any]) -> pl.DataFrame:
+    global_mean = te_state["global_mean"]
+    cols = te_state["cols"]
+    maps = te_state["maps"]
+    for col in cols:
+        mapping = maps.get(col, {})
+        if not mapping:
+            df = df.with_columns(pl.lit(global_mean).alias(f"{col}_te"))
+            continue
+        map_df = pl.DataFrame({col: list(mapping.keys()), f"{col}_te": list(mapping.values())})
+        if df.schema.get(col) and df.schema[col] != map_df.schema[col]:
+            map_df = map_df.with_columns(pl.col(col).cast(df.schema[col]))
+        df = df.join(map_df, on=col, how="left")
+        df = df.with_columns(pl.col(f"{col}_te").fill_null(global_mean))
+    return df
+
+
 def fit_transform(
     train_df: pd.DataFrame,
     val_df: Optional[pd.DataFrame],
@@ -427,6 +469,10 @@ def fit_transform(
 ) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Dict[str, Any]]:
     meta = _dataset_meta(config)
     cfg = {k: v for k, v in config.items() if k != "_dataset"}
+    id_col = meta.get("id_column")
+    train_ids = train_df[id_col].copy() if id_col and id_col in train_df else None
+    val_ids = val_df[id_col].copy() if val_df is not None and id_col and id_col in val_df else None
+    test_ids = test_df[id_col].copy() if id_col and id_col in test_df else None
 
     pl_train = _drop_ignored(pl.from_pandas(train_df), meta)
     pl_val = _drop_ignored(pl.from_pandas(val_df), meta) if val_df is not None else None
@@ -449,9 +495,22 @@ def fit_transform(
     valid_test_cols = [c for c in final_cols if c in pl_test.columns]
     pl_test_out = pl_test.select(valid_test_cols).to_pandas()
 
+    # Reattach ID column for downstream submission creation.
+    if id_col and train_ids is not None:
+        pl_train_out = pl_train.to_pandas()
+        pl_train_out[id_col] = train_ids.reset_index(drop=True)
+    else:
+        pl_train_out = pl_train.to_pandas()
+
+    if pl_val_out is not None and id_col and val_ids is not None:
+        pl_val_out[id_col] = val_ids.reset_index(drop=True)
+
+    if id_col and test_ids is not None:
+        pl_test_out[id_col] = test_ids.reset_index(drop=True)
+
     state = {
         "version": "1.0-polars",
-        "template": "fe_set1",
+        "template": "fe_set6",
         "dataset": meta,
         "config": cfg,
         "cat_cols": sorted(list(cat_cols)),
@@ -459,14 +518,14 @@ def fit_transform(
         "target_encoding": te_state,
         "final_columns": final_cols,
         "shapes": {
-            "train": list(pl_train.shape),
-            "val": list(pl_val.shape) if pl_val is not None else None,
-            "test": list(pl_test.shape),
+            "train": list(pl_train_out.shape),
+            "val": list(pl_val_out.shape) if pl_val_out is not None else None,
+            "test": list(pl_test_out.shape),
         },
         "drop_summary": cfg.get("_drop_summary", {}),
     }
 
-    return pl_train.to_pandas(), pl_val_out, pl_test_out, state
+    return pl_train_out, pl_val_out, pl_test_out, state
 
 
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
@@ -477,6 +536,8 @@ def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, An
     cfg = state_dict.get("config") or {k: v for k, v in config.items() if k != "_dataset"}
     te_state = state_dict.get("target_encoding")
     final_cols = state_dict.get("final_columns")
+    id_col = meta.get("id_column")
+    id_series = df[id_col].copy() if id_col and id_col in df else None
 
     pl_df = _drop_ignored(pl.from_pandas(df), meta)
     processed, _, _, _ = _process_pipeline(pl_df, meta, cfg, te_state, False)
@@ -485,4 +546,7 @@ def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, An
         keep = [c for c in final_cols if c in processed.columns]
         processed = processed.select(keep)
 
-    return processed.to_pandas()
+    out_df = processed.to_pandas()
+    if id_col and id_series is not None:
+        out_df[id_col] = id_series.reset_index(drop=True)
+    return out_df

@@ -90,6 +90,16 @@ def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser.add_argument("--require-eda", action="store_true")
     parser.add_argument("--skip-eda-check", action="store_true")
     parser.add_argument("--kaggle-message")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force rerun of modules for the selected stage (clears module state if completed).",
+    )
+    parser.add_argument(
+        "--force-predict",
+        action="store_true",
+        help="Allow rerunning predict module even if already completed for this experiment.",
+    )
     return parser.parse_args()
 
 
@@ -385,6 +395,19 @@ class MLRunner:
         """
         Run preprocessing template with caching support.
         """
+        id_col = self.dataset_config.id_column
+
+        def _ensure_id(df: Optional[pd.DataFrame], raw_df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+            if df is None or not id_col:
+                return df
+            if id_col in df.columns:
+                return df
+            if raw_df is None or id_col not in raw_df.columns:
+                return df
+            out = df.copy()
+            out[id_col] = raw_df[id_col].reset_index(drop=True)
+            return out
+
         preprocess_config = self._prepare_preprocess_config()
         self.features_dir, self.preprocess_cache_sig = self._compute_features_dir(preprocess_config)
         paths = self._feature_paths()
@@ -394,6 +417,9 @@ class MLRunner:
             cached = self._load_preprocess_cache(paths)
             if cached:
                 train_fe, val_fe, test_fe, state_dict, meta = cached
+                train_fe = _ensure_id(train_fe, train_df)
+                val_fe = _ensure_id(val_fe, val_df)
+                test_fe = _ensure_id(test_fe, test_df)
                 self.preprocess_record = self._build_preprocess_record(
                     paths, state_dict, meta, used_cached=True, resolved_config=preprocess_config, cache_sig=self.preprocess_cache_sig or ""
                 )
@@ -408,6 +434,9 @@ class MLRunner:
 
         console.print(f"[cyan]Running preprocessing template: {self.preprocess_template_name}[/cyan]")
         train_fe, val_fe, test_fe, state_dict = fit_fn(train_df, val_df, test_df, preprocess_config)
+        train_fe = _ensure_id(train_fe, train_df)
+        val_fe = _ensure_id(val_fe, val_df)
+        test_fe = _ensure_id(test_fe, test_df)
         meta = {
             "template": self.preprocess_template_name,
             "module": self.preprocess_module_name,
@@ -717,6 +746,33 @@ def run(args: argparse.Namespace):
             console.print(f"[yellow]{exc}[/yellow]")
             return
 
+    force_predict_flag = bool(args.force or getattr(args, "force_predict", False))
+
+    if args.force:
+        modules_to_clear = []
+        if stage in {"all", "train"}:
+            modules_to_clear.extend(["preprocess", "model", "predict"])
+        elif stage == "predict":
+            modules_to_clear.append("predict")
+        elif stage == "preprocess":
+            modules_to_clear.append("preprocess")
+
+        cleared = []
+        for mod in modules_to_clear:
+            if manager.modules().pop(mod, None):
+                cleared.append(mod)
+        if cleared:
+            console.print(
+                f"[yellow]--force: cleared modules {', '.join(cleared)} for experiment {manager.experiment_id}[/yellow]"
+            )
+            manager.save()
+    elif force_predict_flag and stage in {"all", "predict"}:
+        if manager.modules().pop("predict", None):
+            console.print(
+                f"[yellow]--force-predict: cleared 'predict' for experiment {manager.experiment_id}[/yellow]"
+            )
+            manager.save()
+
     model_entry = manager.get_module("model") or {}
     preprocess_entry = model_entry.get("preprocess") or {}
 
@@ -800,11 +856,14 @@ def run(args: argparse.Namespace):
     if args.kaggle_message:
         description = args.kaggle_message
     else:
-        description = f"{context.name} | {template_name}"
-        if local_cv:
-            description += f" | local {local_cv:.5f}"
-        if args.ag_smoke:
-            description += " | smoke"
+        description = SubmissionRunner.build_message(
+            submission_artifact,
+            experiment_id=manager.experiment_id,
+            local_score=local_cv,
+            model_label=runner.template_name,
+            feature_count=getattr(submission_artifact, "feature_count", None),
+            smoke=bool(args.ag_smoke),
+        )
 
     submission_runner = SubmissionRunner(
         artifact=submission_artifact,

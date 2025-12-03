@@ -79,6 +79,7 @@ def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser.add_argument("--time-limit", type=int)
     parser.add_argument("--preset")
     parser.add_argument("--use-gpu", type=int, choices=[0, 1])
+    parser.add_argument("--model-name", help="Override model module (Python file under code/models/, without .py)")
     parser.add_argument("--force-extreme", action="store_true", help="Deprecated compatibility flag")
     parser.add_argument("--ag-smoke", action="store_true", help="AutoGluon smoke test mode")
     parser.add_argument("--skip-submit", action="store_true")
@@ -796,6 +797,11 @@ def run(args: argparse.Namespace):
     if template_payload is None:
         template_payload = {"model": model_entry.get("model", "autogluon_baseline"), "config": {}}
 
+    # Optional model override from CLI (only for train/all runs; predict uses saved config)
+    model_override = None
+    if stage != "predict" and args.model_name:
+        model_override = args.model_name
+
     config_override = None
     training_summary_override = None
     snapshot_override = None
@@ -820,13 +826,16 @@ def run(args: argparse.Namespace):
         args,
         stage=stage,
         config_override=config_override,
-        model_name_override=model_entry.get("model"),
+        model_name_override=model_override or model_entry.get("model"),
         training_summary_override=training_summary_override,
         snapshot_override=snapshot_override,
         preprocess_template_name=preprocess_template_name,
         preprocess_template_payload=preprocess_payload,
         preprocess_config_override=preprocess_config_override,
     )
+
+    if stage not in {"preprocess", "predict"} and model_override:
+        console.print(f"[yellow]Model override active:[/yellow] {model_override}")
 
     if stage != "preprocess" and any([args.time_limit is not None, args.preset, args.use_gpu is not None, args.ag_smoke]):
         hp = runner.config.hyperparameters

@@ -111,6 +111,10 @@ uv run playwright install chromium
 
 The repository uses a **modular experiment pipeline** managed by `scripts/experiment_manager.py`. Each experiment progresses through modules: EDA → Model → Submit → Fetch-score.
 
+**Runner + override model**
+- Model step calls `scripts/ml_runner.py` under the hood (template-driven).
+- You can override the model module defined in the template with `--model-name <module>` (train/all only; predict always reloads the saved config). Handy for swapping to `autogluon_shiftaware` without cloning templates.
+
 **1. Download data:**
 ```bash
 cd projects/kaggle/[competition-name]/data

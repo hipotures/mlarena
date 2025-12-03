@@ -169,6 +169,7 @@ Runner zostanie zaktualizowany, aby obsłużyć nowy kontrakt:
 4.  **Trening i Predykcja:** Wywoła `train()` i `predict()`, przekazując obiekt konfiguracyjny i artefakty.
 5.  **Obsługa Predykcji:** Zamiast zakładać stałą strukturę wyjściową, runner może (opcjonalnie) zweryfikować, czy kolumny w zwróconym przez `predict()` DataFrame pasują do `sample_submission.csv`.
 6.  **Infrastruktura:** Bez zmian – nadal będzie odpowiedzialny za logowanie, snapshotowanie, śledzenie eksperymentów.
+7.  **Override modelu z CLI:** Dodatkowa flaga `--model-name` pozwala podmienić moduł modelu wskazany w template (dotyczy train/all; stage=predict korzysta z modelu zapisanego w state). Dzięki temu można użyć tych samych parametrów template’u z innym plikiem modelu bez duplikowania wpisów w `templates/model.yaml`.
 
 ### 2.5. Migracja
 

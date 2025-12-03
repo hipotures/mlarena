@@ -26,6 +26,7 @@ Goal: decouple preprocessing from modeling, with first-class templates for each,
 - Runner flags:
   - `--model-template <name>`
   - Existing overrides (`--time-limit`, `--preset`, `--use-gpu`, etc.) still apply.
+  - NEW: `--model-name <module>` lets you override the module from the template (train/all only; predict always uses the saved config). Use this to reuse the same template params with a different model file (e.g., switch to `autogluon_shiftaware` without cloning templates).
 
 ## Runner flow (ml_runner)
 1. Load preprocess template (if provided); fit/transform; cache outputs; optionally skip when `--use-preprocessed`.

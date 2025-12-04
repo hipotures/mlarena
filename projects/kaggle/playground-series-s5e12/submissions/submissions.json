@@ -2759,5 +2759,21 @@
     "git_hash": null,
     "code_path": null,
     "feature_count": 24
+  },
+  {
+    "id": 18,
+    "timestamp": "2025-12-04 23:17:28",
+    "filename": "submission-20251204221744.csv",
+    "model_name": "cpu-dev-5m-av",
+    "local_cv_score": 0.7301588729509212,
+    "cv_std": null,
+    "public_score": 0.69651,
+    "private_score": null,
+    "notes": "Auto-added via resume",
+    "config": {},
+    "experiment_id": null,
+    "git_hash": null,
+    "code_path": null,
+    "feature_count": 24
   }
 ]

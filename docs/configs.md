@@ -1,5 +1,12 @@
 # Configuration Files
 
+**Related Documentation:**
+- [CLAUDE.md](../CLAUDE.md) - Main repository guide with workflow examples
+- [OPTUNA_GUIDE.md](OPTUNA_GUIDE.md) - Hyperparameter tuning guide
+- [template_system_redesign.md](template_system_redesign.md) - Template system design
+
+---
+
 This directory contains configuration files for the competition project.
 
 ## templates/model.yaml

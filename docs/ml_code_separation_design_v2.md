@@ -1,5 +1,7 @@
 # Architektura separacji kodu ML od infrastruktury v2
 
+> **Note:** This is the current version. The previous version (v1) has been archived in `docs/archive/ml_code_separation_design_v1.md`.
+
 ## 1. Problem i Cel
 
 Obecny kod ML jest "zanieczyszczony" infrastrukturą (logging, tracking, snapshoting), co sprawia, że jest nieczytelny, trudny w modyfikacji i wymaga dużo boilerplate'u.

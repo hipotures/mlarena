@@ -28,7 +28,7 @@ W uruchomionym Chrome przejdź do https://www.kaggle.com i zaloguj się.
 ### Podstawowe
 
 ```bash
-python tools/kaggle_scraper.py playground-series-s5e11
+python scripts/kaggle_scraper.py playground-series-s5e11
 ```
 
 Skrypt tylko **czyta** dane przez CDP - nie uruchamia przeglądarki!
@@ -36,7 +36,7 @@ Skrypt tylko **czyta** dane przez CDP - nie uruchamia przeglądarki!
 ### Z własnymi opcjami
 
 ```bash
-python tools/kaggle_scraper.py playground-series-s5e11 \
+python scripts/kaggle_scraper.py playground-series-s5e11 \
     --output-dir playground-series-s5e11/data/kaggle_scrapes \
     --cdp-url http://localhost:9222
 ```
@@ -63,11 +63,11 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 # 3. W Chrome otwórz leaderboard/submissions
 
 # 4. Scrape dane (skrypt się tylko łączy, nie uruchamia Chrome!)
-python tools/kaggle_scraper.py playground-series-s5e11
+python scripts/kaggle_scraper.py playground-series-s5e11
 
 # 5. Przejrzyj JSON i znajdź public score
 
 # 6. Zaktualizuj tracker
-python tools/submissions_tracker.py --project playground-series-s5e11 \
+python scripts/submissions_tracker.py --project playground-series-s5e11 \
     update 1 --public 0.85123
 ```

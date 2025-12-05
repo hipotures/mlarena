@@ -2,6 +2,42 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Table of Contents
+
+- [Repository Overview](#repository-overview)
+- [Quick Reference](#quick-reference)
+- [Architecture](#architecture)
+  - [Four-Layer System](#four-layer-system)
+  - [Key Integration Points](#key-integration-points)
+- [Common Commands](#common-commands)
+  - [Setup](#setup)
+  - [Metric Detection (CDP)](#metric-detection-cdp)
+  - [Modern Workflow (Recommended)](#modern-workflow-recommended)
+  - [Alternative: Direct Runner](#alternative-direct-runner-without-experiment-manager)
+  - [Tracking & Reproducibility](#tracking--reproducibility)
+- [Critical Workflows](#critical-workflows)
+  - [Modular Experiment Pipeline](#modular-experiment-pipeline)
+  - [Legacy Experiment Tracking](#legacy-experiment-tracking)
+  - [Creating New Competition](#creating-new-competition)
+- [Project-Specific Configuration](#project-specific-configuration)
+- [File Path Conventions](#file-path-conventions)
+- [AutoGluon Baseline Pattern](#autogluon-baseline-pattern)
+- [Data Management](#data-management)
+- [Automated Submission & Score Fetching](#automated-submission--score-fetching)
+  - [Setup Chrome Debugging](#setup-chrome-debugging-one-time)
+  - [Automatic Workflow](#automatic-workflow)
+  - [Control Flags](#control-flags)
+  - [Manual Scraping](#manual-scraping-standalone)
+- [Common Pitfalls](#common-pitfalls)
+- [Development Guidelines](#development-guidelines)
+  - [Coding Style & Naming Conventions](#coding-style--naming-conventions)
+  - [Testing Guidelines](#testing-guidelines)
+  - [Commit & Pull Request Guidelines](#commit--pull-request-guidelines)
+  - [Security & Configuration](#security--configuration)
+- [Dependencies](#dependencies)
+
+---
+
 ## Repository Overview
 
 Kaggle competitions repository with standardized structure, experiment tracking, and reproducibility system. Uses `uv` for dependency management, AutoGluon for baseline models, and custom tracking tools for submissions/experiments.
@@ -166,8 +202,8 @@ Template overrides available: `--time-limit`, `--preset`, `--use-gpu 0/1`
 # Start Chrome with debugging port
 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 
-# Resume and fetch score
-uv run python scripts/submission_workflow.py resume \
+# Pull score from Kaggle
+uv run python scripts/submission_workflow.py pull-score \
     --project [competition-name] \
     --filename submission-20251117015359.csv \
     --experiment-id exp-20251117-020830 \
@@ -254,7 +290,7 @@ uv run python scripts/experiment_manager.py model \
     --template dev-gpu
 
 # 3. Submit/fetch can be run later if needed
-uv run python scripts/submission_workflow.py resume \
+uv run python scripts/submission_workflow.py pull-score \
     --project playground-series-s5e11 \
     --filename submission-20251117015359.csv \
     --experiment-id exp-20251117-020830
@@ -506,7 +542,7 @@ See `scripts/README_KAGGLE.md` for details.
    - Ensure Chrome started with `--remote-debugging-port=9222`
    - Verify logged into Kaggle in that Chrome instance
    - Use `--skip-score-fetch` to skip automation
-   - Can resume later with `submission_workflow.py resume`
+   - Can resume later with `submission_workflow.py pull-score`
 
 8. **Template confusion** → Wrong compute resources
    - `fast-cpu` is XGBoost-only smoke test (60s), not for final submissions
@@ -589,3 +625,18 @@ Managed via `pyproject.toml`:
 - `playwright` - Optional, for Kaggle scraping
 
 Install: `uv sync`
+
+---
+
+## See Also
+
+**Related Documentation:**
+- [docs/OPTUNA_GUIDE.md](docs/OPTUNA_GUIDE.md) - Complete guide to hyperparameter tuning, feature engineering, and ensembling
+- [docs/configs.md](docs/configs.md) - Detailed template configuration reference (model.yaml, preprocess.yaml structure)
+- [scripts/README.md](scripts/README.md) - Comprehensive scripts documentation with usage examples
+- [README.md](README.md) - Main repository overview and quick start guide
+
+**Design Documents:**
+- [docs/ml_code_separation_design_v2.md](docs/ml_code_separation_design_v2.md) - ML code architecture and separation patterns
+- [docs/template_system_redesign.md](docs/template_system_redesign.md) - Template system design and roadmap
+- [docs/template_merge_guidelines.md](docs/template_merge_guidelines.md) - Global vs project template resolution

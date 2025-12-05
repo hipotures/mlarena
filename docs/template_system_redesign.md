@@ -1,5 +1,7 @@
 # Template System Redesign (preprocess + model, no fallback)
 
+> **Status:** Partially implemented. Core template system with `model.yaml` and `preprocess.yaml` is complete. Rich configurator and full module registry system are planned but not yet implemented (see TODO section at end).
+
 Goal: decouple preprocessing from modeling, with first-class templates for each, a simple Rich-based CLI configurator that only emits CLI flags (no hidden state), and experiment state fully captured in `state.json`.
 
 ## Core concepts

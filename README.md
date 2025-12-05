@@ -34,7 +34,7 @@ chmod 600 ~/.kaggle/kaggle.json
 
 ```
 competitions/
-├── tools/                       # Universal tools for all competitions
+├── scripts/                     # Universal tools for all competitions
 │   ├── submissions_tracker.py  # Tracks local CV, public, private scores
 │   └── README.md               # Tools documentation
 ├── [competition-name]/         # Individual competition directories
@@ -61,7 +61,7 @@ competition-name/
 └── docs/                    # Optional notebooks/notes
 ```
 
-`tools/` at the repository root contains the reusable runners (`autogluon_runner.py`, `experiment_manager.py`, `submission_workflow.py`, etc.). Competition folders only hold lightweight configuration and any extra scripts that are truly competition-specific. Large artefacts (models, downloaded zips) stay ignored via each project's `.gitignore`.
+`scripts/` at the repository root contains the reusable runners (`autogluon_runner.py`, `experiment_manager.py`, `submission_workflow.py`, etc.). Competition folders only hold lightweight configuration and any extra scripts that are truly competition-specific. Large artefacts (models, downloaded zips) stay ignored via each project's `.gitignore`.
 
 `code/utils/config.py` is the only file you normally edit per competition. The init script fills in:
 - Data paths (`TRAIN_PATH`, `TEST_PATH`, `SAMPLE_SUBMISSION_PATH`) and Kaggle metadata (`COMPETITION_NAME`, `METRIC`).
@@ -82,25 +82,25 @@ All shared tools (runner, submissions tracker, validation) rely on these fields,
 1. Accept the rules on Kaggle and grab the competition slug.
 2. Create a project with the init script or copy any existing one, then remove its submissions/experiments.
 3. Edit `code/utils/config.py` to set `COMPETITION_NAME`, metric, and target column; drop the downloaded CSV files into `data/`.
-4. Run `uv run python tools/experiment_manager.py eda --project <project>` to confirm the loader works. From now on, rely on the shared runner/templates instead of bespoke scripts.
+4. Run `uv run python scripts/experiment_manager.py eda --project <project>` to confirm the loader works. From now on, rely on the shared runner/templates instead of bespoke scripts.
 
 `uv sync` installs all dependencies; no per-project virtualenvs are needed.
 
 ## Workflow
 
-Every experiment is broken into modules tracked in `experiments/<id>/state.json`. Use `tools/experiment_manager.py` to orchestrate the flow:
+Every experiment is broken into modules tracked in `experiments/<id>/state.json`. Use `scripts/experiment_manager.py` to orchestrate the flow:
 
-1. **EDA** – `uv run python tools/experiment_manager.py eda --project <project>`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
-2. **Model (train)** – `uv run python tools/experiment_manager.py model --project <project> --experiment-id exp-20251117-020830 --template gpu-dev-5m [--auto-submit]`. This wraps the template-driven `tools/ml_runner.py` and records training results (local CV, model path) as soon as training finishes. Core templates follow the `[cpu|gpu]-<purpose>-<time>` scheme: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `cpu-best-8h`, and `gpu-extreme-24h` (prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
+1. **EDA** – `uv run python scripts/experiment_manager.py eda --project <project>`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
+2. **Model (train)** – `uv run python scripts/experiment_manager.py model --project <project> --experiment-id exp-20251117-020830 --template gpu-dev-5m [--auto-submit]`. This wraps the template-driven `scripts/ml_runner.py` and records training results (local CV, model path) as soon as training finishes. Core templates follow the `[cpu|gpu]-<purpose>-<time>` scheme: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `cpu-best-8h`, and `gpu-extreme-24h` (prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
    - Extra override: `--model-name <module>` lets you swap the model file used by the template (e.g., run `autogluon_shiftaware` with an existing template). Applies to train/all; predict always reloads the model recorded in state.
-3. **Predict** – `uv run python tools/experiment_manager.py predict --project <project> --experiment-id exp-... [--template gpu-dev-5m]` reuses the trained model to generate a submission and completes the `predict` module before any submit step. The `model` command runs this automatically unless you stop at training.
-4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python tools/experiment_manager.py submit --project <project> --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
+3. **Predict** – `uv run python scripts/experiment_manager.py predict --project <project> --experiment-id exp-... [--template gpu-dev-5m]` reuses the trained model to generate a submission and completes the `predict` module before any submit step. The `model` command runs this automatically unless you stop at training.
+4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python scripts/experiment_manager.py submit --project <project> --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
 
-Use `uv run python tools/experiment_manager.py list --project <project>` to inspect module statuses, and `uv run python tools/experiment_manager.py modules` to show the available module names.
+Use `uv run python scripts/experiment_manager.py list --project <project>` to inspect module statuses, and `uv run python scripts/experiment_manager.py modules` to show the available module names.
 
 ### Submission Automation
 
-`tools/submission_workflow.py` handles Kaggle CLI uploads, waits (`--wait-seconds`), connects to the already-running Chrome via `--cdp-url`, grabs the leaderboard row, updates `submissions/submissions.json`, and commits the code/artefacts. Flags such as `--auto-submit`, `--skip-submit`, `--skip-score-fetch`, and `--skip-git` give fine-grained control over each run.
+`scripts/submission_workflow.py` handles Kaggle CLI uploads, waits (`--wait-seconds`), connects to the already-running Chrome via `--cdp-url`, grabs the leaderboard row, updates `submissions/submissions.json`, and commits the code/artefacts. Flags such as `--auto-submit`, `--skip-submit`, `--skip-score-fetch`, and `--skip-git` give fine-grained control over each run.
 
 ### Troubleshooting Templates
 
@@ -157,8 +157,7 @@ uv run python scripts/stacking_runner.py \
 
 ### Documentation
 
-- **Quick Start:** [docs/OPTUNA_QUICKSTART.md](docs/OPTUNA_QUICKSTART.md) - 5-minute guide
-- **Complete Guide:** [docs/OPTUNA_GUIDE.md](docs/OPTUNA_GUIDE.md) - Full documentation with examples
+- **Complete Guide:** [docs/OPTUNA_GUIDE.md](docs/OPTUNA_GUIDE.md) - Full documentation with quick start and examples
 - **Unit Tests:** `tests/test_data_leakage.py`, `tests/test_optuna_e2e.py`
 
 ### Architecture
@@ -176,51 +175,51 @@ ExperimentManager
 `submissions/submissions.json` stores every Kaggle upload along with local CV, public score, experiment ID, git hash, and optional notes. Normally you do not add entries manually: `code/utils/submission.py` logs the experiment + tracker entry whenever a CSV is created, and `submission_workflow.py` updates the public score/commit message after scraping Kaggle. When a fix is required, the CLI mirror still exists:
 
 ```bash
-uv run python tools/submissions_tracker.py --project <project> list
-uv run python tools/submissions_tracker.py --project <project> add submission.csv autogluon-medium --local-cv 0.92
-uv run python tools/submissions_tracker.py --project <project> update 3 --public 0.9213
+uv run python scripts/submissions_tracker.py --project <project> list
+uv run python scripts/submissions_tracker.py --project <project> add submission.csv autogluon-medium --local-cv 0.92
+uv run python scripts/submissions_tracker.py --project <project> update 3 --public 0.9213
 ```
 
-Pair this with `tools/experiment_logger.py` if you need to inspect the git state or restore a code snapshot referenced by a tracker entry.
+Pair this with `scripts/experiment_logger.py` if you need to inspect the git state or restore a code snapshot referenced by a tracker entry.
 
 ## Utilities
 
 ### Experiment Tracking Tools
 
-**tools/experiment_logger.py** - Complete experiment tracking system
+**scripts/experiment_logger.py** - Complete experiment tracking system
 
 ```bash
 # List experiments
-python tools/experiment_logger.py --project PROJECT_NAME list [--limit N]
+python scripts/experiment_logger.py --project PROJECT_NAME list [--limit N]
 
 # Show experiment details (git, config, code)
-python tools/experiment_logger.py --project PROJECT_NAME show EXPERIMENT_ID
+python scripts/experiment_logger.py --project PROJECT_NAME show EXPERIMENT_ID
 
 # Restore code from experiment
-python tools/experiment_logger.py --project PROJECT_NAME restore EXPERIMENT_ID [--output PATH]
+python scripts/experiment_logger.py --project PROJECT_NAME restore EXPERIMENT_ID [--output PATH]
 
 # Get git checkout instructions
-python tools/experiment_logger.py --project PROJECT_NAME checkout EXPERIMENT_ID
+python scripts/experiment_logger.py --project PROJECT_NAME checkout EXPERIMENT_ID
 ```
 
-**tools/submissions_tracker.py** - Track submissions with scores
+**scripts/submissions_tracker.py** - Track submissions with scores
 
 ```bash
 # Add submission manually (usually automatic via create_submission())
-python tools/submissions_tracker.py --project PROJECT_NAME add \
+python scripts/submissions_tracker.py --project PROJECT_NAME add \
     submission.csv model-name \
     --local-cv 0.85 --notes "baseline"
 
 # Update public/private scores
-python tools/submissions_tracker.py --project PROJECT_NAME update SUBMISSION_ID \
+python scripts/submissions_tracker.py --project PROJECT_NAME update SUBMISSION_ID \
     --public 0.84 --private 0.83
 
 # List submissions (with git & experiment info)
-python tools/submissions_tracker.py --project PROJECT_NAME list \
+python scripts/submissions_tracker.py --project PROJECT_NAME list \
     [--sort-by public_score] [--limit N]
 
 # Export to CSV
-python tools/submissions_tracker.py --project PROJECT_NAME export
+python scripts/submissions_tracker.py --project PROJECT_NAME export
 ```
 
 ### Kaggle CLI Common Commands
@@ -285,7 +284,7 @@ git push
 
 ### AutoGluon Runner Templates
 
-Every competition now shares a single runner: `tools/autogluon_runner.py`. Call it directly or via the thin wrappers in each project (e.g., `uv run python <project>/code/models/baseline_autogluon.py`), and pass a compute template instead of memorising raw parameters:
+Every competition now shares a single runner: `scripts/ml_runner.py` (called via `scripts/experiment_manager.py`). Pass a compute template instead of memorising raw parameters:
 
 | Template     | Time Limit | Preset           | GPU | Notes |
 |--------------|-----------:|------------------|-----|-------|
@@ -300,7 +299,7 @@ Every competition now shares a single runner: `tools/autogluon_runner.py`. Call 
 Example:
 
 ```bash
-uv run python tools/autogluon_runner.py \
+uv run python scripts/experiment_manager.py model \
     --project <project> \
     --template gpu-best-1h \
     --auto-submit \
@@ -315,7 +314,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 
 1. **EDA** – uruchamia podstawową analizę i rejestruje identyfikator:
    ```bash
-   uv run python tools/experiment_manager.py eda \
+   uv run python scripts/experiment_manager.py eda \
        --project <project> \
        --notes "baseline sweep"
    ```
@@ -323,7 +322,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 
 2. **Model** – przekazujesz ten sam identyfikator:
    ```bash
-   uv run python tools/autogluon_runner.py \
+   uv run python scripts/experiment_manager.py model \
        --project <project> \
        --template dev-gpu \
        --experiment-id exp-20251117-011230 \
@@ -334,7 +333,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 
 3. **Submit / Resume** – gdy CSV jest już wysłany, pobierasz skorę i aktualizujesz zarówno tracker, jak i eksperyment:
    ```bash
-   uv run python tools/submission_workflow.py resume \
+   uv run python scripts/submission_workflow.py pull-score \
        --project <project> \
        --filename submission-20251117015359.csv \
        --experiment-id exp-20251117-011230 \
@@ -344,18 +343,19 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 Podgląd stanu:
 
 ```bash
-uv run python tools/experiment_manager.py list --project <project>
+uv run python scripts/experiment_manager.py list --project <project>
 ```
-Need a reminder of available stages? `uv run python tools/experiment_manager.py modules`.
+Need a reminder of available stages? `uv run python scripts/experiment_manager.py modules`.
 
 ## Automated Submission Workflow
 
-Model scripts now embed an optional end-to-end pipeline that creates the Kaggle submission, waits for scoring, fetches the public score via Playwright, updates tracking files, and commits the result.
+The experiment manager now provides an optional end-to-end pipeline that creates the Kaggle submission, waits for scoring, fetches the public score via Playwright, updates tracking files, and commits the result.
 
 ```bash
-uv run python <project>/code/models/baseline_autogluon.py \
+uv run python scripts/experiment_manager.py model \
+    --project <project> \
+    --template dev-gpu \
     --auto-submit \
-    --kaggle-message "autogluon-medium exp-2" \
     --wait-seconds 45
 ```
 

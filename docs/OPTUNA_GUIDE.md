@@ -41,60 +41,125 @@ ExperimentManager (orchestration)
 
 ## Quick Start
 
-### 1. Setup New Competition
+**Get started in 5 minutes** - This section covers the essentials for hyperparameter tuning.
+
+### Installation
 
 ```bash
-# Initialize project structure + download data
+# System is pre-installed with dependencies
+uv sync
+
+# Verify installation
+uv run python -c "from kaggle_tools import optuna, preprocessing, stacking; print('✓ OK')"
+```
+
+### Basic Workflow
+
+#### Step 1: Initialize Project
+
+```bash
+# Create project structure + download data
 uv run python scripts/experiment_manager.py init-project \
-    --project playground-series-s5e11
-
-# Installs project.yaml with Optuna defaults
+    --project my-competition
 ```
 
-### 2. Feature Engineering
+#### Step 2: Tune Hyperparameters
 
 ```bash
-# Run feature engineering
-uv run python scripts/experiment_manager.py feat \
-    --project playground-series-s5e11 \
-    --feature-set baseline
-
-# Output: experiments/{experiment_id}/features/
-#   - train_transformed.parquet
-#   - test_transformed.parquet
-#   - pipeline/feat_stage.pkl
-```
-
-### 3. Hyperparameter Tuning
-
-```bash
-# Tune XGBoost with "thorough" preset (100 trials, 2h)
-uv run python scripts/experiment_manager.py tune \
-    --project playground-series-s5e11 \
-    --experiment-id exp-20251127-123456 \
+# Quick smoke test (20 trials, 30min)
+uv run python scripts/optuna_runner.py \
+    --project my-competition \
     --model xgboost \
-    --preset thorough \
-    --use-transformed
+    --preset quick
 
-# Output: experiments/{experiment_id}/optuna/
-#   - best_params_xgboost.json
-#   - trials_xgboost.csv
-#   - optuna.db (SQLite study)
+# Production run (100 trials, 2h)
+uv run python scripts/optuna_runner.py \
+    --project my-competition \
+    --model xgboost \
+    --preset thorough
 ```
 
-### 4. Model Ensembling
+**Presets:**
+
+| Preset | Trials | Time | Use Case |
+|--------|-------:|------|----------|
+| `quick` | 20 | 30 min | Smoke test |
+| `thorough` | 100 | 2 hours | Production |
+| `extreme` | 500 | 24 hours | Final push |
+
+#### Step 3: Train with Best Params
 
 ```bash
-# Blend multiple model predictions
+# Uses cached best_params.json from tuning
+uv run python scripts/experiment_manager.py model \
+    --project my-competition \
+    --model xgboost_optuna \
+    --auto-submit
+```
+
+### Common Commands
+
+**Feature Engineering:**
+```bash
+uv run python scripts/feature_runner.py \
+    --project my-competition \
+    --feature-set baseline
+```
+
+**Model Blending:**
+```bash
 uv run python scripts/stacking_runner.py \
-    --project playground-series-s5e11 \
-    --models submission1.csv submission2.csv submission3.csv \
-    --strategy blend \
+    --project my-competition \
+    --models model1.csv model2.csv model3.csv \
     --blend-method weighted \
     --blend-weights 0.5 0.3 0.2
-
-# Output: submissions/ensemble-blend-{timestamp}.csv
 ```
+
+**Optuna Dashboard:**
+```bash
+# Launch dashboard (http://localhost:8080)
+uv run python scripts/optuna_runner.py \
+    --project my-competition \
+    --model xgboost \
+    --preset thorough \
+    --dashboard
+```
+
+### Pro Tips
+
+1. **Always commit before experiments** - Enables reproducibility via git hash
+2. **Use dashboard for long runs** - Monitor progress at http://localhost:8080
+3. **Start with quick preset** - Validate setup before thorough tuning
+4. **Blend diverse models** - Best results from complementary models (correlation < 0.95)
+
+### Quick Troubleshooting
+
+**Study not resuming?**
+```bash
+# Check storage path
+ls projects/kaggle/my-competition/experiments/optuna.db
+
+# Use --resume flag
+uv run python scripts/optuna_runner.py --resume ...
+```
+
+**Out of memory?**
+```bash
+# Reduce CV folds
+--cv-folds 3
+
+# Run trials sequentially
+--n-jobs 1
+```
+
+---
+
+**Related Documentation:**
+- [CLAUDE.md](../CLAUDE.md) - Main repository guide with architecture and workflows
+- [configs.md](configs.md) - Template configuration reference (YAML structure details)
+- [../scripts/README.md](../scripts/README.md) - All scripts documentation
+
+---
 
 ## Feature Engineering
 

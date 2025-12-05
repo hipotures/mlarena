@@ -18,29 +18,39 @@ from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import load_project_config
 
 
-GLOBAL_ARGS = {"project", "experiment_id", "force", "skip_deps", "command"}
+COMMON_FLAGS = [
+    ("--project", "-p", {"required": True, "help": "Competition/project name (projects/kaggle/<name>)"}),
+    ("--experiment-id", "-e", {"help": "Existing experiment id to resume"}),
+    ("--force", "-f", {"action": "store_true", "help": "Re-run completed modules"}),
+    ("--skip-deps", None, {"action": "store_true", "help": "Do not run dependencies automatically"}),
+]
+
+
+def _add_common(subparser: argparse.ArgumentParser) -> List[str]:
+    dests: List[str] = []
+    for long, short, kwargs in COMMON_FLAGS:
+        opts = [long] + ([short] if short else [])
+        action = subparser.add_argument(*opts, **kwargs)
+        dests.append(action.dest)
+    return dests
 
 
 def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner")
-    parser.add_argument("--project", "-p", required=True, help="Competition/project name (projects/kaggle/<name>)")
-    parser.add_argument("--experiment-id", "-e", help="Existing experiment id to resume")
-    parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
-    parser.add_argument("--skip-deps", action="store_true", help="Do not run dependencies automatically")
-
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Special helper command
-    subparsers.add_parser("modules", help="List available modules")
+    modules_parser = subparsers.add_parser("modules", help="List available modules")
+    _add_common(modules_parser)
 
     for name in sorted(ModuleRegistry.available()):
         module_cls = ModuleRegistry.get(name)
         sub = subparsers.add_parser(name, help=module_cls.description or "")
+        common_dests = set(_add_common(sub))
         before = {a.dest for a in sub._actions}
         if hasattr(module_cls, "register_cli_args"):
             module_cls.register_cli_args(sub)
         after = {a.dest for a in sub._actions}
-        module_arg_map[name] = sorted(after - before)
+        module_arg_map[name] = sorted([d for d in (after - before) if d not in common_dests])
     return parser
 
 

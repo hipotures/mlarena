@@ -61,7 +61,7 @@ competition-name/
 └── docs/                    # Optional notebooks/notes
 ```
 
-`scripts/` at the repository root contains the reusable runners (`autogluon_runner.py`, `experiment_manager.py`, `submission_workflow.py`, etc.). Competition folders only hold lightweight configuration and any extra scripts that are truly competition-specific. Large artefacts (models, downloaded zips) stay ignored via each project's `.gitignore`.
+`scripts/` at the repository root contains the reusable tools. **MLArena** is the single entry point (`mla.py`) that replaces the legacy `experiment_manager.py` / `ml_runner.py` / `autogluon_runner.py`. Competition folders only hold lightweight configuration and any extra scripts that are truly competition-specific. Large artefacts (models, downloaded zips) stay ignored via each project's `.gitignore`.
 
 `code/utils/config.py` is the only file you normally edit per competition. The init script fills in:
 - Data paths (`TRAIN_PATH`, `TEST_PATH`, `SAMPLE_SUBMISSION_PATH`) and Kaggle metadata (`COMPETITION_NAME`, `METRIC`).
@@ -82,21 +82,20 @@ All shared tools (runner, submissions tracker, validation) rely on these fields,
 1. Accept the rules on Kaggle and grab the competition slug.
 2. Create a project with the init script or copy any existing one, then remove its submissions/experiments.
 3. Edit `code/utils/config.py` to set `COMPETITION_NAME`, metric, and target column; drop the downloaded CSV files into `data/`.
-4. Run `uv run python scripts/experiment_manager.py eda --project <project>` to confirm the loader works. From now on, rely on the shared runner/templates instead of bespoke scripts.
+4. Run `uv run python scripts/mla.py eda --project <project>` to confirm the loader works. From now on, rely on the shared MLArena runner/templates instead of bespoke scripts.
 
 `uv sync` installs all dependencies; no per-project virtualenvs are needed.
 
 ## Workflow
 
-Every experiment is broken into modules tracked in `experiments/<id>/state.json`. Use `scripts/experiment_manager.py` to orchestrate the flow:
+Every experiment is broken into modules tracked in `experiments/<id>/state.json`. Use **MLArena** (`scripts/mla.py`) to orchestrate the flow:
 
-1. **EDA** – `uv run python scripts/experiment_manager.py eda --project <project>`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
-2. **Model (train)** – `uv run python scripts/experiment_manager.py model --project <project> --experiment-id exp-20251117-020830 --template gpu-dev-5m [--auto-submit]`. This wraps the template-driven `scripts/ml_runner.py` and records training results (local CV, model path) as soon as training finishes. Core templates follow the `[cpu|gpu]-<purpose>-<time>` scheme: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `cpu-best-8h`, and `gpu-extreme-24h` (prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
-   - Extra override: `--model-name <module>` lets you swap the model file used by the template (e.g., run `autogluon_shiftaware` with an existing template). Applies to train/all; predict always reloads the model recorded in state.
-3. **Predict** – `uv run python scripts/experiment_manager.py predict --project <project> --experiment-id exp-... [--template gpu-dev-5m]` reuses the trained model to generate a submission and completes the `predict` module before any submit step. The `model` command runs this automatically unless you stop at training.
-4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python scripts/experiment_manager.py submit --project <project> --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
+1. **EDA** – `uv run python scripts/mla.py eda --project <project>`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
+2. **Model (train)** – `uv run python scripts/mla.py model --project <project> --experiment-id exp-20251117-020830 --model-template dev-gpu [--auto-submit]`. Templates map to AutoGluon presets/time limits; overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available per module.
+3. **Predict** – `uv run python scripts/mla.py predict --project <project> --experiment-id exp-... [--predict-suffix foo]` reuses the trained model to generate a submission. The `model` command runs this automatically unless you stop at training.
+4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python scripts/mla.py submit --project <project> --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
 
-Use `uv run python scripts/experiment_manager.py list --project <project>` to inspect module statuses, and `uv run python scripts/experiment_manager.py modules` to show the available module names.
+Use `uv run python scripts/mla.py modules --project <project>` to list modules.
 
 ### Submission Automation
 
@@ -104,7 +103,7 @@ Use `uv run python scripts/experiment_manager.py list --project <project>` to in
 
 ### Troubleshooting Templates
 
-`fast-cpu` is a 60-second XGBoost-only smoke test that is ideal for verifying code paths before launching a long run. `extreme-gpu` enforces a confirmation prompt if the training set exceeds 30k rows, preventing accidental day-long jobs on gigantic data. When AutoGluon raises (e.g., invalid hyperparameter), the experiment manager records the module as `failed`, allowing you to rerun the step with the same ID once the issue is fixed.
+`fast-cpu` is a 60-second XGBoost-only smoke test that is ideal for verifying code paths before launching a long run. `extreme-gpu` enforces a confirmation prompt if the training set exceeds 30k rows, preventing accidental day-long jobs on gigantic data. When AutoGluon raises (e.g., invalid hyperparameter), MLArena records the module as `failed`, allowing you to rerun the step with the same ID once the issue is fixed.
 
 ## Optuna Hyperparameter Tuning System
 
@@ -123,11 +122,11 @@ uv run python scripts/optuna_runner.py \
     --model xgboost \
     --preset thorough
 
-# 2. Train with best params
-uv run python scripts/experiment_manager.py model \
-    --project <project> \
-    --model xgboost_optuna \
-    --auto-submit
+# 2. Train with best params via MLArena
+uv run python scripts/mla.py model --project <project> \
+    --model-template dev-gpu \
+    --time-limit 7200 \
+    --preset high
 
 # 3. Ensemble multiple models
 uv run python scripts/stacking_runner.py \
@@ -241,11 +240,6 @@ kaggle competitions leaderboard competition-name
 kaggle competitions submissions competition-name
 ```
 
-### Metric Detection via CDP
-- Commands such as `uv run python scripts/experiment_manager.py detect-metric` or `init-project` scrape the Evaluation section directly from the Kaggle overview page.
-- Keep Chrome running with `--remote-debugging-port=9222` (and logged into Kaggle) before invoking them.
-- Configure the connection through `KAGGLE_CDP_URL` or `--cdp-url http://127.0.0.1:9222`; without a reachable CDP endpoint the detection step will exit instead of guessing from `sample_submission.csv`.
-
 ### AutoGluon Quick Start
 
 ```python
@@ -282,91 +276,28 @@ git commit -m "Add feature engineering for XYZ"
 git push
 ```
 
-### AutoGluon Runner Templates
+## MLArena Templates
 
-Every competition now shares a single runner: `scripts/ml_runner.py` (called via `scripts/experiment_manager.py`). Pass a compute template instead of memorising raw parameters:
+MLArena uses simple template names aligned with AutoGluon presets/time limits (see `config/templates/model*.json` for specifics). Common presets:
 
-| Template     | Time Limit | Preset           | GPU | Notes |
-|--------------|-----------:|------------------|-----|-------|
-| `cpu-fast-1m`   | 60 s       | `medium` | ❌  | XGBoost-only smoke test |
-| `cpu-dev-5m`    | 300 s      | `medium` | ❌  | default stack (CPU) |
-| `gpu-dev-5m`    | 300 s      | `medium` | ✅  | default stack (GPU) |
-| `cpu-best-1h`   | 3600 s     | `best`   | ❌  | high-quality ensemble |
-| `gpu-best-1h`   | 3600 s     | `best`   | ✅  | high-quality ensemble |
-| `cpu-best-8h`   | 28800 s    | `best`   | ❌  | long CPU run |
-| `gpu-extreme-24h`| 24 h      | `extreme`| ✅  | ≤30k rows, prompts before run |
+- `fast-cpu` (≈60s, smoke test)
+- `dev-cpu` / `dev-gpu` (≈5 min iteration)
+- `best-cpu` / `best-gpu` (≈1h quality ensemble)
+- `extreme-gpu` (24h foundation-model stack; requires GPU)
 
-Example:
+Override per run: `--time-limit`, `--preset`, `--use-gpu`, `--model-template <name>`.
 
-```bash
-uv run python scripts/experiment_manager.py model \
-    --project <project> \
-    --template gpu-best-1h \
-    --auto-submit \
-    --wait-seconds 45
-```
+## MLArena Experiment Workflow
 
-`cpu-fast-1m` is intended purely for smoke testing—it limits AutoGluon to a single XGBoost learner for ~60 seconds. `gpu-extreme-24h` prompts with the training-row count if the dataset exceeds 30k rows so you can abort before launching a marathon job. Overrides such as `--time-limit`, `--preset`, or `--use-gpu 0/1` are available when needed.
+1) **EDA**: `uv run python scripts/mla.py eda --project <project>`
 
-## Experiment Workflow
+2) **Model**: `uv run python scripts/mla.py model --project <project> --model-template dev-gpu --auto-submit`
 
-Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`. Modules append their own sections, so możesz odpalać je niezależnie lub wznawiać od dowolnego miejsca:
+3) **Predict** (if needed): `uv run python scripts/mla.py predict --project <project> --experiment-id <exp>`
 
-1. **EDA** – uruchamia podstawową analizę i rejestruje identyfikator:
-   ```bash
-   uv run python scripts/experiment_manager.py eda \
-       --project <project> \
-       --notes "baseline sweep"
-   ```
-   Komunikat pokaże `experiment_id` w formacie `exp-YYYYMMDD-HHMMSS`.
+4) **Submit / Fetch score**: `uv run python scripts/mla.py fetch-score --project <project> --experiment-id <exp> --cdp-url http://127.0.0.1:9222`
 
-2. **Model** – przekazujesz ten sam identyfikator:
-   ```bash
-   uv run python scripts/experiment_manager.py model \
-       --project <project> \
-       --template dev-gpu \
-       --experiment-id exp-20251117-011230 \
-       --auto-submit \
-       --wait-seconds 45
-   ```
-   Runner zweryfikuje moduł EDA tylko wtedy, gdy dodasz `--require-eda` (domyślnie pomija ten krok).
-
-3. **Submit / Resume** – gdy CSV jest już wysłany, pobierasz skorę i aktualizujesz zarówno tracker, jak i eksperyment:
-   ```bash
-   uv run python scripts/submission_workflow.py pull-score \
-       --project <project> \
-       --filename submission-20251117015359.csv \
-       --experiment-id exp-20251117-011230 \
-       --cdp-url http://127.0.0.1:9222
-   ```
-
-Podgląd stanu:
-
-```bash
-uv run python scripts/experiment_manager.py list --project <project>
-```
-Need a reminder of available stages? `uv run python scripts/experiment_manager.py modules`.
-
-## Automated Submission Workflow
-
-The experiment manager now provides an optional end-to-end pipeline that creates the Kaggle submission, waits for scoring, fetches the public score via Playwright, updates tracking files, and commits the result.
-
-```bash
-uv run python scripts/experiment_manager.py model \
-    --project <project> \
-    --template dev-gpu \
-    --auto-submit \
-    --wait-seconds 45
-```
-
-What happens:
-1. The CSV emitted by `create_submission()` is uploaded with the Kaggle CLI.
-2. The runner sleeps (default 30s) so Kaggle can evaluate the submission.
-3. Playwright connects to your existing Chrome session (`google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug`) and reads the newest entry on `/submissions`. Install the browser driver once with `uv run playwright install chromium`.
-4. `SubmissionsTracker` links the fetched public score to the tracker entry/experiment ID.
-5. A git commit is created inside `competitions/` tying the code + local CV + public score (`submission(<project>): autogluon-medium | local 0.92379 | public 0.92227`).
-
-Flags to know: `--skip-submit` (train only), `--auto-submit` (skip the confirmation prompt), `--skip-score-fetch` (useful when Chrome/CDP isn't running), `--skip-git` (review and commit manually), `--cdp-url` (point to a custom debug endpoint).
+State lives in `projects/kaggle/<project>/experiments/<exp>/state.json`; rerun modules with `--force` to overwrite completed steps.
 
 ## Active Competitions
 

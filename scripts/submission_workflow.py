@@ -28,7 +28,16 @@ from rich.console import Console
 from rich.panel import Panel
 
 from submissions_tracker import SubmissionsTracker
-from experiment_manager import ExperimentManager, ModuleStateError
+try:
+    from experiment_manager import ExperimentManager, ModuleStateError  # legacy dependency
+except ModuleNotFoundError:  # Removed in MLArena
+    class ModuleStateError(RuntimeError):
+        """Fallback error when legacy ExperimentManager is unavailable."""
+
+    class ExperimentManager:  # type: ignore
+        @classmethod
+        def load_or_create(cls, *_, **__):
+            raise ModuleStateError("experiment_manager.py has been removed; use scripts/mla.py instead.")
 
 console = Console()
 REPO_ROOT = Path(__file__).resolve().parent.parent

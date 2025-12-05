@@ -41,7 +41,7 @@ def _write_minimal_project(root: Path):
 
 def test_cli_lists_modules(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
-    exit_code = main(["--project", "demo", "modules"])
+    exit_code = main(["modules", "--project", "demo"])
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "eda" in out and "model" in out
@@ -52,7 +52,7 @@ def test_cli_runs_eda(monkeypatch, tmp_path, capsys):
     project_root = tmp_path / "projects" / "kaggle" / "demo"
     _write_minimal_project(project_root)
 
-    exit_code = main(["--project", "demo", "eda", "--eda-notes", "hello"])
+    exit_code = main(["eda", "--project", "demo", "--eda-notes", "hello"])
     assert exit_code == 0
 
     exp_root = project_root / "experiments"

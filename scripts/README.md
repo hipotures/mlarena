@@ -145,30 +145,18 @@ if best_local['id'] != best_public['id']:
 
 These are the primary scripts you'll interact with directly:
 
-#### `experiment_manager.py`
-Main orchestrator for the modular experiment pipeline (EDA → Model → Submit → Fetch).
+#### `mla.py`
+MLArena entry point (EDA → preprocess → model → predict → submit → fetch-score).
 ```bash
-# Initialize project
-uv run python scripts/experiment_manager.py init-project --project <name>
-
 # Run EDA
-uv run python scripts/experiment_manager.py eda --project <name>
+uv run python scripts/mla.py --project <name> eda
 
-# Train model
-uv run python scripts/experiment_manager.py model --project <name> \
-    --experiment-id exp-... --template gpu-dev-5m
+# Train model with template
+uv run python scripts/mla.py --project <name> model --model-template dev-gpu --auto-submit
 
-# List experiments
-uv run python scripts/experiment_manager.py list --project <name>
+# List available modules
+uv run python scripts/mla.py --project <name> modules
 ```
-
-#### `ml_runner.py`
-Generic ML runner with template-based training. Used internally by `experiment_manager.py`.
-Supports any model module that implements `train()` and `predict()` functions.
-
-#### `autogluon_runner.py`
-Direct AutoGluon runner with built-in templates (fast-cpu, dev-gpu, best-gpu, etc.).
-Alternative to using experiment_manager for quick iterations.
 
 #### `submission_workflow.py`
 End-to-end submission pipeline: upload to Kaggle + score scraping via Playwright/CDP.
@@ -243,8 +231,7 @@ Helps create custom model.yaml and preprocess.yaml configurations.
 ### Script Categories Summary
 
 **Primary Entry Points** (use these directly):
-- `experiment_manager.py` - Main orchestrator ⭐
-- `autogluon_runner.py` - Direct AutoGluon runner
+- `mla.py` - MLArena orchestrator ⭐
 - `submissions_tracker.py` - Score tracking
 - `experiment_logger.py` - Git-based reproducibility
 

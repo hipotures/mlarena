@@ -59,11 +59,11 @@ uv run python scripts/submissions_tracker.py --project [competition-name] list
    - Used by all project wrappers
 
 3. **Project Layer** (`projects/kaggle/[competition-name]/`): Individual competition directories
-   - `code/utils/config.py`: Competition-specific constants (target, metric, AutoGluon settings)
-   - `code/utils/submission.py`: Lightweight wrapper that injects config into `src/kaggle_tools`
-   - `code/models/`: Model implementations
-   - `code/exploration/`: EDA scripts
-   - `templates/model.yaml`: Experiment templates (model + hyperparameters) - see [configs/README.md](projects/kaggle/playground-series-s5e11/configs/README.md) for detailed structure documentation
+  - `code/utils/config.py`: Competition-specific constants (target, metric, AutoGluon settings)
+  - `code/utils/submission.py`: Optional; when absent, runner falls back to the global helper in `src/kaggle_tools/submission.py`
+  - `code/models/`: Model implementations
+  - `code/exploration/`: EDA scripts
+  - `templates/model.yaml`: Experiment templates (model + hyperparameters) - see `docs/configs.md` for detailed structure documentation
 
 4. **Tracking Layer**: Automatic experiment → submission → git linkage
    - Every `create_submission()` call captures git hash, creates code snapshot
@@ -493,7 +493,7 @@ See `scripts/README_KAGGLE.md` for details.
    - Fallback to competition-specific default in config
 
 5. **Skipping EDA when data changed** → Hidden schema drifts
-   - `init-project` automatically generates baseline train/test reports under `experiments/init`
+   - `init-project` does not run EDA automatically; run it manually when ready
    - Per-experiment EDA is optional; add `--require-eda` when launching the model module if you want it enforced
    - Re-run `uv run python scripts/experiment_manager.py eda --project ...` whenever you materially change the data
 

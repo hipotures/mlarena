@@ -72,6 +72,11 @@ competition-name/
 
 All shared tools (runner, submissions tracker, validation) rely on these fields, so keep them in sync with the competition rules.
 
+## Global vs. project templates and code
+- Templates merge global files in `config/templates/*.yaml` with project files in `projects/kaggle/<proj>/templates/*.yaml`; when names collide, the project entry wins (a warning is printed).
+- Model modules load from `projects/kaggle/<proj>/code/models/` or `config/code/models/`. If the same filename exists in both, the runner fails (no shadowing). Use unique names for project-only variants; edit globals only for cross-project changes.
+- Preprocessing modules load from `projects/kaggle/<proj>/code/preprocessing/` or `config/code/preprocessing/` (e.g., global `identity.py`). Same-name clashes also fail; keep shared utilities global and add custom pipelines locally under a distinct name.
+
 ## Creating a New Competition Project
 
 1. Accept the rules on Kaggle and grab the competition slug.

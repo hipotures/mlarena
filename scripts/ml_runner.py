@@ -25,8 +25,10 @@ from rich.panel import Panel
 from experiment_manager import ExperimentManager, ModuleStateError
 from kaggle_tools.config_models import DatasetConfig, Hyperparameters, ModelConfig, SystemConfig
 from submission_workflow import SubmissionRunner
+from template_loader import TemplateValidationError, load_templates
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+GLOBAL_MODELS_DIR = REPO_ROOT / "config" / "code" / "models"
 console = Console()
 
 
@@ -118,14 +120,6 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {}
     return yaml.safe_load(path.read_text()) or {}
-
-
-def _load_template_file(path: Path, kind: str) -> Dict[str, Any]:
-    data = _load_yaml(path)
-    templates = data.get("templates", {})
-    if not templates:
-        raise RuntimeError(f"No {kind} templates defined in {path}")
-    return templates
 
 
 def _apply_cli_overrides(args: argparse.Namespace) -> Dict[str, Any]:
@@ -220,10 +214,30 @@ class MLRunner:
                 )
             console.print("[yellow]--ag-smoke mode activated for AutoGluon[/yellow]")
 
+    def _resolve_model_path(self) -> Path:
+        local_path = self.project.root / "code" / "models" / f"{self.model_name}.py"
+        global_path = GLOBAL_MODELS_DIR / f"{self.model_name}.py"
+
+        local_exists = local_path.exists()
+        global_exists = global_path.exists()
+
+        if local_exists and global_exists:
+            raise RuntimeError(
+                f"Model '{self.model_name}' exists both locally and globally:\n"
+                f"- {local_path}\n"
+                f"- {global_path}\n"
+                "Rename or remove one to avoid ambiguity."
+            )
+        if local_exists:
+            return local_path
+        if global_exists:
+            return global_path
+        raise FileNotFoundError(
+            f"Model file not found for '{self.model_name}'. Checked:\n- {local_path}\n- {global_path}"
+        )
+
     def _load_model_module(self):
-        model_path = self.project.root / "code" / "models" / f"{self.model_name}.py"
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model file not found: {model_path}")
+        model_path = self._resolve_model_path()
         spec = importlib.util.spec_from_file_location(self.model_name, model_path)
         module = importlib.util.module_from_spec(spec)
         if not spec.loader:
@@ -721,9 +735,14 @@ class MLRunner:
 
 def run(args: argparse.Namespace):
     context = load_project_context(args.project)
-    templates_dir = context.root / "templates"
-    preprocess_templates = _load_template_file(templates_dir / "preprocess.yaml", "preprocess")
-    model_templates = _load_template_file(templates_dir / "model.yaml", "model")
+    try:
+        preprocess_templates, preprocess_warnings = load_templates("preprocess", context.root)
+        model_templates, model_warnings = load_templates("model", context.root)
+    except TemplateValidationError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+    for msg in [*preprocess_warnings, *model_warnings]:
+        console.print(f"[yellow]{msg}[/yellow]")
     stage = args.stage or "all"
 
     if stage == "predict" and not args.experiment_id:

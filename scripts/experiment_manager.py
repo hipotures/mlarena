@@ -23,6 +23,7 @@ import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from template_loader import TemplateValidationError, load_templates
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
 MODULES = ["eda", "preprocess", "feat", "model", "predict", "tune", "stack", "submit", "fetch-score"]
@@ -1181,6 +1182,7 @@ def run_init_project(args):
         "code/exploration",
         "code/models",
         "code/utils",
+        "templates",
         "docs",
         "experiments",
         "submissions",
@@ -1195,6 +1197,13 @@ def run_init_project(args):
     # Create .gitkeep files
     for keep_dir in ["data", "docs", "experiments", "submissions", "logs"]:
         (project_root / keep_dir / ".gitkeep").touch()
+
+    # Initialize empty template files (global templates will be merged at runtime)
+    templates_dir = project_root / "templates"
+    for tpl_name in ["model.yaml", "preprocess.yaml"]:
+        tpl_path = templates_dir / tpl_name
+        if not tpl_path.exists():
+            tpl_path.write_text("templates: {}\n")
 
     # Copy template files
     console.print("\n[cyan]Copying template files...[/cyan]")
@@ -1214,20 +1223,6 @@ def run_init_project(args):
         dirs_exist_ok=True,
     )
     console.print("  [green]✓[/green] configs/ (templates + presets)")
-
-    # AutoGluon baseline model (symlink to shared template)
-    baseline_src = template_project / "code/models/autogluon_baseline.py"
-    baseline_dst = project_root / "code/models/autogluon_baseline.py"
-    try:
-        if baseline_dst.is_symlink() or baseline_dst.exists():
-            baseline_dst.unlink()
-        os.symlink(baseline_src, baseline_dst)
-        console.print("  [green]✓[/green] code/models/autogluon_baseline.py (symlink)")
-    except OSError as exc:
-        shutil.copy(baseline_src, baseline_dst)
-        console.print(
-            f"  [yellow]![/yellow] code/models/autogluon_baseline.py copied (symlink failed: {exc})"
-        )
 
     # AutoGluon baseline FE model (link to shared template to avoid per-project edits)
     fe_src = template_project / "code/models/autogluon_baseline_fe.py"
@@ -1586,11 +1581,8 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
     console.print(table)
 
     # Show default templates with key parameters
-    model_templates_path = project_root / "templates" / "model.yaml"
-    preprocess_templates_path = project_root / "templates" / "preprocess.yaml"
     try:
-        model_cfg = yaml.safe_load(model_templates_path.read_text()) or {}
-        model_templates = model_cfg.get("templates", {})
+        model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
         if model_templates:
             console.print("\n[cyan]Model templates:[/cyan]")
             for name, payload in model_templates.items():
@@ -1606,19 +1598,18 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
                 if use_gpu is not None:
                     parts.append(f"gpu={'yes' if use_gpu else 'no'}")
                 console.print(f"  - {name}: {', '.join(parts) if parts else 'no hyperparameters defined'}")
-    except Exception as exc:
+    except TemplateValidationError as exc:
         console.print(f"[yellow]Could not read model templates: {exc}[/yellow]")
 
     try:
-        preprocess_cfg = yaml.safe_load(preprocess_templates_path.read_text()) or {}
-        preprocess_templates = preprocess_cfg.get("templates", {})
+        preprocess_templates, _ = load_templates("preprocess", project_root, suppress_warnings=True)
         if preprocess_templates:
             console.print("\n[cyan]Preprocess templates:[/cyan]")
             for name, payload in preprocess_templates.items():
                 module = payload.get("module")
                 cache = payload.get("cache")
                 console.print(f"  - {name}: module={module}, cache={'yes' if cache else 'no'}")
-    except Exception as exc:
+    except TemplateValidationError as exc:
         console.print(f"[yellow]Could not read preprocess templates: {exc}[/yellow]")
 
     console.print("\n[cyan]Next steps:[/cyan]")

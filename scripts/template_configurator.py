@@ -9,24 +9,12 @@ import subprocess
 from pathlib import Path
 from typing import Dict
 
-import yaml
 from rich.console import Console
 from rich.table import Table
+from template_loader import load_templates
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 console = Console()
-
-
-def load_templates(project: str) -> Dict[str, Dict]:
-    project_root = REPO_ROOT / "projects" / "kaggle" / project
-    templates_dir = project_root / "templates"
-    model_cfg = yaml.safe_load((templates_dir / "model.yaml").read_text()) or {}
-    preprocess_cfg = yaml.safe_load((templates_dir / "preprocess.yaml").read_text()) or {}
-    return {
-        "model": model_cfg.get("templates", {}),
-        "preprocess": preprocess_cfg.get("templates", {}),
-        "root": project_root,
-    }
 
 
 def choose_template(kind: str, templates: Dict[str, Dict]) -> str:
@@ -82,9 +70,15 @@ def main():
     parser.add_argument("--auto-submit", action="store_true")
     args = parser.parse_args()
 
-    templates = load_templates(args.project)
-    model_choice = choose_template("model", templates["model"])
-    preprocess_choice = choose_template("preprocess", templates["preprocess"])
+    project_root = REPO_ROOT / "projects" / "kaggle" / args.project
+    model_templates, model_warnings = load_templates("model", project_root)
+    preprocess_templates, preprocess_warnings = load_templates("preprocess", project_root)
+
+    for msg in [*model_warnings, *preprocess_warnings]:
+        console.print(f"[yellow]{msg}[/yellow]")
+
+    model_choice = choose_template("model", model_templates)
+    preprocess_choice = choose_template("preprocess", preprocess_templates)
 
     cmd = build_command(
         args.project,

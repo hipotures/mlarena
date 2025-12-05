@@ -1,0 +1,5 @@
+- **Zakres**: utworzyłem szkielet pakietu `src/mlarena/` (core, modules, cli, utils) z plikami stub i placeholders oraz dodałem nowe wpisy w `pyproject.toml`, aby pakiet był budowany razem z istniejącymi narzędziami.
+- **Decyzje / odchylenia**: zdecydowałem się umieścić minimalne klasy/funcje stubbing (np. `BaseModule`, `ExperimentState`) z `NotImplementedError`, by przyszłe fazy mogły uzupełnić logikę bez zmiany importów; brak dodatkowych funkcjonalności w tej fazie.
+- **Testy**: nie uruchamiano (faza strukturalna bez logiki).
+- **Ryzyka / następne kroki**: kolejne fazy muszą wypełnić implementacje w plikach core oraz dodać rejestrację modułów; trzeba dostosować nowe testy jednostkowe w fazie 2+; obecny placeholder CLI (`mla.py`) jeszcze nie istnieje, więc bieżący pipeline pozostaje na starych skryptach.
+- **Artefakty / PR**: nowe pliki w `src/mlarena/**`; aktualizacja `pyproject.toml`.

@@ -23,22 +23,20 @@ N_FOLDS = 5
 # Target column
 TARGET_COLUMN = "loan_paid_back"
 
-# ID column (needed for submission, but not for training)
+# Row identifier column (ignored when training)
 ID_COLUMN = "id"
 
-# Columns to ignore during training (but keep in test for submission)
-IGNORED_COLUMNS = ["id"]
+# Columns to ignore during training
+IGNORED_COLUMNS = ['id']
 
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
-AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment
-AUTOGLUON_PROBLEM_TYPE = "binary"  # binary classification
-AUTOGLUON_EVAL_METRIC = "roc_auc"  # ROC AUC Score
+AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
+AUTOGLUON_PROBLEM_TYPE = "binary"  # binary, regression, multiclass
+AUTOGLUON_EVAL_METRIC = "roc_auc"  # evaluation metric
 
 # Competition details
 COMPETITION_NAME = "playground-series-s5e11"
-METRIC = "roc_auc"  # Area under the ROC curve
-DEADLINE = "2025-11-30 23:59 UTC"
-
+METRIC = "roc_auc"
 # Submission format
-SUBMISSION_PROBAS = True  # Submit probabilities (0.0-1.0) for ROC AUC metric
+SUBMISSION_PROBAS = True

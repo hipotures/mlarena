@@ -1,0 +1,22 @@
+pipeline:
+  name: default
+  description: Default Kaggle experiment pipeline (EDA → preprocess → model → predict → submit).
+  modules:
+    - name: eda
+      description: Exploratory data analysis and profiling
+    - name: preprocess
+      description: Feature engineering / preprocessing
+    - name: feat
+      description: Optional feature store or manual feature scripts
+    - name: model
+      description: Train model and save artifacts
+    - name: predict
+      description: Generate predictions and submission files
+    - name: tune
+      description: Optional hyperparameter tuning stage
+    - name: stack
+      description: Optional stacking/blending stage
+    - name: submit
+      description: Submit to Kaggle and link scores
+    - name: fetch-score
+      description: Fetch or refresh leaderboard score

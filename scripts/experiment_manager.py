@@ -23,6 +23,7 @@ import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from pipeline_loader import PipelineValidationError, load_pipeline
 from template_loader import TemplateValidationError, load_templates
 
 
@@ -66,7 +67,6 @@ def _compute_data_snapshot(project_root: Path, target_column: str) -> Dict[str, 
     return snapshot
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
-MODULES = ["eda", "preprocess", "feat", "model", "predict", "tune", "stack", "submit", "fetch-score"]
 console = Console()
 
 
@@ -301,18 +301,41 @@ class ExperimentManager:
     artifact_dir: Path
     json_path: Path
     data: Dict = field(default_factory=dict)
+    pipeline_name: str = "default"
+    pipeline_modules: tuple[str, ...] = ()
 
     @classmethod
-    def load_or_create(cls, project_name: str, experiment_id: Optional[str] = None) -> "ExperimentManager":
+    def load_or_create(
+        cls, project_name: str, experiment_id: Optional[str] = None, *, pipeline_name: str = "default"
+    ) -> "ExperimentManager":
         project_root = REPO_ROOT / "projects" / "kaggle" / project_name
         base_dir = project_root / "experiments"
         if experiment_id is None:
             experiment_id = generate_experiment_id()
         artifact_dir = base_dir / experiment_id
         json_path = artifact_dir / "state.json"
+        pipeline_def, pipeline_warnings = load_pipeline(pipeline_name, project_root)
+        for msg in pipeline_warnings:
+            console.print(f"[yellow]{msg}[/yellow]")
+
         if json_path.exists():
             with open(json_path) as f:
                 data = json.load(f)
+            stored_pipeline = (data.get("pipeline") or {}).get("name")
+            if stored_pipeline and stored_pipeline != pipeline_def.get("name"):
+                raise PipelineValidationError(
+                    f"Experiment {experiment_id} already uses pipeline '{stored_pipeline}', "
+                    f"but '{pipeline_def.get('name')}' was requested. Use the original pipeline or create a new experiment."
+                )
+            if not data.get("pipeline"):
+                data["pipeline"] = {
+                    "name": pipeline_def.get("name") or pipeline_name,
+                    "description": pipeline_def.get("description"),
+                    "source": pipeline_def.get("source"),
+                    "modules": [m.get("name") if isinstance(m, dict) else str(m) for m in pipeline_def.get("modules", [])],
+                }
+                with open(json_path, "w") as f:
+                    json.dump(data, f, indent=2)
         else:
             data = {
                 "experiment_id": experiment_id,
@@ -320,10 +343,17 @@ class ExperimentManager:
                 "created_at": utc_now(),
                 "git": get_git_info(project_root),
                 "modules": {},
+                "pipeline": {
+                    "name": pipeline_def.get("name") or pipeline_name,
+                    "description": pipeline_def.get("description"),
+                    "source": pipeline_def.get("source"),
+                    "modules": [m.get("name") if isinstance(m, dict) else str(m) for m in pipeline_def.get("modules", [])],
+                },
             }
             artifact_dir.mkdir(parents=True, exist_ok=True)
             with open(json_path, "w") as f:
                 json.dump(data, f, indent=2)
+
         return cls(
             project_name=project_name,
             experiment_id=experiment_id,
@@ -332,10 +362,14 @@ class ExperimentManager:
             artifact_dir=artifact_dir,
             json_path=json_path,
             data=data,
+            pipeline_name=data.get("pipeline", {}).get("name", pipeline_def.get("name", pipeline_name)),
+            pipeline_modules=tuple(
+                m.get("name") if isinstance(m, dict) else str(m) for m in pipeline_def.get("modules", [])
+            ),
         )
 
     @classmethod
-    def load_existing(cls, project_name: str, experiment_id: str) -> "ExperimentManager":
+    def load_existing(cls, project_name: str, experiment_id: str, *, pipeline_name: str = "default") -> "ExperimentManager":
         if not experiment_id:
             raise ValueError("experiment-id is required")
         project_root = REPO_ROOT / "projects" / "kaggle" / project_name
@@ -346,6 +380,34 @@ class ExperimentManager:
             raise FileNotFoundError(f"Experiment '{experiment_id}' not found in {artifact_dir}")
         with open(json_path) as f:
             data = json.load(f)
+
+        stored_pipeline = data.get("pipeline") or {}
+        stored_name = stored_pipeline.get("name")
+        pipeline_def = None
+        if stored_name:
+            pipeline_def, pipeline_warnings = load_pipeline(stored_name, project_root)
+            for msg in pipeline_warnings:
+                console.print(f"[yellow]{msg}[/yellow]")
+        else:
+            pipeline_def, pipeline_warnings = load_pipeline(pipeline_name, project_root)
+            for msg in pipeline_warnings:
+                console.print(f"[yellow]{msg}[/yellow]")
+            data["pipeline"] = {
+                "name": pipeline_def.get("name") or pipeline_name,
+                "description": pipeline_def.get("description"),
+                "source": pipeline_def.get("source"),
+                "modules": [m.get("name") if isinstance(m, dict) else str(m) for m in pipeline_def.get("modules", [])],
+            }
+            with open(json_path, "w") as f:
+                json.dump(data, f, indent=2)
+
+        if stored_name and pipeline_name and pipeline_name != "default" and pipeline_name != stored_name:
+            raise PipelineValidationError(
+                f"Experiment {experiment_id} already uses pipeline '{stored_name}', requested '{pipeline_name}'."
+            )
+
+        pipeline_def = pipeline_def or {}
+
         return cls(
             project_name=project_name,
             experiment_id=experiment_id,
@@ -354,6 +416,10 @@ class ExperimentManager:
             artifact_dir=artifact_dir,
             json_path=json_path,
             data=data,
+            pipeline_name=stored_name or pipeline_def.get("name") or pipeline_name,
+            pipeline_modules=tuple(
+                m.get("name") if isinstance(m, dict) else str(m) for m in pipeline_def.get("modules", [])
+            ),
         )
 
     def save(self):
@@ -366,6 +432,13 @@ class ExperimentManager:
 
     def get_module(self, module: str) -> Optional[Dict]:
         return self.modules().get(module)
+
+    def _ensure_module_allowed(self, module: str):
+        if self.pipeline_modules and module not in self.pipeline_modules:
+            raise ModuleStateError(
+                f"Module '{module}' is not part of pipeline '{self.pipeline_name}'. "
+                f"Allowed modules: {', '.join(self.pipeline_modules)}"
+            )
 
     def update_run_metadata(self, payload: Dict):
         """
@@ -381,11 +454,14 @@ class ExperimentManager:
                     target[key] = value
 
         run_data = self.data.setdefault("run", {"created_at": utc_now()})
+        if "pipeline" not in run_data and self.pipeline_name:
+            run_data["pipeline"] = self.pipeline_name
         _merge(run_data, payload)
         run_data["updated_at"] = utc_now()
         self.save()
 
     def require(self, module: str):
+        self._ensure_module_allowed(module)
         entry = self.get_module(module)
         if not entry or entry.get("status") != "completed":
             raise ModuleStateError(f"Module '{module}' must complete before continuing.")
@@ -405,6 +481,7 @@ class ExperimentManager:
             return True
 
     def start_module(self, module: str, extra: Optional[Dict] = None, allow_restart: bool = False):
+        self._ensure_module_allowed(module)
         modules = self.modules()
         entry = modules.get(module)
         if entry:
@@ -425,6 +502,10 @@ class ExperimentManager:
                     raise ModuleAlreadyRunning(
                         f"Module '{module}' is already running for experiment {self.experiment_id}."
                     )
+        console.rule(
+            f"[cyan]Module[/cyan] [bold]{module}[/bold] "
+            f"[dim]pipeline={self.pipeline_name} exp={self.experiment_id}[/dim]"
+        )
         new_entry = dict(extra or {})
         new_entry["status"] = "running"
         new_entry["started_at"] = utc_now()
@@ -762,9 +843,33 @@ def run_list(args):
 
 
 def run_modules(args):
-    print("Available modules:")
-    for module in MODULES:
-        print(f"- {module}")
+    pipeline_name = getattr(args, "pipeline", "default") or "default"
+    project_name = getattr(args, "project", None)
+    project_root = REPO_ROOT if project_name is None else REPO_ROOT / "projects" / "kaggle" / project_name
+
+    try:
+        pipeline, warnings = load_pipeline(pipeline_name, project_root)
+        for msg in warnings:
+            console.print(f"[yellow]{msg}[/yellow]")
+        pipeline_label = pipeline.get("name") or pipeline_name
+        source = pipeline.get("source")
+        header = f"Pipeline '{pipeline_label}' modules"
+        if source:
+            header += f" ({source})"
+        print(header + ":")
+        for module in pipeline.get("modules", []):
+            name = module.get("name") if isinstance(module, dict) else str(module)
+            desc = module.get("description") if isinstance(module, dict) else None
+            handler = module.get("handler") if isinstance(module, dict) else None
+            line = f"- {name}"
+            if desc:
+                line += f" — {desc}"
+            if handler:
+                line += f" (handler: {handler})"
+            print(line)
+    except PipelineValidationError as exc:
+        console.print(f"[red]{exc}[/red]")
+        console.print("[red]Add the missing pipeline YAML to proceed.[/red]")
 
 
 def run_model(args):
@@ -1847,7 +1952,11 @@ def build_parser():
     )
     list_parser.set_defaults(func=run_list, show_table=False, show_table_compact=False)
 
-    modules_parser = subparsers.add_parser("modules", help="List available modules")
+    modules_parser = subparsers.add_parser("modules", help="List available modules from the selected pipeline")
+    modules_parser.add_argument("--project", help="Project slug (uses project-level pipeline overrides when provided)")
+    modules_parser.add_argument(
+        "--pipeline", default="default", help="Pipeline name to inspect (default: default)"
+    )
     modules_parser.set_defaults(func=run_modules)
 
     init_parser = subparsers.add_parser("init-project", help="Initialize new competition project")

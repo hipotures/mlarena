@@ -63,3 +63,23 @@ Global vs project resolution
 4. Add Rich configurator that only builds/runs the CLI.
 5. Migrate existing templates into `templates/model.yaml`; create baseline preprocess templates in `templates/preprocess.yaml`.
 6. Delete legacy template path and code after parity tests.
+
+## TODO: declarative pipeline + moduły (do wdrożenia)
+
+Co trzeba dopisać, żeby nowe moduły dało się podłączać bez grzebania w kodzie:
+
+1) **Deklaratywny pipeline (YAML)**  
+   - Plik: `config/pipelines/<name>.yaml`.  
+   - Zawartość: kolejność modułów, wymagane artefakty wej./wyj., flagi sterujące (np. skip-submit), mapowanie nazwa→handler.  
+   - `experiment_manager`/CLI: ładuje wskazany pipeline, waliduje dostępność modułów i odpala sekwencję; usuń sztywne `MODULES` z kodu.
+
+2) **Kontrakt modułu (inputs/outputs)**  
+   - Każdy moduł opisany w YAML (patrz pkt 3) ma zadeklarowane: wymagane wejścia (ścieżki/klucze), produkowane artefakty (ścieżki pod `experiments/<id>/...`), oraz eventy/stany zapisywane do `state.json`.  
+   - Preprocess: przenieść cache do `experiments/<id>/features/` (train/val/test + `state.pkl`), w `predict` używać `transform(state.pkl)` zamiast `fit_transform`/cache zewnętrznego; zapis ścieżek w state.json zgodnie z kontraktem.  
+   - Model/predict: jasno zdefiniować gdzie lądują modele (`experiments/<id>/artifacts/`) i predykcje (`experiments/<id>/predictions/`), zamiast rozrzuconych lokalizacji.
+
+3) **Rejestr modułów (YAML)**  
+   - Plik: `config/modules.yaml` (lub per-projekt `templates/modules.yaml`).  
+   - Mapa `nazwa_modułu` → `{handler: code path + entrypoints (run(), validate()), inputs, outputs}`.  
+   - `experiment_manager` przy starcie pipeline sprawdza, czy wszystkie moduły mają wpis w rejestrze, importuje handler i wywołuje go według kontraktu.  
+   - Dodanie nowego modułu = dodać plik z funkcjami + wpisać go do rejestru; brak zmian w kodzie orkiestratora.

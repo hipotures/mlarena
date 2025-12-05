@@ -120,6 +120,7 @@ def load_project_context(project_name: str) -> ProjectContext:
 def parse_args(default_project: Optional[str] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run template-driven ML models")
     parser.add_argument("--project", default=default_project, required=True)
+    parser.add_argument("--pipeline", default="default", help="Pipeline name (config/pipelines/<name>.yaml)")
     parser.add_argument("--model-template", help="Model template name defined in templates/model.yaml")
     parser.add_argument("--preprocess-template", default="identity", help="Preprocess template name defined in templates/preprocess.yaml")
     parser.add_argument("--use-preprocessed", action="store_true", help="(Deprecated) use cached preprocessing if available")
@@ -712,7 +713,16 @@ class MLRunner:
         snapshot_dir = self.experiment_dir / "code_snapshot"
         if snapshot_dir.exists():
             shutil.rmtree(snapshot_dir)
-        shutil.copytree(self.project.root / "code", snapshot_dir)
+        try:
+            shutil.copytree(
+                self.project.root / "code",
+                snapshot_dir,
+                dirs_exist_ok=True,
+                ignore_dangling_symlinks=True,
+            )
+        except shutil.Error as exc:
+            # Skip broken symlinks/missing files but log for visibility.
+            console.print(f"[yellow]Code snapshot skipped some entries: {exc}[/yellow]")
         console.print(f"[dim]Code snapshot at {snapshot_dir.relative_to(self.project.root)}[/dim]")
         return snapshot_dir
 
@@ -846,9 +856,9 @@ def run(args: argparse.Namespace):
         pass
 
     if stage == "predict":
-        manager = ExperimentManager.load_existing(args.project, args.experiment_id)
+        manager = ExperimentManager.load_existing(args.project, args.experiment_id, pipeline_name=args.pipeline)
     else:
-        manager = ExperimentManager.load_or_create(args.project, args.experiment_id)
+        manager = ExperimentManager.load_or_create(args.project, args.experiment_id, pipeline_name=args.pipeline)
         if args.experiment_id is None:
             console.print(f"[bold blue]Using experiment ID:[/bold blue] {manager.experiment_id}")
 
@@ -953,6 +963,7 @@ def run(args: argparse.Namespace):
             "stage": stage,
             "experiment_id": manager.experiment_id,
             "project": args.project,
+            "pipeline": args.pipeline,
             "templates": {
                 "model": model_template_name,
                 "preprocess": preprocess_template_name,

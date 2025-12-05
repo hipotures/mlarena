@@ -4,12 +4,43 @@
 
 Redesign the ML experiment pipeline into a modular, testable architecture with a single entry point (`mla.py`). This replaces `experiment_manager.py`, `ml_runner.py`, `autogluon_runner.py`, and related scripts.
 
+**Execution contract for AI agent:** Każdą fazę realizuj osobno. Po zakończeniu fazy `X` dołącz krótki raport (zakres, kluczowe decyzje, testy) do pliku `docs/mlarena_architecture-phaseX.md`. Ten plik tworzymy per fazę; ma służyć jako dziennik wdrożenia.
+
 **Key decisions:**
 - Package location: `src/mlarena/` (new package alongside `kaggle_tools`)
 - Migration: No backwards compatibility - remove old scripts immediately
 - Documentation: `docs/mlarena_architecture.md`
 
 ---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Phase 1: Core Package Structure](#phase-1-core-package-structure)
+- [Phase 2: Core Abstractions](#phase-2-core-abstractions)
+- [Phase 3: Module Implementations](#phase-3-module-implementations)
+- [Phase 4: CLI Entry Point](#phase-4-cli-entry-point)
+- [Phase 5: Testing Strategy](#phase-5-testing-strategy)
+- [Phase 6: Remove Old Scripts](#phase-6-remove-old-scripts)
+- [Phase 7: Migration Strategy (playground-series-s5e12)](#phase-7-migration-strategy-playground-series-s5e12)
+- [Phase 8: Configuration Mapping](#phase-8-configuration-mapping)
+- [Phase 9: Implementation Details](#phase-9-implementation-details)
+- [Phase 10: Backward Compatibility & Rollout](#phase-10-backward-compatibility--rollout)
+- [Phase 11: Concurrency & Recovery](#phase-11-concurrency--recovery)
+- [Phase 12: Enhanced Caching Strategy](#phase-12-enhanced-caching-strategy)
+- [Phase 13: Test Plan](#phase-13-test-plan)
+- [Phase 14: Enhanced Migration Strategy](#phase-14-enhanced-migration-strategy)
+- [Success Criteria](#success-criteria)
+
+---
+
+## Phase Report Template (for docs/mlarena_architecture-phaseX.md)
+
+- **Zakres**: co zostało zrobione w tej fazie.
+- **Decyzje / odchylenia**: kluczowe wybory, różnice względem planu.
+- **Testy**: komendy, wyniki (pass/fail), pokrycie jeśli dotyczy.
+- **Ryzyka / następne kroki**: otwarte kwestie, blokery, plan na kolejną fazę.
+- **Artefakty / PR**: linki do commitów/PR i główne ścieżki plików.
 
 ## Phase 1: Core Package Structure
 
@@ -850,6 +881,25 @@ class SubmitModule(BaseModule):
 - **CDP niedostępny lub użytkownik nie jest zalogowany do Kaggle**: `fetch-score` nie blokuje pipeline; zwraca `success=True` z `payload.fetch_failed=True` i `error="cdp_unavailable|not_authenticated"`. Ostrzeżenie trafia do loga, a szczegóły do `state.json` (klucz `fetch_failed_reason`).
 - **Zachowanie submit**: upload do Kaggle musi się powieść. Gdy CDP brak, `submit` kończy się sukcesem, ustawia `public_score=None`, a `fetch-score` może być uruchomiony (i prawdopodobnie zakończy się soft-failure) lub pominięty.
 - **CLI**: `--skip-score-fetch` nadal pomija scrapera; brak CDP jest traktowany jak `skip` (bez błędu), ale zapisuje flagę `fetch_failed=True`.
+- **Przykład logów (brak CDP)**:
+  ```
+  [warning] fetch-score: CDP unavailable (http://localhost:9222). Skipping score scrape.
+  [info]    fetch-score: Marked fetch_failed=True, public_score=None
+  ```
+- **Przykład wpisu w state.json** (fragment):
+  ```json
+  "modules": {
+    "fetch-score": {
+      "status": "completed",
+      "payload": {
+        "public_score": null,
+        "fetch_failed": true,
+        "fetch_failed_reason": "cdp_unavailable"
+      },
+      "error": "cdp_unavailable"
+    }
+  }
+  ```
 
 ### 9.7 Git Snapshot Policy
 

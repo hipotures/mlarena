@@ -33,20 +33,6 @@ Warning policy
 - If a project overrides and keeps the same name intentionally, the warning is informational (not fatal).
 - Set `KAGGLE_TEMPLATE_NO_WARN=1` to suppress warnings in batch runs if needed.
 
-Model code resolution (global vs. project)
-------------------------------------------
-- Global model code lives in `config/code/models/` (e.g., `autogluon_baseline.py`).
-- Project-specific models live in `projects/kaggle/<proj>/code/models/`.
-- The loader checks for a local file first; if the same filename exists both locally and globally, it fails with an error (no shadowing). Use a new filename for project-only variants.
-- Do not edit global model files when iterating on a single project; add/modify a project-local file instead. Touch global code only when you need a cross-project change.
-
-Preprocessing code resolution (global vs. project)
---------------------------------------------------
-- Global preprocessing utilities live in `config/code/preprocessing/` (e.g., `identity.py`).
-- Project-specific preprocessing lives in `projects/kaggle/<proj>/code/preprocessing/`.
-- If a module name exists both globally and locally, execution fails to avoid ambiguity; choose a distinct name for project-only pipelines.
-- Keep `identity.py` and other shared utilities global; do not duplicate or edit them locally unless the change is meant to be shared across projects.
-
 Implementation sketch (future work)
 -----------------------------------
 - Extract template loading into a helper `load_templates(kind, project)`:

@@ -50,6 +50,12 @@ Goal: decouple preprocessing from modeling, with first-class templates for each,
   - `experiments/<exp-id>/artifacts/` (model)
   - `experiments/<exp-id>/state.json` (records both templates + overrides)
 
+Global vs project resolution
+----------------------------
+- Templates: merged global (`config/templates/*.yaml`) + project (`projects/kaggle/<proj>/templates/*.yaml`); local entries override with a warning. If a name exists in both, local wins, but we print the override info.
+- Models: loaded from project `code/models/` or global `config/code/models/`. If the same filename exists in both, the runner fails (no shadowing). Use a new filename for project-only variants; change globals only for cross-project behavior.
+- Preprocessing: loaded from project `code/preprocessing/` or global `config/code/preprocessing/` (e.g., `identity.py`). Same-name clashes also fail to avoid ambiguity. Keep shared utilities global; add project-specific pipelines under the project path with unique names.
+
 ## Migration plan (no fallback)
 1. Implement dual-template loading in runner; remove use of `templates.yaml`.
 2. Add CLI flags for preprocess/model templates and `--use-preprocessed`.

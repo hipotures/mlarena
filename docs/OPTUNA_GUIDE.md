@@ -59,7 +59,7 @@ uv run python -c "from kaggle_tools import optuna, preprocessing, stacking; prin
 
 ```bash
 # Create project structure + download data
-uv run python scripts/experiment_manager.py init-project \
+uv run python scripts/mla.py init \
     --project my-competition
 ```
 
@@ -820,7 +820,7 @@ model = CatBoostClassifier(cat_features=cat_features)
 df['cat_col'] = df['cat_col'].astype('category')
 ```
 
-### Issue: ModuleNotFoundError after init-project
+### Issue: ModuleNotFoundError after `mla init`
 
 **Problem:**
 ```

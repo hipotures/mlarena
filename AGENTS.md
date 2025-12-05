@@ -243,7 +243,9 @@ When `create_submission()` is called directly (outside pipeline):
 
 ### Creating New Competition
 
-The legacy `init-project` command (experiment_manager) was removed. Create a project manually:
+Preferred: `uv run python scripts/mla.py init --project <competition-slug>` (creates structure, copies templates, downloads data).
+
+If you need a manual fallback:
 
 ```bash
 COMP_NAME="competition-slug"
@@ -422,7 +424,7 @@ See `scripts/README_KAGGLE.md` for details.
    - Fallback to competition-specific default in config
 
 5. **Skipping EDA when data changed** → Hidden schema drifts
-   - `init-project` does not run EDA automatically; run it manually when ready
+   - `mla init` does not run EDA automatically; run it manually when ready
    - Per-experiment EDA is optional; add `--require-eda` when launching the model module if you want it enforced
    - Re-run `uv run python scripts/mla.py eda --project ...` whenever you materially change the data
 
@@ -442,9 +444,8 @@ See `scripts/README_KAGGLE.md` for details.
    - Use `dev-{cpu,gpu}` for iteration, `best-{cpu,gpu}` for serious runs
    - `extreme-gpu` requires confirmation if dataset >30k rows
 
-9. **init-project without Kaggle API** → Download fails
+9. **mla init without Kaggle API** → Download fails
    - Ensure `~/.kaggle/kaggle.json` exists and has correct permissions (chmod 600)
-   - Use `--skip-download` to create structure only, download data manually later
    - Check competition slug is correct (use exact name from Kaggle URL)
 
 10. **Migrating project with .old/ already existing** → Name collision

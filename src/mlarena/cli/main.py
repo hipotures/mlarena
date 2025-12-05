@@ -19,7 +19,7 @@ from mlarena.utils.project import load_project_config
 
 
 COMMON_FLAGS = [
-    ("--project", "-p", {"required": True, "help": "Competition/project name (projects/kaggle/<name>)"}),
+    ("--project", "-p", {"required": False, "help": "Competition/project name (projects/kaggle/<name>)"}),
     ("--experiment-id", "-e", {"help": "Existing experiment id to resume"}),
     ("--force", "-f", {"action": "store_true", "help": "Re-run completed modules"}),
     ("--skip-deps", None, {"action": "store_true", "help": "Do not run dependencies automatically"}),
@@ -40,7 +40,7 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     modules_parser = subparsers.add_parser("modules", help="List available modules")
-    _add_common(modules_parser)
+    modules_parser.add_argument("--project", "-p", required=False, help="(optional) project for compatibility")
 
     for name in sorted(ModuleRegistry.available()):
         module_cls = ModuleRegistry.get(name)
@@ -92,11 +92,58 @@ def main(argv: List[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "modules":
-        print("\n".join(sorted(ModuleRegistry.available())))
+        preferred_order = [
+            "init",
+            "eda",
+            "preprocess",
+            "feat",
+            "tune",
+            "model",
+            "predict",
+            "stack",
+            "submit",
+            "fetch-score",
+        ]
+
+        available = set(ModuleRegistry.available())
+        ordered = [m for m in preferred_order if m in available]
+        # add any others that might be present
+        for name in sorted(available):
+            if name not in ordered:
+                ordered.append(name)
+
+        print("\n".join(ordered))
         return 0
 
+    # Handle init without pre-creating project/state
+    if args.command == "init":
+        module_cls = ModuleRegistry.get("init")
+        project_root = Path("projects") / "kaggle" / args.project
+        ctx = ModuleContext(
+            project_name=args.project,
+            project_root=project_root,
+            experiment_id="init",
+            experiment_dir=project_root / "experiments" / "init",
+            artifact_dir=project_root / "experiments" / "init" / "artifacts",
+            cli_args={},
+            state=None,
+            config_module=None,
+        )
+        module = module_cls(ctx)
+        module.set_invocation_params(_extract_module_params(args, module_arg_map))
+        result = module.execute()
+        status = "ok" if result.success else "fail"
+        print(f"[{status}] init")
+        if result.payload:
+            print(f"  payload: {result.payload}")
+        if result.error:
+            print(f"  error: {result.error}")
+        return 0 if result.success else 1
+
     project_root = Path("projects") / "kaggle" / args.project
-    project_root.mkdir(parents=True, exist_ok=True)
+    if not project_root.exists():
+        print(f"[error] Project '{args.project}' not initialized. Run: mla init --project {args.project}")
+        return 1
 
     config_module = load_project_config(project_root)
     pipeline_def, pipeline_warnings = load_pipeline_def("default", project_root=project_root)

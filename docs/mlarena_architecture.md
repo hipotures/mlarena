@@ -285,9 +285,9 @@ mla --project COMP submit --auto-submit
 --skip-deps          # Don't auto-run dependencies
 
 # Special commands
-mla --project COMP list           # List experiments
-mla --project COMP modules        # List available modules
-mla init-project --project COMP   # Initialize new project
+mla init --project COMP                     # Initialize new project (creates folders, copies templates, downloads Kaggle data)
+mla --project COMP list                     # List experiments
+mla --project COMP modules                  # List available modules
 ```
 
 ### 4.3 Invocation Recording
@@ -1018,7 +1018,7 @@ COMMAND_MAP = {
     "eda": "eda",
     "model": "model",
     "list": "list",
-    "init-project": "init-project",
+    "init": "init",
 }
 
 # Forward to mla.py with mapped command

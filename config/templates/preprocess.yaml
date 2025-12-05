@@ -136,6 +136,15 @@ templates:
       selection_enabled: true
       selection_holdout_frac: 0.2
       selection_epsilon: 0.0
+  av_weights:
+    module: av_weights
+    cache: true
+    config:
+      presets: best
+      time_limit: 3600
+      drop_columns: [id]
+      output_path: data/train_av_weights.csv
+      model_output_dir: preprocess_cache/av_model
   fe_set6:
     module: fe_set6
     cache: true

@@ -20,6 +20,7 @@ from adversarial_validation import compute_adversarial_weights
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_OUTPUT = PROJECT_ROOT / "data" / "train_av_weights.csv"
 DEFAULT_MODEL_DIR = PROJECT_ROOT / "preprocess_cache" / "av_model"
+AV_PROB_COL = "av_prob"
 
 
 def _resolve_path(path: str | Path | None, default: Path) -> Path:
@@ -123,6 +124,13 @@ def fit_transform(
         time_limit=time_limit,
         output_dir=model_output_dir,
     )
+
+    # Transform weights: p/(1-p) -> clip to 2.0 -> normalize to mean 1.0
+    p = av_df[AV_PROB_COL].clip(lower=1e-9, upper=1 - 1e-9)
+    weights = p / (1 - p)
+    weights = weights.clip(upper=2.0)
+    weights = weights / weights.mean()
+    av_df[AV_PROB_COL] = weights
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     av_df.to_csv(output_path, index=False)

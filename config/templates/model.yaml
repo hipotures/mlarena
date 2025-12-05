@@ -15,6 +15,15 @@ templates:
         presets: medium
         time_limit: 300
         use_gpu: false
+  cpu-dev-5m-av:
+    model: autogluon_av_weights
+    config:
+      hyperparameters:
+        presets: medium
+        time_limit: 300
+        use_gpu: false
+      model:
+        av_weights_path: data/train_av_weights.csv
   gpu-dev-5m:
     model: autogluon_baseline
     config:
@@ -73,6 +82,15 @@ templates:
         time_limit: 28800
         use_gpu: false
         included_model_types: ["GBM"]
+  cpu-dev-5m-av:
+    model: autogluon_av_weights
+    config:
+      hyperparameters:
+        presets: medium
+        time_limit: 300
+        use_gpu: false
+      model:
+        av_weights_path: data/train_av_weights.csv
 
   cpu-cat-8h:
     model: autogluon_baseline

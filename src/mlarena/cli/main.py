@@ -18,6 +18,10 @@ from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import load_project_config
 
 
+# Repository root (resolve to absolute path)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
 COMMON_FLAGS = [
     ("--project", "-p", {"required": False, "help": "Competition/project name (projects/kaggle/<name>)"}),
     ("--experiment-id", "-e", {"help": "Existing experiment id to resume"}),
@@ -115,46 +119,32 @@ def main(argv: List[str] | None = None) -> int:
         print("\n".join(ordered))
         return 0
 
-    # Handle init without pre-creating project/state
-    if args.command == "init":
-        module_cls = ModuleRegistry.get("init")
-        project_root = Path("projects") / "kaggle" / args.project
-        ctx = ModuleContext(
-            project_name=args.project,
-            project_root=project_root,
-            experiment_id="init",
-            experiment_dir=project_root / "experiments" / "init",
-            artifact_dir=project_root / "experiments" / "init" / "artifacts",
-            cli_args={},
-            state=None,
-            config_module=None,
-        )
-        module = module_cls(ctx)
-        module.set_invocation_params(_extract_module_params(args, module_arg_map))
-        result = module.execute()
-        status = "ok" if result.success else "fail"
-        print(f"[{status}] init")
-        if result.payload:
-            print(f"  payload: {result.payload}")
-        if result.error:
-            print(f"  error: {result.error}")
-        return 0 if result.success else 1
+    project_root = REPO_ROOT / "projects" / "kaggle" / args.project
 
-    project_root = Path("projects") / "kaggle" / args.project
-    if not project_root.exists():
-        print(f"[error] Project '{args.project}' not initialized. Run: mla init --project {args.project}")
-        return 1
+    # Setup modules (init/eda) use fixed directories
+    setup_module_name = args.command if args.command in ("init", "eda") else None
+    init_mode = args.command == "init"
 
-    config_module = load_project_config(project_root)
-    pipeline_def, pipeline_warnings = load_pipeline_def("default", project_root=project_root)
-    for w in pipeline_warnings:
-        print(f"[warn] {w}")
+    if init_mode:
+        config_module = None
+        pipeline_def = {}
+    else:
+        if not project_root.exists():
+            print(f"[error] Project '{args.project}' not initialized. Run: mla init --project {args.project}")
+            return 1
+        config_module = load_project_config(project_root)
+        pipeline_def, pipeline_warnings = load_pipeline_def("default", project_root=project_root)
+        for w in pipeline_warnings:
+            print(f"[warn] {w}")
+
     state = ExperimentState.load_or_create(
         project_root=project_root,
         project_name=args.project,
         experiment_id=args.experiment_id,
         pipeline=pipeline_def,
         run_invocation={"argv": argv, "cli_args": vars(args)},
+        create_dirs=not init_mode,
+        setup_module_name=setup_module_name,
     )
 
     contexts = _build_contexts(project_root, args.project, state, config_module)
@@ -180,6 +170,7 @@ def main(argv: List[str] | None = None) -> int:
             print(f"  error: {result.error}")
 
     last = results.get(args.command)
+
     return 0 if (last and last.success) else 1
 
 

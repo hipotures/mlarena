@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
+
+
+# Repository root (absolute path to kaggle repo root)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 @ModuleRegistry.register
@@ -38,7 +42,7 @@ class InitModule(BaseModule):
 
         cmd = [
             "python",
-            str(Path("scripts") / "experiment_manager.py"),
+            str(REPO_ROOT / "scripts" / "experiment_manager.py"),
             "init-project",
             "--project",
             competition,
@@ -72,7 +76,28 @@ class InitModule(BaseModule):
         if ignore_cols:
             cmd.extend(["--ignore-columns", *ignore_cols])
 
-        result = subprocess.run(cmd)
+        # Snapshot existing top-level entries to track created items after init
+        pre_items: List[str] = []
+        project_root = self.context.project_root
+        if project_root.exists():
+            pre_items = [p.name for p in project_root.iterdir()]
+
+        # Run legacy init-project (kept for parity) but capture output for state logging
+        result = subprocess.run(cmd, capture_output=True, text=True)
         success = result.returncode == 0
 
-        return ModuleResult(success=success, payload={"cmd": " ".join(cmd)}, error=None if success else "init failed")
+        post_items: List[str] = []
+        if project_root.exists():
+            post_items = [p.name for p in project_root.iterdir()]
+        created = sorted(list(set(post_items) - set(pre_items)))
+
+        payload = {
+            "cmd": " ".join(cmd),
+            "returncode": result.returncode,
+            "created": created,
+            # Truncate logs to keep state.json small
+            "stdout_tail": result.stdout[-2000:] if result.stdout else "",
+            "stderr_tail": result.stderr[-2000:] if result.stderr else "",
+        }
+
+        return ModuleResult(success=success, payload=payload, error=None if success else "init failed")

@@ -62,8 +62,11 @@ class PipelineExecutor:
                 results[name] = ModuleResult(success=False, error=reason)
                 break
 
+            defer_save = name == "init" and not module.context.project_root.exists()
+
             module.context.state.start_module(name, getattr(module, "invocation_params", {}))
-            module.context.state.save()
+            if not defer_save:
+                module.context.state.save()
 
             try:
                 outcome = module.execute()
@@ -71,17 +74,20 @@ class PipelineExecutor:
                 error_msg = f"{exc}"
                 detail = traceback.format_exc()
                 module.context.state.fail_module(name, error_msg)
-                module.context.state.save()
+                if not defer_save or module.context.project_root.exists():
+                    module.context.state.save()
                 results[name] = ModuleResult(success=False, error=detail)
                 break
 
             if outcome.success:
                 module.context.state.complete_module(name, outcome.payload)
-                module.context.state.save()
+                if not defer_save or module.context.project_root.exists():
+                    module.context.state.save()
                 results[name] = outcome
             else:
                 module.context.state.fail_module(name, outcome.error or "unknown error")
-                module.context.state.save()
+                if not defer_save or module.context.project_root.exists():
+                    module.context.state.save()
                 results[name] = outcome
                 break
 

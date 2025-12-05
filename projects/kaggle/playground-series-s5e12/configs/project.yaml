@@ -1,5 +1,5 @@
 # Default project configuration for Optuna system
-# This file is copied during init-project and can be customized per competition
+# This file is copied during `mla init` and can be customized per competition
 
 # Feature Engineering Configuration
 preprocessing:

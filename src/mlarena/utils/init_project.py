@@ -232,12 +232,19 @@ def init_project(
     competition_slug: str,
     skip_download: bool = False,
     force: bool = False,
-) -> bool:
-    """Initialize a Kaggle competition project (legacy init-project parity)."""
+) -> Dict[str, Any]:
+    """Initialize a Kaggle competition project (legacy init-project parity).
+
+    Returns dict with keys:
+      - success: bool
+      - stats: detected dataset stats (if available)
+      - error: optional error message
+    """
 
     if project_root.exists() and any(project_root.iterdir()) and not force:
-        _log(f"[error] Project {project_root} already exists. Use --force to overwrite.")
-        return False
+        msg = f"Project {project_root} already exists. Use --force/--migrate to overwrite."
+        _log(f"[error] {msg}")
+        return {"success": False, "error": msg}
 
     _log(f"[info] Creating project at {project_root}")
     project_root.mkdir(parents=True, exist_ok=True)
@@ -282,7 +289,7 @@ def init_project(
     if not skip_download:
         ok = _download_competition(competition_slug, project_root / "data")
         if not ok:
-            return False
+            return {"success": False, "error": "kaggle_download_failed"}
 
     stats = _detect_dataset_stats(project_root, competition_slug)
 
@@ -314,7 +321,7 @@ def init_project(
             readme_dst.write_text(rendered_readme)
 
     _log("[done] Project initialized. Next steps: update code/utils/config.py and run mla eda/model.")
-    return True
+    return {"success": True, "stats": stats}
 
 
 __all__ = ["init_project"]

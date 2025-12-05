@@ -74,20 +74,91 @@ class ExperimentState:
     def state_path(self) -> Path:
         return self.experiment_dir / "state.json"
 
-    @classmethod
-    def load_or_create(cls, project_root: Path, project_name: str, experiment_id: Optional[str] = None, pipeline: Optional[Dict[str, Any]] = None, git_info: Optional[Dict[str, Any]] = None, run_invocation: Optional[Dict[str, Any]] = None) -> "ExperimentState":
-        experiments_dir = project_root / "experiments"
-        experiments_dir.mkdir(parents=True, exist_ok=True)
+    @staticmethod
+    def _load_setup_modules(project_root: Path) -> Dict[str, ModuleEntry]:
+        """Load frozen init and eda modules from experiments/init/ and experiments/eda/."""
+        setup_modules = {}
 
-        exp_id = experiment_id or _generate_experiment_id()
-        experiment_dir = experiments_dir / exp_id
-        experiment_dir.mkdir(parents=True, exist_ok=True)
+        # Load init module
+        init_state_path = project_root / "experiments" / "init" / "state.json"
+        if init_state_path.exists():
+            try:
+                init_data = json.loads(init_state_path.read_text())
+                init_module = init_data.get("modules", {}).get("init")
+                if init_module:
+                    setup_modules["init"] = ModuleEntry.from_dict(init_module)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        # Load eda module (optional)
+        eda_state_path = project_root / "experiments" / "eda" / "state.json"
+        if eda_state_path.exists():
+            try:
+                eda_data = json.loads(eda_state_path.read_text())
+                eda_module = eda_data.get("modules", {}).get("eda")
+                if eda_module:
+                    setup_modules["eda"] = ModuleEntry.from_dict(eda_module)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        return setup_modules
+
+    @classmethod
+    def load_or_create(
+        cls,
+        project_root: Path,
+        project_name: str,
+        experiment_id: Optional[str] = None,
+        pipeline: Optional[Dict[str, Any]] = None,
+        git_info: Optional[Dict[str, Any]] = None,
+        run_invocation: Optional[Dict[str, Any]] = None,
+        create_dirs: bool = True,
+        setup_module_name: Optional[str] = None,
+    ) -> "ExperimentState":
+        """
+        Create or load ExperimentState.
+
+        Args:
+            project_root: Final project root (for metadata in state.json).
+            project_name: Competition slug.
+            experiment_id: Optional explicit id.
+            pipeline: Pipeline definition snapshot.
+            git_info: Git metadata snapshot.
+            run_invocation: CLI args snapshot.
+            create_dirs: When False, do not create project/experiment
+                directories yet (used by `mla init` to avoid pre-creating the
+                project before legacy init runs).
+            setup_module_name: If "init" or "eda", use fixed directory
+                (experiments/init/ or experiments/eda/). Otherwise create
+                timestamped experiment and merge setup modules.
+        """
+        experiments_dir = project_root / "experiments"
+        if create_dirs:
+            experiments_dir.mkdir(parents=True, exist_ok=True)
+
+        # Setup modules (init/eda) use fixed directories
+        if setup_module_name in ("init", "eda"):
+            exp_id = setup_module_name
+            experiment_dir = experiments_dir / setup_module_name
+        else:
+            exp_id = experiment_id or _generate_experiment_id()
+            experiment_dir = experiments_dir / exp_id
+
+        if create_dirs:
+            experiment_dir.mkdir(parents=True, exist_ok=True)
         state_path = experiment_dir / "state.json"
         lock_path = experiment_dir / "state.json.lock"
 
-        if state_path.exists():
+        # For setup modules (init/eda), allow reloading if already exists
+        # For regular experiments, always load existing state
+        if state_path.exists() and setup_module_name not in ("init", "eda"):
             with FileLock(str(lock_path), timeout=10):
                 return cls._from_file(state_path)
+
+        # For regular experiments (not init/eda), merge setup modules
+        initial_modules = {}
+        if setup_module_name not in ("init", "eda"):
+            initial_modules = cls._load_setup_modules(project_root)
 
         state = cls(
             experiment_id=exp_id,
@@ -96,11 +167,12 @@ class ExperimentState:
             experiment_dir=experiment_dir,
             created_at=utc_now_iso(),
             pipeline=pipeline or {},
-            modules={},
+            modules=initial_modules,
             run=run_invocation or {},
             git=git_info or get_git_info(project_root),
         )
-        state.save()
+        if create_dirs:
+            state.save()
         return state
 
     def start_module(self, name: str, invocation: Dict[str, Any]) -> None:

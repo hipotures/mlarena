@@ -1,0 +1,129 @@
+"""AI-powered detection and logging for init."""
+
+from __future__ import annotations
+
+import json
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+from rich.console import Console
+
+
+def utc_now() -> str:
+    """Return current UTC timestamp in ISO format."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def log_ai_interaction(
+    project_root: Path, log_type: str, prompt: str, response: str, metadata: Optional[Dict] = None
+) -> Path:
+    """Log AI request/response to project logs directory."""
+    logs_dir = project_root / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    log_file = logs_dir / f"{timestamp}_{log_type}.json"
+
+    log_entry = {
+        "timestamp": utc_now(),
+        "log_type": log_type,
+        "prompt": prompt,
+        "response": response,
+        "metadata": metadata or {},
+    }
+
+    with open(log_file, "w") as f:
+        json.dump(log_entry, f, indent=2)
+
+    return log_file
+
+
+def detect_problem_type_and_metric(
+    eval_text: str,
+    competition_slug: str,
+    project_root: Path,
+    console: Console,
+) -> Tuple[Optional[str], Optional[str], Optional[bool]]:
+    """Use AI to detect problem type, metric, and submission format from Kaggle evaluation text.
+
+    Returns:
+        (problem_type, metric, submit_probabilities) or (None, None, None) on failure
+    """
+    # Import AI helper
+    repo_root = Path(__file__).resolve().parents[4]
+    sys.path.insert(0, str(repo_root / "scripts"))
+    from ai_helper import call_ai_json
+
+    prompt = f"""You are a Kaggle competition expert analyzing evaluation metrics.
+
+Given the Evaluation section from a Kaggle competition, determine:
+1. problem_type: "binary", "regression", or "multiclass"
+2. metric: AutoGluon-compatible metric name
+3. submit_probabilities: true if the competition expects probability outputs in the submission (e.g., ROC AUC or log loss), false if it expects class labels or numeric values directly (e.g., accuracy, MAE)
+
+EVALUATION SECTION:
+{eval_text}
+
+AUTOGLUON METRIC MAPPING (use exact names):
+- AUC/ROC/Area Under Curve → "roc_auc"
+- RMSE/Root Mean Squared Error → "root_mean_squared_error"
+- MAE/Mean Absolute Error → "mean_absolute_error"
+- Accuracy → "accuracy"
+- Log Loss/Logarithmic Loss → "log_loss"
+- F1 Score → "f1"
+- Precision → "precision"
+- Recall → "recall"
+
+PROBLEM TYPE RULES:
+- If predicting 0/1, True/False, or probability → "binary"
+- If predicting continuous number → "regression"
+- If predicting one of 3+ categories → "multiclass"
+
+Return ONLY valid JSON (no markdown, no explanation):
+{{"problem_type": "binary|regression|multiclass", "metric": "autogluon_metric_name", "submit_probabilities": true|false}}"""
+
+    start_ai = time.perf_counter()
+    ai_result: Dict[str, Any] = {}
+    model = "gemini-2.5-flash"
+    status = "failed"
+    error_text = ""
+
+    try:
+        ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
+        status = "success"
+    except Exception as e:
+        error_text = str(e)
+        console.print(f"[yellow]AI detection failed: {e}[/yellow]")
+    finally:
+        ai_duration = time.perf_counter() - start_ai
+        log_ai_interaction(
+            project_root,
+            "init_problem_detection",
+            prompt=prompt,
+            response=json.dumps(ai_result, indent=2) if ai_result else "",
+            metadata={
+                "model": model,
+                "competition": competition_slug,
+                "eval_text_length": len(eval_text),
+                "duration_seconds": round(ai_duration, 3),
+                "status": status,
+                "error": error_text,
+            },
+        )
+        console.print(f"[dim]Logged AI interaction to logs/ (status: {status})[/dim]")
+
+    if status == "success" and "problem_type" in ai_result and "metric" in ai_result:
+        detected_type = ai_result["problem_type"]
+        detected_metric = ai_result["metric"]
+
+        if detected_type in ["binary", "regression", "multiclass"]:
+            submit_proba = ai_result.get("submit_probabilities")
+            console.print(f"[green]✓ AI detected ({model}): {detected_type} / {detected_metric}[/green]")
+            return detected_type, detected_metric, submit_proba
+        else:
+            console.print(f"[yellow]AI returned invalid problem_type: {detected_type}[/yellow]")
+
+    return None, None, None

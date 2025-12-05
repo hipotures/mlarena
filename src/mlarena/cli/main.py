@@ -41,6 +41,7 @@ def _add_common(subparser: argparse.ArgumentParser) -> List[str]:
 
 def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner")
+    parser.add_argument("--show-payload", action="store_true", help="Print raw module payloads (debug)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     modules_parser = subparsers.add_parser("modules", help="List available modules")
@@ -143,7 +144,7 @@ def main(argv: List[str] | None = None) -> int:
         experiment_id=args.experiment_id,
         pipeline=pipeline_def,
         run_invocation={"argv": argv, "cli_args": vars(args)},
-        create_dirs=not init_mode,
+        create_dirs=True,  # Always create state - init creates project first
         setup_module_name=setup_module_name,
     )
 
@@ -164,7 +165,7 @@ def main(argv: List[str] | None = None) -> int:
     for mod_name, result in results.items():
         status = "ok" if result.success else "fail"
         print(f"[{status}] {mod_name}")
-        if result.payload:
+        if args.show_payload and result.payload:
             print(f"  payload: {result.payload}")
         if result.error:
             print(f"  error: {result.error}")

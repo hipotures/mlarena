@@ -1,6 +1,6 @@
 # Uwagi Codex do dokumentu `docs/ml_code_separation_design.md`
 
-1. **Kontrakt konfiguracji** – obecny słownik `config` łączy ścieżki systemowe, parametry Autogluon i flagi preprocessingowe. Warto ustalić hierarchię nadpisywania (`get_default_config()` → config projektu → `templates.yaml` → CLI) oraz rozdzielić przestrzeń nazw (np. `config['system']`, `config['dataset']`, `config['hyperparameters']`) albo zastosować lekką dataclass, żeby IDE/mypy mogły łatwiej wykrywać brakujące pola (`docs/ml_code_separation_design.md:58-156`).
+1. **Kontrakt konfiguracji** – obecny słownik `config` łączy ścieżki systemowe, parametry Autogluon i flagi preprocessingowe. Warto ustalić hierarchię nadpisywania (`get_default_config()` → config projektu → wpis w `model.yaml`/`preprocess.yaml` → CLI) oraz rozdzielić przestrzeń nazw (np. `config['system']`, `config['dataset']`, `config['hyperparameters']`) albo zastosować lekką dataclass, żeby IDE/mypy mogły łatwiej wykrywać brakujące pola (`docs/ml_code_separation_design.md:58-156`).
 
 2. **Preprocessing ze stanem** – runner wywołuje `preprocess()` oddzielnie dla train/val/test, więc dopasowany scaler/encoder nie ma jak dostać się do inferencji (`docs/ml_code_separation_design.md:188-196`). Możliwe rozszerzenia:  
    - `train()` zwraca `(model, artifacts)` i runner przekazuje `artifacts` do `predict()`;  
@@ -13,4 +13,3 @@
 5. **Rola `code/preprocessing/`** – katalog wymieniony w strukturze (`docs/ml_code_separation_design.md:18-27`), ale runner go nie używa. Dobrze opisać, czy to repozytorium wspólnych helperów importowanych przez modele, czy planujesz automatyczne ładowanie modułów stamtąd.
 
 6. **Przyszła ergonomia** – dynamiczne importy (`docs/ml_code_separation_design.md:171-179`) dają elastyczność, lecz ograniczają narzędzia statyczne. Rozważ wygenerowanie stubów (np. `__all__` lub moduł rejestru), żeby IDE mogło ogarnąć dostępne modele.
-

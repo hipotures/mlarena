@@ -1,4 +1,4 @@
-# Add these entries to your templates.yaml file
+# Add these entries to your templates/model.yaml file
 
   best-cpu-fe21:
     model: autogluon_features_21

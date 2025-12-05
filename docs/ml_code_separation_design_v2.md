@@ -20,8 +20,9 @@ projects/kaggle/[competition]/
 │   │   └── xgboost_custom.py
 │   └── preprocessing/    # Wspólne funkcje do preprocessingu
 │       └── feature_engineering.py
-├── configs/
-│   └── templates.yaml    # Definicje template'ów i ich konfiguracji
+├── templates/
+│   ├── model.yaml        # Definicje szablonów modeli (mapowanie na code/models/*.py)
+│   └── preprocess.yaml   # Definicje szablonów preprocessing (mapowanie na code/preprocessing/*.py)
 └── experiments/          # Bez zmian
 ```
 Katalog `code/preprocessing/` służy jako biblioteka funkcji pomocniczych, które mogą być importowane przez poszczególne modele.
@@ -35,7 +36,7 @@ Aby zapewnić walidację i wsparcie dla narzędzi statycznych, odchodzimy od lu�
 Parametry dla uruchomienia modelu będą ładowane i scalane w następującej kolejności (każdy kolejny krok nadpisuje poprzedni):
 1.  **Wartości domyślne** zdefiniowane w modelu (`get_default_config()`).
 2.  **Konfiguracja globalna projektu** (opcjonalny plik `configs/project.yaml`).
-3.  **Konfiguracja z `templates.yaml`** dla wybranego szablonu.
+3.  **Konfiguracja z `templates/model.yaml` lub `templates/preprocess.yaml`** dla wybranego szablonu.
 4.  **Parametry z linii komend (CLI)**, np. `--config.time_limit=300`.
 
 #### 2.2.2. Struktura Konfiguracji

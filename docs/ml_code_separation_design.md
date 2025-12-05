@@ -24,8 +24,9 @@ projects/kaggle/[competition]/
 │   │   └── ensemble.py
 │   └── preprocessing/    # Opcjonalne moduły pomocnicze
 │       └── features.py
-├── configs/
-│   └── templates.yaml    # Definiuje które modele dla których template'ów
+├── templates/
+│   ├── model.yaml        # Szablony modeli (łączy z code/models/*.py)
+│   └── preprocess.yaml   # Szablony preprocessing (łączy z code/preprocessing/*.py)
 └── experiments/          # Bez zmian
 ```
 

@@ -348,7 +348,7 @@ Error: Template 'my-template' not found
 ```
 
 - Check template name spelling
-- Verify `templates.yaml` syntax (valid YAML)
+- Verify `templates/model.yaml` syntax (valid YAML)
 - Ensure template is not commented out
 
 #### Model import error

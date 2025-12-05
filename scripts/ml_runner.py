@@ -29,6 +29,7 @@ from template_loader import TemplateValidationError, load_templates
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GLOBAL_MODELS_DIR = REPO_ROOT / "config" / "code" / "models"
+GLOBAL_PREPROCESS_DIR = REPO_ROOT / "config" / "code" / "preprocessing"
 console = Console()
 
 
@@ -245,10 +246,30 @@ class MLRunner:
         spec.loader.exec_module(module)
         return module
 
+    def _resolve_preprocess_path(self) -> Path:
+        local_path = self.project.root / "code" / "preprocessing" / f"{self.preprocess_module_name}.py"
+        global_path = GLOBAL_PREPROCESS_DIR / f"{self.preprocess_module_name}.py"
+
+        local_exists = local_path.exists()
+        global_exists = global_path.exists()
+
+        if local_exists and global_exists:
+            raise RuntimeError(
+                f"Preprocess module '{self.preprocess_module_name}' exists both locally and globally:\n"
+                f"- {local_path}\n"
+                f"- {global_path}\n"
+                "Rename or remove one to avoid ambiguity."
+            )
+        if local_exists:
+            return local_path
+        if global_exists:
+            return global_path
+        raise FileNotFoundError(
+            f"Preprocess file not found for '{self.preprocess_module_name}'. Checked:\n- {local_path}\n- {global_path}"
+        )
+
     def _load_preprocess_module(self):
-        module_path = self.project.root / "code" / "preprocessing" / f"{self.preprocess_module_name}.py"
-        if not module_path.exists():
-            raise FileNotFoundError(f"Preprocess file not found: {module_path}")
+        module_path = self._resolve_preprocess_path()
         spec = importlib.util.spec_from_file_location(self.preprocess_module_name, module_path)
         module = importlib.util.module_from_spec(spec)
         if not spec.loader:

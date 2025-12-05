@@ -24,6 +24,46 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from template_loader import TemplateValidationError, load_templates
+
+
+def _compute_data_snapshot(project_root: Path, target_column: str) -> Dict[str, Any]:
+    """Collect basic dataset stats for README templating."""
+    data_dir = project_root / "data"
+    train_path = data_dir / "train.csv"
+    test_path = data_dir / "test.csv"
+    sample_path = data_dir / "sample_submission.csv"
+    snapshot = {
+        "TRAIN_ROWS": "unknown",
+        "TRAIN_COLS": "unknown",
+        "TEST_ROWS": "unknown",
+        "TEST_COLS": "unknown",
+        "SAMPLE_COLUMNS": "unknown",
+        "CLASS_SUMMARY": "N/A",
+    }
+    try:
+        train_df = pd.read_csv(train_path)
+        snapshot["TRAIN_ROWS"] = f"{len(train_df):,}"
+        snapshot["TRAIN_COLS"] = train_df.shape[1] - (1 if target_column in train_df.columns else 0)
+        if target_column in train_df.columns:
+            counts = train_df[target_column].value_counts()
+            snapshot["CLASS_SUMMARY"] = " | ".join([f"{k} {v:,}" for k, v in counts.items()])
+    except Exception:
+        pass
+
+    try:
+        test_df = pd.read_csv(test_path)
+        snapshot["TEST_ROWS"] = f"{len(test_df):,}"
+        snapshot["TEST_COLS"] = test_df.shape[1]
+    except Exception:
+        pass
+
+    try:
+        sample_df = pd.read_csv(sample_path, nrows=1)
+        snapshot["SAMPLE_COLUMNS"] = ", ".join(sample_df.columns.tolist())
+    except Exception:
+        pass
+
+    return snapshot
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = Path(__file__).resolve().parent
 MODULES = ["eda", "preprocess", "feat", "model", "predict", "tune", "stack", "submit", "fetch-score"]
@@ -326,6 +366,24 @@ class ExperimentManager:
 
     def get_module(self, module: str) -> Optional[Dict]:
         return self.modules().get(module)
+
+    def update_run_metadata(self, payload: Dict):
+        """
+        Persist top-level run metadata (templates, CLI flags, resolved configs).
+        Uses a shallow recursive merge to avoid clobbering previous entries.
+        """
+
+        def _merge(target: Dict, source: Dict):
+            for key, value in source.items():
+                if isinstance(value, dict) and isinstance(target.get(key), dict):
+                    _merge(target[key], value)
+                else:
+                    target[key] = value
+
+        run_data = self.data.setdefault("run", {"created_at": utc_now()})
+        _merge(run_data, payload)
+        run_data["updated_at"] = utc_now()
+        self.save()
 
     def require(self, module: str):
         entry = self.get_module(module)
@@ -1147,6 +1205,7 @@ def run_init_project(args):
     project_name = args.project
     project_root = REPO_ROOT / "projects" / "kaggle" / project_name
     template_project = REPO_ROOT / "config" / "templates" / "kaggle_competition"
+    template_available = template_project.exists()
 
     # Check if project already exists
     if project_root.exists() and not args.migrate:
@@ -1209,42 +1268,67 @@ def run_init_project(args):
     console.print("\n[cyan]Copying template files...[/cyan]")
 
     # .gitignore
-    shutil.copy(template_project / ".gitignore", project_root / ".gitignore")
-    console.print("  [green]✓[/green] .gitignore")
+    gitignore_src = template_project / ".gitignore"
+    if gitignore_src.exists():
+        shutil.copy(gitignore_src, project_root / ".gitignore")
+        console.print("  [green]✓[/green] .gitignore")
+    else:
+        # Minimal fallback
+        (project_root / ".gitignore").write_text(
+            "# Data and outputs\n"
+            "data/\n"
+            "experiments/\n"
+            "submissions/\n"
+            "logs/\n"
+            "__pycache__/\n"
+        )
+        console.print("  [yellow]![/yellow] .gitignore fallback created (missing template)")
 
     # README.md (will customize later)
-    shutil.copy(template_project / "README.md", project_root / "README.md")
-    console.print("  [green]✓[/green] README.md")
+    readme_src = template_project / "README.md"
+    readme_dst = project_root / "README.md"
+    if readme_src.exists():
+        shutil.copy(readme_src, readme_dst)
+        console.print("  [green]✓[/green] README.md")
+    else:
+        # Minimal fallback; will be enriched after detection below
+        readme_dst.write_text(f"# {project_name}\n\n")
+        console.print("  [yellow]![/yellow] README.md fallback created (missing template)")
 
     # configs/ (templates + presets for ml_runner)
-    shutil.copytree(
-        template_project / "configs",
-        project_root / "configs",
-        dirs_exist_ok=True,
-    )
-    console.print("  [green]✓[/green] configs/ (templates + presets)")
+    configs_src = template_project / "configs"
+    if configs_src.exists():
+        shutil.copytree(
+            configs_src,
+            project_root / "configs",
+            dirs_exist_ok=True,
+        )
+        console.print("  [green]✓[/green] configs/ (templates + presets)")
+    else:
+        (project_root / "configs").mkdir(exist_ok=True)
+        (project_root / "configs" / ".gitkeep").touch()
+        console.print("  [yellow]![/yellow] configs/ directory created empty (missing template)")
 
     # AutoGluon baseline FE model (link to shared template to avoid per-project edits)
     fe_src = template_project / "code/models/autogluon_baseline_fe.py"
     fe_dst = project_root / "code/models/autogluon_baseline_fe.py"
-    try:
-        if fe_dst.is_symlink() or fe_dst.exists():
-            fe_dst.unlink()
-        os.symlink(fe_src, fe_dst)
-        console.print("  [green]✓[/green] code/models/autogluon_baseline_fe.py (symlink)")
-    except OSError as exc:
-        # Fallback: copy if symlink unsupported (e.g., limited permissions)
-        shutil.copy(fe_src, fe_dst)
-        console.print(
-            f"  [yellow]![/yellow] code/models/autogluon_baseline_fe.py copied (symlink failed: {exc})"
-        )
+    if fe_src.exists():
+        try:
+            if fe_dst.is_symlink() or fe_dst.exists():
+                fe_dst.unlink()
+            os.symlink(fe_src, fe_dst)
+            console.print("  [green]✓[/green] code/models/autogluon_baseline_fe.py (symlink)")
+        except OSError as exc:
+            shutil.copy(fe_src, fe_dst)
+            console.print(
+                f"  [yellow]![/yellow] code/models/autogluon_baseline_fe.py copied (symlink failed: {exc})"
+            )
+    else:
+        console.print("  [yellow]![/yellow] Skipping autogluon_baseline_fe.py (template missing)")
 
     # code/utils/submission.py (wrapper - use as-is)
-    shutil.copy(
-        template_project / "code/utils/submission.py",
-        project_root / "code/utils/submission.py"
-    )
-    console.print("  [green]✓[/green] code/utils/submission.py")
+    # code/utils/submission.py skipped: ml_runner now falls back to global submission helper
+    console.print("  [yellow]![/yellow] Skipping code/utils/submission.py (global helper used)")
 
     # code/utils/config.py (will customize)
     console.print("  [green]✓[/green] code/utils/config.py (will customize)")
@@ -1329,13 +1413,13 @@ def run_init_project(args):
         console.print(f"[yellow]ID column not specified; defaulting to '{id_column}'[/yellow]")
 
     # Try AI-based detection first
+    eval_text = ""
     if not problem_type or not metric:
         try:
             console.print(f"\n[cyan]Fetching competition details from Kaggle...[/cyan]")
             eval_text = fetch_kaggle_evaluation(project_name, args.cdp_url)
         except RuntimeError as exc:
             console.print(f"[yellow]Skipping AI detection: {exc}[/yellow]")
-            eval_text = ""
 
         if eval_text:
             try:
@@ -1438,15 +1522,25 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     # Interactive prompts if not provided (fallback)
     if not target_column:
-        target_column = input("Target column name: ").strip() or "target"
+        try:
+            target_column = input("Target column name: ").strip() or "target"
+        except EOFError:
+            target_column = "target"
 
     if not problem_type:
-        console.print("\nProblem type:")
-        console.print("  1. binary (binary classification)")
-        console.print("  2. regression")
-        console.print("  3. multiclass (multiclass classification)")
-        choice = input("Choose (1/2/3): ").strip()
-        problem_type = {"1": "binary", "2": "regression", "3": "multiclass"}.get(choice, "binary")
+        # Non-interactive fallback to binary
+        if not sys.stdin.isatty():
+            problem_type = "binary"
+        else:
+            console.print("\nProblem type:")
+            console.print("  1. binary (binary classification)")
+            console.print("  2. regression")
+            console.print("  3. multiclass (multiclass classification)")
+            try:
+                choice = input("Choose (1/2/3): ").strip()
+            except EOFError:
+                choice = "1"
+            problem_type = {"1": "binary", "2": "regression", "3": "multiclass"}.get(choice, "binary")
 
     if not metric:
         default_metrics = {
@@ -1529,39 +1623,46 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
 
     # Customize README.md
     readme_path = project_root / "README.md"
-    readme_content = readme_path.read_text()
-    readme_content = readme_content.replace("playground-series-s5e11", project_name)
-    readme_content = readme_content.replace(
-        "Area under the ROC curve",
-        f"{metric} ({'lower is better' if 'error' in metric or 'loss' in metric else 'higher is better'})"
-    )
-    readme_path.write_text(readme_content)
-    console.print(f"[green]✓[/green] Customized README.md")
+    if readme_path.exists():
+        try:
+            snapshot = _compute_data_snapshot(project_root, target_column)
+            readme_content = readme_path.read_text()
+            replacements = {
+                "playground-series-s5e11": project_name,
+                "{{COMPETITION_NAME}}": project_name,
+                "{{TARGET_COLUMN}}": target_column,
+                "{{ID_COLUMN}}": id_column,
+                "{{METRIC_NAME}}": metric,
+                "{{METRIC_LABEL}}": metric,
+                "{{METRIC_DIRECTION}}": "higher is better" if "error" not in metric and "loss" not in metric else "lower is better",
+                "{{TRAIN_ROWS}}": snapshot.get("TRAIN_ROWS", "unknown"),
+                "{{TRAIN_COLS}}": snapshot.get("TRAIN_COLS", "unknown"),
+                "{{TEST_ROWS}}": snapshot.get("TEST_ROWS", "unknown"),
+                "{{TEST_COLS}}": snapshot.get("TEST_COLS", "unknown"),
+                "{{SAMPLE_COLUMNS}}": snapshot.get("SAMPLE_COLUMNS", "unknown"),
+                "{{CLASS_SUMMARY}}": snapshot.get("CLASS_SUMMARY", "N/A"),
+            }
+            for needle, repl in replacements.items():
+                readme_content = readme_content.replace(needle, str(repl))
+            readme_path.write_text(readme_content)
+            console.print(f"[green]✓[/green] Customized README.md")
+        except Exception as exc:
+            console.print(f"[yellow]! README customization failed: {exc}[/yellow]")
+    else:
+        console.print(f"[yellow]! README.md missing; skipped customization[/yellow]")
 
-    # Initial EDA (train/test) stored under experiments/init
+    # EDA is now a separate step; remind the user how to trigger it
     train_path = project_root / "data" / "train.csv"
     test_path = project_root / "data" / "test.csv"
     if train_path.exists() and test_path.exists():
-        console.print("\n[cyan]Generating initial EDA (experiments/init)...[/cyan]")
-        try:
-            eda_args = argparse.Namespace(
-                project=project_name,
-                experiment_id="init",
-                notes="Project initialization EDA",
-            )
-            run_eda(eda_args)
-            console.print(f"[green]✓[/green] Initial EDA stored under experiments/init/")
-        except Exception as exc:
-            console.print(f"[red]Initial EDA failed: {exc}[/red]")
-            console.print(
-                f"[yellow]Fix the issue (ensure data files exist) and rerun: "
-                f"uv run python scripts/experiment_manager.py eda --project {project_name} --experiment-id init[/yellow]"
-            )
-            sys.exit(1)
+        console.print("\n[yellow]EDA is not run automatically during init.[/yellow]")
+        console.print(
+            f"  Run when ready: uv run python scripts/experiment_manager.py eda --project {project_name} --experiment-id init"
+        )
     else:
         console.print(
-            "\n[yellow]Initial EDA skipped: train.csv/test.csv not found. "
-            f"Run `uv run python scripts/experiment_manager.py eda --project {project_name} --experiment-id init` once data is available.[/yellow]"
+            "\n[yellow]train.csv/test.csv not found. "
+            f"After adding data, run EDA manually: uv run python scripts/experiment_manager.py eda --project {project_name} --experiment-id init[/yellow]"
         )
 
     # Print summary

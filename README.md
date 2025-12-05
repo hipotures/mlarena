@@ -80,9 +80,9 @@ All shared tools (runner, submissions tracker, validation) rely on these fields,
 ## Creating a New Competition Project
 
 1. Accept the rules on Kaggle and grab the competition slug.
-2. Copy the skeleton from an existing project (`cp -R playground-series-s5e11 NEW-COMP && rm -rf NEW-COMP/submissions/*.csv NEW-COMP/experiments`).
+2. Create a project with the init script or copy any existing one, then remove its submissions/experiments.
 3. Edit `code/utils/config.py` to set `COMPETITION_NAME`, metric, and target column; drop the downloaded CSV files into `data/`.
-4. Run `uv run python tools/experiment_manager.py eda --project NEW-COMP` to confirm the loader works. From now on, rely on the shared runner/templates instead of bespoke scripts.
+4. Run `uv run python tools/experiment_manager.py eda --project <project>` to confirm the loader works. From now on, rely on the shared runner/templates instead of bespoke scripts.
 
 `uv sync` installs all dependencies; no per-project virtualenvs are needed.
 
@@ -90,13 +90,13 @@ All shared tools (runner, submissions tracker, validation) rely on these fields,
 
 Every experiment is broken into modules tracked in `experiments/<id>/state.json`. Use `tools/experiment_manager.py` to orchestrate the flow:
 
-1. **EDA** – `uv run python tools/experiment_manager.py eda --project playground-series-s5e11`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
-2. **Model (train)** – `uv run python tools/experiment_manager.py model --project playground-series-s5e11 --experiment-id exp-20251117-020830 --template gpu-dev-5m [--auto-submit]`. This wraps the template-driven `tools/ml_runner.py` and records training results (local CV, model path) as soon as training finishes. Core templates now follow the `[cpu|gpu]-<purpose>-<time>` scheme: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `cpu-best-8h`, and `gpu-extreme-24h` (prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
+1. **EDA** – `uv run python tools/experiment_manager.py eda --project <project>`. Prints the shapes/target distribution and records the ID (e.g., `exp-20251117-020830`).
+2. **Model (train)** – `uv run python tools/experiment_manager.py model --project <project> --experiment-id exp-20251117-020830 --template gpu-dev-5m [--auto-submit]`. This wraps the template-driven `tools/ml_runner.py` and records training results (local CV, model path) as soon as training finishes. Core templates follow the `[cpu|gpu]-<purpose>-<time>` scheme: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `cpu-best-8h`, and `gpu-extreme-24h` (prompts if >30k rows). Overrides like `--time-limit`, `--preset`, `--use-gpu`, or `--skip-submit` are available when needed.
    - Extra override: `--model-name <module>` lets you swap the model file used by the template (e.g., run `autogluon_shiftaware` with an existing template). Applies to train/all; predict always reloads the model recorded in state.
-3. **Predict** – `uv run python tools/experiment_manager.py predict --project playground-series-s5e11 --experiment-id exp-... [--template gpu-dev-5m]` reuses the trained model to generate a submission and completes the `predict` module before any submit step. The `model` command runs this automatically unless you stop at training.
-4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python tools/experiment_manager.py submit --project playground-series-s5e11 --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
+3. **Predict** – `uv run python tools/experiment_manager.py predict --project <project> --experiment-id exp-... [--template gpu-dev-5m]` reuses the trained model to generate a submission and completes the `predict` module before any submit step. The `model` command runs this automatically unless you stop at training.
+4. **Submit / Fetch Score** – either let the runner auto-submit, or call `uv run python tools/experiment_manager.py submit --project <project> --experiment-id exp-...` to upload an existing CSV. `fetch-score` re-scrapes Kaggle later via Playwright/CDP if the browser was offline during training.
 
-Use `uv run python tools/experiment_manager.py list --project playground-series-s5e11` to inspect module statuses, and `uv run python tools/experiment_manager.py modules` to show the available module names.
+Use `uv run python tools/experiment_manager.py list --project <project>` to inspect module statuses, and `uv run python tools/experiment_manager.py modules` to show the available module names.
 
 ### Submission Automation
 
@@ -119,19 +119,19 @@ The repository includes a comprehensive Optuna-based system for hyperparameter t
 ```bash
 # 1. Tune XGBoost (100 trials, 2h)
 uv run python scripts/optuna_runner.py \
-    --project playground-series-s5e11 \
+    --project <project> \
     --model xgboost \
     --preset thorough
 
 # 2. Train with best params
 uv run python scripts/experiment_manager.py model \
-    --project playground-series-s5e11 \
+    --project <project> \
     --model xgboost_optuna \
     --auto-submit
 
 # 3. Ensemble multiple models
 uv run python scripts/stacking_runner.py \
-    --project playground-series-s5e11 \
+    --project <project> \
     --models xgb.csv lgb.csv cat.csv \
     --blend-method weighted \
     --blend-weights 0.5 0.3 0.2
@@ -176,9 +176,9 @@ ExperimentManager
 `submissions/submissions.json` stores every Kaggle upload along with local CV, public score, experiment ID, git hash, and optional notes. Normally you do not add entries manually: `code/utils/submission.py` logs the experiment + tracker entry whenever a CSV is created, and `submission_workflow.py` updates the public score/commit message after scraping Kaggle. When a fix is required, the CLI mirror still exists:
 
 ```bash
-uv run python tools/submissions_tracker.py --project playground-series-s5e11 list
-uv run python tools/submissions_tracker.py --project playground-series-s5e11 add submission.csv autogluon-medium --local-cv 0.92
-uv run python tools/submissions_tracker.py --project playground-series-s5e11 update 3 --public 0.9213
+uv run python tools/submissions_tracker.py --project <project> list
+uv run python tools/submissions_tracker.py --project <project> add submission.csv autogluon-medium --local-cv 0.92
+uv run python tools/submissions_tracker.py --project <project> update 3 --public 0.9213
 ```
 
 Pair this with `tools/experiment_logger.py` if you need to inspect the git state or restore a code snapshot referenced by a tracker entry.
@@ -285,7 +285,7 @@ git push
 
 ### AutoGluon Runner Templates
 
-Every competition now shares a single runner: `tools/autogluon_runner.py`. Call it directly or via the thin wrappers in each project (e.g., `uv run python playground-series-s5e11/code/models/baseline_autogluon.py`), and pass a compute template instead of memorising raw parameters:
+Every competition now shares a single runner: `tools/autogluon_runner.py`. Call it directly or via the thin wrappers in each project (e.g., `uv run python <project>/code/models/baseline_autogluon.py`), and pass a compute template instead of memorising raw parameters:
 
 | Template     | Time Limit | Preset           | GPU | Notes |
 |--------------|-----------:|------------------|-----|-------|
@@ -301,7 +301,7 @@ Example:
 
 ```bash
 uv run python tools/autogluon_runner.py \
-    --project playground-series-s5e11 \
+    --project <project> \
     --template gpu-best-1h \
     --auto-submit \
     --wait-seconds 45
@@ -316,7 +316,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 1. **EDA** – uruchamia podstawową analizę i rejestruje identyfikator:
    ```bash
    uv run python tools/experiment_manager.py eda \
-       --project playground-series-s5e11 \
+       --project <project> \
        --notes "baseline sweep"
    ```
    Komunikat pokaże `experiment_id` w formacie `exp-YYYYMMDD-HHMMSS`.
@@ -324,7 +324,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 2. **Model** – przekazujesz ten sam identyfikator:
    ```bash
    uv run python tools/autogluon_runner.py \
-       --project playground-series-s5e11 \
+       --project <project> \
        --template dev-gpu \
        --experiment-id exp-20251117-011230 \
        --auto-submit \
@@ -335,7 +335,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 3. **Submit / Resume** – gdy CSV jest już wysłany, pobierasz skorę i aktualizujesz zarówno tracker, jak i eksperyment:
    ```bash
    uv run python tools/submission_workflow.py resume \
-       --project playground-series-s5e11 \
+       --project <project> \
        --filename submission-20251117015359.csv \
        --experiment-id exp-20251117-011230 \
        --cdp-url http://127.0.0.1:9222
@@ -344,7 +344,7 @@ Each run is tracked in `competitions/<project>/experiments/<experiment_id>.json`
 Podgląd stanu:
 
 ```bash
-uv run python tools/experiment_manager.py list --project playground-series-s5e11
+uv run python tools/experiment_manager.py list --project <project>
 ```
 Need a reminder of available stages? `uv run python tools/experiment_manager.py modules`.
 
@@ -353,7 +353,7 @@ Need a reminder of available stages? `uv run python tools/experiment_manager.py 
 Model scripts now embed an optional end-to-end pipeline that creates the Kaggle submission, waits for scoring, fetches the public score via Playwright, updates tracking files, and commits the result.
 
 ```bash
-uv run python playground-series-s5e11/code/models/baseline_autogluon.py \
+uv run python <project>/code/models/baseline_autogluon.py \
     --auto-submit \
     --kaggle-message "autogluon-medium exp-2" \
     --wait-seconds 45
@@ -364,7 +364,7 @@ What happens:
 2. The runner sleeps (default 30s) so Kaggle can evaluate the submission.
 3. Playwright connects to your existing Chrome session (`google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug`) and reads the newest entry on `/submissions`. Install the browser driver once with `uv run playwright install chromium`.
 4. `SubmissionsTracker` links the fetched public score to the tracker entry/experiment ID.
-5. A git commit is created inside `competitions/` tying the code + local CV + public score (`submission(playground-series-s5e11): autogluon-medium | local 0.92379 | public 0.92227`).
+5. A git commit is created inside `competitions/` tying the code + local CV + public score (`submission(<project>): autogluon-medium | local 0.92379 | public 0.92227`).
 
 Flags to know: `--skip-submit` (train only), `--auto-submit` (skip the confirmation prompt), `--skip-score-fetch` (useful when Chrome/CDP isn't running), `--skip-git` (review and commit manually), `--cdp-url` (point to a custom debug endpoint).
 
@@ -372,7 +372,7 @@ Flags to know: `--skip-submit` (train only), `--auto-submit` (skip the confirmat
 
 | Competition | Deadline | Status | Best Score | Notes |
 |-------------|----------|--------|------------|-------|
-| playground-series-s5e11 | TBD | In Progress | - | - |
+| <project> | TBD | In Progress | - | - |
 | melting-point | TBD | In Progress | - | - |
 
 ## Resources

@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import pickle
+import shlex
 import shutil
 import sys
 from dataclasses import dataclass
@@ -55,7 +56,59 @@ def load_project_context(project_name: str) -> ProjectContext:
         sys.path.insert(0, str(code_dir))
 
     config_module = importlib.import_module("utils.config")
-    submission_module = importlib.import_module("utils.submission")
+    try:
+        submission_module = importlib.import_module("utils.submission")
+    except ImportError:
+        # Build a lightweight adapter to global submission helper using project config
+        from kaggle_tools import submission as global_submission  # type: ignore
+
+        class SubmissionAdapter:
+            def create_submission(
+                self,
+                predictions,
+                test_ids=None,
+                filename_prefix="submission",
+                metric_name=None,
+                metric_value=None,
+                model_name=None,
+                local_cv_score=None,
+                cv_std=None,
+                notes="",
+                config=None,
+                feature_count=None,
+                track: bool = True,
+            ):
+                return global_submission.create_submission(
+                    predictions=predictions,
+                    test_ids=test_ids,
+                    project_root=project_root,
+                    competition_name=project_name,
+                    submissions_dir=config_module.SUBMISSIONS_DIR,
+                    sample_submission_path=config_module.SAMPLE_SUBMISSION_PATH,
+                    filename_prefix=filename_prefix,
+                    metric_name=metric_name,
+                    metric_value=metric_value,
+                    model_name=model_name,
+                    local_cv_score=local_cv_score,
+                    cv_std=cv_std,
+                    notes=notes,
+                    config=config,
+                    feature_count=feature_count,
+                    track=track,
+                    default_target_col=config_module.TARGET_COLUMN,
+                    id_column=getattr(config_module, "ID_COLUMN", "id"),
+                    submission_probas=getattr(config_module, "SUBMISSION_PROBAS", True),
+                )
+
+            def validate_submission(self, submission_path):
+                return global_submission.validate_submission(
+                    submission_path=Path(submission_path),
+                    sample_submission_path=config_module.SAMPLE_SUBMISSION_PATH,
+                    submission_probas=getattr(config_module, "SUBMISSION_PROBAS", True),
+                )
+
+        submission_module = SubmissionAdapter()
+        sys.modules["utils.submission"] = submission_module  # type: ignore
     return ProjectContext(
         name=project_name,
         root=project_root,
@@ -144,6 +197,26 @@ def _apply_cli_overrides(args: argparse.Namespace) -> Dict[str, Any]:
         hyper["use_gpu"] = bool(args.use_gpu)
 
     return overrides
+
+
+def _build_cli_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
+    """Convert parsed args to a JSON-serializable dict, dropping None values."""
+    snapshot: Dict[str, Any] = {}
+    for key, value in vars(args).items():
+        if value is None:
+            continue
+        snapshot[key] = value
+    return snapshot
+
+
+def _build_invocation_snapshot() -> Dict[str, Any]:
+    """Capture the invocation as seen by the script (argv sans interpreter)."""
+    argv = sys.argv[1:]
+    return {
+        "argv": argv,
+        "command": f"python scripts/ml_runner.py {' '.join(shlex.quote(arg) for arg in argv)}".strip(),
+        "recorded_at": utc_now(),
+    }
 
 
 class MLRunner:
@@ -874,6 +947,23 @@ def run(args: argparse.Namespace):
         preprocess_config_override=preprocess_config_override,
     )
 
+    # Record initial run metadata (CLI + template/module selections)
+    manager.update_run_metadata(
+        {
+            "stage": stage,
+            "experiment_id": manager.experiment_id,
+            "project": args.project,
+            "templates": {
+                "model": model_template_name,
+                "preprocess": preprocess_template_name,
+                "model_module": runner.model_name,
+                "preprocess_module": runner.preprocess_module_name,
+            },
+            "cli": _build_cli_snapshot(args),
+            "invocation": _build_invocation_snapshot(),
+        }
+    )
+
     if stage not in {"preprocess", "predict"} and model_override:
         console.print(f"[yellow]Model override active:[/yellow] {model_override}")
 
@@ -894,6 +984,21 @@ def run(args: argparse.Namespace):
     submission_artifact = result.get("submission")
     training_summary = result.get("training_summary") or {}
     local_cv = training_summary.get("local_cv")
+
+    # Append resolved configs/cache paths for reproducibility snapshot
+    resolved_payload: Dict[str, Any] = {}
+    if runner.config:
+        resolved_payload["model_config"] = runner.config.as_plain_dict()
+    if runner.preprocess_record:
+        resolved_payload["preprocess"] = {
+            "resolved_config": runner.preprocess_record.get("resolved_config"),
+            "config": runner.preprocess_record.get("config"),
+            "cache": runner.preprocess_record.get("cache"),
+            "cache_sig": runner.preprocess_record.get("cache_sig"),
+            "used_cached": runner.preprocess_record.get("used_cached"),
+        }
+    if resolved_payload:
+        manager.update_run_metadata({"resolved": resolved_payload})
 
     if stage not in {"all", "predict"} or submission_artifact is None:
         return

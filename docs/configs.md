@@ -9,7 +9,7 @@ Defines experiment templates that combine model implementations with their hyper
 ### File Location
 
 ```
-projects/kaggle/playground-series-s5e11/templates/model.yaml
+projects/kaggle/<project>/templates/model.yaml
 ```
 
 ### Structure
@@ -294,7 +294,7 @@ best-cpu-fe02:
 
 ```bash
 uv run python scripts/experiment_manager.py model \
-    --project playground-series-s5e11 \
+    --project <project> \
     --template best-cpu-fe11 \
     --auto-submit \
     --wait-seconds 45
@@ -304,7 +304,7 @@ uv run python scripts/experiment_manager.py model \
 
 ```bash
 uv run python scripts/ml_runner.py \
-    --project playground-series-s5e11 \
+    --project <project> \
     --template exp01-tier1 \
     --auto-submit
 ```
@@ -313,7 +313,7 @@ uv run python scripts/ml_runner.py \
 
 ```bash
 uv run python scripts/autogluon_runner.py \
-    --project playground-series-s5e11 \
+    --project <project> \
     --template dev-gpu
 ```
 

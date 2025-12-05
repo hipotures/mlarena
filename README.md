@@ -295,7 +295,8 @@ Override per run: `--time-limit`, `--preset`, `--use-gpu`, `--model-template <na
 
 3) **Predict** (if needed): `uv run python scripts/mla.py predict --project <project> --experiment-id <exp>`
 
-4) **Submit / Fetch score**: `uv run python scripts/mla.py fetch-score --project <project> --experiment-id <exp> --cdp-url http://127.0.0.1:9222`
+4) **Submit / Fetch score**: `uv run python scripts/mla.py fetch-score --project <project> --experiment-id <exp>`
+   (optional `--cdp-url` when Chrome debug port differs; default http://127.0.0.1:9222)
 
 State lives in `projects/kaggle/<project>/experiments/<exp>/state.json`; rerun modules with `--force` to overwrite completed steps.
 

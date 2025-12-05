@@ -60,8 +60,7 @@ uv run python scripts/mla.py model --project [competition-name] \
 
 # 3. Fetch score later if needed
 uv run python scripts/mla.py fetch-score --project [competition-name] \
-    --experiment-id exp-YYYYMMDD-HHMMSS \
-    --cdp-url http://127.0.0.1:9222
+    --experiment-id exp-YYYYMMDD-HHMMSS
 
 # 4. Check submissions/experiments
 uv run python scripts/submissions_tracker.py --project [competition-name] list
@@ -163,7 +162,7 @@ uv run python scripts/mla.py predict --project [competition-name] --experiment-i
 
 **5. Submit / Fetch score:**
 ```bash
-uv run python scripts/mla.py fetch-score --project [competition-name]     --experiment-id <exp>     --cdp-url http://127.0.0.1:9222
+uv run python scripts/mla.py fetch-score --project [competition-name]     --experiment-id <exp>
 ```
 
 List modules: `uv run python scripts/mla.py modules --project [competition-name]`
@@ -218,8 +217,7 @@ uv run python scripts/mla.py model --project playground-series-s5e11 \
 
 # 3. Submit/fetch can be run later if needed
 uv run python scripts/mla.py fetch-score --project playground-series-s5e11 \
-    --experiment-id exp-20251117-020830 \
-    --cdp-url http://127.0.0.1:9222
+    --experiment-id exp-20251117-020830
 ```
 
 **Module Safety:**
@@ -371,8 +369,7 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 uv run python scripts/mla.py model --project playground-series-s5e11 \
     --model-template dev-gpu \
     --auto-submit \
-    --wait-seconds 45 \
-    --cdp-url http://127.0.0.1:9222
+    --wait-seconds 45
 ```
 
 **What happens:**
@@ -390,7 +387,7 @@ uv run python scripts/mla.py model --project playground-series-s5e11 \
 - `--skip-score-fetch` - Upload but don't scrape score (when browser offline)
 - `--skip-git` - Don't auto-commit, review changes manually
 - `--wait-seconds N` - Wait N seconds before scraping (default: 30)
-- `--cdp-url URL` - Custom Chrome debug endpoint (default: http://127.0.0.1:9222)
+- `--cdp-url URL` - Optional CDP endpoint (defaults to http://127.0.0.1:9222); only needed if Chrome listens elsewhere.
 
 ### Manual Scraping (Standalone)
 

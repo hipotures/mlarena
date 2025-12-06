@@ -41,7 +41,7 @@ class TemplateLoader:
         templates = {}
 
         # Load global templates
-        repo_root = Path(__file__).resolve().parents[2]
+        repo_root = Path(__file__).resolve().parents[3]  # src/mlarena/core/config.py -> ../../.. -> repo root
         global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
         if global_file.exists():
             try:
@@ -73,7 +73,7 @@ class TemplateLoader:
         template_data = {}
 
         # Load from global first
-        repo_root = Path(__file__).resolve().parents[2]
+        repo_root = Path(__file__).resolve().parents[3]  # src/mlarena/core/config.py -> ../../.. -> repo root
         global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
         if global_file.exists():
             try:

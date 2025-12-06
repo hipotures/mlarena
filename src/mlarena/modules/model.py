@@ -95,19 +95,34 @@ class ModelModule(BaseModule):
         # Handle --model-template list
         if template_name == "list":
             loader = TemplateLoader(self.context.project_root, template_type="model")
-            available = loader.list_available()
+            templates = loader.list_available_with_source()
 
             table = Table(title="Available Model Templates", show_header=True)
             table.add_column("Template Name", style="cyan")
+            table.add_column("Source", justify="center")
 
-            for tpl in available:
-                table.add_row(tpl)
+            for tpl in templates:
+                name = tpl["name"]
+                source = tpl["source"]
+
+                if source == "global":
+                    source_display = "🅶"
+                    style = None
+                elif source == "local":
+                    source_display = "🅻"
+                    style = None
+                else:  # conflict
+                    source_display = "🅶🅻"
+                    style = "on grey23"  # dark grey background
+
+                table.add_row(name, source_display, style=style)
 
             console.print(table)
             console.print(f"\n[dim]Usage: --model-template <name>[/dim]")
+            console.print(f"[dim]🅶 = global template  🅻 = local template  🅶🅻 = name conflict (local overrides)[/dim]")
             return ModuleResult(
                 success=True,
-                payload={"templates": available},
+                payload={"templates": [t["name"] for t in templates]},
             )
 
         artifact_dir: Path = self.context.artifact_dir

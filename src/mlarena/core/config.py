@@ -61,6 +61,55 @@ class TemplateLoader:
 
         return sorted(templates.keys())
 
+    def list_available_with_source(self) -> List[Dict[str, str]]:
+        """List templates with source information (global/local/conflict).
+
+        Returns:
+            List of dicts with keys: name, source ('global', 'local', 'conflict')
+        """
+        if yaml is None:
+            return []
+
+        global_templates = set()
+        local_templates = set()
+
+        # Load global templates
+        repo_root = Path(__file__).resolve().parents[3]
+        global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
+        if global_file.exists():
+            try:
+                data = yaml.safe_load(global_file.read_text())
+                global_templates = set(data.get("templates", {}).keys())
+            except Exception:
+                pass
+
+        # Load project-local templates
+        local_file = self.project_root / "templates" / f"{self.template_type}.yaml"
+        if local_file.exists():
+            try:
+                data = yaml.safe_load(local_file.read_text())
+                local_templates = set(data.get("templates", {}).keys())
+            except Exception:
+                pass
+
+        conflicts = global_templates & local_templates
+
+        result = []
+
+        # Add global-only templates first
+        for name in sorted(global_templates - conflicts):
+            result.append({"name": name, "source": "global"})
+
+        # Add conflicts
+        for name in sorted(conflicts):
+            result.append({"name": name, "source": "conflict"})
+
+        # Add local-only templates last
+        for name in sorted(local_templates - conflicts):
+            result.append({"name": name, "source": "local"})
+
+        return result
+
     def load(self, template_name: str) -> Dict[str, Any]:
         """
         Load template from global or project-local {type}.yaml.

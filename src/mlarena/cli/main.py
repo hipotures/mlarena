@@ -161,14 +161,16 @@ def main(argv: List[str] | None = None) -> int:
     executor = PipelineExecutor(modules)
     results = executor.run_module(args.command, force=args.force, skip_deps=args.skip_deps)
 
-    # Simple console reporting
-    for mod_name, result in results.items():
-        status = "ok" if result.success else "fail"
-        print(f"[{status}] {mod_name}")
-        if args.show_payload and result.payload:
-            print(f"  payload: {result.payload}")
-        if result.error:
-            print(f"  error: {result.error}")
+    # Simple console reporting (only show summary for non-init modules)
+    # Init module already prints its own Rich output, so we don't want to clutter
+    if args.command != "init":
+        for mod_name, result in results.items():
+            status = "ok" if result.success else "fail"
+            print(f"[{status}] {mod_name}")
+            if args.show_payload and result.payload:
+                print(f"  payload: {result.payload}")
+            if result.error:
+                print(f"  error: {result.error}")
 
     last = results.get(args.command)
 

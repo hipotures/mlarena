@@ -51,7 +51,8 @@ class PipelineExecutor:
             state_entry = module.context.state.modules.get(name)
             already_completed = state_entry and state_entry.status == "completed"
 
-            if already_completed and not force:
+            # Init module should always run to show project status (even if completed)
+            if already_completed and not force and name != "init":
                 results[name] = ModuleResult(success=True, payload=state_entry.payload)
                 continue
 

@@ -16,6 +16,54 @@ from .cdp import fetch_kaggle_evaluation
 from .config import generate_config_py
 from .files import copy_templates, create_directory_structure, customize_readme, download_kaggle_data
 
+
+def _compute_data_snapshot(project_root: Path, target_column: str) -> Dict[str, Any]:
+    """Collect basic dataset stats for README templating."""
+    data_dir = project_root / "data"
+    train_path = data_dir / "train.csv"
+    test_path = data_dir / "test.csv"
+    sample_path = None
+
+    # Find sample submission file
+    submission_files = list(data_dir.glob("*submission*.csv"))
+    if submission_files:
+        sample_path = submission_files[0]
+
+    snapshot = {
+        "TRAIN_ROWS": "unknown",
+        "TRAIN_COLS": "unknown",
+        "TEST_ROWS": "unknown",
+        "TEST_COLS": "unknown",
+        "SAMPLE_COLUMNS": "unknown",
+        "CLASS_SUMMARY": "N/A",
+    }
+
+    try:
+        train_df = pd.read_csv(train_path)
+        snapshot["TRAIN_ROWS"] = f"{len(train_df):,}"
+        snapshot["TRAIN_COLS"] = train_df.shape[1] - (1 if target_column in train_df.columns else 0)
+        if target_column in train_df.columns:
+            counts = train_df[target_column].value_counts()
+            snapshot["CLASS_SUMMARY"] = " | ".join([f"{k}: {v:,}" for k, v in counts.items()])
+    except Exception:
+        pass
+
+    try:
+        test_df = pd.read_csv(test_path)
+        snapshot["TEST_ROWS"] = f"{len(test_df):,}"
+        snapshot["TEST_COLS"] = test_df.shape[1]
+    except Exception:
+        pass
+
+    try:
+        if sample_path:
+            sample_df = pd.read_csv(sample_path, nrows=1)
+            snapshot["SAMPLE_COLUMNS"] = ", ".join(sample_df.columns.tolist())
+    except Exception:
+        pass
+
+    return snapshot
+
 # Import template loader from scripts
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -46,12 +94,48 @@ def init_project(
           - error: optional error message
     """
 
-    console = Console()
+    console = Console(force_terminal=True)
 
-    # Check if exists (ignore experiments/ dir created by ExperimentState)
-    if project_root.exists() and not force:
-        existing_items = [item for item in project_root.iterdir() if item.name != "experiments"]
-        if existing_items:
+    # Check if project is already initialized (by checking for config.py)
+    config_path = project_root / "code" / "utils" / "config.py"
+    if config_path.exists() and not force:
+        console.rule(f"[bold yellow]Project '{competition_slug}' is already initialized[/bold yellow]", style="yellow")
+
+        # Load and display existing config
+        try:
+            sys.path.insert(0, str(project_root / "code"))
+            config_module = __import__("utils.config", fromlist=["dummy"])
+
+            table = Table(title="Existing Project Configuration", show_header=True)
+            table.add_column("Setting", style="cyan")
+            table.add_column("Value", style="green")
+            table.add_row("Project Name", competition_slug)
+            table.add_row("Location", str(project_root))
+            table.add_row("Target Column", getattr(config_module, "TARGET_COLUMN", "N/A"))
+            table.add_row("Problem Type", getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", "N/A"))
+            table.add_row("Metric", getattr(config_module, "AUTOGLUON_EVAL_METRIC", "N/A"))
+            table.add_row("ID Column", getattr(config_module, "ID_COLUMN", "N/A"))
+            console.print(table)
+
+            next_steps = (
+                f"[bold]To work with this project:[/]\n"
+                f"[bold]1.[/] Run EDA: [cyan]uv run python scripts/mla.py eda --project {competition_slug}[/cyan]\n"
+                f"[bold]2.[/] Train model: [cyan]uv run python scripts/mla.py model --project {competition_slug} --model-template dev-gpu[/cyan]\n\n"
+                f"[bold]To reinitialize:[/] Use [cyan]--force[/cyan] flag"
+            )
+            console.print(Panel(next_steps, title="Project Already Initialized", border_style="yellow"))
+
+            return {
+                "success": True,
+                "stats": {
+                    "target": getattr(config_module, "TARGET_COLUMN", "N/A"),
+                    "problem_type": getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", "N/A"),
+                    "metric": getattr(config_module, "AUTOGLUON_EVAL_METRIC", "N/A"),
+                    "already_initialized": True
+                },
+            }
+        except Exception:
+            # Fallback if config can't be loaded
             console.print(f"[red]Error: Project '{competition_slug}' already exists. Use --force to overwrite.[/red]")
             return {"success": False, "error": "project_exists"}
 
@@ -86,16 +170,16 @@ def init_project(
 
     if sample_columns and not target_column and len(sample_columns) >= 2:
         detected_target = sample_columns[-1]
-        console.print(f"\n[cyan]Detected target column: '{detected_target}' from {sample_path.name}[/cyan]")
+        console.print(f"\n[cyan]Detected target column:[/cyan] [green]'{detected_target}'[/green] [dim]from {sample_path.name}[/dim]")
         target_column = detected_target
 
     if not id_column:
         if sample_columns:
             id_column = sample_columns[0]
-            console.print(f"[cyan]Detected ID column: '{id_column}'[/cyan]")
+            console.print(f"[cyan]Detected ID column:[/cyan] [green]'{id_column}'[/green]")
         else:
             id_column = "id"
-            console.print(f"[yellow]ID column defaulting to '{id_column}'[/yellow]")
+            console.print(f"[yellow]ID column defaulting to[/yellow] [green]'{id_column}'[/green]")
 
     # AI-based detection
     eval_text = ""
@@ -106,17 +190,38 @@ def init_project(
         submit_probabilities = False
 
     if not problem_type or not metric:
-        try:
-            console.print(f"\n[cyan]Fetching competition details from Kaggle...[/cyan]")
-            eval_text = fetch_kaggle_evaluation(competition_slug, cdp_url)
-        except RuntimeError as exc:
-            console.print(f"[yellow]Skipping AI detection: {exc}[/yellow]")
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Fetching competition details from Kaggle...", total=None)
+            try:
+                eval_text = fetch_kaggle_evaluation(competition_slug, cdp_url)
+                progress.remove_task(task)
+            except RuntimeError as exc:
+                progress.remove_task(task)
+                console.print(f"[yellow]Skipping AI detection: {exc}[/yellow]")
+                eval_text = ""
 
         if eval_text:
-            console.print(f"[dim]Evaluation section: {eval_text[:100]}...[/dim]")
-            console.print(f"[cyan]Asking AI to detect problem type and metric...[/cyan]")
+            # Show evaluation text in a panel (max 1024 chars)
+            display_text = eval_text[:1024]
+            if len(eval_text) > 1024:
+                display_text += "..."
 
-            ai_problem, ai_metric, ai_submit_proba = detect_problem_type_and_metric(
+            eval_panel = Panel(
+                display_text,
+                title="[cyan]Evaluation Section from Kaggle[/cyan]",
+                border_style="dim",
+                padding=(0, 1),
+            )
+            console.print(eval_panel)
+
+            ai_problem, ai_metric, ai_submit_proba, ai_log = detect_problem_type_and_metric(
                 eval_text, competition_slug, project_root, console
             )
 
@@ -125,6 +230,10 @@ def init_project(
                 metric = metric or ai_metric
                 if submit_probabilities is None and ai_submit_proba is not None:
                     submit_probabilities = ai_submit_proba
+        else:
+            ai_log = None
+    else:
+        ai_log = None
 
     # Fallbacks
     if not target_column:
@@ -160,13 +269,28 @@ def init_project(
         console,
     )
 
+    # Compute data snapshot for README
+    data_snapshot = _compute_data_snapshot(project_root, target_column)
+
+    # Determine metric direction
+    metric_direction = "higher is better"
+    if any(word in metric.lower() for word in ["error", "loss"]):
+        metric_direction = "lower is better"
+
     # Customize README
     readme_replacements = {
-        "playground-series-s5e11": competition_slug,
         "{{COMPETITION_NAME}}": competition_slug,
         "{{TARGET_COLUMN}}": target_column,
         "{{ID_COLUMN}}": id_column,
         "{{METRIC_NAME}}": metric,
+        "{{METRIC_LABEL}}": metric.replace("_", " ").title(),
+        "{{METRIC_DIRECTION}}": metric_direction,
+        "{{TRAIN_ROWS}}": data_snapshot.get("TRAIN_ROWS", "unknown"),
+        "{{TRAIN_COLS}}": str(data_snapshot.get("TRAIN_COLS", "unknown")),
+        "{{TEST_ROWS}}": data_snapshot.get("TEST_ROWS", "unknown"),
+        "{{TEST_COLS}}": str(data_snapshot.get("TEST_COLS", "unknown")),
+        "{{SAMPLE_COLUMNS}}": data_snapshot.get("SAMPLE_COLUMNS", "unknown"),
+        "{{CLASS_SUMMARY}}": data_snapshot.get("CLASS_SUMMARY", "N/A"),
     }
     customize_readme(project_root, readme_replacements, console)
 
@@ -230,7 +354,17 @@ def init_project(
     )
     console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
 
+    stats = {
+        "target": target_column,
+        "problem_type": problem_type,
+        "metric": metric,
+    }
+
+    # Add AI interaction log if available
+    if ai_log:
+        stats["ai_detection"] = ai_log
+
     return {
         "success": True,
-        "stats": {"target": target_column, "problem_type": problem_type, "metric": metric},
+        "stats": stats,
     }

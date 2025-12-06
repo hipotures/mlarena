@@ -50,31 +50,38 @@ def copy_templates(project_root: Path, console: Console) -> None:
 
     # .gitignore
     gitignore_src = template_project / ".gitignore"
+    gitignore_dst = project_root / ".gitignore"
     if gitignore_src.exists():
-        shutil.copy(gitignore_src, project_root / ".gitignore")
-        console.print("  [green]✓[/green] .gitignore")
+        shutil.copy(gitignore_src, gitignore_dst)
     else:
-        console.print("  [yellow]![/yellow] .gitignore (missing template)")
+        # Minimal fallback
+        gitignore_dst.write_text(
+            "# Data and outputs\n"
+            "data/\n"
+            "experiments/\n"
+            "submissions/\n"
+            "logs/\n"
+            "__pycache__/\n"
+        )
+    console.print("  [green]✓[/green] .gitignore")
 
     # README.md
     readme_src = template_project / "README.md"
     readme_dst = project_root / "README.md"
     if readme_src.exists():
         shutil.copy(readme_src, readme_dst)
-        console.print("  [green]✓[/green] README.md")
     else:
         readme_dst.write_text(f"# {project_root.name}\n\n")
-        console.print("  [yellow]![/yellow] README.md (fallback created)")
+    console.print("  [green]✓[/green] README.md")
 
     # configs/
     configs_src = template_project / "configs"
     if configs_src.exists():
         shutil.copytree(configs_src, project_root / "configs", dirs_exist_ok=True)
-        console.print("  [green]✓[/green] configs/")
     else:
         (project_root / "configs").mkdir(exist_ok=True)
         (project_root / "configs" / ".gitkeep").touch()
-        console.print("  [yellow]![/yellow] configs/ (empty directory created)")
+    console.print("  [green]✓[/green] configs/")
 
     # Initialize empty template files
     templates_dir = project_root / "templates"
@@ -90,35 +97,48 @@ def download_kaggle_data(competition_slug: str, project_root: Path, console: Con
     Returns:
         True on success, False on failure
     """
-    console.print(f"\n[cyan]Downloading data from Kaggle for '{competition_slug}'...[/cyan]")
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
     data_dir = project_root / "data"
 
-    try:
-        result = subprocess.run(
-            ["kaggle", "competitions", "download", "-c", competition_slug, "-p", str(data_dir)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        console.print(f"  [green]✓[/green] Data downloaded")
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        # Download
+        task = progress.add_task(f"Downloading data from Kaggle for '{competition_slug}'...", total=None)
 
-        # Find and unzip
-        zip_files = list(data_dir.glob("*.zip"))
-        if zip_files:
-            zip_file = zip_files[0]
-            console.print(f"  [cyan]Extracting {zip_file.name}...[/cyan]")
-            with zipfile.ZipFile(zip_file, "r") as zip_ref:
-                zip_ref.extractall(data_dir)
-            console.print(f"  [green]✓[/green] Data extracted")
-            zip_file.unlink()  # Remove zip after extraction
+        try:
+            result = subprocess.run(
+                ["kaggle", "competitions", "download", "-c", competition_slug, "-p", str(data_dir)],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            progress.remove_task(task)
+            console.print(f"  [green]✓[/green] Data downloaded")
 
-        return True
+            # Find and unzip
+            zip_files = list(data_dir.glob("*.zip"))
+            if zip_files:
+                zip_file = zip_files[0]
+                task2 = progress.add_task(f"Extracting {zip_file.name}...", total=None)
+                with zipfile.ZipFile(zip_file, "r") as zip_ref:
+                    zip_ref.extractall(data_dir)
+                progress.remove_task(task2)
+                console.print(f"  [green]✓[/green] Data extracted")
+                zip_file.unlink()  # Remove zip after extraction
 
-    except subprocess.CalledProcessError as e:
-        console.print(f"[red]Error downloading data: {e.stderr}[/red]")
-        console.print("[yellow]You can download data manually later with:[/yellow]")
-        console.print(f"  cd {competition_slug}/data && kaggle competitions download -c {competition_slug}")
-        return False
+            return True
+
+        except subprocess.CalledProcessError as e:
+            progress.remove_task(task)
+            console.print(f"[red]Error downloading data: {e.stderr}[/red]")
+            console.print("[yellow]You can download data manually later with:[/yellow]")
+            console.print(f"  cd {competition_slug}/data && kaggle competitions download -c {competition_slug}")
+            return False
 
 
 def customize_readme(project_root: Path, replacements: Dict[str, str], console: Console) -> None:

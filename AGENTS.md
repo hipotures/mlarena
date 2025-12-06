@@ -534,3 +534,4 @@ Install: `uv sync`
 - [docs/ml_code_separation_design_v2.md](docs/ml_code_separation_design_v2.md) - ML code architecture and separation patterns
 - [docs/template_system_redesign.md](docs/template_system_redesign.md) - Template system design and roadmap
 - [docs/template_merge_guidelines.md](docs/template_merge_guidelines.md) - Global vs project template resolution
+- Uwaga, aktualnie działają równolegle systemy: stary (kilka skryptów, m.in.) scripts/ml_runner.py scripts/experiment_manager.py i  nowy scripts/mla.py

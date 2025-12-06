@@ -46,11 +46,11 @@ def detect_problem_type_and_metric(
     competition_slug: str,
     project_root: Path,
     console: Console,
-) -> Tuple[Optional[str], Optional[str], Optional[bool]]:
+) -> Tuple[Optional[str], Optional[str], Optional[bool], Dict[str, Any]]:
     """Use AI to detect problem type, metric, and submission format from Kaggle evaluation text.
 
     Returns:
-        (problem_type, metric, submit_probabilities) or (None, None, None) on failure
+        (problem_type, metric, submit_probabilities, ai_log) where ai_log contains full AI interaction data
     """
     # Import AI helper
     repo_root = Path(__file__).resolve().parents[4]
@@ -85,35 +85,49 @@ PROBLEM TYPE RULES:
 Return ONLY valid JSON (no markdown, no explanation):
 {{"problem_type": "binary|regression|multiclass", "metric": "autogluon_metric_name", "submit_probabilities": true|false}}"""
 
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
     start_ai = time.perf_counter()
     ai_result: Dict[str, Any] = {}
     model = "gemini-2.5-flash"
     status = "failed"
     error_text = ""
 
-    try:
-        ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
-        status = "success"
-    except Exception as e:
-        error_text = str(e)
-        console.print(f"[yellow]AI detection failed: {e}[/yellow]")
-    finally:
-        ai_duration = time.perf_counter() - start_ai
-        log_ai_interaction(
-            project_root,
-            "init_problem_detection",
-            prompt=prompt,
-            response=json.dumps(ai_result, indent=2) if ai_result else "",
-            metadata={
-                "model": model,
-                "competition": competition_slug,
-                "eval_text_length": len(eval_text),
-                "duration_seconds": round(ai_duration, 3),
-                "status": status,
-                "error": error_text,
-            },
-        )
-        console.print(f"[dim]Logged AI interaction to logs/ (status: {status})[/dim]")
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Asking AI to detect problem type and metric...", total=None)
+
+        try:
+            ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
+            status = "success"
+        except Exception as e:
+            error_text = str(e)
+            console.print(f"[yellow]AI detection failed: {e}[/yellow]")
+        finally:
+            progress.remove_task(task)
+            ai_duration = time.perf_counter() - start_ai
+
+    # Build AI log for state.json
+    ai_log = {
+        "command": f'echo "<prompt>" | gemini --model {model}',
+        "model": model,
+        "prompt": prompt,
+        "response": ai_result if ai_result else {},
+        "metadata": {
+            "competition": competition_slug,
+            "eval_text_length": len(eval_text),
+            "duration_seconds": round(ai_duration, 3),
+            "status": status,
+            "error": error_text,
+        },
+    }
+
+    # Note: No longer logging to logs/ - all AI interactions are in state.json
+    console.print(f"[dim]AI interaction logged to state.json (status: {status})[/dim]")
 
     if status == "success" and "problem_type" in ai_result and "metric" in ai_result:
         detected_type = ai_result["problem_type"]
@@ -122,8 +136,8 @@ Return ONLY valid JSON (no markdown, no explanation):
         if detected_type in ["binary", "regression", "multiclass"]:
             submit_proba = ai_result.get("submit_probabilities")
             console.print(f"[green]✓ AI detected ({model}): {detected_type} / {detected_metric}[/green]")
-            return detected_type, detected_metric, submit_proba
+            return detected_type, detected_metric, submit_proba, ai_log
         else:
             console.print(f"[yellow]AI returned invalid problem_type: {detected_type}[/yellow]")
 
-    return None, None, None
+    return None, None, None, ai_log

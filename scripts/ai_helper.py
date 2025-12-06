@@ -154,10 +154,10 @@ def call_ai(
         try:
             if primary == "gemini":
                 response = call_gemini(prompt, gemini_model, timeout)
+                return response, gemini_model
             else:
                 response = call_claude(prompt, claude_model, timeout)
-
-            return response, primary
+                return response, claude_model
 
         except AIError as e:
             errors.append(f"{primary} attempt {attempt+1}: {e}")
@@ -167,10 +167,10 @@ def call_ai(
         try:
             if secondary == "gemini":
                 response = call_gemini(prompt, gemini_model, timeout)
+                return response, gemini_model
             else:
                 response = call_claude(prompt, claude_model, timeout)
-
-            return response, secondary
+                return response, claude_model
 
         except AIError as e:
             errors.append(f"{secondary} attempt {attempt+1}: {e}")

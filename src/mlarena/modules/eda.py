@@ -134,6 +134,10 @@ class EDAModule(BaseModule):
         console.print(f"  Test:  [cyan]{test_html.relative_to(self.context.project_root)}[/cyan]")
         console.print(f"  Summary: [cyan]{summary_path.relative_to(self.context.project_root)}[/cyan]")
 
+        # Print next steps
+        from mlarena.core.module import print_next_steps
+        print_next_steps("eda", self.context.project_name, self.context.experiment_id, console)
+
         return ModuleResult(
             success=True,
             payload={

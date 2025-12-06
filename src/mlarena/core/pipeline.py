@@ -51,6 +51,15 @@ class PipelineExecutor:
         results: Dict[str, ModuleResult] = {}
         execution_plan = [module_name] if skip_deps else self._resolve_execution_order(module_name)
 
+        # Cleanup stale "running" states from interrupted executions
+        for name in execution_plan:
+            module = self.modules[name]
+            state_entry = module.context.state.modules.get(name)
+            if state_entry and state_entry.status == "running":
+                # Mark as failed - was interrupted
+                module.context.state.fail_module(name, "Interrupted - marked as failed on restart")
+                module.context.state.save()
+
         for name in execution_plan:
             module = self.modules[name]
             state_entry = module.context.state.modules.get(name)
@@ -64,27 +73,28 @@ class PipelineExecutor:
                 results[name] = ModuleResult(success=False, error=reason)
                 break
 
-            # Show header for already completed modules
-            if already_completed and not force:
-                console = Console(force_terminal=True)
-                completed_time_raw = state_entry.finished_at or state_entry.started_at or "unknown"
-
-                # Format timestamp to seconds (remove microseconds and timezone)
-                if completed_time_raw != "unknown":
-                    try:
-                        dt_obj = dt.fromisoformat(completed_time_raw.replace('Z', '+00:00'))
-                        completed_time = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        completed_time = completed_time_raw
-                else:
-                    completed_time = completed_time_raw
-
+            # Handle already completed modules
+            # force only applies to target module, not dependencies
+            if already_completed and not (force and name == module_name):
                 # Init module should always run to show project status (even if completed)
                 if name == "init":
                     # Let init module execute to show config
                     pass
-                else:
-                    # Other modules: show completed status and skip
+                elif name == module_name:
+                    # Target module is already completed - show warning and skip
+                    console = Console(force_terminal=True)
+                    completed_time_raw = state_entry.finished_at or state_entry.started_at or "unknown"
+
+                    # Format timestamp to seconds (remove microseconds and timezone)
+                    if completed_time_raw != "unknown":
+                        try:
+                            dt_obj = dt.fromisoformat(completed_time_raw.replace('Z', '+00:00'))
+                            completed_time = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            completed_time = completed_time_raw
+                    else:
+                        completed_time = completed_time_raw
+
                     info_table = Table(show_header=False, box=None)
                     info_table.add_column(style="bold")
                     info_table.add_column(style="green")
@@ -98,6 +108,10 @@ class PipelineExecutor:
                     ))
                     console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
 
+                    results[name] = ModuleResult(success=True, payload=state_entry.payload)
+                    continue
+                else:
+                    # Dependency is completed - skip silently
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)
                     continue
 

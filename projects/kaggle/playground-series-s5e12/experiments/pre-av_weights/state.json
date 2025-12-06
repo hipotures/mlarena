@@ -1,0 +1,66 @@
+{
+  "experiment_id": "pre-av_weights",
+  "project": "playground-series-s5e12",
+  "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
+  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-av_weights",
+  "created_at": "2025-12-06T23:09:31.679248+00:00",
+  "pipeline": {
+    "name": "default",
+    "modules": []
+  },
+  "modules": {
+    "preprocess": {
+      "name": "preprocess",
+      "status": "failed",
+      "started_at": "2025-12-06T23:09:31.698934+00:00",
+      "finished_at": "2025-12-06T23:09:32.224168+00:00",
+      "pid": 3257035,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "cache": false,
+        "preprocess_template": "av_weights"
+      },
+      "payload": {},
+      "error": "cannot access local variable 'Console' where it is not associated with a value"
+    }
+  },
+  "run": {
+    "argv": [
+      "preprocess",
+      "--project",
+      "playground-series-s5e12",
+      "--preprocess-template",
+      "av_weights"
+    ],
+    "cli_args": {
+      "show_payload": false,
+      "command": "preprocess",
+      "project": "playground-series-s5e12",
+      "experiment_id": null,
+      "force": false,
+      "skip_deps": false,
+      "preprocess_template": "av_weights",
+      "cache": false
+    }
+  },
+  "git": {
+    "commit": "627a21e594a0af83d34ea9d537fd7131ce23b0ff",
+    "branch": "feature/template-redesign",
+    "is_dirty": true,
+    "dirty_files": [
+      "M ../../../config/templates/model.yaml",
+      " M templates/preprocess.yaml",
+      " M ../../../src/kaggle_tools/config_models.py",
+      " M ../../../src/mlarena/core/config.py",
+      " M ../../../src/mlarena/core/module.py",
+      " M ../../../src/mlarena/core/pipeline.py",
+      " M ../../../src/mlarena/modules/eda.py",
+      " M ../../../src/mlarena/modules/fetch_score.py",
+      " M ../../../src/mlarena/modules/model.py",
+      " M ../../../src/mlarena/modules/predict.py",
+      " M ../../../src/mlarena/modules/preprocess.py",
+      " M ../../../src/mlarena/modules/submit.py"
+    ]
+  }
+}

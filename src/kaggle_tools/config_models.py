@@ -77,6 +77,7 @@ class Hyperparameters(ExtraModel):
     time_limit: Optional[int] = None
     use_gpu: bool = False
     excluded_models: Optional[List[str]] = None
+    included_model_types: Optional[List[str]] = None
 
     # NEW: Optuna preset reference
     preset: Optional[str] = None  # References configs/presets/{preset}.yaml

@@ -92,6 +92,14 @@ class PredictModule(BaseModule):
             # Best-effort; creation is optional here.
             pass
 
+        # Print next steps
+        from rich.console import Console
+        from mlarena.core.module import print_next_steps
+
+        console = Console()
+        console.print(f"\n[bold green]✓[/bold green] Predictions saved: [cyan]{submission_path.relative_to(self.context.project_root)}[/cyan]")
+        print_next_steps("predict", self.context.project_name, self.context.experiment_id, console)
+
         return ModuleResult(
             success=True,
             payload={

@@ -8,7 +8,10 @@ containers shared across all pipeline modules.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rich.console import Console
 
 
 @dataclass
@@ -71,3 +74,73 @@ class BaseModule(ABC):
             (ok, reason) where ok=False blocks execution and reason is stored.
         """
         return True, ""
+
+
+def suggest_next_steps(
+    current_module: str,
+    project_name: str,
+    experiment_id: str,
+) -> List[str]:
+    """
+    Suggest next module(s) to run based on dependency graph.
+
+    Args:
+        current_module: Name of the module that just completed (e.g., "model")
+        project_name: Project name
+        experiment_id: Experiment ID
+
+    Returns:
+        List of command strings to run next modules (formatted with line continuations)
+    """
+    from mlarena.core.registry import ModuleRegistry
+
+    # Discover all modules
+    ModuleRegistry.discover()
+
+    # Find modules that depend on current_module
+    next_modules = []
+    for module_name in ModuleRegistry.available():
+        module_cls = ModuleRegistry.get(module_name)
+        if current_module in module_cls.dependencies:
+            next_modules.append(module_name)
+
+    # Generate commands with line continuations for easy copying
+    commands = []
+    for next_module in sorted(next_modules):
+        cmd = (
+            f"python scripts/mla.py {next_module} \\\n"
+            f"  --project {project_name} \\\n"
+            f"  --experiment-id {experiment_id}"
+        )
+        commands.append(cmd)
+
+    return commands
+
+
+def print_next_steps(
+    current_module: str,
+    project_name: str,
+    experiment_id: str,
+    console: Optional["Console"] = None,
+) -> None:
+    """
+    Print suggested next steps after module completion.
+
+    Args:
+        current_module: Name of the module that just completed
+        project_name: Project name
+        experiment_id: Experiment ID
+        console: Optional Rich console instance
+    """
+    if console is None:
+        from rich.console import Console
+        console = Console()
+
+    next_steps = suggest_next_steps(current_module, project_name, experiment_id)
+
+    if next_steps:
+        console.print(f"\n[bold]Next steps:[/bold]")
+        for step in next_steps:
+            # Print without leading spaces to avoid bash history issues
+            console.print(f"[dim]{step}[/dim]")
+        console.print()

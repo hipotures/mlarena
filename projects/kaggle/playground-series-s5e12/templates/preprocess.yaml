@@ -134,12 +134,13 @@ templates:
     module: av_weights
     cache: true
     config:
-      presets: best
-      time_limit: 3600
+      presets: medium
+      time_limit: 120
       drop_columns: [id]
-      output_path: data/train_av_weights.csv
-      model_output_dir: preprocess_cache/av_model
-
+      # Paths relative to experiment artifacts dir (experiments/pre-av_weights/artifacts/)
+      output_path: train_av_weights.csv
+      model_output_dir: av_model
+      
   fe_set6:
     module: fe_set6
     cache: true

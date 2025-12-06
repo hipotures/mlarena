@@ -145,6 +145,51 @@ def _load_model_module(project_root: Path, model_name: str):
     return module
 
 
+def _print_training_summary(
+    project_root: Path,
+    experiment_id: str,
+    project_name: str,
+    template_name: str,
+    preset: str,
+    time_limit: int,
+    use_gpu: bool,
+    local_cv: float | None,
+    best_model: str | None,
+    preprocess_template: str | None,
+    leaderboard_path: Path | None,
+):
+    """Print rich training summary with next steps."""
+    from rich.table import Table
+    from mlarena.core.module import print_next_steps
+
+    # Training configuration table
+    config_table = Table(title="Training Configuration", show_header=True)
+    config_table.add_column("Parameter", style="cyan")
+    config_table.add_column("Value", style="green")
+
+    config_table.add_row("Template", template_name)
+    config_table.add_row("Preset", preset)
+    config_table.add_row("Time Limit", f"{time_limit}s" if time_limit else "None")
+    config_table.add_row("GPU", "Yes" if use_gpu else "No")
+    if preprocess_template:
+        config_table.add_row("Preprocessing", preprocess_template)
+    if best_model:
+        config_table.add_row("Best Model", best_model)
+    if local_cv is not None:
+        config_table.add_row("Local CV", f"{local_cv:.6f}")
+
+    console.print("\n")
+    console.print(config_table)
+
+    # Artifacts
+    console.print(f"\n[bold green]✓[/bold green] Training completed:")
+    if leaderboard_path and leaderboard_path.exists():
+        console.print(f"  Leaderboard: [cyan]{leaderboard_path.relative_to(project_root)}[/cyan]")
+
+    # Universal next steps based on dependency graph
+    print_next_steps("model", project_name, experiment_id, console)
+
+
 @ModuleRegistry.register
 class ModelModule(BaseModule):
     name = "model"
@@ -165,13 +210,30 @@ class ModelModule(BaseModule):
 
         train_path, test_path = data_paths(config_module)
 
+        # Extract model config (if it's a dict, not a string filename)
+        model_cfg = template_cfg.get("model", {})
+        if isinstance(model_cfg, str):
+            # "model" is a filename reference, not config - use empty dict
+            model_cfg = {}
+
+        # Build Hyperparameters with top-level fit args + model-specific hyperparams
+        hyperparams_dict = {
+            "presets": preset,
+            "time_limit": time_limit,
+            "use_gpu": use_gpu_param if use_gpu_param is not None else False,
+        }
+
+        # Add top-level fit args from template
+        if "excluded_model_types" in template_cfg:
+            hyperparams_dict["excluded_models"] = template_cfg["excluded_model_types"]
+        if "included_model_types" in template_cfg:
+            hyperparams_dict["included_model_types"] = template_cfg["included_model_types"]
+
+        # Add model-specific hyperparameters (e.g., NN_TORCH, GBM configs)
+        hyperparams_dict.update(template_cfg.get("hyperparameters", {}))
+
         return ModelConfig(
-            hyperparameters=Hyperparameters(
-                presets=preset,
-                time_limit=time_limit,
-                use_gpu=use_gpu_param if use_gpu_param is not None else False,
-                **template_cfg.get("hyperparameters", {})
-            ),
+            hyperparameters=Hyperparameters(**hyperparams_dict),
             dataset=DatasetConfig(
                 train_path=train_path,
                 test_path=test_path,
@@ -194,7 +256,7 @@ class ModelModule(BaseModule):
                 random_seed=getattr(config_module, "RANDOM_SEED", 42),
                 use_gpu=use_gpu_param if use_gpu_param is not None else False,
             ),
-            model=template_cfg.get("model", {}),
+            model=model_cfg,
         )
 
     def execute(self) -> ModuleResult:
@@ -276,12 +338,17 @@ class ModelModule(BaseModule):
                 error=f"template_not_found: {template_name}",
             )
 
-        if "preset" in template_cfg and not self.invocation_params.get("preset"):
-            preset = template_cfg["preset"]
-        if "time_limit" in template_cfg and not self.invocation_params.get("time_limit"):
-            time_limit = template_cfg["time_limit"]
-        if "use_gpu" in template_cfg and use_gpu_param is None:
-            use_gpu_param = template_cfg["use_gpu"]
+        # Extract top-level fit args from template
+        if not self.invocation_params.get("preset"):
+            preset = template_cfg.get("preset") or template_cfg.get("presets") or preset
+
+        if not self.invocation_params.get("time_limit"):
+            time_limit = template_cfg.get("time_limit") or time_limit
+
+        if use_gpu_param is None:
+            use_gpu_from_template = template_cfg.get("use_gpu")
+            if use_gpu_from_template is not None:
+                use_gpu_param = use_gpu_from_template
 
         # Check if template specifies a custom model implementation
         model_implementation = template_cfg.get("model")
@@ -313,23 +380,6 @@ class ModelModule(BaseModule):
 
             local_cv = training_summary.get("local_cv")
 
-            # Call predict()
-            if test_df is not None:
-                console.print("[green]Generating predictions...[/green]")
-                predictions = model_module.predict(
-                    model=predictor,
-                    test_df=test_df,
-                    config=model_config,
-                    artifacts=None,
-                )
-
-                # Save predictions
-                submission_path = artifact_dir / "submission.csv"
-                predictions.to_csv(submission_path, index=False)
-                console.print(f"[green]✓ Predictions saved: {submission_path.relative_to(self.context.project_root)}[/green]")
-            else:
-                submission_path = None
-
             # Save leaderboard if model has it
             lb_path = None
             if hasattr(predictor, "leaderboard"):
@@ -340,10 +390,26 @@ class ModelModule(BaseModule):
                 except Exception:
                     pass
 
+            # Print training summary
+            _print_training_summary(
+                project_root=self.context.project_root,
+                experiment_id=self.context.experiment_id,
+                project_name=self.context.project_name,
+                template_name=template_name,
+                preset=preset,
+                time_limit=time_limit,
+                use_gpu=use_gpu_param,
+                local_cv=local_cv,
+                best_model=model_implementation,
+                preprocess_template=preprocess_template,
+                leaderboard_path=lb_path,
+            )
+
             return ModuleResult(
                 success=True,
                 payload={
                     "model_implementation": model_implementation,
+                    "model_artifact": str(artifact_dir / "model"),  # Required by predict module
                     "local_cv": local_cv,
                     "training_summary": training_summary,
                     "preset": preset,
@@ -351,8 +417,9 @@ class ModelModule(BaseModule):
                     "use_gpu": use_gpu_param,
                     "template": template_name,
                     "preprocess_template": preprocess_template,
+                    "leaderboard": str(lb_path) if lb_path else None,
                 },
-                artifacts=[f for f in [artifact_dir / "model", lb_path, submission_path] if f and f.exists()],
+                artifacts=[f for f in [artifact_dir / "model", lb_path] if f and f.exists()],
             )
 
         else:
@@ -373,13 +440,34 @@ class ModelModule(BaseModule):
             if id_col and id_col in train_df.columns:
                 train_df = train_df.drop(columns=[id_col])
 
+            # Add sample weights column if provided by preprocessing
+            WEIGHT_COL = "__sample_weight__"
+            sample_weight_col = None
+            if sample_weight is not None:
+                # Convert DataFrame to Series if needed
+                if hasattr(sample_weight, 'iloc'):
+                    weight_values = sample_weight.iloc[:, 0]
+                else:
+                    weight_values = sample_weight
+                train_df[WEIGHT_COL] = weight_values
+                sample_weight_col = WEIGHT_COL
+                console.print(f"[cyan]Using sample weights from preprocessing ({len(weight_values)} samples)[/cyan]")
+
             train_path = artifact_dir / "train_used.csv"
             train_df.to_csv(train_path, index=False)
 
             ag_path = artifact_dir / "AutogluonModels"
-            predictor = TabularPredictor(label=label, problem_type=problem_type, eval_metric=eval_metric, path=str(ag_path))
-            hyperparams: Dict[str, Any] = {}
-            hyperparams.update(template_cfg.get("hyperparameters", {}))
+            predictor = TabularPredictor(
+                label=label,
+                problem_type=problem_type,
+                eval_metric=eval_metric,
+                path=str(ag_path),
+                sample_weight=sample_weight_col,
+            )
+
+            # Get hyperparameters from template (now properly structured)
+            hyperparams: Dict[str, Any] = template_cfg.get("hyperparameters", {})
+
             ag_args_fit = {}
             if use_gpu_param is not None:
                 ag_args_fit["num_gpus"] = 1 if use_gpu_param else 0
@@ -400,6 +488,28 @@ class ModelModule(BaseModule):
             info = predictor.info()
             best_model = info.get("best_model")
 
+            # Extract local CV from leaderboard
+            local_cv = None
+            if not leaderboard.empty and "score_val" in leaderboard.columns:
+                scores = leaderboard["score_val"].dropna()
+                if not scores.empty:
+                    local_cv = float(scores.max())
+
+            # Print training summary
+            _print_training_summary(
+                project_root=self.context.project_root,
+                experiment_id=self.context.experiment_id,
+                project_name=self.context.project_name,
+                template_name=template_name,
+                preset=preset,
+                time_limit=time_limit,
+                use_gpu=use_gpu_param,
+                local_cv=local_cv,
+                best_model=best_model,
+                preprocess_template=preprocess_template,
+                leaderboard_path=lb_path,
+            )
+
             return ModuleResult(
                 success=True,
                 payload={
@@ -412,6 +522,7 @@ class ModelModule(BaseModule):
                     "template": template_name,
                     "hyperparameters": hyperparams,
                     "preprocess_template": preprocess_template,  # Track which preprocessing was used
+                    "local_cv": local_cv,
                 },
                 artifacts=[ag_path, lb_path, train_path],
             )

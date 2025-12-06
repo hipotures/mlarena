@@ -88,6 +88,34 @@ class ModelModule(BaseModule):
 
     def execute(self) -> ModuleResult:
         import pandas as pd
+        from rich.table import Table
+
+        template_name = self.invocation_params.get("model_template", "dev-gpu")
+
+        # Handle --model-template list
+        if template_name == "list":
+            loader = TemplateLoader(self.context.project_root, template_subdir="templates/model")
+            available = loader.list_available()
+
+            table = Table(title="Available Model Templates", show_header=True)
+            table.add_column("Template Name", style="cyan")
+            table.add_column("File", style="dim")
+
+            for tpl in available:
+                # Find which file type exists
+                repo_root = Path(__file__).resolve().parents[3]
+                yaml_path = repo_root / "config/templates/model" / f"{tpl}.yaml"
+                json_path = repo_root / "config/templates/model" / f"{tpl}.json"
+                file_ext = "yaml" if yaml_path.exists() else ("json" if json_path.exists() else "?")
+                table.add_row(tpl, f"{tpl}.{file_ext}")
+
+            console.print(table)
+            console.print(f"\n[dim]Usage: --model-template <name>[/dim]")
+            return ModuleResult(
+                success=True,
+                payload={"templates": available},
+            )
+
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         config = self.context.config_module or load_project_config(self.context.project_root)
@@ -103,9 +131,8 @@ class ModelModule(BaseModule):
         preset = self.invocation_params.get("preset") or getattr(config, "AUTOGLUON_PRESET", "medium")
         time_limit = self.invocation_params.get("time_limit") or getattr(config, "AUTOGLUON_TIME_LIMIT", None)
         use_gpu_param = self.invocation_params.get("use_gpu")
-        template_name = self.invocation_params.get("model_template", "dev-gpu")
 
-        template_cfg = TemplateLoader(self.context.project_root).load(template_name)
+        template_cfg = TemplateLoader(self.context.project_root, template_subdir="templates/model").load(template_name)
         if "preset" in template_cfg and not self.invocation_params.get("preset"):
             preset = template_cfg["preset"]
         if "time_limit" in template_cfg and not self.invocation_params.get("time_limit"):

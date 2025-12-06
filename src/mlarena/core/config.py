@@ -29,19 +29,41 @@ def load_pipeline_def(name: str, project_root: Optional[Path] = None) -> Tuple[D
 
 
 class TemplateLoader:
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, template_subdir: str = "templates/model"):
         self.project_root = Path(project_root)
+        self.template_subdir = template_subdir
+
+    def list_available(self) -> List[str]:
+        """List available templates in config/templates/{subdir}/."""
+        repo_root = Path(__file__).resolve().parents[2]
+        template_dir = repo_root / "config" / self.template_subdir
+
+        if not template_dir.exists():
+            return []
+
+        templates = []
+        for file in template_dir.glob("*.yaml"):
+            templates.append(file.stem)
+        for file in template_dir.glob("*.yml"):
+            if file.stem not in templates:
+                templates.append(file.stem)
+        for file in template_dir.glob("*.json"):
+            if file.stem not in templates:
+                templates.append(file.stem)
+
+        return sorted(templates)
 
     def load(self, template_name: str) -> Dict[str, Any]:
         """
-        Load a JSON/YAML template if present under config/. Returns empty dict
-        when not found to allow graceful defaults.
+        Load a JSON/YAML template if present under config/{template_subdir}/.
+        Returns empty dict when not found to allow graceful defaults.
         """
-        config_dir = self.project_root / "config"
+        repo_root = Path(__file__).resolve().parents[2]
+        template_dir = repo_root / "config" / self.template_subdir
         candidates = [
-            config_dir / f"{template_name}.json",
-            config_dir / f"{template_name}.yaml",
-            config_dir / f"{template_name}.yml",
+            template_dir / f"{template_name}.json",
+            template_dir / f"{template_name}.yaml",
+            template_dir / f"{template_name}.yml",
         ]
         for path in candidates:
             if path.exists():

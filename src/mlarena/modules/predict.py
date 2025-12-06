@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-import pandas as pd
+# pandas imported in execute()
+
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
@@ -29,6 +30,7 @@ class PredictModule(BaseModule):
         parser.add_argument("--predict-suffix", type=str, default="", help="Optional suffix for submission filename.")
 
     def execute(self) -> ModuleResult:
+        import pandas as pd
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         config = self.context.config_module or load_project_config(self.context.project_root)

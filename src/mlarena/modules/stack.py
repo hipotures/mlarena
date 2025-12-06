@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List
 
-import pandas as pd
+# pandas imported in execute()
+
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
@@ -24,6 +25,7 @@ class StackModule(BaseModule):
         parser.add_argument("--target-column", type=str, default=None, help="Target column (defaults to config TARGET).")
 
     def execute(self) -> ModuleResult:
+        import pandas as pd
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
 

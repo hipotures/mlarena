@@ -88,9 +88,9 @@ def _build_contexts(project_root: Path, project: str, state: ExperimentState, co
 def main(argv: List[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
 
-    # Reset registry to avoid duplicate registration across repeated invocations (tests).
-    ModuleRegistry.clear()
-    ModuleRegistry.discover()
+    # Discover modules only if registry is empty (first run or after clear in tests)
+    if not ModuleRegistry.available():
+        ModuleRegistry.discover()
 
     module_arg_map: Dict[str, List[str]] = {}
     parser = _build_parser(module_arg_map)
@@ -138,10 +138,17 @@ def main(argv: List[str] | None = None) -> int:
         for w in pipeline_warnings:
             print(f"[warn] {w}")
 
+    # For preprocess module, use pre-{template} as experiment_id
+    experiment_id = args.experiment_id
+    if args.command == "preprocess" and not experiment_id:
+        preprocess_template = getattr(args, "preprocess_template", None)
+        if preprocess_template:
+            experiment_id = f"pre-{preprocess_template}"
+
     state = ExperimentState.load_or_create(
         project_root=project_root,
         project_name=args.project,
-        experiment_id=args.experiment_id,
+        experiment_id=experiment_id,
         pipeline=pipeline_def,
         run_invocation={"argv": argv, "cli_args": vars(args)},
         create_dirs=True,  # Always create state - init creates project first
@@ -161,16 +168,14 @@ def main(argv: List[str] | None = None) -> int:
     executor = PipelineExecutor(modules)
     results = executor.run_module(args.command, force=args.force, skip_deps=args.skip_deps)
 
-    # Simple console reporting (only show summary for non-init modules)
-    # Init module already prints its own Rich output, so we don't want to clutter
-    if args.command != "init":
-        for mod_name, result in results.items():
-            status = "ok" if result.success else "fail"
-            print(f"[{status}] {mod_name}")
-            if args.show_payload and result.payload:
-                print(f"  payload: {result.payload}")
-            if result.error:
-                print(f"  error: {result.error}")
+    # Don't show console reporting - modules display their own Rich output
+    # Only show errors
+    for mod_name, result in results.items():
+        if result.error:
+            print(f"[fail] {mod_name}")
+            print(f"  error: {result.error}")
+        if args.show_payload and result.payload:
+            print(f"  payload: {result.payload}")
 
     last = results.get(args.command)
 

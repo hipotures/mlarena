@@ -36,9 +36,18 @@ class ModuleRegistry:
         cls._modules.clear()
 
     @classmethod
-    def discover(cls) -> None:
-        # Purge cached modules to force decorator side effects after a clear.
-        for modname in list(sys.modules.keys()):
-            if modname == "mlarena.modules" or modname.startswith("mlarena.modules."):
-                sys.modules.pop(modname, None)
+    def discover(cls, force_reload: bool = False) -> None:
+        """Discover and register modules.
+
+        Args:
+            force_reload: If True, purge cached modules (needed for tests).
+                         If False (default), use cached imports for speed.
+        """
+        if force_reload:
+            # Purge cached modules to force decorator side effects after a clear.
+            for modname in list(sys.modules.keys()):
+                if modname == "mlarena.modules" or modname.startswith("mlarena.modules."):
+                    sys.modules.pop(modname, None)
+
+        # Import modules package (uses cache if force_reload=False)
         importlib.import_module("mlarena.modules")

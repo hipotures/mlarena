@@ -5,7 +5,12 @@ Resolves module dependencies and coordinates state updates.
 """
 
 import traceback
+from datetime import datetime as dt
 from typing import Dict, List
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from .module import BaseModule, ModuleResult
 
@@ -51,11 +56,7 @@ class PipelineExecutor:
             state_entry = module.context.state.modules.get(name)
             already_completed = state_entry and state_entry.status == "completed"
 
-            # Init module should always run to show project status (even if completed)
-            if already_completed and not force and name != "init":
-                results[name] = ModuleResult(success=True, payload=state_entry.payload)
-                continue
-
+            # Validate module can run (before checking completed status)
             can_run, reason = module.can_run()
             if not can_run:
                 module.context.state.fail_module(name, reason)
@@ -63,11 +64,54 @@ class PipelineExecutor:
                 results[name] = ModuleResult(success=False, error=reason)
                 break
 
+            # Show header for already completed modules
+            if already_completed and not force:
+                console = Console(force_terminal=True)
+                completed_time_raw = state_entry.finished_at or state_entry.started_at or "unknown"
+
+                # Format timestamp to seconds (remove microseconds and timezone)
+                if completed_time_raw != "unknown":
+                    try:
+                        dt_obj = dt.fromisoformat(completed_time_raw.replace('Z', '+00:00'))
+                        completed_time = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        completed_time = completed_time_raw
+                else:
+                    completed_time = completed_time_raw
+
+                # Init module should always run to show project status (even if completed)
+                if name == "init":
+                    # Let init module execute to show config
+                    pass
+                else:
+                    # Other modules: show completed status and skip
+                    info_table = Table(show_header=False, box=None)
+                    info_table.add_column(style="bold")
+                    info_table.add_column(style="green")
+                    info_table.add_row("Status:", "Already completed")
+                    info_table.add_row("Completed at:", completed_time)
+
+                    console.print(Panel(
+                        info_table,
+                        title=f"[bold yellow]{name.upper()}[/bold yellow]",
+                        border_style="yellow"
+                    ))
+                    console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
+
+                    results[name] = ModuleResult(success=True, payload=state_entry.payload)
+                    continue
+
             defer_save = name == "init" and not module.context.project_root.exists()
 
             module.context.state.start_module(name, getattr(module, "invocation_params", {}))
             if not defer_save:
                 module.context.state.save()
+
+            # Display module header
+            console = Console(force_terminal=True)
+            start_time = dt.now().strftime("%Y-%m-%d %H:%M:%S")
+            header_content = f"[bold]Started:[/bold] {start_time}"
+            console.print(Panel(header_content, title=f"[bold cyan]{name.upper()}[/bold cyan]", border_style="cyan"))
 
             try:
                 outcome = module.execute()

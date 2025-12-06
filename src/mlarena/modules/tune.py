@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-import pandas as pd
+# pandas imported in execute()
+
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
@@ -27,6 +28,7 @@ class TuneModule(BaseModule):
         parser.add_argument("--tune-template", type=str, default="tune", help="Template name with search space.")
 
     def execute(self) -> ModuleResult:
+        import pandas as pd
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
 

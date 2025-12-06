@@ -7,14 +7,15 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-import pandas as pd
+from rich.console import Console
+from rich.table import Table
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import data_paths, load_project_config
 
 
-def _safe_profile(df: pd.DataFrame, title: str, output_html: Path, output_json: Path) -> Dict[str, Any]:
+def _safe_profile(df: "pd.DataFrame", title: str, output_html: Path, output_json: Path) -> Dict[str, Any]:
     """
     Run ydata-profiling when available; otherwise save describe() summary.
     Returns a lightweight summary dict.
@@ -57,6 +58,8 @@ class EDAModule(BaseModule):
         parser.add_argument("--eda-notes", type=str, default="", help="Optional notes saved with the EDA artifact.")
 
     def execute(self) -> ModuleResult:
+        import pandas as pd
+
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -105,6 +108,31 @@ class EDAModule(BaseModule):
             "target_analysis": target_analysis,
         }
         summary_path.write_text(json.dumps(summary_payload, indent=2))
+
+        # Display Rich output
+        console = Console(force_terminal=True)
+
+        # Dataset info table
+        data_table = Table(title="Dataset Information", show_header=True)
+        data_table.add_column("Dataset", style="cyan")
+        data_table.add_column("Rows", style="green", justify="right")
+        data_table.add_column("Columns", style="green", justify="right")
+        data_table.add_row("Train", str(len(train_df)), str(len(train_df.columns)))
+        data_table.add_row("Test", str(len(test_df)), str(len(test_df.columns)))
+        console.print(data_table)
+
+        # Target column info
+        if target_analysis:
+            console.print(f"\n[bold]Target Column:[/bold] [cyan]{target_col}[/cyan]")
+            console.print(f"  Unique values: {target_analysis['unique']}")
+            console.print(f"  Null values:   {target_analysis['nulls']}")
+            console.print(f"  Sample:        {target_analysis['sample']}")
+
+        # Generated files
+        console.print(f"\n[bold green]✓[/bold green] EDA profiles generated:")
+        console.print(f"  Train: [cyan]{train_html.relative_to(self.context.project_root)}[/cyan]")
+        console.print(f"  Test:  [cyan]{test_html.relative_to(self.context.project_root)}[/cyan]")
+        console.print(f"  Summary: [cyan]{summary_path.relative_to(self.context.project_root)}[/cyan]")
 
         return ModuleResult(
             success=True,

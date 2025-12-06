@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -93,6 +92,7 @@ def init_project(
           - stats: detected dataset stats (if available)
           - error: optional error message
     """
+    import pandas as pd
 
     console = Console(force_terminal=True)
 

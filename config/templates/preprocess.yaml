@@ -1,10 +1,5 @@
 templates:
-  identity:
-    module: identity
-    config: {}
-    cache: true
-
-  baseline_ag:
-    module: identity
+  baseline:
+    module: null  # No custom module - just drop IGNORED_COLUMNS
     config: {}
     cache: true

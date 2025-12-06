@@ -24,6 +24,7 @@ def create_directory_structure(project_root: Path, console: Console) -> None:
         "data",
         "code/exploration",
         "code/models",
+        "code/preprocessing",
         "code/utils",
         "templates",
         "docs",

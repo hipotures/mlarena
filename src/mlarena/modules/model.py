@@ -147,13 +147,25 @@ class ModelModule(BaseModule):
         }
 
         if sample_weight is not None:
-            # Extract sample_weight column and ensure same length as train_df
-            if "sample_weight" in sample_weight.columns:
-                weights_series = sample_weight["sample_weight"]
+            # Extract sample_weight column (try av_prob, sample_weight, or 2nd column)
+            weight_col = None
+            if "av_prob" in sample_weight.columns:
+                weight_col = "av_prob"
+            elif "sample_weight" in sample_weight.columns:
+                weight_col = "sample_weight"
+            elif len(sample_weight.columns) >= 2:
+                # Fallback: use 2nd column (assumes 1st is ID)
+                weight_col = sample_weight.columns[1]
+
+            if weight_col:
+                weights_series = sample_weight[weight_col]
                 if len(weights_series) == len(train_df):
                     fit_kwargs["sample_weight"] = weights_series
+                    console.print(f"[green]✓ Using sample weights from column '{weight_col}' (mean={weights_series.mean():.4f})[/green]")
                 else:
                     console.print(f"[yellow]Warning: sample_weight length mismatch ({len(weights_series)} vs {len(train_df)}), ignoring weights[/yellow]")
+            else:
+                console.print(f"[yellow]Warning: no weight column found in sample_weight file, ignoring weights[/yellow]")
 
         predictor.fit(train_df, **fit_kwargs)
 

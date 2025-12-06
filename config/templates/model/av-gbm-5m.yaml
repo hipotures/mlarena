@@ -1,0 +1,25 @@
+# AutoGluon GBM-only 5-minute training with Adversarial Validation weights
+# Requires: preprocessing with av_weights template first
+# Usage: python scripts/mla.py model --project X --model-template av-gbm-5m --preprocess-template av_weights
+
+preset: medium
+time_limit: 300  # 5 minutes
+use_gpu: false
+
+hyperparameters:
+  GBM: {}
+
+# Exclude all other models (only GBM)
+excluded_model_types:
+  - CAT
+  - XGB
+  - NN_TORCH
+  - FASTAI
+  - RF
+  - XT
+  - KNN
+  - LR
+  - AG_AUTOMM
+
+# This template expects sample_weight from av_weights preprocessing
+requires_preprocessing: av_weights

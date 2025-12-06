@@ -61,10 +61,19 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
 
 def _extract_module_params(args: argparse.Namespace, module_arg_map: Dict[str, List[str]]) -> Dict[str, object]:
     params: Dict[str, object] = {}
+
+    # Add common flags (force, skip_deps, etc.)
+    common_flag_names = ["force", "skip_deps"]
+    for key in common_flag_names:
+        if hasattr(args, key):
+            params[key] = getattr(args, key)
+
+    # Add module-specific args
     mod_args = module_arg_map.get(args.command, [])
     for key in mod_args:
         if hasattr(args, key):
             params[key] = getattr(args, key)
+
     return params
 
 

@@ -29,53 +29,53 @@ def load_pipeline_def(name: str, project_root: Optional[Path] = None) -> Tuple[D
 
 
 class TemplateLoader:
-    def __init__(self, project_root: Path, template_subdir: str = "templates/model"):
+    def __init__(self, project_root: Path, template_type: str = "model"):
         self.project_root = Path(project_root)
-        self.template_subdir = template_subdir
+        self.template_type = template_type
 
     def list_available(self) -> List[str]:
-        """List available templates in config/templates/{subdir}/."""
+        """List available templates from config/templates/{type}.yaml."""
         repo_root = Path(__file__).resolve().parents[2]
-        template_dir = repo_root / "config" / self.template_subdir
+        template_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
 
-        if not template_dir.exists():
+        if not template_file.exists():
             return []
 
-        templates = []
-        for file in template_dir.glob("*.yaml"):
-            templates.append(file.stem)
-        for file in template_dir.glob("*.yml"):
-            if file.stem not in templates:
-                templates.append(file.stem)
-        for file in template_dir.glob("*.json"):
-            if file.stem not in templates:
-                templates.append(file.stem)
+        if yaml is None:
+            return []
 
-        return sorted(templates)
+        try:
+            data = yaml.safe_load(template_file.read_text())
+            templates_dict = data.get("templates", {})
+            return sorted(templates_dict.keys())
+        except Exception:
+            return []
 
     def load(self, template_name: str) -> Dict[str, Any]:
         """
-        Load a JSON/YAML template if present under config/{template_subdir}/.
+        Load template from config/templates/{type}.yaml.
         Returns empty dict when not found to allow graceful defaults.
         """
         repo_root = Path(__file__).resolve().parents[2]
-        template_dir = repo_root / "config" / self.template_subdir
-        candidates = [
-            template_dir / f"{template_name}.json",
-            template_dir / f"{template_name}.yaml",
-            template_dir / f"{template_name}.yml",
-        ]
-        for path in candidates:
-            if path.exists():
-                if path.suffix == ".json":
-                    data = json.loads(path.read_text())
-                    _validate_template(data, template_name)
-                    return data
-                if path.suffix in {".yaml", ".yml"} and yaml:
-                    data = yaml.safe_load(path.read_text())
-                    _validate_template(data, template_name)
-                    return data
-        return {}
+        template_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
+
+        if not template_file.exists():
+            return {}
+
+        if yaml is None:
+            return {}
+
+        try:
+            data = yaml.safe_load(template_file.read_text())
+            templates_dict = data.get("templates", {})
+            template_data = templates_dict.get(template_name, {})
+
+            # Extract config from nested structure
+            if "config" in template_data:
+                return template_data["config"]
+            return template_data
+        except Exception:
+            return {}
 
 
 def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:

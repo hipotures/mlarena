@@ -19,10 +19,16 @@ def generate_config_py(
     ignored_columns: list[str],
     sample_submission_name: str,
     console: Console,
+    kaggle_metric: Optional[str] = None,
 ) -> None:
-    """Generate code/utils/config.py with competition-specific settings."""
+    """Generate code/utils/config.py with competition-specific settings.
+
+    Args:
+        kaggle_metric: Original Kaggle metric name (if different from AutoGluon metric)
+    """
 
     ignored_columns_repr = repr(ignored_columns)
+    kaggle_metric_display = kaggle_metric or metric
 
     config_content = f'''"""Configuration for {competition_slug}"""
 
@@ -57,11 +63,11 @@ IGNORED_COLUMNS = {ignored_columns_repr}
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
 AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
 AUTOGLUON_PROBLEM_TYPE = "{problem_type}"  # binary, regression, multiclass
-AUTOGLUON_EVAL_METRIC = "{metric}"  # evaluation metric
+AUTOGLUON_EVAL_METRIC = "{metric}"  # AutoGluon metric (approximates Kaggle metric if different)
 
 # Competition details
 COMPETITION_NAME = "{competition_slug}"
-METRIC = "{metric}"
+METRIC = "{kaggle_metric_display}"  # Kaggle evaluation metric
 
 # Submission format
 SUBMISSION_PROBAS = {str(bool(submit_probabilities))}

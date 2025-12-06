@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .ai import detect_problem_type_and_metric
+from .ai import detect_problem_type_and_metric, validate_and_fix_metric
 from .cdp import fetch_kaggle_evaluation
 from .config import generate_config_py
 from .files import copy_templates, create_directory_structure, customize_readme, download_kaggle_data
@@ -235,6 +235,9 @@ def init_project(
     else:
         ai_log = None
 
+    # Track original Kaggle metric name for documentation
+    kaggle_metric_name = metric
+
     # Fallbacks
     if not target_column:
         target_column = "target"
@@ -254,6 +257,15 @@ def init_project(
         ignored_columns.append(id_column)
     ignored_columns = list(dict.fromkeys(ignored_columns))  # dedup
 
+    # Validate AutoGluon metric and suggest alternative if needed
+    console.print()  # blank line for readability
+    validated_metric, metric_ai_log = validate_and_fix_metric(
+        problem_type, metric, kaggle_metric_name, project_root, console
+    )
+
+    # Use validated metric for AutoGluon, keep original for Kaggle reference
+    autogluon_metric = validated_metric
+
     # Generate config.py
     sample_submission_name = sample_path.name if sample_path else "sample_submission.csv"
     generate_config_py(
@@ -262,11 +274,12 @@ def init_project(
         target_column,
         id_column,
         problem_type,
-        metric,
+        autogluon_metric,
         submit_probabilities,
         ignored_columns,
         sample_submission_name,
         console,
+        kaggle_metric=kaggle_metric_name,
     )
 
     # Compute data snapshot for README
@@ -360,9 +373,11 @@ def init_project(
         "metric": metric,
     }
 
-    # Add AI interaction log if available
+    # Add AI interaction logs if available
     if ai_log:
         stats["ai_detection"] = ai_log
+    if metric_ai_log:
+        stats["ai_metric_validation"] = metric_ai_log
 
     return {
         "success": True,

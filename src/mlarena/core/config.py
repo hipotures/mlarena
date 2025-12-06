@@ -34,48 +34,71 @@ class TemplateLoader:
         self.template_type = template_type
 
     def list_available(self) -> List[str]:
-        """List available templates from config/templates/{type}.yaml."""
-        repo_root = Path(__file__).resolve().parents[2]
-        template_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
-
-        if not template_file.exists():
-            return []
-
+        """List available templates from global and project-local {type}.yaml."""
         if yaml is None:
             return []
 
-        try:
-            data = yaml.safe_load(template_file.read_text())
-            templates_dict = data.get("templates", {})
-            return sorted(templates_dict.keys())
-        except Exception:
-            return []
+        templates = {}
+
+        # Load global templates
+        repo_root = Path(__file__).resolve().parents[2]
+        global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
+        if global_file.exists():
+            try:
+                data = yaml.safe_load(global_file.read_text())
+                templates.update(data.get("templates", {}))
+            except Exception:
+                pass
+
+        # Load project-local templates (override globals)
+        local_file = self.project_root / "templates" / f"{self.template_type}.yaml"
+        if local_file.exists():
+            try:
+                data = yaml.safe_load(local_file.read_text())
+                templates.update(data.get("templates", {}))
+            except Exception:
+                pass
+
+        return sorted(templates.keys())
 
     def load(self, template_name: str) -> Dict[str, Any]:
         """
-        Load template from config/templates/{type}.yaml.
+        Load template from global or project-local {type}.yaml.
+        Project-local templates override global ones.
         Returns empty dict when not found to allow graceful defaults.
         """
-        repo_root = Path(__file__).resolve().parents[2]
-        template_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
-
-        if not template_file.exists():
-            return {}
-
         if yaml is None:
             return {}
 
-        try:
-            data = yaml.safe_load(template_file.read_text())
-            templates_dict = data.get("templates", {})
-            template_data = templates_dict.get(template_name, {})
+        template_data = {}
 
-            # Extract config from nested structure
-            if "config" in template_data:
-                return template_data["config"]
-            return template_data
-        except Exception:
-            return {}
+        # Load from global first
+        repo_root = Path(__file__).resolve().parents[2]
+        global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
+        if global_file.exists():
+            try:
+                data = yaml.safe_load(global_file.read_text())
+                templates_dict = data.get("templates", {})
+                if template_name in templates_dict:
+                    template_data = templates_dict[template_name]
+            except Exception:
+                pass
+
+        # Override with project-local if exists
+        local_file = self.project_root / "templates" / f"{self.template_type}.yaml"
+        if local_file.exists():
+            try:
+                data = yaml.safe_load(local_file.read_text())
+                templates_dict = data.get("templates", {})
+                if template_name in templates_dict:
+                    template_data = templates_dict[template_name]
+            except Exception:
+                pass
+
+        # Extract config from nested structure
+        if "config" in template_data:
+            return template_data["config"]
+        return template_data
 
 
 def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:

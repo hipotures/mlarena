@@ -72,6 +72,79 @@ def _load_processed_or_raw(context, config, preprocess_template: str | None = No
     return train_df, test_df, sample_weight
 
 
+def _resolve_model_path(project_root: Path, model_name: str) -> Path:
+    """Resolve model file: check project-local first, then global.
+
+    Args:
+        project_root: Project root directory
+        model_name: Model name (e.g., 'autogluon_baseline', 'autogluon_av_weights')
+
+    Returns:
+        Path to model file
+
+    Raises:
+        RuntimeError: If model exists in both local and global (ambiguity)
+        FileNotFoundError: If model not found anywhere
+    """
+    repo_root = Path(__file__).resolve().parents[3]  # src/mlarena/modules/model.py -> ../../.. -> repo root
+
+    local_path = project_root / "code" / "models" / f"{model_name}.py"
+    global_path = repo_root / "config" / "code" / "models" / f"{model_name}.py"
+
+    local_exists = local_path.exists()
+    global_exists = global_path.exists()
+
+    # Ambiguity detection
+    if local_exists and global_exists:
+        raise RuntimeError(
+            f"Model '{model_name}' exists both locally and globally:\n"
+            f"  Local:  {local_path}\n"
+            f"  Global: {global_path}\n"
+            "Rename or remove one to avoid ambiguity."
+        )
+
+    # Priority: local > global
+    if local_exists:
+        return local_path
+    if global_exists:
+        return global_path
+
+    # Not found
+    raise FileNotFoundError(
+        f"Model file not found for '{model_name}'. Checked:\n"
+        f"  Local:  {local_path}\n"
+        f"  Global: {global_path}"
+    )
+
+
+def _load_model_module(project_root: Path, model_name: str):
+    """Load model Python file as module using importlib.util.
+
+    Args:
+        project_root: Project root directory
+        model_name: Model name to load
+
+    Returns:
+        Loaded module object with train() and predict() functions
+    """
+    import importlib.util
+
+    model_path = _resolve_model_path(project_root, model_name)
+    console.print(f"[dim]Loading model from: {model_path.relative_to(Path.cwd())}[/dim]")
+
+    spec = importlib.util.spec_from_file_location(model_name, model_path)
+    if spec is None:
+        raise RuntimeError(f"Unable to create module spec for {model_path}")
+
+    module = importlib.util.module_from_spec(spec)
+
+    if not spec.loader:
+        raise RuntimeError(f"Unable to load module spec for {model_path}")
+
+    spec.loader.exec_module(module)
+    return module
+
+
 @ModuleRegistry.register
 class ModelModule(BaseModule):
     name = "model"
@@ -85,6 +158,44 @@ class ModelModule(BaseModule):
         parser.add_argument("--use-gpu", type=int, choices=[0, 1], default=None, help="Force GPU usage for AutoGluon.")
         parser.add_argument("--model-template", default="dev-gpu", help="Model template name (for hyperparameters).")
         parser.add_argument("--preprocess-template", type=str, default=None, help="Preprocessing template to use (e.g., baseline, av_weights). If not specified, uses raw data.")
+
+    def _build_model_config(self, template_cfg: Dict[str, Any], config_module, preset: str, time_limit: int, use_gpu_param: bool, artifact_dir: Path):
+        """Build ModelConfig object for custom model interface."""
+        from kaggle_tools.config_models import ModelConfig, Hyperparameters, DatasetConfig, SystemConfig
+
+        train_path, test_path = data_paths(config_module)
+
+        return ModelConfig(
+            hyperparameters=Hyperparameters(
+                presets=preset,
+                time_limit=time_limit,
+                use_gpu=use_gpu_param if use_gpu_param is not None else False,
+                **template_cfg.get("hyperparameters", {})
+            ),
+            dataset=DatasetConfig(
+                train_path=train_path,
+                test_path=test_path,
+                target=getattr(config_module, "TARGET_COLUMN"),
+                id_column=getattr(config_module, "ID_COLUMN", "id"),
+                problem_type=getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", None),
+                metric=getattr(config_module, "AUTOGLUON_EVAL_METRIC", None),
+                ignored_columns=getattr(config_module, "IGNORED_COLUMNS", []),
+                sample_submission_path=getattr(config_module, "SAMPLE_SUBMISSION_PATH", test_path.parent / "sample_submission.csv"),
+                submission_probas=getattr(config_module, "SUBMISSION_PROBAS", False),
+            ),
+            system=SystemConfig(
+                project_root=self.context.project_root,
+                code_dir=self.context.project_root / "code",
+                experiment_dir=self.context.experiment_dir,
+                artifact_dir=artifact_dir,
+                model_path=artifact_dir / "model",
+                template=self.invocation_params.get("model_template", "dev-gpu"),
+                experiment_id=self.context.experiment_id,
+                random_seed=getattr(config_module, "RANDOM_SEED", 42),
+                use_gpu=use_gpu_param if use_gpu_param is not None else False,
+            ),
+            model=template_cfg.get("model", {}),
+        )
 
     def execute(self) -> ModuleResult:
         import pandas as pd
@@ -172,81 +283,135 @@ class ModelModule(BaseModule):
         if "use_gpu" in template_cfg and use_gpu_param is None:
             use_gpu_param = template_cfg["use_gpu"]
 
-        try:
-            from autogluon.tabular import TabularPredictor
-        except Exception as exc:  # pragma: no cover - dependency issue
-            marker = artifact_dir / "model_failed.txt"
-            marker.write_text(f"AutoGluon not available: {exc}")
-            return ModuleResult(success=False, error="autogluon missing", artifacts=[marker])
+        # Check if template specifies a custom model implementation
+        model_implementation = template_cfg.get("model")
 
-        label = target
-        problem_type = getattr(config, "AUTOGLUON_PROBLEM_TYPE", None)
-        eval_metric = getattr(config, "AUTOGLUON_EVAL_METRIC", None)
-        id_col = getattr(config, "ID_COLUMN", None)
-        if id_col and id_col in train_df.columns:
-            train_df = train_df.drop(columns=[id_col])
+        if model_implementation:
+            # === DYNAMIC MODEL LOADING PATH ===
+            console.print(f"[cyan]Using model implementation: {model_implementation}[/cyan]")
 
-        train_path = artifact_dir / "train_used.csv"
-        train_df.to_csv(train_path, index=False)
+            # Load custom model module
+            model_module = _load_model_module(self.context.project_root, model_implementation)
 
-        ag_path = artifact_dir / "AutogluonModels"
-        predictor = TabularPredictor(label=label, problem_type=problem_type, eval_metric=eval_metric, path=str(ag_path))
-        hyperparams: Dict[str, Any] = {}
-        hyperparams.update(template_cfg.get("hyperparameters", {}))
-        ag_args_fit = {}
-        if use_gpu_param is not None:
-            ag_args_fit["num_gpus"] = 1 if use_gpu_param else 0
+            # Build ModelConfig for model interface
+            model_config = self._build_model_config(template_cfg, config, preset, time_limit, use_gpu_param, artifact_dir)
 
-        # Prepare sample_weight if available from preprocessing
-        fit_kwargs = {
-            "presets": preset,
-            "time_limit": time_limit,
-            "ag_args_fit": ag_args_fit or None,
-            "hyperparameters": hyperparams or None,
-        }
+            # Call train()
+            console.print("[green]Training model...[/green]")
+            train_result = model_module.train(
+                train_df=train_df,
+                val_df=None,
+                config=model_config,
+                artifacts=None,
+            )
 
-        if sample_weight is not None:
-            # Extract sample_weight column (try av_prob, sample_weight, or 2nd column)
-            weight_col = None
-            if "av_prob" in sample_weight.columns:
-                weight_col = "av_prob"
-            elif "sample_weight" in sample_weight.columns:
-                weight_col = "sample_weight"
-            elif len(sample_weight.columns) >= 2:
-                # Fallback: use 2nd column (assumes 1st is ID)
-                weight_col = sample_weight.columns[1]
-
-            if weight_col:
-                weights_series = sample_weight[weight_col]
-                if len(weights_series) == len(train_df):
-                    fit_kwargs["sample_weight"] = weights_series
-                    console.print(f"[green]✓ Using sample weights from column '{weight_col}' (mean={weights_series.mean():.4f})[/green]")
-                else:
-                    console.print(f"[yellow]Warning: sample_weight length mismatch ({len(weights_series)} vs {len(train_df)}), ignoring weights[/yellow]")
+            # Handle return: (model, summary) tuple or just model
+            if isinstance(train_result, tuple) and len(train_result) == 2:
+                predictor, training_summary = train_result
             else:
-                console.print(f"[yellow]Warning: no weight column found in sample_weight file, ignoring weights[/yellow]")
+                predictor, training_summary = train_result, {}
 
-        predictor.fit(train_df, **fit_kwargs)
+            local_cv = training_summary.get("local_cv")
 
-        lb_path = artifact_dir / "leaderboard.csv"
-        leaderboard = predictor.leaderboard(silent=True)
-        leaderboard.to_csv(lb_path, index=False)
+            # Call predict()
+            if test_df is not None:
+                console.print("[green]Generating predictions...[/green]")
+                predictions = model_module.predict(
+                    model=predictor,
+                    test_df=test_df,
+                    config=model_config,
+                    artifacts=None,
+                )
 
-        info = predictor.info()
-        best_model = info.get("best_model")
+                # Save predictions
+                submission_path = artifact_dir / "submission.csv"
+                predictions.to_csv(submission_path, index=False)
+                console.print(f"[green]✓ Predictions saved: {submission_path.relative_to(self.context.project_root)}[/green]")
+            else:
+                submission_path = None
 
-        return ModuleResult(
-            success=True,
-            payload={
-                "model_artifact": str(ag_path),
-                "leaderboard": str(lb_path),
-                "best_model": best_model,
-                "preset": preset,
+            # Save leaderboard if model has it
+            lb_path = None
+            if hasattr(predictor, "leaderboard"):
+                try:
+                    lb_path = artifact_dir / "leaderboard.csv"
+                    leaderboard = predictor.leaderboard(silent=True)
+                    leaderboard.to_csv(lb_path, index=False)
+                except Exception:
+                    pass
+
+            return ModuleResult(
+                success=True,
+                payload={
+                    "model_implementation": model_implementation,
+                    "local_cv": local_cv,
+                    "training_summary": training_summary,
+                    "preset": preset,
+                    "time_limit": time_limit,
+                    "use_gpu": use_gpu_param,
+                    "template": template_name,
+                    "preprocess_template": preprocess_template,
+                },
+                artifacts=[f for f in [artifact_dir / "model", lb_path, submission_path] if f and f.exists()],
+            )
+
+        else:
+            # === FALLBACK: INLINE AUTOGLUON BASELINE ===
+            console.print("[dim]Using default AutoGluon baseline (no template.model specified)[/dim]")
+
+            try:
+                from autogluon.tabular import TabularPredictor
+            except Exception as exc:  # pragma: no cover - dependency issue
+                marker = artifact_dir / "model_failed.txt"
+                marker.write_text(f"AutoGluon not available: {exc}")
+                return ModuleResult(success=False, error="autogluon missing", artifacts=[marker])
+
+            label = target
+            problem_type = getattr(config, "AUTOGLUON_PROBLEM_TYPE", None)
+            eval_metric = getattr(config, "AUTOGLUON_EVAL_METRIC", None)
+            id_col = getattr(config, "ID_COLUMN", None)
+            if id_col and id_col in train_df.columns:
+                train_df = train_df.drop(columns=[id_col])
+
+            train_path = artifact_dir / "train_used.csv"
+            train_df.to_csv(train_path, index=False)
+
+            ag_path = artifact_dir / "AutogluonModels"
+            predictor = TabularPredictor(label=label, problem_type=problem_type, eval_metric=eval_metric, path=str(ag_path))
+            hyperparams: Dict[str, Any] = {}
+            hyperparams.update(template_cfg.get("hyperparameters", {}))
+            ag_args_fit = {}
+            if use_gpu_param is not None:
+                ag_args_fit["num_gpus"] = 1 if use_gpu_param else 0
+
+            fit_kwargs = {
+                "presets": preset,
                 "time_limit": time_limit,
-                "use_gpu": use_gpu_param,
-                "template": template_name,
-                "hyperparameters": hyperparams,
-                "preprocess_template": preprocess_template,  # Track which preprocessing was used
-            },
-            artifacts=[ag_path, lb_path, train_path],
-        )
+                "ag_args_fit": ag_args_fit or None,
+                "hyperparameters": hyperparams or None,
+            }
+
+            predictor.fit(train_df, **fit_kwargs)
+
+            lb_path = artifact_dir / "leaderboard.csv"
+            leaderboard = predictor.leaderboard(silent=True)
+            leaderboard.to_csv(lb_path, index=False)
+
+            info = predictor.info()
+            best_model = info.get("best_model")
+
+            return ModuleResult(
+                success=True,
+                payload={
+                    "model_artifact": str(ag_path),
+                    "leaderboard": str(lb_path),
+                    "best_model": best_model,
+                    "preset": preset,
+                    "time_limit": time_limit,
+                    "use_gpu": use_gpu_param,
+                    "template": template_name,
+                    "hyperparameters": hyperparams,
+                    "preprocess_template": preprocess_template,  # Track which preprocessing was used
+                },
+                artifacts=[ag_path, lb_path, train_path],
+            )

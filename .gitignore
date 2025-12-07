@@ -57,7 +57,21 @@ wheels/
 *.lock
 *.old
 
-**/experiments/exp-*/
+# Experiments - ignore all contents except init/, eda/, and state.json
+**/experiments/**
+!**/experiments/
+!**/experiments/.gitkeep
+!**/experiments/init/
+!**/experiments/init/**
+!**/experiments/eda/
+!**/experiments/eda/**
+!**/experiments/*/
+!**/experiments/*/state.json
+
+# But skip large EDA files in init/
+**/experiments/init/eda/*.html
+**/experiments/init/eda/ydata_profile.json
+**/experiments/init/eda/ydata_profile_test.json
 
 # Old/archived projects (legacy structure)
 projects/kaggle/playground-series-s4e2/

@@ -21,12 +21,12 @@ templates:
       output_path: train_av_weights.csv
       model_output_dir: av_model
 
-  av_weights_topdrift_5m:
+  av_weights_topdrift_1h:
     module: av_weights
     cache: true
     config:
-      presets: medium
-      time_limit: 300
+      presets: best
+      time_limit: 3600
       # keep only selected high-drift cols; drop everything else
       drop_columns:
         - id

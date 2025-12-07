@@ -275,8 +275,8 @@ def run_auto_flow(
                 console.print(f"[red]Error: {result.error}[/red]\n")
             return 1
 
-    # Reload config after init/eda (project now exists)
-    if project_root.exists() and config_module is None:
+    # Reload config after init/eda/preprocess (ensure fresh config)
+    if project_root.exists():
         config_module = load_project_config(project_root)
         pipeline_def, _ = load_pipeline_def("default", project_root=project_root)
 

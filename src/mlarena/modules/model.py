@@ -201,7 +201,7 @@ class ModelModule(BaseModule):
         parser.add_argument("--time-limit", type=int, default=None, help="Optional time limit override.")
         parser.add_argument("--preset", type=str, default=None, help="AutoGluon preset override.")
         parser.add_argument("--use-gpu", type=int, choices=[0, 1], default=None, help="Force GPU usage for AutoGluon.")
-        parser.add_argument("--model-template", default="dev-gpu", help="Model template name (for hyperparameters).")
+        parser.add_argument("--model-template", default="gpu-dev-5m", help="Model template name (for hyperparameters).")
         parser.add_argument("--preprocess-template", type=str, default=None, help="Preprocessing template to use (e.g., baseline, av_weights). If not specified, uses raw data.")
 
     def _build_model_config(self, template_cfg: Dict[str, Any], config_module, preset: str, time_limit: int, use_gpu_param: bool, artifact_dir: Path):
@@ -251,7 +251,7 @@ class ModelModule(BaseModule):
                 experiment_dir=self.context.experiment_dir,
                 artifact_dir=artifact_dir,
                 model_path=artifact_dir / "model",
-                template=self.invocation_params.get("model_template", "dev-gpu"),
+                template=self.invocation_params.get("model_template", "gpu-dev-5m"),
                 experiment_id=self.context.experiment_id,
                 random_seed=getattr(config_module, "RANDOM_SEED", 42),
                 use_gpu=use_gpu_param if use_gpu_param is not None else False,
@@ -263,7 +263,7 @@ class ModelModule(BaseModule):
         import pandas as pd
         from rich.table import Table
 
-        template_name = self.invocation_params.get("model_template", "dev-gpu")
+        template_name = self.invocation_params.get("model_template", "gpu-dev-5m")
 
         # Handle --model-template list
         if template_name == "list":
@@ -318,7 +318,7 @@ class ModelModule(BaseModule):
         template_cfg = loader.load(template_name)
 
         # Check if template was found (when explicitly specified and not using defaults)
-        if not template_cfg and template_name not in ["dev-gpu", "cpu-dev-5m"]:
+        if not template_cfg and template_name not in ["gpu-dev-5m", "cpu-dev-5m"]:
             available = loader.list_available()
             console.print(f"\n[red]✗ Template '{template_name}' not found[/red]\n")
 

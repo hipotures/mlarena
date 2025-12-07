@@ -23,11 +23,21 @@ DEFAULT_MODEL_DIR = PROJECT_ROOT / "preprocess_cache" / "av_model"
 AV_PROB_COL = "av_prob"
 
 
-def _resolve_path(path: str | Path | None, default: Path) -> Path:
+def _resolve_path(path: str | Path | None, default: Path, base: Path) -> Path:
+    """
+    Resolve a path allowing per-run artifact dir overrides.
+
+    - Absolute paths are returned as-is.
+    - Relative paths are resolved against `base` (artifact_dir from MLArena),
+      not the project root, so temporary models land under experiments/<id>/.
+    - When `path` is None, `default` is returned.
+    """
     if path is None:
         return default
     p = Path(path)
-    return p if p.is_absolute() else PROJECT_ROOT / p
+    if p.is_absolute():
+        return p
+    return base / p
 
 
 def _unique_subdir(base: Path) -> Path:
@@ -84,6 +94,7 @@ def fit_transform(
     config: Dict[str, Any],
 ) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
     cfg = config or {}
+    artifact_base = Path(cfg.get("_artifact_dir") or PROJECT_ROOT)
     ds_cfg = cfg.get("_dataset", {}) or {}
     id_column: str = ds_cfg.get("id_column") or cfg.get("id_column") or "id"
     target_column: Optional[str] = ds_cfg.get("target") or cfg.get("target_column")
@@ -111,8 +122,8 @@ def fit_transform(
         or 600
     )
     included_model_types = cfg.get("included_model_types")
-    output_path = _resolve_path(cfg.get("output_path"), DEFAULT_OUTPUT)
-    base_model_dir = _resolve_path(cfg.get("model_output_dir"), DEFAULT_MODEL_DIR)
+    output_path = _resolve_path(cfg.get("output_path"), DEFAULT_OUTPUT, artifact_base)
+    base_model_dir = _resolve_path(cfg.get("model_output_dir"), DEFAULT_MODEL_DIR, artifact_base)
     model_output_dir = _unique_subdir(base_model_dir)
 
     av_df = compute_adversarial_weights(

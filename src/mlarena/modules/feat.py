@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+import pandas as pd
+
 # pandas imported in execute()
 
 from mlarena.core.module import BaseModule, ModuleResult

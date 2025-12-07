@@ -234,10 +234,8 @@ class PreprocessModule(BaseModule):
             payload["custom_module_state"] = custom_preprocess_state
 
         # Print next steps
-        from rich.console import Console
         from mlarena.core.module import print_next_steps
 
-        console = Console()
         console.print(f"\n[bold green]✓[/bold green] Preprocessing completed:")
         console.print(f"  Train: [cyan]{processed_train.relative_to(self.context.project_root)}[/cyan]")
         console.print(f"  Test:  [cyan]{processed_test.relative_to(self.context.project_root)}[/cyan]")

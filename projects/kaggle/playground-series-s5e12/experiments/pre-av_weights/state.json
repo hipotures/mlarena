@@ -11,18 +11,59 @@
   "modules": {
     "preprocess": {
       "name": "preprocess",
-      "status": "failed",
-      "started_at": "2025-12-06T23:09:31.698934+00:00",
-      "finished_at": "2025-12-06T23:09:32.224168+00:00",
-      "pid": 3257035,
+      "status": "completed",
+      "started_at": "2025-12-06T23:20:25.770860+00:00",
+      "finished_at": "2025-12-06T23:22:48.741186+00:00",
+      "pid": 3266908,
       "invocation": {
-        "force": false,
+        "force": true,
         "skip_deps": false,
         "cache": false,
         "preprocess_template": "av_weights"
       },
-      "payload": {},
-      "error": "cannot access local variable 'Console' where it is not associated with a value"
+      "payload": {
+        "train_processed": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-av_weights/artifacts/preprocess/train_processed.csv",
+        "test_processed": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-av_weights/artifacts/preprocess/test_processed.csv",
+        "ignored_columns": [
+          "id"
+        ],
+        "template": "av_weights",
+        "cached": false,
+        "shapes": {
+          "train_before": [
+            700000,
+            26
+          ],
+          "train_after": [
+            700000,
+            26
+          ],
+          "test_before": [
+            300000,
+            25
+          ],
+          "test_after": [
+            300000,
+            25
+          ]
+        },
+        "custom_module_state": {
+          "version": "1.0",
+          "presets": "medium",
+          "time_limit": 120,
+          "included_model_types": [
+            "GBM"
+          ],
+          "drop_columns": [
+            "id"
+          ],
+          "id_column": "id",
+          "target_column": "diagnosed_diabetes",
+          "weights_path": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/train_av_weights.csv",
+          "model_output_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/av_model/run_9df12a11"
+        }
+      },
+      "error": null
     }
   },
   "run": {

@@ -110,6 +110,7 @@ def fit_transform(
         or tmpl_overrides.get("time_limit")
         or 600
     )
+    included_model_types = cfg.get("included_model_types")
     output_path = _resolve_path(cfg.get("output_path"), DEFAULT_OUTPUT)
     base_model_dir = _resolve_path(cfg.get("model_output_dir"), DEFAULT_MODEL_DIR)
     model_output_dir = _unique_subdir(base_model_dir)
@@ -122,6 +123,7 @@ def fit_transform(
         drop_columns=drop_columns,
         presets=presets,
         time_limit=time_limit,
+        included_model_types=included_model_types,
         output_dir=model_output_dir,
     )
 
@@ -139,6 +141,7 @@ def fit_transform(
         "version": "1.0",
         "presets": presets,
         "time_limit": time_limit,
+        "included_model_types": included_model_types,
         "drop_columns": drop_columns,
         "id_column": id_column,
         "target_column": target_column,

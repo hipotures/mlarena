@@ -20,6 +20,7 @@ def compute_adversarial_weights(
     drop_columns: Optional[Iterable[str]] = None,
     presets: str = "medium_quality_faster_train",
     time_limit: int = 600,
+    included_model_types: Optional[Iterable[str]] = None,
     output_dir: str | Path = "autogluon_av_model",
 ) -> pd.DataFrame:
     """
@@ -81,11 +82,14 @@ def compute_adversarial_weights(
         verbosity=2,
     )
 
-    predictor.fit(
-        full,
-        presets=presets,
-        time_limit=time_limit,
-    )
+    fit_kwargs = {
+        "presets": presets,
+        "time_limit": time_limit,
+    }
+    if included_model_types:
+        fit_kwargs["included_model_types"] = list(included_model_types)
+
+    predictor.fit(full, **fit_kwargs)
 
     # Predykcje P(test) tylko dla oryginalnych rekordów train (AV_LABEL_COL == 0)
     mask_train = full[AV_LABEL_COL] == 0

@@ -45,11 +45,15 @@ class FetchScoreModule(BaseModule):
 
         latest = self._fetch_latest_submission(competition)
         score = placeholder_score
-        if latest and latest.get("PublicScore"):
-            try:
-                score = float(latest["PublicScore"])
-            except Exception:
-                score = placeholder_score
+        if latest:
+            # Kaggle CLI uses 'publicScore' (lowercase); keep fallback for 'PublicScore'
+            for key in ("publicScore", "PublicScore"):
+                if latest.get(key):
+                    try:
+                        score = float(latest[key])
+                    except Exception:
+                        score = placeholder_score
+                    break
 
         marker = artifact_dir / "fetch_score.txt"
         marker.write_text(f"Competition: {competition}\nScore: {score}\nLatest: {latest}")

@@ -54,6 +54,7 @@ wheels/
 *.swp
 *.swo
 *.DS_Store
+*.lock
 
 **/experiments/exp-*/
 

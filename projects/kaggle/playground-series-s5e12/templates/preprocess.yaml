@@ -9,3 +9,14 @@ templates:
       # Paths relative to experiment artifacts dir (experiments/pre-av_weights/artifacts/)
       output_path: train_av_weights.csv
       model_output_dir: av_model
+
+  av_weights_best_boost:
+    module: av_weights
+    cache: true
+    config:
+      presets: best
+      time_limit: 28800  # 8h
+      drop_columns: [id]
+      included_model_types: ["CAT", "GBM", "XGB"]
+      output_path: train_av_weights.csv
+      model_output_dir: av_model

@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Sync dependencies
+        run: uv sync
+      - name: Run fast tests
+        run: uv run pytest -m "not e2e and not slow" --maxfail=3
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch'
+    needs: fast
+    runs-on: ubuntu-latest
+    env:
+      MLA_E2E: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Sync dependencies
+        run: uv sync
+      - name: Run e2e suite
+        run: uv run pytest -m "e2e" -v

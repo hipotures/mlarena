@@ -44,7 +44,22 @@ Kaggle competitions repository with standardized structure, experiment tracking,
 
 ## Quick Reference
 
-**Most common workflow (recommended):**
+**Auto-flow (recommended for quick iteration):**
+```bash
+# Run complete pipeline: init → eda → preprocess → model → predict → submit → fetch-score
+uv run python scripts/mla.py --project [competition-name]
+
+# Override model template
+uv run python scripts/mla.py --project [competition-name] --model-template gpu-dev-5m
+
+# Force re-run all modules from scratch
+uv run python scripts/mla.py --project [competition-name] --force
+
+# Skip git commit (review changes manually)
+uv run python scripts/mla.py --project [competition-name] --skip-git
+```
+
+**Manual workflow (step-by-step):**
 ```bash
 # 1. Setup (once)
 uv sync
@@ -68,7 +83,7 @@ uv run python scripts/mla.py experiments --project [competition-name] list
 ```
 
 **Key tools:**
-- `mla.py` - Single CLI entry point for the entire ML pipeline (EDA → preprocess → model → predict → submit → fetch-score).
+- `mla.py` - Single CLI entry point for the entire ML pipeline (init → eda → preprocess → model → predict → submit → fetch-score).
 - `submissions_tracker.py` - Track local CV, public, private scores (accessible via `mla.py`).
 - `experiment_logger.py` - Git-based reproducibility system (accessible via `mla.py`).
 
@@ -121,7 +136,33 @@ chmod 600 ~/.kaggle/kaggle.json
 uv run playwright install chromium
 ```
 
-### Modern Workflow (Recommended)
+### Auto-Flow (Recommended)
+
+Run complete pipeline with single command:
+
+```bash
+# Basic auto-flow (uses "baseline" template: 5min, medium preset, CPU)
+uv run python scripts/mla.py --project playground-series-s5e11
+
+# Override template for faster iteration
+uv run python scripts/mla.py --project playground-series-s5e11 --model-template cpu-fast-1m
+
+# GPU training
+uv run python scripts/mla.py --project playground-series-s5e11 --model-template gpu-dev-5m
+
+# Custom wait time (if Kaggle processing slow)
+uv run python scripts/mla.py --project playground-series-s5e11 --wait-seconds 60
+```
+
+**Sequence**: init → eda → preprocess → model → predict → submit → fetch-score
+**Behavior**:
+- Skips init/eda/preprocess if already completed (unless `--force`)
+- Model always creates NEW experiment_id
+- Stops on first failure
+- Auto-commits at end with both local CV and public score
+- Use `--skip-git` to review changes before committing
+
+### Manual Workflow (Step-by-Step)
 
 MLArena (`scripts/mla.py`) is the single pipeline entry point. Modules: EDA → preprocess → model → predict → submit → fetch-score.
 
@@ -307,12 +348,20 @@ All model and preprocess templates follow the pattern: `{compute}-{variant}-{tim
 
 ### Examples
 
+- `baseline` - Default auto-flow template (5min, medium preset, CPU)
 - `cpu-fast-1m` - 1-minute CPU smoke test
 - `gpu-dev-5m` - 5-minute GPU development run
 - `cpu-best-1h` - 1-hour CPU production training
 - `gpu-extreme-24h` - 24-hour GPU extreme quality
 - `cpu-best-2h-fe11` - 2-hour CPU with feature engineering variant 11
 - `cpu-dev-5m-av-gbm` - 5-minute CPU with AV weights, GBM only
+
+### Special Templates
+
+- **`baseline`** - Default auto-flow template (5min, medium preset, CPU)
+  - Used when running `mla.py --project X` without `--model-template`
+  - Optimized for quick iteration and smoke testing
+  - Override with `--model-template <name>` for different compute/time
 
 ### Usage
 
@@ -322,6 +371,9 @@ uv run python scripts/mla.py model --project X --model-template list
 
 # Use a template
 uv run python scripts/mla.py model --project X --model-template gpu-dev-5m
+
+# Auto-flow uses baseline by default
+uv run python scripts/mla.py --project X  # uses baseline template
 ```
 
 ## File Path Conventions
@@ -463,6 +515,10 @@ See `scripts/README_KAGGLE.md` for details.
 10. **Migrating project with .old/ already existing** → Name collision
     -   Remove or rename existing `.old/` directory before migration
     -   Or manually merge contents if needed
+11. **Auto-flow without Chrome/Kaggle login** → fetch-score fails
+    -   Auto-flow runs all steps; if fetch-score fails, commit is skipped
+    -   Use `--skip-git` to commit manually after fixing
+    -   Or run modules individually: `mla.py model --project X` then fix fetch-score later
 
 ## Development Guidelines
 

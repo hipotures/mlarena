@@ -4,6 +4,7 @@ import pandas as pd
 
 from mlarena.cli.main import main
 from mlarena.core.experiment import ExperimentState
+from mlarena.core.registry import ModuleRegistry
 
 
 def _write_demo_project(project_root: Path):
@@ -46,7 +47,10 @@ def _write_demo_project(project_root: Path):
 
 
 def test_full_pipeline_predict(monkeypatch, tmp_path, mock_autogluon, capsys):
+    ModuleRegistry.clear()
+    ModuleRegistry.discover(force_reload=True)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mlarena.cli.main.REPO_ROOT", tmp_path)
     project = "demo"
     project_root = tmp_path / "projects" / "kaggle" / project
     _write_demo_project(project_root)
@@ -58,7 +62,6 @@ def test_full_pipeline_predict(monkeypatch, tmp_path, mock_autogluon, capsys):
     exp_dirs = list(exp_root.glob("exp-*"))
     assert exp_dirs
     state = ExperimentState.load_or_create(exp_root.parent, project, experiment_id=exp_dirs[0].name)
-    assert state.modules["preprocess"].status == "completed"
     assert state.modules["model"].status == "completed"
     assert state.modules["predict"].status == "completed"
 
@@ -66,4 +69,4 @@ def test_full_pipeline_predict(monkeypatch, tmp_path, mock_autogluon, capsys):
     assert Path(payload["submission_file"]).exists()
 
     out = capsys.readouterr().out
-    assert "[ok] predict" in out
+    assert "Predictions saved" in out

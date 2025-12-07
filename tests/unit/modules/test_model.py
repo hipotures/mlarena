@@ -2,17 +2,29 @@ import json
 from types import SimpleNamespace
 
 import pandas as pd
+import yaml
 
 from mlarena.core.experiment import ExperimentState
 from mlarena.modules.model import ModelModule
 
 
 def test_model_respects_template(context_factory, sample_config_with_data, mock_autogluon):
-    config_dir = sample_config_with_data.PROJECT_ROOT / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "unit-model.json").write_text(
-        json.dumps({"preset": "high", "time_limit": 5, "use_gpu": 0, "hyperparameters": {"GBM": {"max_depth": 2}}})
-    )
+    """Test that ModelModule correctly loads and applies YAML templates."""
+    # Create templates directory and write YAML template
+    tpl_dir = sample_config_with_data.PROJECT_ROOT / "templates"
+    tpl_dir.mkdir(parents=True, exist_ok=True)
+
+    tpl_data = {
+        "templates": {
+            "unit-model": {
+                "preset": "high",
+                "time_limit": 5,
+                "use_gpu": 0,
+                "hyperparameters": {"GBM": {"max_depth": 2}}
+            }
+        }
+    }
+    (tpl_dir / "model.yaml").write_text(yaml.dump(tpl_data))
 
     state = ExperimentState.load_or_create(sample_config_with_data.PROJECT_ROOT, "demo")
     ctx = context_factory("model", state=state, config_module=sample_config_with_data)

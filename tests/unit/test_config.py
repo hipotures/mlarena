@@ -1,5 +1,6 @@
 import json
 import pytest
+import yaml
 
 from mlarena.core.config import TemplateLoader, load_pipeline_def
 
@@ -22,14 +23,24 @@ def test_pipeline_validation_errors(project_root):
         load_pipeline_def("bad", project_root=project_root)
 
 
-def test_template_loader_reads_json(project_root):
-    cfg_dir = project_root / "config"
-    cfg_dir.mkdir(parents=True, exist_ok=True)
-    tpl = {"preset": "high", "time_limit": 5}
-    (cfg_dir / "unit.json").write_text(json.dumps(tpl))
+def test_template_loader_reads_yaml(project_root):
+    """Test that TemplateLoader correctly reads YAML templates."""
+    tpl_dir = project_root / "templates"
+    tpl_dir.mkdir(parents=True, exist_ok=True)
 
-    loader = TemplateLoader(project_root)
-    loaded = loader.load("unit")
+    # Write YAML template following the actual format
+    tpl_data = {
+        "templates": {
+            "unit-test": {
+                "preset": "high",
+                "time_limit": 5
+            }
+        }
+    }
+    (tpl_dir / "model.yaml").write_text(yaml.dump(tpl_data))
+
+    loader = TemplateLoader(project_root, template_type="model")
+    loaded = loader.load("unit-test")
     assert loaded["preset"] == "high"
     assert loaded["time_limit"] == 5
 

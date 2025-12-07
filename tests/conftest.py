@@ -15,15 +15,57 @@ from mlarena.core.experiment import ExperimentState
 from mlarena.core.module import ModuleContext
 
 
+@pytest.fixture(autouse=True)
+def _isolate_tests(monkeypatch):
+    """Ensure complete test isolation - clean registry, cwd, and modules."""
+    import os
+    from mlarena.core.registry import ModuleRegistry
+
+    # Store original state
+    original_cwd = os.getcwd()
+
+    # Clean module registry before each test
+    ModuleRegistry.clear()
+
+    # Clear cached project modules
+    for name in list(sys.modules.keys()):
+        if name.startswith("utils.config") or name == "template_loader":
+            sys.modules.pop(name, None)
+
+    # Clean DummyPredictor store
+    DummyPredictor.store.clear()
+
+    yield
+
+    # Reset after test
+    try:
+        os.chdir(original_cwd)
+    except:
+        pass  # Ignore if directory was deleted
+
+    # Clean up again
+    ModuleRegistry.clear()
+
+
 class DummyPredictor:
     """Lightweight stand-in for AutoGluon TabularPredictor used in tests."""
 
     store = {}
 
-    def __init__(self, label=None, problem_type=None, eval_metric=None, path=None):
+    def __init__(
+        self,
+        label=None,
+        problem_type=None,
+        eval_metric=None,
+        path=None,
+        sample_weight=None,
+        **kwargs,
+    ):
         self.label = label
         self.problem_type = problem_type
         self.eval_metric = eval_metric
+        self.sample_weight = sample_weight
+        self.extra_init_kwargs = kwargs
         self.path = Path(path) if path else Path(".")
         DummyPredictor.store[str(self.path)] = self
 

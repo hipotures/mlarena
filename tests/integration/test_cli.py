@@ -4,9 +4,11 @@ import pandas as pd
 
 from mlarena.cli.main import main
 from mlarena.core.experiment import ExperimentState
+from mlarena.core.registry import ModuleRegistry
 
 
 def _write_minimal_project(root: Path):
+    """Write minimal project structure for testing."""
     data_dir = root / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     train = pd.DataFrame({"id": [1, 2], "target": [0, 1]})
@@ -38,8 +40,20 @@ def _write_minimal_project(root: Path):
         )
     )
 
+    # Create other required directories
+    (root / "experiments").mkdir(parents=True, exist_ok=True)
+    (root / "submissions").mkdir(parents=True, exist_ok=True)
+    (root / "templates").mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_registry():
+    """Reset and repopulate module registry to include all built-ins."""
+    ModuleRegistry.clear()
+    ModuleRegistry.discover(force_reload=True)
+
 
 def test_cli_lists_modules(monkeypatch, tmp_path, capsys):
+    _ensure_registry()
     monkeypatch.chdir(tmp_path)
     exit_code = main(["modules", "--project", "demo"])
     assert exit_code == 0
@@ -48,18 +62,27 @@ def test_cli_lists_modules(monkeypatch, tmp_path, capsys):
 
 
 def test_cli_runs_eda(monkeypatch, tmp_path, capsys):
+    _ensure_registry()
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mlarena.cli.main.REPO_ROOT", tmp_path)
     project_root = tmp_path / "projects" / "kaggle" / "demo"
     _write_minimal_project(project_root)
+
+    # Avoid ydata_profiling imports to keep tests warning-free and fast
+    def _stub_profile(df, title, html_path, json_path):
+        html_path.write_text("<html></html>")
+        json_path.write_text("{}")
+        return {"summary": {"rows": len(df)}, "html": str(html_path), "json": str(json_path)}
+
+    monkeypatch.setattr("mlarena.modules.eda._safe_profile", _stub_profile)
 
     exit_code = main(["eda", "--project", "demo", "--eda-notes", "hello"])
     assert exit_code == 0
 
-    exp_root = project_root / "experiments"
-    exp_dirs = list(exp_root.glob("exp-*"))
-    assert exp_dirs
-    state = ExperimentState.load_or_create(exp_root.parent, "demo", experiment_id=exp_dirs[0].name)
+    exp_dir = project_root / "experiments" / "eda"
+    assert exp_dir.exists()
+    state = ExperimentState.load_or_create(project_root, "demo", experiment_id="eda", setup_module_name="eda")
     assert state.modules["eda"].status == "completed"
 
     out = capsys.readouterr().out
-    assert "[ok] eda" in out
+    assert "EDA profiles generated" in out

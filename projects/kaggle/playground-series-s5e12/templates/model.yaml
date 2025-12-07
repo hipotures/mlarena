@@ -33,3 +33,43 @@ templates:
       use_gpu: false
       hyperparameters:
         included_model_types: ["CAT"]
+
+  best-1h-av-gbm:
+    preprocess_template: av_weights
+    model: autogluon_av_weights
+    config:
+      preset: best
+      time_limit: 3600
+      use_gpu: false
+      hyperparameters:
+        included_model_types: ["GBM"]
+
+  best-1h-av-xgb:
+    preprocess_template: av_weights
+    model: autogluon_av_weights
+    config:
+      preset: best
+      time_limit: 3600
+      use_gpu: false
+      hyperparameters:
+        included_model_types: ["XGB"]
+
+  best-3h-av-cat:
+    preprocess_template: av_weights
+    model: autogluon_av_weights
+    config:
+      preset: best
+      time_limit: 10800
+      use_gpu: false
+      hyperparameters:
+        included_model_types: ["CAT"]
+
+  best-8h-av-boost:
+    preprocess_template: av_weights
+    model: autogluon_av_weights
+    config:
+      preset: best
+      time_limit: 28800
+      use_gpu: false
+      hyperparameters:
+        included_model_types: ["GBM", "XGB", "CAT"]

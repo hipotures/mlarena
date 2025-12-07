@@ -37,3 +37,16 @@
 ## Experiment Manager Enhancements
 
 - [ ] Add explicit `aborted` status to ExperimentManager modules (separate from `failed`) to mark user-interrupted runs without implying an error. Update state handling, list views, and restart logic accordingly.
+
+## CLI meta-commands (non-flow)
+
+- [ ] Dodać tryb pipeline bez podawania modułu: `mla --project X` uruchamia domyślny pipeline, `--from preprocess` startuje od preprocess, `--from model` od model itd.
+- [ ] Dodać subkomendę `admin` (nie jako moduł) z akcjami:
+  - `admin list --project X` (lista eksperymentów + statusy modułów z state.json)
+  - `admin clean --project X [--artifacts|--models|--cache]` z potwierdzeniem
+  - `admin gc --project X --older-than 7d` (sprzątanie starych eksperymentów)
+  - `admin status --project X` (podsumowanie ostatnich runów)
+- [ ] Utrzymać kompatybilność: najpierw obsłużyć meta-komendy, potem moduły, na końcu tryb pipeline.
+- [ ] Zarezerwować przestrzeń nazw modułów (brak modułów `admin`, `pipeline`, `list`).
+- [ ] Opcjonalny alias `mla list-experiments --project X` jako cienka nakładka na `experiment_logger.py`.
+- [ ] W `admin clean` dodać ochronę przed przypadkowym usuwaniem: pokazanie targetów i prompt.

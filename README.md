@@ -14,8 +14,8 @@ This repository provides a standardized and powerful workflow for participating 
     # Run Exploratory Data Analysis
     uv run python scripts/mla.py eda --project <competition-slug>
 
-    # Train a model and auto-submit to Kaggle
-    uv run python scripts/mla.py model --project <competition-slug> --model-template gpu-dev-5m --auto-submit
+    # Train a model (60s countdown before auto-submit to Kaggle)
+    uv run python scripts/mla.py model --project <competition-slug> --model-template gpu-dev-5m
     ```
 
 For a detailed guide on the workflow and available commands, please refer to the [**MLA Workflow Guide**](docs/MLA_WORKFLOW_GUIDE.md).

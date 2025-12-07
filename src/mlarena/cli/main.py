@@ -48,7 +48,7 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
     parser.add_argument("--model-template", default="baseline", help="Model template for auto-flow")
     parser.add_argument("--preprocess-template", default="baseline", help="Preprocessing template for auto-flow")
     parser.add_argument("--force", "-f", action="store_true", help="Force re-run ALL modules from scratch")
-    parser.add_argument("--auto-submit", action="store_true", help="Skip confirmation prompts")
+    parser.add_argument("--skip-submit", action="store_true", help="Skip Kaggle submission (save submission file only)")
     parser.add_argument("--skip-git", action="store_true", help="Skip automatic git commit")
     parser.add_argument("--wait-seconds", type=int, default=30, help="Seconds to wait before fetch-score")
 
@@ -165,7 +165,7 @@ def run_auto_flow(
     model_template: str = "baseline",
     preprocess_template: str = "baseline",
     force: bool = False,
-    auto_submit: bool = False,
+    skip_submit: bool = False,
     skip_git: bool = False,
     wait_seconds: int = 30,
     argv: Optional[List[str]] = None,
@@ -342,7 +342,7 @@ def run_auto_flow(
         module = module_cls(context)
 
         if module_name == "submit":
-            module.set_invocation_params({"auto_submit": auto_submit})
+            module.set_invocation_params({"skip_submit": skip_submit})
 
         all_modules[module_name] = module
 
@@ -479,7 +479,7 @@ def main(argv: List[str] | None = None) -> int:
             model_template=args.model_template,
             preprocess_template=args.preprocess_template,
             force=args.force,
-            auto_submit=args.auto_submit,
+            skip_submit=args.skip_submit,
             skip_git=args.skip_git,
             wait_seconds=args.wait_seconds,
             argv=argv,

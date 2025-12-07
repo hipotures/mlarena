@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import select
 import subprocess
+import sys
+import termios
+import time
+import tty
 from pathlib import Path
 from typing import Optional
+
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
@@ -106,10 +114,10 @@ class SubmitModule(BaseModule):
         else:
             message = _build_kaggle_message(self.context, submission_file, model_payload, feature_count)
 
-        # Preview + confirmation (legacy behaviour) unless auto-submit flagged
-        from rich.console import Console
+        # Preview + 60s countdown with interactive confirmation
         console = Console()
-        auto_submit = bool(self.invocation_params.get("auto_submit"))
+        skip_submit = bool(self.invocation_params.get("skip_submit", False))
+
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")
         console.print(f"File: {submission_file.name}")
         console.print(f"Competition: {competition}")
@@ -118,12 +126,92 @@ class SubmitModule(BaseModule):
         if self.context.experiment_id:
             console.print(f"Experiment: {self.context.experiment_id}")
 
-        if not auto_submit:
-            answer = input("\nSubmit to Kaggle? [y/N]: ").strip().lower()
-            if answer not in {"y", "yes"}:
-                marker = artifact_dir / "submit_aborted.txt"
-                marker.write_text("Submission aborted by user.")
-                return ModuleResult(success=False, error="aborted", artifacts=[marker])
+        if skip_submit:
+            console.print("\n[yellow]⊘ Skipping submission (--skip-submit)[/yellow]")
+            marker = artifact_dir / "submit_skipped.txt"
+            marker.write_text("Submission skipped by user flag.")
+            return ModuleResult(success=True, payload={"submitted": False, "skipped": True}, artifacts=[marker])
+
+        # 60-second countdown with y/n input (no Enter needed)
+        console.print("\n[bold cyan]Submit to Kaggle?[/bold cyan]")
+        console.print("[dim]Press 'y' to submit now, 'n' to cancel, or wait 60s for auto-submit[/dim]\n")
+
+        # Audio beep to alert user
+        for _ in range(3):
+            print("\a", end="", flush=True)
+            time.sleep(0.1)
+
+        # Try system beep as fallback
+        try:
+            subprocess.run(["paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga"],
+                         stderr=subprocess.DEVNULL, timeout=0.5)
+        except:
+            pass
+
+        countdown_seconds = 60
+        start_time = time.time()
+        submitted = False
+        cancelled = False
+
+        # Save terminal settings
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+
+        try:
+            # Set terminal to raw mode for single-key input
+            tty.setraw(fd)
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=False,
+            ) as progress:
+                task = progress.add_task(
+                    f"[cyan]Auto-submitting in {countdown_seconds}s...", total=countdown_seconds
+                )
+
+                while True:
+                    elapsed = time.time() - start_time
+                    remaining = max(0, countdown_seconds - int(elapsed))
+
+                    # Check for key press (non-blocking)
+                    if select.select([sys.stdin], [], [], 0)[0]:
+                        ch = sys.stdin.read(1).lower()
+                        if ch == 'y':
+                            progress.update(task, description="[green]✓ Confirmed - submitting!")
+                            submitted = True
+                            break
+                        elif ch == 'n':
+                            progress.update(task, description="[red]✗ Cancelled by user")
+                            cancelled = True
+                            break
+
+                    if remaining == 0:
+                        progress.update(task, description="[green]⏱ Timeout - submitting!")
+                        submitted = True
+                        break
+
+                    # Update countdown display
+                    progress.update(
+                        task,
+                        description=f"[cyan]Auto-submitting in {remaining}s... [dim](y/n)[/dim]",
+                        completed=int(elapsed)
+                    )
+
+                    time.sleep(0.1)
+
+        finally:
+            # Restore terminal settings
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+        if cancelled:
+            console.print("\n[yellow]⊘ Submission cancelled[/yellow]")
+            marker = artifact_dir / "submit_aborted.txt"
+            marker.write_text("Submission aborted by user.")
+            return ModuleResult(success=False, error="aborted", artifacts=[marker])
+
+        console.print()  # Empty line before upload progress
 
         try:
             subprocess.check_call(

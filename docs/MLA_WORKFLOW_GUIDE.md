@@ -50,11 +50,10 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 # Initialize project (downloads data)
 uv run python scripts/mla.py init --project titanic
 
-# Run full pipeline with auto-submit
+# Run full pipeline (60s countdown before auto-submit)
 uv run python scripts/mla.py model \
   --project titanic \
   --model-template cpu-fast-1m \
-  --auto-submit \
   --wait-seconds 45
 
 # Check results
@@ -201,10 +200,16 @@ wc -l projects/kaggle/titanic/experiments/eda/artifacts/predict/submission.csv
 Uploads submission via Kaggle CLI.
 
 ```bash
+# Default: 60s countdown before auto-submit
+uv run python scripts/mla.py submit \
+  --project titanic \
+  --experiment-id eda
+
+# Skip submission (save CSV only)
 uv run python scripts/mla.py submit \
   --project titanic \
   --experiment-id eda \
-  --auto-submit
+  --skip-submit
 ```
 
 **What it does:**
@@ -255,20 +260,20 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq '.[-1].public_scor
 Runs EDA → Model → Predict → Submit → Fetch Score automatically:
 
 ```bash
+# Default: 60s countdown before auto-submit
 uv run python scripts/mla.py model \
   --project titanic \
   --model-template cpu-fast-1m \
-  --auto-submit \
   --wait-seconds 45
 ```
 
 **With preprocessing:**
 ```bash
+# Default: 60s countdown before auto-submit
 uv run python scripts/mla.py model \
   --project titanic \
   --preprocess-template identity \
-  --model-template cpu-dev-5m \
-  --auto-submit
+  --model-template cpu-dev-5m
 ```
 
 ---

@@ -151,8 +151,8 @@ MLArena entry point (EDA → preprocess → model → predict → submit → fet
 # Run EDA
 uv run python scripts/mla.py --project <name> eda
 
-# Train model with template
-uv run python scripts/mla.py --project <name> model --model-template gpu-dev-5m --auto-submit
+# Train model with template (60s countdown before auto-submit)
+uv run python scripts/mla.py --project <name> model --model-template gpu-dev-5m
 
 # List available modules
 uv run python scripts/mla.py --project <name> modules

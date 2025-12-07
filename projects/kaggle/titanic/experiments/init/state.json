@@ -1,69 +1,58 @@
 {
   "experiment_id": "init",
   "project": "titanic",
-  "created_at": "2025-11-17T17:23:58Z",
-  "git": {
-    "hash": "5034704765dd087643d427a7ea4685879b72bc03",
-    "branch": "main",
-    "has_uncommitted_changes": true
+  "project_root": "/home/xai/ml/kaggle/projects/kaggle/titanic",
+  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/titanic/experiments/init",
+  "created_at": "2025-12-07T22:24:34.595058+00:00",
+  "pipeline": {
+    "name": "default",
+    "modules": []
   },
   "modules": {
     "eda": {
-      "notes": "Project initialization EDA",
+      "name": "eda",
       "status": "completed",
       "started_at": "2025-11-17T17:23:58Z",
-      "updated_at": "2025-11-17T17:24:04Z",
+      "finished_at": "2025-11-17T17:24:04Z",
       "pid": null,
-      "summary_file": "experiments/init/eda_summary.json",
-      "problem_type_guess": "binary",
-      "profiles": {
-        "train": {
-          "shape": [
-            891,
-            12
-          ],
-          "columns": [
-            "PassengerId",
-            "Survived",
-            "Pclass",
-            "Name",
-            "Sex",
-            "Age",
-            "SibSp",
-            "Parch",
-            "Ticket",
-            "Fare",
-            "Cabin",
-            "Embarked"
-          ],
-          "html": "experiments/init/eda/ydata_profile.html",
-          "json": "experiments/init/eda/ydata_profile.json",
-          "json_min": "experiments/init/eda/ydata_profile_min.json"
-        },
-        "test": {
-          "shape": [
-            418,
-            11
-          ],
-          "columns": [
-            "PassengerId",
-            "Pclass",
-            "Name",
-            "Sex",
-            "Age",
-            "SibSp",
-            "Parch",
-            "Ticket",
-            "Fare",
-            "Cabin",
-            "Embarked"
-          ],
-          "html": "experiments/init/eda/ydata_profile_test.html",
-          "json": "experiments/init/eda/ydata_profile_test.json",
-          "json_min": "experiments/init/eda/ydata_profile_test_min.json"
-        }
+      "invocation": {},
+      "payload": {},
+      "error": null
+    },
+    "init": {
+      "name": "init",
+      "status": "completed",
+      "started_at": "2025-12-07T22:24:34.607977+00:00",
+      "finished_at": "2025-12-07T22:24:34.611745+00:00",
+      "pid": 58490,
+      "invocation": {
+        "force": false
       },
-      "finished_at": "2025-11-17T17:24:04Z"
+      "payload": {
+        "target": "Survived",
+        "problem_type": "binary",
+        "metric": "accuracy",
+        "already_initialized": true
+      },
+      "error": null
     }
+  },
+  "run": {
+    "argv": [
+      "--project",
+      "titanic",
+      "--skip-git"
+    ],
+    "module": "init"
+  },
+  "git": {
+    "commit": "00977153ad5bfbc8198ed0151ce8a661b60f19fb",
+    "branch": "main",
+    "is_dirty": true,
+    "dirty_files": [
+      "M ../../../src/mlarena/core/experiment.py",
+      "?? ../Titanic/",
+      "?? experiments/init/state.lock"
+    ]
   }
 }

@@ -70,8 +70,12 @@ uv run python scripts/mla.py eda --project [competition-name]
 
 uv run python scripts/mla.py model --project [competition-name] \
     --model-template gpu-dev-5m \
-    --auto-submit \
     --wait-seconds 45
+
+# Skip submission (save CSV only)
+uv run python scripts/mla.py model --project [competition-name] \
+    --model-template gpu-dev-5m \
+    --skip-submit
 
 # 3. Fetch score later if needed
 uv run python scripts/mla.py fetch-score --project [competition-name] \
@@ -181,10 +185,15 @@ uv run python scripts/mla.py eda --project [competition-name] --eda-notes "basel
 
 **3. Model (AutoGluon via template):**
 ```bash
+# Default: 60s countdown before auto-submit
 uv run python scripts/mla.py model --project [competition-name] \
     --model-template gpu-dev-5m \
-    --auto-submit \
     --wait-seconds 45
+
+# Skip submission entirely (save CSV only)
+uv run python scripts/mla.py model --project [competition-name] \
+    --model-template gpu-dev-5m \
+    --skip-submit
 ```
 Templates: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `gpu-extreme-24h` (overrides: `--time-limit`, `--preset`, `--use-gpu`).
 
@@ -244,10 +253,9 @@ uv run python scripts/mla.py experiments --project [competition-name] restore <E
 # 1. EDA creates experiment ID
 uv run python scripts/mla.py eda --project playground-series-s5e11
 
-# 2. Model
+# 2. Model (60s countdown before auto-submit)
 uv run python scripts/mla.py model --project playground-series-s5e11 \
-    --model-template gpu-dev-5m \
-    --auto-submit
+    --model-template gpu-dev-5m
 
 # 3. Submit/fetch can be run later if needed
 uv run python scripts/mla.py fetch-score --project playground-series-s5e11 \
@@ -442,25 +450,30 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 
 ### Automatic Workflow
 ```bash
-# Model command with auto-submit fetches score automatically
+# Default: 60s countdown before auto-submit
 uv run python scripts/mla.py model --project playground-series-s5e11 \
     --model-template gpu-dev-5m \
-    --auto-submit \
     --wait-seconds 45
+
+# Skip submission entirely (save CSV only)
+uv run python scripts/mla.py model --project playground-series-s5e11 \
+    --model-template gpu-dev-5m \
+    --skip-submit
 ```
 
 **What happens:**
 1.  Model trains and creates submission CSV
-2.  CSV uploaded to Kaggle via `kaggle competitions submit`
-3.  Script waits (default 30s, configurable with `--wait-seconds`)
-4.  Playwright connects to Chrome and navigates to submissions page
-5.  Public score scraped from latest submission
-6.  `submissions/submissions.json` updated with score
-7.  Git commit created: `submission(project): model | local 0.923 | public 0.922`
+2.  **Confirmation prompt** asks to continue (Press Enter) or cancel (type 'n')
+3.  If confirmed, **60-second countdown** displays with spinner
+4.  After countdown completes, CSV uploaded to Kaggle via `kaggle competitions submit`
+5.  Script waits (default 30s, configurable with `--wait-seconds`)
+6.  Playwright connects to Chrome and navigates to submissions page
+7.  Public score scraped from latest submission
+8.  `submissions/submissions.json` updated with score
+9.  Git commit created: `submission(project): model | local 0.923 | public 0.922`
 
 ### Control Flags
--   `--auto-submit` - Skip interactive prompt, submit immediately
--   `--skip-submit` - Train only, don't upload to Kaggle
+-   `--skip-submit` - Skip submission entirely, save CSV only (no upload to Kaggle)
 -   `--skip-score-fetch` - Upload but don't scrape score (when browser offline)
 -   `--skip-git` - Don't auto-commit, review changes manually
 -   `--wait-seconds N` - Wait N seconds before scraping (default: 30)

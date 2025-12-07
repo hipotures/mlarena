@@ -350,6 +350,10 @@ class ModelModule(BaseModule):
             if use_gpu_from_template is not None:
                 use_gpu_param = use_gpu_from_template
 
+        # Allow template to supply default preprocess template (overridable by CLI)
+        if not preprocess_template:
+            preprocess_template = template_cfg.get("preprocess_template")
+
         # Check if template specifies a custom model implementation
         model_implementation = template_cfg.get("model")
 

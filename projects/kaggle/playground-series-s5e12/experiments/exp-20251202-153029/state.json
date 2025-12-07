@@ -1,0 +1,214 @@
+{
+  "experiment_id": "exp-20251202-153029",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T15:30:29Z",
+  "git": {
+    "hash": "e96cea40349855afe82f2e55164c05f61398306f",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set4_smoke",
+      "module": "fe_set4",
+      "status": "completed",
+      "started_at": "2025-12-02T15:30:30Z",
+      "updated_at": "2025-12-02T15:31:22Z",
+      "pid": null,
+      "config": {
+        "target_encoding_features": false,
+        "sample_frac": 0.2,
+        "sample_seed": 42,
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "selection_enabled": true,
+        "selection_holdout_frac": 0.2,
+        "selection_epsilon": 0.0
+      },
+      "resolved_config": {
+        "target_encoding_features": false,
+        "sample_frac": 0.2,
+        "sample_seed": 42,
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "selection_enabled": true,
+        "selection_holdout_frac": 0.2,
+        "selection_epsilon": 0.0,
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": false,
+      "cache": {
+        "train": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/test_fe.parquet",
+        "state": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/state.pkl",
+        "meta": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/state.meta.json"
+      },
+      "cache_sig": "e11f7497592aa286",
+      "state_keys": [
+        "cat_cols",
+        "config",
+        "dataset",
+        "drop_summary_stage1",
+        "final_columns",
+        "num_cols",
+        "perm_selection_stats",
+        "shapes",
+        "target_encoding",
+        "template",
+        "version"
+      ],
+      "meta": {
+        "template": "fe_set4_smoke",
+        "module": "fe_set4",
+        "config": {
+          "target_encoding_features": false,
+          "sample_frac": 0.2,
+          "sample_seed": 42,
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99,
+          "selection_enabled": true,
+          "selection_holdout_frac": 0.2,
+          "selection_epsilon": 0.0
+        },
+        "saved_at": "2025-12-02T15:31:21Z",
+        "shapes": {
+          "train": [
+            140000,
+            71
+          ],
+          "val": null,
+          "test": [
+            300000,
+            70
+          ]
+        },
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "drop_summary_stage1",
+          "final_columns",
+          "num_cols",
+          "perm_selection_stats",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-02T15:31:22Z"
+    },
+    "model": {
+      "template": "cpu-dev-5m",
+      "model": "autogluon_baseline",
+      "status": "running",
+      "started_at": "2025-12-02T15:31:22Z",
+      "updated_at": "2025-12-02T15:31:22Z",
+      "pid": 2596454
+    }
+  }
+}

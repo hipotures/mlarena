@@ -1,0 +1,20 @@
+{
+  "experiment_id": "exp-20251204-202322",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-04T20:23:22Z",
+  "git": {
+    "hash": "7f827ea28f759b9e5a931e2f15c2fcab430d71cf",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "running",
+      "started_at": "2025-12-04T20:23:24Z",
+      "updated_at": "2025-12-04T20:23:24Z",
+      "pid": 2248903
+    }
+  }
+}

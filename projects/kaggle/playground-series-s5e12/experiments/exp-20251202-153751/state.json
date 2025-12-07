@@ -1,0 +1,611 @@
+{
+  "experiment_id": "exp-20251202-153751",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T15:37:51Z",
+  "git": {
+    "hash": "e96cea40349855afe82f2e55164c05f61398306f",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set4_smoke",
+      "module": "fe_set4",
+      "status": "completed",
+      "started_at": "2025-12-02T15:37:53Z",
+      "updated_at": "2025-12-02T15:38:30Z",
+      "pid": null,
+      "config": {
+        "target_encoding_features": false,
+        "sample_frac": 0.2,
+        "sample_seed": 42,
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "selection_enabled": true,
+        "selection_holdout_frac": 0.2,
+        "selection_epsilon": 0.0
+      },
+      "resolved_config": {
+        "target_encoding_features": false,
+        "sample_frac": 0.2,
+        "sample_seed": 42,
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "selection_enabled": true,
+        "selection_holdout_frac": 0.2,
+        "selection_epsilon": 0.0,
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": false,
+      "cache": {
+        "train": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/test_fe.parquet",
+        "state": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/state.pkl",
+        "meta": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/state.meta.json"
+      },
+      "cache_sig": "e11f7497592aa286",
+      "state_keys": [
+        "cat_cols",
+        "config",
+        "dataset",
+        "drop_summary_stage1",
+        "final_columns",
+        "num_cols",
+        "perm_selection_stats",
+        "shapes",
+        "target_encoding",
+        "template",
+        "version"
+      ],
+      "meta": {
+        "template": "fe_set4_smoke",
+        "module": "fe_set4",
+        "config": {
+          "target_encoding_features": false,
+          "sample_frac": 0.2,
+          "sample_seed": 42,
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99,
+          "selection_enabled": true,
+          "selection_holdout_frac": 0.2,
+          "selection_epsilon": 0.0
+        },
+        "saved_at": "2025-12-02T15:38:29Z",
+        "shapes": {
+          "train": [
+            140000,
+            73
+          ],
+          "val": null,
+          "test": [
+            300000,
+            72
+          ]
+        },
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "drop_summary_stage1",
+          "final_columns",
+          "num_cols",
+          "perm_selection_stats",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-02T15:38:30Z"
+    },
+    "model": {
+      "template": "cpu-dev-5m",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-02T15:38:30Z",
+      "updated_at": "2025-12-02T15:43:54Z",
+      "pid": null,
+      "local_cv": 0.7285583742498636,
+      "training_summary": {
+        "local_cv": 0.7285583742498636
+      },
+      "config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251202-153751",
+          "artifact_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251202-153751/artifacts",
+          "model_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251202-153751/artifacts/cpu-dev-5m-autogluon_baseline",
+          "template": "cpu-dev-5m",
+          "experiment_id": "exp-20251202-153751",
+          "random_seed": 42,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "medium",
+          "time_limit": 300,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null
+        },
+        "model": {
+          "leaderboard_rows": 10
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "code_snapshot": "experiments/exp-20251202-153751/code_snapshot",
+      "model_path": "experiments/exp-20251202-153751/artifacts/cpu-dev-5m-autogluon_baseline",
+      "preprocess": {
+        "template": "fe_set4_smoke",
+        "module": "fe_set4",
+        "config": {
+          "target_encoding_features": false,
+          "sample_frac": 0.2,
+          "sample_seed": 42,
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99,
+          "selection_enabled": true,
+          "selection_holdout_frac": 0.2,
+          "selection_epsilon": 0.0
+        },
+        "resolved_config": {
+          "target_encoding_features": false,
+          "sample_frac": 0.2,
+          "sample_seed": 42,
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99,
+          "selection_enabled": true,
+          "selection_holdout_frac": 0.2,
+          "selection_epsilon": 0.0,
+          "_dataset": {
+            "target": "diagnosed_diabetes",
+            "id_column": "id",
+            "ignored_columns": [
+              "id"
+            ]
+          }
+        },
+        "used_cached": false,
+        "cache": {
+          "train": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/train_fe.parquet",
+          "val": null,
+          "test": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/test_fe.parquet",
+          "state": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/state.pkl",
+          "meta": "preprocess_cache/fe_set4_smoke/e11f7497592aa286/state.meta.json"
+        },
+        "cache_sig": "e11f7497592aa286",
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "drop_summary_stage1",
+          "final_columns",
+          "num_cols",
+          "perm_selection_stats",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ],
+        "meta": {
+          "template": "fe_set4_smoke",
+          "module": "fe_set4",
+          "config": {
+            "target_encoding_features": false,
+            "sample_frac": 0.2,
+            "sample_seed": 42,
+            "fill_missing": true,
+            "string_clean": true,
+            "quantile_bins": [
+              20,
+              100
+            ],
+            "uniform_bins": [
+              20
+            ],
+            "log1p_bins": [
+              20
+            ],
+            "round_multipliers": [
+              1,
+              10,
+              100
+            ],
+            "digit_mods": [
+              3,
+              5,
+              7,
+              10
+            ],
+            "pairwise_cat_limit": 8,
+            "target_encoding": {
+              "enabled": true,
+              "folds": 5,
+              "smoothing": 10.0,
+              "min_samples_leaf": 20,
+              "seed": 42
+            },
+            "categorical_overrides": [],
+            "numeric_overrides": [],
+            "correlation_threshold": 0.99,
+            "selection_enabled": true,
+            "selection_holdout_frac": 0.2,
+            "selection_epsilon": 0.0
+          },
+          "saved_at": "2025-12-02T15:38:29Z",
+          "shapes": {
+            "train": [
+              140000,
+              73
+            ],
+            "val": null,
+            "test": [
+              300000,
+              72
+            ]
+          },
+          "state_keys": [
+            "cat_cols",
+            "config",
+            "dataset",
+            "drop_summary_stage1",
+            "final_columns",
+            "num_cols",
+            "perm_selection_stats",
+            "shapes",
+            "target_encoding",
+            "template",
+            "version"
+          ],
+          "drop_summary": {}
+        }
+      },
+      "finished_at": "2025-12-02T15:43:54Z"
+    },
+    "predict": {
+      "template": "cpu-dev-5m",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-02T15:43:54Z",
+      "updated_at": "2025-12-02T15:43:56Z",
+      "pid": null,
+      "local_cv": 0.7285583742498636,
+      "submission_file": "submissions/submission-20251202164356.csv",
+      "model_path": "experiments/exp-20251202-153751/artifacts/cpu-dev-5m-autogluon_baseline",
+      "finished_at": "2025-12-02T15:43:56Z"
+    }
+  }
+}

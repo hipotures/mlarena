@@ -1,0 +1,20 @@
+{
+  "experiment_id": "exp-20251202-153725",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T15:37:25Z",
+  "git": {
+    "hash": "e96cea40349855afe82f2e55164c05f61398306f",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set4_smoke",
+      "module": "fe_set4",
+      "status": "running",
+      "started_at": "2025-12-02T15:37:27Z",
+      "updated_at": "2025-12-02T15:37:27Z",
+      "pid": 2602407
+    }
+  }
+}

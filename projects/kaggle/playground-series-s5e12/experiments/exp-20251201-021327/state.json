@@ -1,0 +1,237 @@
+{
+  "experiment_id": "exp-20251201-021327",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T02:13:27Z",
+  "git": {
+    "hash": "4504eb0b6a539f5608206f14be14da066827d94b",
+    "branch": "kaggle-fork1",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "model": {
+      "template": "time8-cpu",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-01T02:13:29Z",
+      "updated_at": "2025-12-01T10:38:12Z",
+      "pid": null,
+      "local_cv": 0.7059807901778222,
+      "training_summary": {
+        "local_cv": 0.7059807901778222
+      },
+      "submission_file": "submissions/submission-20251201113812.csv",
+      "config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/experiments/exp-20251201-021327",
+          "artifact_dir": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/experiments/exp-20251201-021327/artifacts",
+          "model_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/experiments/exp-20251201-021327/artifacts/time8-cpu-autogluon_baseline",
+          "template": "time8-cpu",
+          "experiment_id": "exp-20251201-021327",
+          "random_seed": 42,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle-fork1/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "best_quality",
+          "time_limit": 28800,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null
+        },
+        "model": {
+          "leaderboard_rows": 10
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "code_snapshot": "experiments/exp-20251201-021327/code_snapshot",
+      "finished_at": "2025-12-01T10:38:12Z"
+    },
+    "submit": {
+      "kaggle_message": "playground-series-s5e12 | time8-cpu | local 0.70598",
+      "resume_mode": false,
+      "status": "completed",
+      "started_at": "2025-12-01T10:38:12Z",
+      "updated_at": "2025-12-01T10:38:47Z",
+      "pid": null,
+      "submission_file": "submissions/submission-20251201113812.csv",
+      "tracker_id": 3,
+      "local_cv": 0.7059807901778222,
+      "public_score": 0.69704,
+      "leaderboard": {
+        "rank": 52,
+        "total": 52,
+        "percentile": 100.0,
+        "score": 0.69704,
+        "submission_count": 4,
+        "team_name": "hipotures"
+      },
+      "finished_at": "2025-12-01T10:38:47Z"
+    }
+  }
+}

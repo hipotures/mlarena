@@ -1,0 +1,407 @@
+{
+  "experiment_id": "exp-20251203-200912",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-03T20:09:12Z",
+  "git": {
+    "hash": "061bdf7910ac01bb741fe4ee7e5332498fe74c10",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "identity",
+      "module": "identity",
+      "status": "completed",
+      "started_at": "2025-12-03T20:09:16Z",
+      "updated_at": "2025-12-03T20:09:16Z",
+      "pid": null,
+      "config": {},
+      "resolved_config": {
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": true,
+      "cache": {
+        "train": "preprocess_cache/identity/2f3eb5e1a22492e7/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/identity/2f3eb5e1a22492e7/test_fe.parquet",
+        "state": "preprocess_cache/identity/2f3eb5e1a22492e7/state.pkl",
+        "meta": "preprocess_cache/identity/2f3eb5e1a22492e7/state.meta.json"
+      },
+      "cache_sig": "2f3eb5e1a22492e7",
+      "state_keys": [
+        "transform",
+        "version"
+      ],
+      "meta": {
+        "template": "identity",
+        "module": "identity",
+        "config": {},
+        "saved_at": "2025-12-02T18:14:00Z",
+        "shapes": {
+          "train": [
+            700000,
+            26
+          ],
+          "val": null,
+          "test": [
+            300000,
+            25
+          ]
+        },
+        "state_keys": [
+          "transform",
+          "version"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-03T20:09:16Z"
+    },
+    "model": {
+      "template": "cpu-dev-5m-shiftaware",
+      "model": "autogluon_shiftaware",
+      "status": "completed",
+      "started_at": "2025-12-03T20:09:16Z",
+      "updated_at": "2025-12-03T20:15:35Z",
+      "pid": null,
+      "local_cv": 0.6719378776488711,
+      "training_summary": {
+        "local_cv": 0.6719378776488711,
+        "leaderboard_head": [
+          {
+            "model": "RandomForestGini",
+            "score_val": 0.6684694987871169,
+            "pred_time_val": 0.08182477951049805,
+            "fit_time": 41.764172315597534,
+            "stack_level": 1
+          },
+          {
+            "model": "RandomForestEntr",
+            "score_val": 0.6681963187005979,
+            "pred_time_val": 0.0697638988494873,
+            "fit_time": 44.10415458679199,
+            "stack_level": 1
+          },
+          {
+            "model": "ExtraTreesGini",
+            "score_val": 0.6660160495691047,
+            "pred_time_val": 0.07158827781677246,
+            "fit_time": 29.53933882713318,
+            "stack_level": 1
+          },
+          {
+            "model": "ExtraTreesEntr",
+            "score_val": 0.6671261967708428,
+            "pred_time_val": 0.07653379440307617,
+            "fit_time": 33.683608055114746,
+            "stack_level": 1
+          },
+          {
+            "model": "CatBoost",
+            "score_val": 0.6710472827533842,
+            "pred_time_val": 0.003892660140991211,
+            "fit_time": 144.3148810863495,
+            "stack_level": 1
+          },
+          {
+            "model": "WeightedEnsemble_L2",
+            "score_val": 0.6719378776488711,
+            "pred_time_val": 0.011816740036010742,
+            "fit_time": 147.0338876247406,
+            "stack_level": 2
+          },
+          {
+            "model": "LightGBM",
+            "score_val": 0.6719150184815933,
+            "pred_time_val": 0.007135868072509766,
+            "fit_time": 2.626112461090088,
+            "stack_level": 1
+          },
+          {
+            "model": "LightGBMXT",
+            "score_val": 0.6700753335591437,
+            "pred_time_val": 0.012264490127563477,
+            "fit_time": 3.8324694633483887,
+            "stack_level": 1
+          }
+        ],
+        "dropped_drift_features": [
+          "physical_activity_minutes_per_week",
+          "triglycerides",
+          "cholesterol_total"
+        ]
+      },
+      "config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251203-200912",
+          "artifact_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251203-200912/artifacts",
+          "model_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251203-200912/artifacts/cpu-dev-5m-shiftaware-autogluon_shiftaware",
+          "template": "cpu-dev-5m-shiftaware",
+          "experiment_id": "exp-20251203-200912",
+          "random_seed": 47,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "medium",
+          "time_limit": 300,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null,
+          "auto_stack": false,
+          "num_bag_folds": 0,
+          "num_bag_sets": 1,
+          "num_stack_levels": 0,
+          "dynamic_stacking": null,
+          "included_model_types": null
+        },
+        "model": {
+          "leaderboard_rows": 10,
+          "sample_weight_column": null,
+          "drop_drift_features": true,
+          "drift_feature_names": [
+            "physical_activity_minutes_per_week",
+            "triglycerides",
+            "cholesterol_total"
+          ]
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "code_snapshot": "experiments/exp-20251203-200912/code_snapshot",
+      "model_path": "experiments/exp-20251203-200912/artifacts/cpu-dev-5m-shiftaware-autogluon_shiftaware",
+      "preprocess": {
+        "template": "identity",
+        "module": "identity",
+        "config": {},
+        "resolved_config": {
+          "_dataset": {
+            "target": "diagnosed_diabetes",
+            "id_column": "id",
+            "ignored_columns": [
+              "id"
+            ]
+          }
+        },
+        "used_cached": true,
+        "cache": {
+          "train": "preprocess_cache/identity/2f3eb5e1a22492e7/train_fe.parquet",
+          "val": null,
+          "test": "preprocess_cache/identity/2f3eb5e1a22492e7/test_fe.parquet",
+          "state": "preprocess_cache/identity/2f3eb5e1a22492e7/state.pkl",
+          "meta": "preprocess_cache/identity/2f3eb5e1a22492e7/state.meta.json"
+        },
+        "cache_sig": "2f3eb5e1a22492e7",
+        "state_keys": [
+          "transform",
+          "version"
+        ],
+        "meta": {
+          "template": "identity",
+          "module": "identity",
+          "config": {},
+          "saved_at": "2025-12-02T18:14:00Z",
+          "shapes": {
+            "train": [
+              700000,
+              26
+            ],
+            "val": null,
+            "test": [
+              300000,
+              25
+            ]
+          },
+          "state_keys": [
+            "transform",
+            "version"
+          ],
+          "drop_summary": {}
+        }
+      },
+      "finished_at": "2025-12-03T20:15:35Z"
+    },
+    "predict": {
+      "template": "cpu-dev-5m-shiftaware",
+      "model": "autogluon_shiftaware",
+      "status": "completed",
+      "started_at": "2025-12-03T20:15:35Z",
+      "updated_at": "2025-12-03T20:15:36Z",
+      "pid": null,
+      "local_cv": 0.6719378776488711,
+      "submission_file": "submissions/submission-20251203211536.csv",
+      "model_path": "experiments/exp-20251203-200912/artifacts/cpu-dev-5m-shiftaware-autogluon_shiftaware",
+      "finished_at": "2025-12-03T20:15:36Z"
+    }
+  }
+}

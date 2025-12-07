@@ -1,0 +1,22 @@
+{
+  "experiment_id": "exp-20251202-152845",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T15:28:45Z",
+  "git": {
+    "hash": "e96cea40349855afe82f2e55164c05f61398306f",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set4_smoke",
+      "module": "fe_set4",
+      "status": "failed",
+      "started_at": "2025-12-02T15:28:46Z",
+      "updated_at": "2025-12-02T15:29:06Z",
+      "pid": null,
+      "error": "DataFrame.dtypes for data must be int, float, bool or category. When categorical type is supplied, the experimental DMatrix parameter`enable_categorical` must be set to `True`.  Invalid columns:alcohol_consumption_per_week: object, gender: object, ethnicity: object, education_level: object, income_level: object, smoking_status: object, employment_status: object, family_history_diabetes: object, hypertension_history: object, cardiovascular_history: object, age_q20: object, age_q100: object, age_u20: object, bmi_q20: object, bmi_q100: object, bmi_u20: object, cholesterol_total_q20: object, cholesterol_total_q100: object, cholesterol_total_u20: object, diastolic_bp_q20: object, diastolic_bp_q100: object, diastolic_bp_u20: object, diet_score_q20: object, diet_score_q100: object, diet_score_u20: object, hdl_cholesterol_q20: object, hdl_cholesterol_q100: object, hdl_cholesterol_u20: object, heart_rate_q20: object, heart_rate_q100: object, heart_rate_u20: object, ldl_cholesterol_q20: object, ldl_cholesterol_q100: object, ldl_cholesterol_u20: object, physical_activity_minutes_per_week_q20: object, physical_activity_minutes_per_week_q100: object, physical_activity_minutes_per_week_u20: object, screen_time_hours_per_day_q20: object, screen_time_hours_per_day_q100: object, screen_time_hours_per_day_u20: object, sleep_hours_per_day_q20: object, sleep_hours_per_day_q100: object, sleep_hours_per_day_u20: object, systolic_bp_q20: object, systolic_bp_q100: object, systolic_bp_u20: object, triglycerides_q20: object, triglycerides_q100: object, triglycerides_u20: object, waist_to_hip_ratio_q20: object, waist_to_hip_ratio_q100: object, waist_to_hip_ratio_u20: object, alcohol_consumption_per_week__cardiovascular_history: object, alcohol_consumption_per_week__education_level: object, alcohol_consumption_per_week__employment_status: object, alcohol_consumption_per_week__ethnicity: object, alcohol_consumption_per_week__family_history_diabetes: object, alcohol_consumption_per_week__gender: object, alcohol_consumption_per_week__hypertension_history: object, cardiovascular_history__education_level: object, cardiovascular_history__employment_status: object, cardiovascular_history__ethnicity: object, cardiovascular_history__family_history_diabetes: object, cardiovascular_history__gender: object, cardiovascular_history__hypertension_history: object, education_level__employment_status: object, education_level__ethnicity: object, education_level__family_history_diabetes: object, education_level__gender: object, education_level__hypertension_history: object, employment_status__ethnicity: object, employment_status__family_history_diabetes: object, employment_status__gender: object, employment_status__hypertension_history: object, ethnicity__family_history_diabetes: object, ethnicity__gender: object, ethnicity__hypertension_history: object, family_history_diabetes__gender: object, family_history_diabetes__hypertension_history: object, gender__hypertension_history: object",
+      "finished_at": "2025-12-02T15:29:06Z"
+    }
+  }
+}

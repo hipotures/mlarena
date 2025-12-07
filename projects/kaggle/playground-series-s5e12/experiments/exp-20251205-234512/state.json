@@ -1,0 +1,184 @@
+{
+  "experiment_id": "exp-20251205-234512",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-05T23:45:12Z",
+  "git": {
+    "hash": "d7700028ba917523d92e77a16965f588b68deabc",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "completed",
+      "started_at": "2025-12-05T23:45:13Z",
+      "updated_at": "2025-12-05T23:45:14Z",
+      "pid": null,
+      "config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model"
+      },
+      "resolved_config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model",
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": true,
+      "cache": {
+        "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+        "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+        "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+      },
+      "cache_sig": "e3faf6041f3127fa",
+      "state_keys": [
+        "drop_columns",
+        "id_column",
+        "model_output_dir",
+        "presets",
+        "target_column",
+        "time_limit",
+        "version",
+        "weights_path"
+      ],
+      "meta": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "saved_at": "2025-12-04T22:33:18Z",
+        "shapes": {
+          "train": [
+            700000,
+            26
+          ],
+          "val": null,
+          "test": [
+            300000,
+            25
+          ]
+        },
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-05T23:45:14Z"
+    },
+    "model": {
+      "template": "cpu-gbm-8h",
+      "model": "autogluon_av_weights",
+      "status": "running",
+      "started_at": "2025-12-05T23:45:14Z",
+      "updated_at": "2025-12-05T23:45:14Z",
+      "pid": 2457481
+    }
+  },
+  "pipeline": {
+    "name": "default",
+    "description": "Default Kaggle experiment pipeline (EDA \u2192 preprocess \u2192 model \u2192 predict \u2192 submit).",
+    "source": "/mnt/ml/kaggle/config/pipelines/default.yaml",
+    "modules": [
+      "eda",
+      "preprocess",
+      "feat",
+      "model",
+      "predict",
+      "tune",
+      "stack",
+      "submit",
+      "fetch-score"
+    ]
+  },
+  "run": {
+    "created_at": "2025-12-05T23:45:13Z",
+    "pipeline": "default",
+    "stage": "all",
+    "experiment_id": "exp-20251205-234512",
+    "project": "playground-series-s5e12",
+    "templates": {
+      "model": "cpu-gbm-8h",
+      "preprocess": "av_weights",
+      "model_module": "autogluon_av_weights",
+      "preprocess_module": "av_weights"
+    },
+    "cli": {
+      "project": "playground-series-s5e12",
+      "pipeline": "default",
+      "model_template": "cpu-gbm-8h",
+      "preprocess_template": "av_weights",
+      "use_preprocessed": false,
+      "recompute_preprocess": false,
+      "stage": "all",
+      "time_limit": 600,
+      "preset": "high",
+      "model_name": "autogluon_av_weights",
+      "force_extreme": false,
+      "ag_smoke": false,
+      "skip_submit": false,
+      "auto_submit": true,
+      "skip_score_fetch": false,
+      "skip_git": false,
+      "wait_seconds": 45,
+      "cdp_url": "http://localhost:9222",
+      "require_eda": false,
+      "skip_eda_check": false,
+      "force": false,
+      "force_predict": false
+    },
+    "invocation": {
+      "argv": [
+        "--project",
+        "playground-series-s5e12",
+        "--model-template",
+        "cpu-gbm-8h",
+        "--model-name",
+        "autogluon_av_weights",
+        "--preprocess-template",
+        "av_weights",
+        "--preset",
+        "high",
+        "--wait-seconds",
+        "45",
+        "--auto-submit",
+        "--time-limit",
+        "600"
+      ],
+      "command": "python scripts/ml_runner.py --project playground-series-s5e12 --model-template cpu-gbm-8h --model-name autogluon_av_weights --preprocess-template av_weights --preset high --wait-seconds 45 --auto-submit --time-limit 600",
+      "recorded_at": "2025-12-05T23:45:13Z"
+    },
+    "updated_at": "2025-12-05T23:45:13Z"
+  }
+}

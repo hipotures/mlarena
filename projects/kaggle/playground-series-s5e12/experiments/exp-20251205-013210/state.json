@@ -1,0 +1,109 @@
+{
+  "experiment_id": "exp-20251205-013210",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-05T01:32:10Z",
+  "git": {
+    "hash": "d5c6c632506aeda90abbacc0a60fd0fc331d7dc7",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "completed",
+      "started_at": "2025-12-05T01:32:15Z",
+      "updated_at": "2025-12-05T01:32:15Z",
+      "pid": null,
+      "config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model"
+      },
+      "resolved_config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model",
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": true,
+      "cache": {
+        "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+        "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+        "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+      },
+      "cache_sig": "e3faf6041f3127fa",
+      "state_keys": [
+        "drop_columns",
+        "id_column",
+        "model_output_dir",
+        "presets",
+        "target_column",
+        "time_limit",
+        "version",
+        "weights_path"
+      ],
+      "meta": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "saved_at": "2025-12-04T22:33:18Z",
+        "shapes": {
+          "train": [
+            700000,
+            26
+          ],
+          "val": null,
+          "test": [
+            300000,
+            25
+          ]
+        },
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-05T01:32:15Z"
+    },
+    "model": {
+      "template": "cpu-dev-5m",
+      "model": "autogluon_baseline",
+      "status": "running",
+      "started_at": "2025-12-05T01:32:15Z",
+      "updated_at": "2025-12-05T01:32:15Z",
+      "pid": 397610
+    }
+  }
+}

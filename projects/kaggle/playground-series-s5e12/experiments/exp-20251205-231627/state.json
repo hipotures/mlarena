@@ -1,0 +1,733 @@
+{
+  "experiment_id": "exp-20251205-231627",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-05T23:16:27Z",
+  "git": {
+    "hash": "c1f3d8750aae5de696104d893102ecb07bf0a980",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "completed",
+      "started_at": "2025-12-05T23:16:28Z",
+      "updated_at": "2025-12-05T23:16:28Z",
+      "pid": null,
+      "config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model"
+      },
+      "resolved_config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model",
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": true,
+      "cache": {
+        "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+        "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+        "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+      },
+      "cache_sig": "e3faf6041f3127fa",
+      "state_keys": [
+        "drop_columns",
+        "id_column",
+        "model_output_dir",
+        "presets",
+        "target_column",
+        "time_limit",
+        "version",
+        "weights_path"
+      ],
+      "meta": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "saved_at": "2025-12-04T22:33:18Z",
+        "shapes": {
+          "train": [
+            700000,
+            26
+          ],
+          "val": null,
+          "test": [
+            300000,
+            25
+          ]
+        },
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-05T23:16:28Z"
+    },
+    "model": {
+      "template": "cpu-cat-8h",
+      "model": "autogluon_av_weights",
+      "status": "completed",
+      "started_at": "2025-12-05T23:16:28Z",
+      "updated_at": "2025-12-05T23:23:27Z",
+      "pid": null,
+      "local_cv": 0.7268587219152749,
+      "training_summary": {
+        "local_cv": 0.7268587219152749
+      },
+      "config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251205-231627",
+          "artifact_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251205-231627/artifacts",
+          "model_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251205-231627/artifacts/cpu-cat-8h-autogluon_av_weights",
+          "template": "cpu-cat-8h",
+          "experiment_id": "exp-20251205-231627",
+          "random_seed": 47,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "medium",
+          "time_limit": 600,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null,
+          "included_model_types": [
+            "CAT"
+          ]
+        },
+        "model": {
+          "leaderboard_rows": 10,
+          "av_weights_path": "data/train_av_weights.csv"
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "code_snapshot": "experiments/exp-20251205-231627/code_snapshot",
+      "model_path": "experiments/exp-20251205-231627/artifacts/cpu-cat-8h-autogluon_av_weights",
+      "preprocess": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "resolved_config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model",
+          "_dataset": {
+            "target": "diagnosed_diabetes",
+            "id_column": "id",
+            "ignored_columns": [
+              "id"
+            ]
+          }
+        },
+        "used_cached": true,
+        "cache": {
+          "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+          "val": null,
+          "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+          "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+          "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+        },
+        "cache_sig": "e3faf6041f3127fa",
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "meta": {
+          "template": "av_weights",
+          "module": "av_weights",
+          "config": {
+            "presets": "best",
+            "time_limit": 3600,
+            "drop_columns": [
+              "id"
+            ],
+            "output_path": "data/train_av_weights.csv",
+            "model_output_dir": "preprocess_cache/av_model"
+          },
+          "saved_at": "2025-12-04T22:33:18Z",
+          "shapes": {
+            "train": [
+              700000,
+              26
+            ],
+            "val": null,
+            "test": [
+              300000,
+              25
+            ]
+          },
+          "state_keys": [
+            "drop_columns",
+            "id_column",
+            "model_output_dir",
+            "presets",
+            "target_column",
+            "time_limit",
+            "version",
+            "weights_path"
+          ],
+          "drop_summary": {}
+        }
+      },
+      "finished_at": "2025-12-05T23:23:27Z"
+    },
+    "predict": {
+      "template": "cpu-cat-8h",
+      "model": "autogluon_av_weights",
+      "status": "completed",
+      "started_at": "2025-12-05T23:23:27Z",
+      "updated_at": "2025-12-05T23:23:28Z",
+      "pid": null,
+      "local_cv": 0.7268587219152749,
+      "submission_file": "submissions/submission-20251206002327.csv",
+      "model_path": "experiments/exp-20251205-231627/artifacts/cpu-cat-8h-autogluon_av_weights",
+      "finished_at": "2025-12-05T23:23:28Z"
+    },
+    "submit": {
+      "kaggle_message": "exp-20251205-231627 | local 0.72686 | cpu-cat-8h | features: 24 | submission-20251206002327.csv",
+      "resume_mode": false,
+      "status": "completed",
+      "started_at": "2025-12-05T23:23:28Z",
+      "updated_at": "2025-12-05T23:24:18Z",
+      "pid": null,
+      "submission_file": "submissions/submission-20251206002327.csv",
+      "tracker_id": 22,
+      "local_cv": 0.7268587219152749,
+      "feature_count": 24,
+      "public_score": 0.69517,
+      "leaderboard": {
+        "rank": 381,
+        "total": 381,
+        "percentile": 100.0,
+        "score": 0.69727,
+        "submission_count": 23,
+        "team_name": "hipotures"
+      },
+      "finished_at": "2025-12-05T23:24:18Z"
+    }
+  },
+  "pipeline": {
+    "name": "default",
+    "description": "Default Kaggle experiment pipeline (EDA \u2192 preprocess \u2192 model \u2192 predict \u2192 submit).",
+    "source": "/mnt/ml/kaggle/config/pipelines/default.yaml",
+    "modules": [
+      "eda",
+      "preprocess",
+      "feat",
+      "model",
+      "predict",
+      "tune",
+      "stack",
+      "submit",
+      "fetch-score"
+    ]
+  },
+  "run": {
+    "created_at": "2025-12-05T23:16:27Z",
+    "pipeline": "default",
+    "stage": "all",
+    "experiment_id": "exp-20251205-231627",
+    "project": "playground-series-s5e12",
+    "templates": {
+      "model": "cpu-cat-8h",
+      "preprocess": "av_weights",
+      "model_module": "autogluon_av_weights",
+      "preprocess_module": "av_weights"
+    },
+    "cli": {
+      "project": "playground-series-s5e12",
+      "pipeline": "default",
+      "model_template": "cpu-cat-8h",
+      "preprocess_template": "av_weights",
+      "use_preprocessed": false,
+      "recompute_preprocess": false,
+      "stage": "all",
+      "time_limit": 600,
+      "preset": "medium",
+      "model_name": "autogluon_av_weights",
+      "force_extreme": false,
+      "ag_smoke": false,
+      "skip_submit": false,
+      "auto_submit": true,
+      "skip_score_fetch": false,
+      "skip_git": false,
+      "wait_seconds": 45,
+      "cdp_url": "http://localhost:9222",
+      "require_eda": false,
+      "skip_eda_check": false,
+      "force": false,
+      "force_predict": false
+    },
+    "invocation": {
+      "argv": [
+        "--project",
+        "playground-series-s5e12",
+        "--model-template",
+        "cpu-cat-8h",
+        "--model-name",
+        "autogluon_av_weights",
+        "--preprocess-template",
+        "av_weights",
+        "--preset",
+        "medium",
+        "--wait-seconds",
+        "45",
+        "--auto-submit",
+        "--time-limit",
+        "600"
+      ],
+      "command": "python scripts/ml_runner.py --project playground-series-s5e12 --model-template cpu-cat-8h --model-name autogluon_av_weights --preprocess-template av_weights --preset medium --wait-seconds 45 --auto-submit --time-limit 600",
+      "recorded_at": "2025-12-05T23:16:27Z"
+    },
+    "updated_at": "2025-12-05T23:23:28Z",
+    "resolved": {
+      "model_config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251205-231627",
+          "artifact_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251205-231627/artifacts",
+          "model_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251205-231627/artifacts/cpu-cat-8h-autogluon_av_weights",
+          "template": "cpu-cat-8h",
+          "experiment_id": "exp-20251205-231627",
+          "random_seed": 47,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "medium",
+          "time_limit": 600,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null,
+          "included_model_types": [
+            "CAT"
+          ]
+        },
+        "model": {
+          "leaderboard_rows": 10,
+          "av_weights_path": "data/train_av_weights.csv"
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "preprocess": {
+        "resolved_config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model",
+          "_dataset": {
+            "target": "diagnosed_diabetes",
+            "id_column": "id",
+            "ignored_columns": [
+              "id"
+            ]
+          }
+        },
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "cache": {
+          "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+          "val": null,
+          "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+          "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+          "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+        },
+        "cache_sig": "e3faf6041f3127fa",
+        "used_cached": true
+      }
+    }
+  }
+}

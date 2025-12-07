@@ -1,0 +1,68 @@
+{
+  "experiment_id": "exp-20251207-131339",
+  "project": "playground-series-s5e12",
+  "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
+  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251207-131339",
+  "created_at": "2025-12-07T13:13:39.921270+00:00",
+  "pipeline": {
+    "name": "default",
+    "modules": []
+  },
+  "modules": {
+    "model": {
+      "name": "model",
+      "status": "running",
+      "started_at": "2025-12-07T13:13:39.929870+00:00",
+      "finished_at": null,
+      "pid": 3926366,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "model_template": "list",
+        "preprocess_template": null,
+        "preset": null,
+        "time_limit": null,
+        "use_gpu": null
+      },
+      "payload": {},
+      "error": null
+    }
+  },
+  "run": {
+    "argv": [
+      "model",
+      "--project",
+      "playground-series-s5e12",
+      "--model-template",
+      "list"
+    ],
+    "cli_args": {
+      "show_payload": false,
+      "command": "model",
+      "project": "playground-series-s5e12",
+      "experiment_id": null,
+      "force": false,
+      "skip_deps": false,
+      "time_limit": null,
+      "preset": null,
+      "use_gpu": null,
+      "model_template": "list",
+      "preprocess_template": null
+    }
+  },
+  "git": {
+    "commit": "342c08458bc1643dd2c11af4ec4475aa6f6879cf",
+    "branch": "feature/template-redesign",
+    "is_dirty": true,
+    "dirty_files": [
+      "D autogluon_av_model/run_50a9047f/metadata.json",
+      " D autogluon_av_model/run_50a9047f/version.txt",
+      " D autogluon_av_model/run_8f275b8c/metadata.json",
+      " D autogluon_av_model/run_8f275b8c/version.txt",
+      " M ../../../src/mlarena/modules/feat.py",
+      "?? ../../../.github/",
+      "?? experiments/pre-av_weights_topdrift_1h/",
+      "?? experiments/pre-av_weights_topdrift_5m/"
+    ]
+  }
+}

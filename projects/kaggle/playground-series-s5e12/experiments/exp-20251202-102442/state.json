@@ -1,0 +1,11 @@
+{
+  "experiment_id": "exp-20251202-102442",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T10:24:42Z",
+  "git": {
+    "hash": "5c8c8c1e0d327fd28f688c957afce71e84de4497",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {}
+}

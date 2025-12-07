@@ -1,0 +1,20 @@
+{
+  "experiment_id": "exp-20251201-212513",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T21:25:13Z",
+  "git": {
+    "hash": "b1668902456e81ba417ec80f3afb49c083ac9320",
+    "branch": "main",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "stack": {
+      "status": "failed",
+      "started_at": "2025-12-01T21:25:13Z",
+      "updated_at": "2025-12-01T21:25:13Z",
+      "pid": null,
+      "error": "Model predictions not found: submission-20251201113812.csv",
+      "finished_at": "2025-12-01T21:25:13Z"
+    }
+  }
+}

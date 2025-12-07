@@ -1,0 +1,22 @@
+{
+  "experiment_id": "exp-20251201-141902",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T14:19:02Z",
+  "git": {
+    "hash": "2593e0acfba86dfbb7579ec56250c29ae2fe4d86",
+    "branch": "kaggle-fork1",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "model": {
+      "template": "cpu-knn-8h",
+      "model": "autogluon_baseline",
+      "status": "failed",
+      "started_at": "2025-12-01T14:19:04Z",
+      "updated_at": "2025-12-01T14:19:13Z",
+      "pid": null,
+      "error": "No models were trained successfully during fit(). Inspect the log output or increase verbosity to determine why no models were fit. Alternatively, set `raise_on_no_models_fitted` to False during the fit call.",
+      "finished_at": "2025-12-01T14:19:13Z"
+    }
+  }
+}

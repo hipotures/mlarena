@@ -1,0 +1,423 @@
+{
+  "experiment_id": "exp-20251204-220258",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-04T22:02:58Z",
+  "git": {
+    "hash": "7f827ea28f759b9e5a931e2f15c2fcab430d71cf",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "completed",
+      "started_at": "2025-12-04T22:02:59Z",
+      "updated_at": "2025-12-04T22:33:18Z",
+      "pid": null,
+      "config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model"
+      },
+      "resolved_config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "preprocess_cache/av_model",
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": false,
+      "cache": {
+        "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+        "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+        "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+      },
+      "cache_sig": "e3faf6041f3127fa",
+      "state_keys": [
+        "drop_columns",
+        "id_column",
+        "model_output_dir",
+        "presets",
+        "target_column",
+        "time_limit",
+        "version",
+        "weights_path"
+      ],
+      "meta": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "saved_at": "2025-12-04T22:33:18Z",
+        "shapes": {
+          "train": [
+            700000,
+            26
+          ],
+          "val": null,
+          "test": [
+            300000,
+            25
+          ]
+        },
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-04T22:33:18Z"
+    },
+    "model": {
+      "template": "cpu-dev-5m",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-04T22:33:18Z",
+      "updated_at": "2025-12-04T22:56:43Z",
+      "pid": null,
+      "local_cv": 0.7290843182548877,
+      "training_summary": {
+        "local_cv": 0.7290843182548877
+      },
+      "config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251204-220258",
+          "artifact_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251204-220258/artifacts",
+          "model_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251204-220258/artifacts/cpu-dev-5m-autogluon_baseline",
+          "template": "cpu-dev-5m",
+          "experiment_id": "exp-20251204-220258",
+          "random_seed": 47,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "medium",
+          "time_limit": 1800,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null
+        },
+        "model": {
+          "leaderboard_rows": 10
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "code_snapshot": "experiments/exp-20251204-220258/code_snapshot",
+      "model_path": "experiments/exp-20251204-220258/artifacts/cpu-dev-5m-autogluon_baseline",
+      "preprocess": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model"
+        },
+        "resolved_config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "preprocess_cache/av_model",
+          "_dataset": {
+            "target": "diagnosed_diabetes",
+            "id_column": "id",
+            "ignored_columns": [
+              "id"
+            ]
+          }
+        },
+        "used_cached": false,
+        "cache": {
+          "train": "preprocess_cache/av_weights/e3faf6041f3127fa/train_fe.parquet",
+          "val": null,
+          "test": "preprocess_cache/av_weights/e3faf6041f3127fa/test_fe.parquet",
+          "state": "preprocess_cache/av_weights/e3faf6041f3127fa/state.pkl",
+          "meta": "preprocess_cache/av_weights/e3faf6041f3127fa/state.meta.json"
+        },
+        "cache_sig": "e3faf6041f3127fa",
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "meta": {
+          "template": "av_weights",
+          "module": "av_weights",
+          "config": {
+            "presets": "best",
+            "time_limit": 3600,
+            "drop_columns": [
+              "id"
+            ],
+            "output_path": "data/train_av_weights.csv",
+            "model_output_dir": "preprocess_cache/av_model"
+          },
+          "saved_at": "2025-12-04T22:33:18Z",
+          "shapes": {
+            "train": [
+              700000,
+              26
+            ],
+            "val": null,
+            "test": [
+              300000,
+              25
+            ]
+          },
+          "state_keys": [
+            "drop_columns",
+            "id_column",
+            "model_output_dir",
+            "presets",
+            "target_column",
+            "time_limit",
+            "version",
+            "weights_path"
+          ],
+          "drop_summary": {}
+        }
+      },
+      "finished_at": "2025-12-04T22:56:43Z"
+    },
+    "predict": {
+      "template": "cpu-dev-5m",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-04T22:56:43Z",
+      "updated_at": "2025-12-04T22:56:46Z",
+      "pid": null,
+      "local_cv": 0.7290843182548877,
+      "submission_file": "submissions/submission-20251204235646.csv",
+      "model_path": "experiments/exp-20251204-220258/artifacts/cpu-dev-5m-autogluon_baseline",
+      "finished_at": "2025-12-04T22:56:46Z"
+    },
+    "submit": {
+      "kaggle_message": "exp-20251204-220258 | local 0.72908 | cpu-dev-5m | features: 24 | submission-20251204235646.csv",
+      "resume_mode": false,
+      "status": "completed",
+      "started_at": "2025-12-04T22:56:46Z",
+      "updated_at": "2025-12-04T23:05:10Z",
+      "pid": null,
+      "submission_file": "submissions/submission-20251204235646.csv",
+      "tracker_id": 19,
+      "local_cv": 0.7290843182548877,
+      "feature_count": 24,
+      "public_score": 0.69598,
+      "leaderboard": {
+        "rank": 374,
+        "total": 374,
+        "percentile": 100.0,
+        "score": 0.69704,
+        "submission_count": 20,
+        "team_name": "hipotures"
+      },
+      "finished_at": "2025-12-04T23:05:10Z"
+    }
+  }
+}

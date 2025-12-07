@@ -1,0 +1,111 @@
+{
+  "experiment_id": "exp-20251204-203449",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-04T20:34:49Z",
+  "git": {
+    "hash": "7f827ea28f759b9e5a931e2f15c2fcab430d71cf",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "completed",
+      "started_at": "2025-12-04T20:34:50Z",
+      "updated_at": "2025-12-04T20:40:18Z",
+      "pid": null,
+      "config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "autogluon_av_model"
+      },
+      "resolved_config": {
+        "presets": "best",
+        "time_limit": 3600,
+        "drop_columns": [
+          "id"
+        ],
+        "output_path": "data/train_av_weights.csv",
+        "model_output_dir": "autogluon_av_model",
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": false,
+      "cache": {
+        "train": "preprocess_cache/av_weights/5ff697e3790d8b43/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/av_weights/5ff697e3790d8b43/test_fe.parquet",
+        "state": "preprocess_cache/av_weights/5ff697e3790d8b43/state.pkl",
+        "meta": "preprocess_cache/av_weights/5ff697e3790d8b43/state.meta.json"
+      },
+      "cache_sig": "5ff697e3790d8b43",
+      "state_keys": [
+        "drop_columns",
+        "id_column",
+        "model_output_dir",
+        "presets",
+        "target_column",
+        "time_limit",
+        "version",
+        "weights_path"
+      ],
+      "meta": {
+        "template": "av_weights",
+        "module": "av_weights",
+        "config": {
+          "presets": "best",
+          "time_limit": 3600,
+          "drop_columns": [
+            "id"
+          ],
+          "output_path": "data/train_av_weights.csv",
+          "model_output_dir": "autogluon_av_model"
+        },
+        "saved_at": "2025-12-04T20:40:17Z",
+        "shapes": {
+          "train": [
+            700000,
+            26
+          ],
+          "val": null,
+          "test": [
+            300000,
+            25
+          ]
+        },
+        "state_keys": [
+          "drop_columns",
+          "id_column",
+          "model_output_dir",
+          "presets",
+          "target_column",
+          "time_limit",
+          "version",
+          "weights_path"
+        ],
+        "drop_summary": {}
+      },
+      "finished_at": "2025-12-04T20:40:18Z"
+    },
+    "model": {
+      "template": "cpu-dev-5m-av",
+      "model": "autogluon_av_weights",
+      "status": "failed",
+      "started_at": "2025-12-04T20:40:18Z",
+      "updated_at": "2025-12-04T20:40:18Z",
+      "pid": null,
+      "error": "Unknown `.fit` keyword argument specified: 'sample_weight'\nValid kwargs: ['ag_args', 'ag_args_ensemble', 'ag_args_fit', 'auto_stack', 'calibrate', 'delay_bag_sets', 'ds_args', 'excluded_model_types', 'feature_generator', 'feature_prune_kwargs', 'holdout_frac', 'hyperparameter_tune_kwargs', 'included_model_types', 'keep_only_best', 'learning_curves', 'name_suffix', 'num_bag_folds', 'num_bag_sets', 'num_stack_levels', 'pseudo_data', 'raise_on_model_failure', 'raise_on_no_models_fitted', 'refit_full', 'save_bag_folds', 'save_space', 'set_best_to_refit_full', 'test_data', 'unlabeled_data', 'use_bag_holdout', 'verbosity']",
+      "finished_at": "2025-12-04T20:40:18Z"
+    }
+  }
+}

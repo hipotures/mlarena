@@ -1,0 +1,68 @@
+{
+  "experiment_id": "exp-20251205-092625",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-05T09:26:25Z",
+  "git": {
+    "hash": "08e9ac6c1f9180e0ae6b8e769adc8e54b0b4b302",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set1",
+      "module": "fe_set1",
+      "status": "failed",
+      "started_at": "2025-12-05T09:26:30Z",
+      "updated_at": "2025-12-05T09:26:30Z",
+      "pid": null,
+      "error": "[Errno 13] Permission denied",
+      "finished_at": "2025-12-05T09:26:30Z"
+    }
+  },
+  "run": {
+    "created_at": "2025-12-05T09:26:26Z",
+    "stage": "all",
+    "experiment_id": "exp-20251205-092625",
+    "project": "playground-series-s5e12",
+    "templates": {
+      "model": "cpu-dev-5m-av",
+      "preprocess": "fe_set1",
+      "model_module": "autogluon_av_weights",
+      "preprocess_module": "fe_set1"
+    },
+    "cli": {
+      "project": "playground-series-s5e12",
+      "model_template": "cpu-dev-5m-av",
+      "preprocess_template": "fe_set1",
+      "use_preprocessed": false,
+      "recompute_preprocess": false,
+      "stage": "all",
+      "force_extreme": false,
+      "ag_smoke": false,
+      "skip_submit": true,
+      "auto_submit": false,
+      "skip_score_fetch": false,
+      "skip_git": false,
+      "wait_seconds": 30,
+      "cdp_url": "http://localhost:9222",
+      "require_eda": false,
+      "skip_eda_check": false,
+      "force": false,
+      "force_predict": false
+    },
+    "invocation": {
+      "argv": [
+        "--project",
+        "playground-series-s5e12",
+        "--model-template",
+        "cpu-dev-5m-av",
+        "--preprocess-template",
+        "fe_set1",
+        "--skip-submit"
+      ],
+      "command": "python scripts/ml_runner.py --project playground-series-s5e12 --model-template cpu-dev-5m-av --preprocess-template fe_set1 --skip-submit",
+      "recorded_at": "2025-12-05T09:26:26Z"
+    },
+    "updated_at": "2025-12-05T09:26:26Z"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "experiment_id": "exp-20251201-143609",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T14:36:09Z",
+  "git": {
+    "hash": "db221a2516d07f5a1bb0cdc27ec0e25f352e25e6",
+    "branch": "kaggle-fork1",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "stack": {
+      "status": "completed",
+      "started_at": "2025-12-01T14:36:10Z",
+      "updated_at": "2025-12-01T14:36:10Z",
+      "pid": null,
+      "strategy": "blend",
+      "n_models": 2,
+      "model_files": [
+        "submission-20251201113812.csv",
+        "submission-20251201023828.csv"
+      ],
+      "output_file": "submission-blend-top5-local.csv",
+      "blend_method": "weighted",
+      "blend_weights": [
+        0.5022418419268372,
+        0.4977581580731628
+      ],
+      "finished_at": "2025-12-01T14:36:10Z"
+    }
+  }
+}

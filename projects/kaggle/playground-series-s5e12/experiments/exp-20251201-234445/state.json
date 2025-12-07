@@ -1,0 +1,22 @@
+{
+  "experiment_id": "exp-20251201-234445",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T23:44:45Z",
+  "git": {
+    "hash": "6372a5b1c3404167c11d65500060a91aa0146067",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set1",
+      "module": "fe_set1",
+      "status": "failed",
+      "started_at": "2025-12-01T23:44:47Z",
+      "updated_at": "2025-12-01T23:44:47Z",
+      "pid": null,
+      "error": "argument 'breaks': 'int' object cannot be converted to 'Sequence'",
+      "finished_at": "2025-12-01T23:44:47Z"
+    }
+  }
+}

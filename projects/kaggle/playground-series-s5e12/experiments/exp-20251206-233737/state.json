@@ -1,0 +1,72 @@
+{
+  "experiment_id": "exp-20251206-233737",
+  "project": "playground-series-s5e12",
+  "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
+  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-233737",
+  "created_at": "2025-12-06T23:37:37.771525+00:00",
+  "pipeline": {
+    "name": "default",
+    "modules": []
+  },
+  "modules": {
+    "model": {
+      "name": "model",
+      "status": "running",
+      "started_at": "2025-12-06T23:37:37.781772+00:00",
+      "finished_at": null,
+      "pid": 3290723,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "model_template": "cpu-gbm-8h",
+        "preprocess_template": "av_weights",
+        "preset": null,
+        "time_limit": 300,
+        "use_gpu": null
+      },
+      "payload": {},
+      "error": null
+    }
+  },
+  "run": {
+    "argv": [
+      "model",
+      "--project",
+      "playground-series-s5e12",
+      "--preprocess-template",
+      "av_weights",
+      "--model-template",
+      "cpu-gbm-8h",
+      "--time-limit",
+      "300"
+    ],
+    "cli_args": {
+      "show_payload": false,
+      "command": "model",
+      "project": "playground-series-s5e12",
+      "experiment_id": null,
+      "force": false,
+      "skip_deps": false,
+      "time_limit": 300,
+      "preset": null,
+      "use_gpu": null,
+      "model_template": "cpu-gbm-8h",
+      "preprocess_template": "av_weights"
+    }
+  },
+  "git": {
+    "commit": "a714c1777694749977bb12dfd69236d59dca3c40",
+    "branch": "feature/template-redesign",
+    "is_dirty": true,
+    "dirty_files": [
+      "M code/adversarial_validation.py",
+      " M code/preprocessing/av_weights.py",
+      " M experiments/pre-av_weights/state.json",
+      " M templates/preprocess.yaml",
+      " M ../../../src/mlarena/modules/preprocess.py",
+      "?? av_model/",
+      "?? experiments/pre-av_weights/state.json.lock",
+      "?? templates/preprocess.yaml.old"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "experiment_id": "exp-20251201-222703",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T22:27:03Z",
+  "git": {
+    "hash": "9469733c3b7a15901eca4d6b0d66e6d53f2ad09c",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "model": {
+      "template": "cpu-fast-1m",
+      "model": "autogluon_baseline",
+      "status": "failed",
+      "started_at": "2025-12-01T22:27:07Z",
+      "updated_at": "2025-12-01T22:27:14Z",
+      "pid": null,
+      "error": "Not enough time left to train models. Consider specifying a larger time_limit. Time remaining: -5.13s",
+      "finished_at": "2025-12-01T22:27:14Z"
+    }
+  }
+}

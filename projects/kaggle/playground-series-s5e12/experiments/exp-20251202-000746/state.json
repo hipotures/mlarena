@@ -1,0 +1,188 @@
+{
+  "experiment_id": "exp-20251202-000746",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T00:07:46Z",
+  "git": {
+    "hash": "6372a5b1c3404167c11d65500060a91aa0146067",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set1",
+      "module": "fe_set1",
+      "status": "completed",
+      "started_at": "2025-12-02T00:07:47Z",
+      "updated_at": "2025-12-02T00:07:48Z",
+      "pid": null,
+      "config": {
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": []
+      },
+      "resolved_config": {
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": true,
+      "cache": {
+        "train": "preprocess_cache/fe_set1/3b0c6a2f3a3912f9/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/fe_set1/3b0c6a2f3a3912f9/test_fe.parquet",
+        "state": "preprocess_cache/fe_set1/3b0c6a2f3a3912f9/state.pkl",
+        "meta": "preprocess_cache/fe_set1/3b0c6a2f3a3912f9/state.meta.json"
+      },
+      "cache_sig": "3b0c6a2f3a3912f9",
+      "state_keys": [
+        "cat_cols",
+        "config",
+        "dataset",
+        "final_columns",
+        "num_cols",
+        "shapes",
+        "target_encoding",
+        "template",
+        "version"
+      ],
+      "meta": {
+        "template": "fe_set1",
+        "module": "fe_set1",
+        "config": {
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": []
+        },
+        "saved_at": "2025-12-02T00:00:10Z",
+        "shapes": {
+          "train": [
+            700000,
+            282
+          ],
+          "val": null,
+          "test": [
+            300000,
+            281
+          ]
+        },
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "final_columns",
+          "num_cols",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ]
+      },
+      "finished_at": "2025-12-02T00:07:48Z"
+    },
+    "model": {
+      "template": "cpu-fast-1m",
+      "model": "autogluon_baseline",
+      "status": "running",
+      "started_at": "2025-12-02T00:07:48Z",
+      "updated_at": "2025-12-02T00:07:48Z",
+      "pid": 1581527
+    }
+  }
+}

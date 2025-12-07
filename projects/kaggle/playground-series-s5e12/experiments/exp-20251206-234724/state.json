@@ -1,0 +1,147 @@
+{
+  "experiment_id": "exp-20251206-234724",
+  "project": "playground-series-s5e12",
+  "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
+  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-234724",
+  "created_at": "2025-12-06T23:47:24.071525+00:00",
+  "pipeline": {
+    "name": "default",
+    "modules": []
+  },
+  "modules": {
+    "model": {
+      "name": "model",
+      "status": "completed",
+      "started_at": "2025-12-06T23:47:24.080681+00:00",
+      "finished_at": "2025-12-07T00:00:55.952081+00:00",
+      "pid": 3316134,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "model_template": "cpu-dev-5m-av-gbm",
+        "preprocess_template": "av_weights",
+        "preset": null,
+        "time_limit": 300,
+        "use_gpu": null
+      },
+      "payload": {
+        "model_implementation": "autogluon_av_weights",
+        "model_artifact": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-234724/artifacts/model/model",
+        "local_cv": 0.7254625170834103,
+        "training_summary": {
+          "local_cv": 0.7254625170834103
+        },
+        "preset": "medium",
+        "time_limit": 300,
+        "use_gpu": null,
+        "template": "cpu-dev-5m-av-gbm",
+        "preprocess_template": "av_weights",
+        "leaderboard": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-234724/artifacts/model/leaderboard.csv"
+      },
+      "error": null
+    },
+    "predict": {
+      "name": "predict",
+      "status": "completed",
+      "started_at": "2025-12-07T00:01:09.680401+00:00",
+      "finished_at": "2025-12-07T00:01:15.859599+00:00",
+      "pid": 3340010,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "predict_suffix": ""
+      },
+      "payload": {
+        "predictions": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-234724/artifacts/predict/submission.csv",
+        "submission_file": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-234724/artifacts/predict/submission.csv"
+      },
+      "error": null
+    },
+    "submit": {
+      "name": "submit",
+      "status": "completed",
+      "started_at": "2025-12-07T00:01:26.768246+00:00",
+      "finished_at": "2025-12-07T00:01:43.277803+00:00",
+      "pid": 3340493,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "auto_submit": false,
+        "message": "MLArena submission",
+        "skip_submit": false
+      },
+      "payload": {
+        "submitted": true,
+        "competition": "playground-series-s5e12",
+        "submission_file": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251206-234724/artifacts/predict/submission.csv"
+      },
+      "error": null
+    },
+    "fetch-score": {
+      "name": "fetch-score",
+      "status": "completed",
+      "started_at": "2025-12-07T00:03:17.234600+00:00",
+      "finished_at": "2025-12-07T00:03:17.779947+00:00",
+      "pid": 3341774,
+      "invocation": {
+        "force": false,
+        "skip_deps": false,
+        "score_placeholder": null
+      },
+      "payload": {
+        "score": 0.69584,
+        "latest_submission": {
+          "fileName": "submission.csv",
+          "date": "2025-12-07 00:01:41.963000",
+          "description": "exp-20251206-234724 | local 0.72546 | autogluon_av_weights | features: 24 | submission.csv",
+          "status": "SubmissionStatus.COMPLETE",
+          "publicScore": "0.69584",
+          "privateScore": ""
+        }
+      },
+      "error": null
+    }
+  },
+  "run": {
+    "argv": [
+      "model",
+      "--project",
+      "playground-series-s5e12",
+      "--preprocess-template",
+      "av_weights",
+      "--model-template",
+      "cpu-dev-5m-av-gbm",
+      "--time-limit",
+      "300"
+    ],
+    "cli_args": {
+      "show_payload": false,
+      "command": "model",
+      "project": "playground-series-s5e12",
+      "experiment_id": null,
+      "force": false,
+      "skip_deps": false,
+      "time_limit": 300,
+      "preset": null,
+      "use_gpu": null,
+      "model_template": "cpu-dev-5m-av-gbm",
+      "preprocess_template": "av_weights"
+    }
+  },
+  "git": {
+    "commit": "a714c1777694749977bb12dfd69236d59dca3c40",
+    "branch": "feature/template-redesign",
+    "is_dirty": true,
+    "dirty_files": [
+      "M code/adversarial_validation.py",
+      " M code/preprocessing/av_weights.py",
+      " M experiments/pre-av_weights/state.json",
+      " M templates/model.yaml",
+      " M templates/preprocess.yaml",
+      " M ../../../src/mlarena/modules/preprocess.py",
+      "?? av_model/",
+      "?? experiments/pre-av_weights/state.json.lock",
+      "?? templates/preprocess.yaml.old"
+    ]
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "experiment_id": "exp-20251203-180910",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-03T18:09:10Z",
+  "git": {
+    "hash": "e4ae95ea5d1190bfd095a5a368c96375765ad515",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": false
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set6",
+      "module": "fe_set6",
+      "status": "completed",
+      "started_at": "2025-12-03T18:09:14Z",
+      "updated_at": "2025-12-03T18:09:17Z",
+      "pid": null,
+      "config": {
+        "target_encoding_features": false,
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          10,
+          20
+        ],
+        "uniform_bins": [],
+        "log1p_bins": [],
+        "quantile_cols": [
+          "physical_activity_minutes_per_week",
+          "triglycerides",
+          "cholesterol_total",
+          "ldl_cholesterol"
+        ],
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "skewed_cols": [
+          "physical_activity_minutes_per_week"
+        ]
+      },
+      "resolved_config": {
+        "target_encoding_features": false,
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          10,
+          20
+        ],
+        "uniform_bins": [],
+        "log1p_bins": [],
+        "quantile_cols": [
+          "physical_activity_minutes_per_week",
+          "triglycerides",
+          "cholesterol_total",
+          "ldl_cholesterol"
+        ],
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "skewed_cols": [
+          "physical_activity_minutes_per_week"
+        ],
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": false,
+      "cache": {
+        "train": "preprocess_cache/fe_set6/610dd264d8f570d6/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/fe_set6/610dd264d8f570d6/test_fe.parquet",
+        "state": "preprocess_cache/fe_set6/610dd264d8f570d6/state.pkl",
+        "meta": "preprocess_cache/fe_set6/610dd264d8f570d6/state.meta.json"
+      },
+      "cache_sig": "610dd264d8f570d6",
+      "state_keys": [
+        "cat_cols",
+        "config",
+        "dataset",
+        "drop_summary",
+        "final_columns",
+        "num_cols",
+        "shapes",
+        "target_encoding",
+        "template",
+        "version"
+      ],
+      "meta": {
+        "template": "fe_set6",
+        "module": "fe_set6",
+        "config": {
+          "target_encoding_features": false,
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            10,
+            20
+          ],
+          "uniform_bins": [],
+          "log1p_bins": [],
+          "quantile_cols": [
+            "physical_activity_minutes_per_week",
+            "triglycerides",
+            "cholesterol_total",
+            "ldl_cholesterol"
+          ],
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99,
+          "skewed_cols": [
+            "physical_activity_minutes_per_week"
+          ]
+        },
+        "saved_at": "2025-12-03T18:09:16Z",
+        "shapes": {
+          "train": [
+            700000,
+            44
+          ],
+          "val": null,
+          "test": [
+            300000,
+            43
+          ]
+        },
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "drop_summary",
+          "final_columns",
+          "num_cols",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ],
+        "drop_summary": {
+          "before": 43,
+          "after": 43,
+          "const_dropped": 0,
+          "corr_dropped": 0,
+          "dropped_count": 0
+        }
+      },
+      "finished_at": "2025-12-03T18:09:17Z"
+    },
+    "model": {
+      "template": "cpu-gbm-8h",
+      "model": "autogluon_baseline",
+      "status": "running",
+      "started_at": "2025-12-03T18:09:17Z",
+      "updated_at": "2025-12-03T18:09:17Z",
+      "pid": 3475439
+    }
+  }
+}

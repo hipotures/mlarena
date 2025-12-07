@@ -1,0 +1,29 @@
+{
+  "experiment_id": "exp-20251117-115355",
+  "project": "spaceship-titanic",
+  "created_at": "2025-11-17T11:53:55Z",
+  "git": {
+    "hash": "cf5c9d466472ca232969db47a408ec148c1f8ae2",
+    "branch": "master",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "eda": {
+      "notes": "",
+      "status": "completed",
+      "started_at": "2025-11-17T11:53:55Z",
+      "updated_at": "2025-11-17T11:53:56Z",
+      "pid": null,
+      "summary_file": "experiments/exp-20251117-115355/eda_summary.json",
+      "train_shape": [
+        8693,
+        14
+      ],
+      "test_shape": [
+        4277,
+        13
+      ],
+      "finished_at": "2025-11-17T11:53:56Z"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "experiment_id": "exp-20251201-014012",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-01T01:40:12Z",
+  "git": {
+    "hash": "8af62f6ee41fdecd3778869da2035418aa6c7013",
+    "branch": "kaggle-fork1",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "model": {
+      "template": "time8-cpu",
+      "model": "autogluon_baseline",
+      "status": "aborted",
+      "started_at": "2025-12-01T01:40:15Z",
+      "updated_at": "2025-12-01T22:31:19Z",
+      "pid": null,
+      "error": "Manually aborted",
+      "finished_at": "2025-12-01T22:31:19Z"
+    }
+  }
+}

@@ -1,0 +1,609 @@
+{
+  "experiment_id": "exp-20251202-010647",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-02T01:06:47Z",
+  "git": {
+    "hash": "3f7cbc2b63ef9f5f697332d38fd2911eb0f4dfd9",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "fe_set1",
+      "module": "fe_set1",
+      "status": "completed",
+      "started_at": "2025-12-02T01:06:48Z",
+      "updated_at": "2025-12-02T01:06:49Z",
+      "pid": null,
+      "config": {
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99
+      },
+      "resolved_config": {
+        "fill_missing": true,
+        "string_clean": true,
+        "quantile_bins": [
+          20,
+          100
+        ],
+        "uniform_bins": [
+          20
+        ],
+        "log1p_bins": [
+          20
+        ],
+        "round_multipliers": [
+          1,
+          10,
+          100
+        ],
+        "digit_mods": [
+          3,
+          5,
+          7,
+          10
+        ],
+        "pairwise_cat_limit": 8,
+        "target_encoding": {
+          "enabled": true,
+          "folds": 5,
+          "smoothing": 10.0,
+          "min_samples_leaf": 20,
+          "seed": 42
+        },
+        "categorical_overrides": [],
+        "numeric_overrides": [],
+        "correlation_threshold": 0.99,
+        "_dataset": {
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ]
+        }
+      },
+      "used_cached": true,
+      "cache": {
+        "train": "preprocess_cache/fe_set1/be074e41280419fc/train_fe.parquet",
+        "val": null,
+        "test": "preprocess_cache/fe_set1/be074e41280419fc/test_fe.parquet",
+        "state": "preprocess_cache/fe_set1/be074e41280419fc/state.pkl",
+        "meta": "preprocess_cache/fe_set1/be074e41280419fc/state.meta.json"
+      },
+      "cache_sig": "be074e41280419fc",
+      "state_keys": [
+        "cat_cols",
+        "config",
+        "dataset",
+        "drop_summary",
+        "final_columns",
+        "num_cols",
+        "shapes",
+        "target_encoding",
+        "template",
+        "version"
+      ],
+      "meta": {
+        "template": "fe_set1",
+        "module": "fe_set1",
+        "config": {
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99
+        },
+        "saved_at": "2025-12-02T01:06:22Z",
+        "shapes": {
+          "train": [
+            700000,
+            268
+          ],
+          "val": null,
+          "test": [
+            300000,
+            267
+          ]
+        },
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "drop_summary",
+          "final_columns",
+          "num_cols",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ],
+        "drop_summary": {
+          "before": 385,
+          "after": 268,
+          "const_dropped": 30,
+          "corr_dropped": 55,
+          "dropped_count": 117
+        }
+      },
+      "finished_at": "2025-12-02T01:06:49Z"
+    },
+    "model": {
+      "template": "cpu-boost-8h",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-02T01:06:49Z",
+      "updated_at": "2025-12-02T09:10:59Z",
+      "pid": null,
+      "local_cv": 0.7300599782806506,
+      "training_summary": {
+        "local_cv": 0.7300599782806506
+      },
+      "config": {
+        "system": {
+          "project_root": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12",
+          "code_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/code",
+          "experiment_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251202-010647",
+          "artifact_dir": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251202-010647/artifacts",
+          "model_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251202-010647/artifacts/cpu-boost-8h-autogluon_baseline",
+          "template": "cpu-boost-8h",
+          "experiment_id": "exp-20251202-010647",
+          "random_seed": 42,
+          "use_gpu": false
+        },
+        "dataset": {
+          "train_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/train.csv",
+          "test_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/test.csv",
+          "target": "diagnosed_diabetes",
+          "id_column": "id",
+          "ignored_columns": [
+            "id"
+          ],
+          "sample_submission_path": "/mnt/ml/kaggle/projects/kaggle/playground-series-s5e12/data/sample_submission.csv",
+          "problem_type": "binary",
+          "metric": "roc_auc",
+          "submission_probas": true
+        },
+        "hyperparameters": {
+          "presets": "best",
+          "time_limit": 28800,
+          "use_gpu": false,
+          "excluded_models": null,
+          "preset": null,
+          "included_model_types": [
+            "GBM",
+            "CAT",
+            "XGB"
+          ]
+        },
+        "model": {
+          "leaderboard_rows": 10
+        },
+        "preprocessing": {
+          "feat_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "cv_stage": {
+            "enabled": false,
+            "transformers": []
+          },
+          "storage_format": "parquet",
+          "save_transformed_data": true,
+          "compression": "snappy"
+        },
+        "optuna": {
+          "storage": "sqlite:///experiments/optuna.db",
+          "study_name": "default_study",
+          "direction": "maximize",
+          "n_trials": 50,
+          "timeout": null,
+          "n_jobs": 1,
+          "cv_folds": 5,
+          "early_stopping_rounds": 50,
+          "sampler": "TPESampler",
+          "pruner": "MedianPruner",
+          "param_space": {
+            "xgboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "max_depth": [
+                3,
+                10,
+                "int"
+              ],
+              "min_child_weight": [
+                1,
+                10,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "gamma": [
+                0.0,
+                5.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "lightgbm": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "num_leaves": [
+                15,
+                255,
+                "int"
+              ],
+              "max_depth": [
+                3,
+                12,
+                "int"
+              ],
+              "min_child_samples": [
+                5,
+                100,
+                "int"
+              ],
+              "subsample": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "colsample_bytree": [
+                0.5,
+                1.0,
+                "float"
+              ],
+              "reg_alpha": [
+                0.0,
+                10.0,
+                "log"
+              ],
+              "reg_lambda": [
+                0.0,
+                10.0,
+                "log"
+              ]
+            },
+            "catboost": {
+              "learning_rate": [
+                0.001,
+                0.3,
+                "log"
+              ],
+              "depth": [
+                4,
+                10,
+                "int"
+              ],
+              "l2_leaf_reg": [
+                0.1,
+                10.0,
+                "log"
+              ],
+              "bagging_temperature": [
+                0.0,
+                1.0,
+                "float"
+              ],
+              "random_strength": [
+                0.0,
+                10.0,
+                "float"
+              ]
+            }
+          },
+          "load_if_exists": true,
+          "sampler_kwargs": {},
+          "pruner_kwargs": {
+            "n_startup_trials": 5,
+            "n_warmup_steps": 10
+          }
+        },
+        "stacking": {
+          "blend_method": "weighted",
+          "blend_power": 2.0,
+          "meta_model": "logistic",
+          "calibration": {
+            "enabled": false,
+            "method": "isotonic"
+          }
+        }
+      },
+      "code_snapshot": "experiments/exp-20251202-010647/code_snapshot",
+      "model_path": "experiments/exp-20251202-010647/artifacts/cpu-boost-8h-autogluon_baseline",
+      "preprocess": {
+        "template": "fe_set1",
+        "module": "fe_set1",
+        "config": {
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99
+        },
+        "resolved_config": {
+          "fill_missing": true,
+          "string_clean": true,
+          "quantile_bins": [
+            20,
+            100
+          ],
+          "uniform_bins": [
+            20
+          ],
+          "log1p_bins": [
+            20
+          ],
+          "round_multipliers": [
+            1,
+            10,
+            100
+          ],
+          "digit_mods": [
+            3,
+            5,
+            7,
+            10
+          ],
+          "pairwise_cat_limit": 8,
+          "target_encoding": {
+            "enabled": true,
+            "folds": 5,
+            "smoothing": 10.0,
+            "min_samples_leaf": 20,
+            "seed": 42
+          },
+          "categorical_overrides": [],
+          "numeric_overrides": [],
+          "correlation_threshold": 0.99,
+          "_dataset": {
+            "target": "diagnosed_diabetes",
+            "id_column": "id",
+            "ignored_columns": [
+              "id"
+            ]
+          }
+        },
+        "used_cached": true,
+        "cache": {
+          "train": "preprocess_cache/fe_set1/be074e41280419fc/train_fe.parquet",
+          "val": null,
+          "test": "preprocess_cache/fe_set1/be074e41280419fc/test_fe.parquet",
+          "state": "preprocess_cache/fe_set1/be074e41280419fc/state.pkl",
+          "meta": "preprocess_cache/fe_set1/be074e41280419fc/state.meta.json"
+        },
+        "cache_sig": "be074e41280419fc",
+        "state_keys": [
+          "cat_cols",
+          "config",
+          "dataset",
+          "drop_summary",
+          "final_columns",
+          "num_cols",
+          "shapes",
+          "target_encoding",
+          "template",
+          "version"
+        ],
+        "meta": {
+          "template": "fe_set1",
+          "module": "fe_set1",
+          "config": {
+            "fill_missing": true,
+            "string_clean": true,
+            "quantile_bins": [
+              20,
+              100
+            ],
+            "uniform_bins": [
+              20
+            ],
+            "log1p_bins": [
+              20
+            ],
+            "round_multipliers": [
+              1,
+              10,
+              100
+            ],
+            "digit_mods": [
+              3,
+              5,
+              7,
+              10
+            ],
+            "pairwise_cat_limit": 8,
+            "target_encoding": {
+              "enabled": true,
+              "folds": 5,
+              "smoothing": 10.0,
+              "min_samples_leaf": 20,
+              "seed": 42
+            },
+            "categorical_overrides": [],
+            "numeric_overrides": [],
+            "correlation_threshold": 0.99
+          },
+          "saved_at": "2025-12-02T01:06:22Z",
+          "shapes": {
+            "train": [
+              700000,
+              268
+            ],
+            "val": null,
+            "test": [
+              300000,
+              267
+            ]
+          },
+          "state_keys": [
+            "cat_cols",
+            "config",
+            "dataset",
+            "drop_summary",
+            "final_columns",
+            "num_cols",
+            "shapes",
+            "target_encoding",
+            "template",
+            "version"
+          ],
+          "drop_summary": {
+            "before": 385,
+            "after": 268,
+            "const_dropped": 30,
+            "corr_dropped": 55,
+            "dropped_count": 117
+          }
+        }
+      },
+      "finished_at": "2025-12-02T09:10:59Z"
+    },
+    "predict": {
+      "template": "cpu-boost-8h",
+      "model": "autogluon_baseline",
+      "status": "completed",
+      "started_at": "2025-12-02T10:00:43Z",
+      "updated_at": "2025-12-02T10:01:57Z",
+      "pid": null,
+      "local_cv": 0.7300599782806506,
+      "submission_file": "submissions/submission-20251202110156.csv",
+      "model_path": "experiments/exp-20251202-010647/artifacts/cpu-boost-8h-autogluon_baseline",
+      "finished_at": "2025-12-02T10:01:57Z"
+    },
+    "submit": {
+      "kaggle_message": "playground-series-s5e12 | cpu-boost-8h | local 0.73006",
+      "resume_mode": false,
+      "status": "completed",
+      "started_at": "2025-12-02T10:01:57Z",
+      "updated_at": "2025-12-02T10:02:32Z",
+      "pid": null,
+      "submission_file": "submissions/submission-20251202110156.csv",
+      "tracker_id": 5,
+      "local_cv": 0.7300599782806506,
+      "public_score": 0.67897,
+      "leaderboard": {
+        "rank": 170,
+        "total": 170,
+        "percentile": 100.0,
+        "score": 0.69704,
+        "submission_count": 6,
+        "team_name": "hipotures"
+      },
+      "finished_at": "2025-12-02T10:02:32Z"
+    }
+  }
+}

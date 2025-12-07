@@ -1,0 +1,22 @@
+{
+  "experiment_id": "exp-20251205-020018",
+  "project": "playground-series-s5e12",
+  "created_at": "2025-12-05T02:00:18Z",
+  "git": {
+    "hash": "dfa8f35cb075819ebf4e3747ae34d74caad0d478",
+    "branch": "feature/template-redesign",
+    "has_uncommitted_changes": true
+  },
+  "modules": {
+    "preprocess": {
+      "template": "av_weights",
+      "module": "av_weights",
+      "status": "failed",
+      "started_at": "2025-12-05T02:00:22Z",
+      "updated_at": "2025-12-05T03:04:21Z",
+      "pid": null,
+      "error": "name 'AV_PROB_COL' is not defined",
+      "finished_at": "2025-12-05T03:04:21Z"
+    }
+  }
+}

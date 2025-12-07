@@ -35,7 +35,7 @@ templates:
         included_model_types: ["CAT"]
 
   best-1h-av-gbm:
-    preprocess_template: av_weights
+    preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
       preset: best
@@ -45,7 +45,7 @@ templates:
         included_model_types: ["GBM"]
 
   best-1h-av-xgb:
-    preprocess_template: av_weights
+    preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
       preset: best
@@ -55,7 +55,7 @@ templates:
         included_model_types: ["XGB"]
 
   best-3h-av-cat:
-    preprocess_template: av_weights
+    preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
       preset: best
@@ -65,7 +65,7 @@ templates:
         included_model_types: ["CAT"]
 
   best-8h-av-boost:
-    preprocess_template: av_weights
+    preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
       preset: best

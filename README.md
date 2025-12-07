@@ -15,7 +15,7 @@ This repository provides a standardized and powerful workflow for participating 
     uv run python scripts/mla.py eda --project <competition-slug>
 
     # Train a model and auto-submit to Kaggle
-    uv run python scripts/mla.py model --project <competition-slug> --model-template dev-gpu --auto-submit
+    uv run python scripts/mla.py model --project <competition-slug> --model-template gpu-dev-5m --auto-submit
     ```
 
 For a detailed guide on the workflow and available commands, please refer to the [**MLA Workflow Guide**](docs/MLA_WORKFLOW_GUIDE.md).
@@ -48,3 +48,9 @@ projects/kaggle/<competition-slug>/
 ```
 
 The core logic and modules for the `mla.py` workflow are located in the `src/mlarena/` directory.
+
+---
+
+## AI Agent Context
+
+**Note:** `CLAUDE.md` and `GEMINI.md` (symlinks to `AGENTS.md`) are context files for AI assistants and are not user documentation. For comprehensive guides, see the [Documentation](docs/) directory.

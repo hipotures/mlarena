@@ -428,7 +428,7 @@ cat ~/.kaggle/kaggle.json  # Verify valid JSON
 
 ## See Also
 
-- [CLAUDE.md](../CLAUDE.md) - Repository overview
-- [scripts/README.md](../scripts/README.md) - All scripts reference
-- [configs.md](./configs.md) - Template configuration
-- [mlarena_architecture.md](./mlarena_architecture.md) - System design
+- [README.md](../README.md) - Repository overview and quick start
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - MLArena architecture and design
+- [configs.md](./configs.md) - Template configuration reference
+- [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) - Migration from legacy scripts

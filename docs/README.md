@@ -6,9 +6,7 @@ This directory contains all the documentation for the Kaggle competitions reposi
 
 -   [**`README.md`**](../README.md): The main README for the repository. Provides a high-level overview and a quick start guide for the `mla.py` workflow.
 
--   [**`GEMINI.md`**](../GEMINI.md): The primary comprehensive guide for the project. It covers architecture, commands, workflows, and development guidelines.
-
--   [**`MLA_WORKFLOW_GUIDE.md`**](MLA_WORKFLOW_GUIDE.md): A detailed guide to using the `mla.py` workflow, with practical examples for common use cases.
+-   [**`MLA_WORKFLOW_GUIDE.md`**](MLA_WORKFLOW_GUIDE.md): The primary comprehensive guide for using the `mla.py` workflow, with practical examples for common use cases and detailed command reference.
 
 ## Supporting Documentation
 

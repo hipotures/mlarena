@@ -398,7 +398,7 @@ Delete after mlarena is functional:
 ### Week 4: Cleanup & Documentation
 1. [ ] Remove old scripts
 2. [ ] Write `docs/mlarena_architecture.md`
-3. [ ] Update `CLAUDE.md`
+3. [ ] Update `AGENTS.md` (AI agent context)
 4. [ ] Update `scripts/README.md`
 
 ---

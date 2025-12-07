@@ -1,6 +1,9 @@
-# GEMINI.md
+# AI Agent Context (GEMINI.md / CLAUDE.md)
 
-This file provides guidance to Gemini when working with code in this repository.
+> **Note:** This file is AI agent context for Claude Code, Gemini, and other AI assistants.
+> **For user documentation**, see [README.md](README.md) and [docs/MLA_WORKFLOW_GUIDE.md](docs/MLA_WORKFLOW_GUIDE.md).
+
+This file provides guidance to AI agents when working with code in this repository.
 
 ## Table of Contents
 
@@ -51,7 +54,7 @@ uv run playwright install chromium
 uv run python scripts/mla.py eda --project [competition-name]
 
 uv run python scripts/mla.py model --project [competition-name] \
-    --model-template dev-gpu \
+    --model-template gpu-dev-5m \
     --auto-submit \
     --wait-seconds 45
 
@@ -138,11 +141,11 @@ uv run python scripts/mla.py eda --project [competition-name] --eda-notes "basel
 **3. Model (AutoGluon via template):**
 ```bash
 uv run python scripts/mla.py model --project [competition-name] \
-    --model-template dev-gpu \
+    --model-template gpu-dev-5m \
     --auto-submit \
     --wait-seconds 45
 ```
-Templates: `fast-cpu`, `dev-cpu`, `dev-gpu`, `best-cpu`, `best-gpu`, `extreme-gpu` (overrides: `--time-limit`, `--preset`, `--use-gpu`).
+Templates: `cpu-fast-1m`, `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, `gpu-best-1h`, `gpu-extreme-24h` (overrides: `--time-limit`, `--preset`, `--use-gpu`).
 
 **4. Predict (if needed):**
 ```bash
@@ -202,7 +205,7 @@ uv run python scripts/mla.py eda --project playground-series-s5e11
 
 # 2. Model
 uv run python scripts/mla.py model --project playground-series-s5e11 \
-    --model-template dev-gpu \
+    --model-template gpu-dev-5m \
     --auto-submit
 
 # 3. Submit/fetch can be run later if needed
@@ -275,6 +278,52 @@ IGNORED_COLUMNS = ["PassengerId"]  # Always dropped before training
 SUBMISSION_PROBAS = False          # False → send class labels (e.g., accuracy), True → send probabilities (e.g., ROC AUC)
 ```
 
+## Template Naming Convention
+
+All model and preprocess templates follow the pattern: `{compute}-{variant}-{time}[-{special}]`
+
+### Format Components
+
+- **`{compute}`**: Hardware type
+  - `cpu` - CPU-only training
+  - `gpu` - GPU-accelerated training
+
+- **`{variant}`**: Quality/purpose preset
+  - `fast` - Quick smoke tests (< 5 minutes, XGBoost only)
+  - `dev` - Development iteration (5-10 minutes)
+  - `best` - Production quality (1-8 hours)
+  - `extreme` - Maximum quality (24+ hours, requires confirmation)
+
+- **`{time}`**: Time limit
+  - `1m`, `5m` - Minutes (60s, 300s)
+  - `1h`, `2h`, `8h` - Hours (3600s, 7200s, 28800s)
+  - `24h` - 24 hours (86400s)
+
+- **`{special}`**: Optional suffix for specialized templates
+  - `fe##` - Feature engineering variant (e.g., `fe11`, `fe01`)
+  - `av` - AutoGluon Variant weights
+  - `av-gbm`, `av-xgb`, `av-cat` - AV with specific models
+  - `tier1`, `stable` - Custom experiment identifiers
+
+### Examples
+
+- `cpu-fast-1m` - 1-minute CPU smoke test
+- `gpu-dev-5m` - 5-minute GPU development run
+- `cpu-best-1h` - 1-hour CPU production training
+- `gpu-extreme-24h` - 24-hour GPU extreme quality
+- `cpu-best-2h-fe11` - 2-hour CPU with feature engineering variant 11
+- `cpu-dev-5m-av-gbm` - 5-minute CPU with AV weights, GBM only
+
+### Usage
+
+```bash
+# List available templates
+uv run python scripts/mla.py model --project X --model-template list
+
+# Use a template
+uv run python scripts/mla.py model --project X --model-template gpu-dev-5m
+```
+
 ## File Path Conventions
 
 -   All scripts use **absolute imports from project root**
@@ -343,7 +392,7 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 ```bash
 # Model command with auto-submit fetches score automatically
 uv run python scripts/mla.py model --project playground-series-s5e11 \
-    --model-template dev-gpu \
+    --model-template gpu-dev-5m \
     --auto-submit \
     --wait-seconds 45
 ```
@@ -405,9 +454,9 @@ See `scripts/README_KAGGLE.md` for details.
     -   Verify logged into Kaggle in that Chrome instance
     -   Use `--skip-score-fetch` to skip automation
 8.  **Template confusion** → Wrong compute resources
-    -   `fast-cpu` is XGBoost-only smoke test (60s), not for final submissions
-    -   Use `dev-{cpu,gpu}` for iteration, `best-{cpu,gpu}` for serious runs
-    -   `extreme-gpu` requires confirmation if dataset >30k rows
+    -   `cpu-fast-1m` is XGBoost-only smoke test (60s), not for final submissions
+    -   Use `cpu-dev-5m` or `gpu-dev-5m` for iteration, `cpu-best-1h` or `gpu-best-1h` for serious runs
+    -   `gpu-extreme-24h` requires confirmation if dataset >30k rows
 9.  **`mla init` without Kaggle API** → Download fails
     -   Ensure `~/.kaggle/kaggle.json` exists and has correct permissions (chmod 600)
     -   Check competition slug is correct (use exact name from Kaggle URL)
@@ -433,11 +482,11 @@ Rapid validation relies on shared templates:
 ```bash
 # Smoke test in ~60s (XGBoost only) before committing heavier compute
 uv run python scripts/mla.py model --project <proj> \
-    --model-template fast-cpu --skip-submit
+    --model-template cpu-fast-1m --skip-submit
 ```
 
 **Quality gates:**
--   Use `dev-*` or `best-*` templates for longer jobs
+-   Use `cpu-dev-5m`, `gpu-dev-5m`, `cpu-best-1h`, or `gpu-best-1h` templates for longer jobs
 -   Compare local CV in experiment's `state.json`
 -   Block merges when metrics deviate by >±0.002 ROC-AUC/RMSE
 -   Block when leaderboard trend in `submissions/submissions.json` regresses

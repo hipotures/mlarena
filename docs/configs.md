@@ -1,9 +1,8 @@
 # Configuration Files
 
 **Related Documentation:**
-- [CLAUDE.md](../CLAUDE.md) - Main repository guide with workflow examples
-- [OPTUNA_GUIDE.md](OPTUNA_GUIDE.md) - Hyperparameter tuning guide
-- [template_system_redesign.md](template_system_redesign.md) - Template system design
+- [MLA_WORKFLOW_GUIDE.md](MLA_WORKFLOW_GUIDE.md) - Main workflow guide with practical examples
+- [ARCHITECTURE.md](ARCHITECTURE.md) - MLArena architecture overview
 
 ---
 
@@ -45,8 +44,8 @@ templates:
 #### Top Level
 
 - **`<template-name>`** (string): Unique identifier for the template
-  - Used with `--model-template` flag in `ml_runner.py`
-  - Convention: `{compute}-{variant}` (e.g., `best-cpu-fe11`, `dev-gpu`, `exp01-tier1`)
+  - Used with `--model-template` flag in `mla.py`
+  - Convention: `{compute}-{variant}-{time}[-{special}]` (e.g., `cpu-best-1h-fe11`, `gpu-dev-5m`, `cpu-fast-1m-tier1`)
 
 - **`model`** (string): Python module name from `code/models/`
   - Must exist as `code/models/<model>.py`
@@ -143,7 +142,7 @@ Preprocessing configuration for feature engineering pipelines:
 #### 1. Basic CPU Template
 
 ```yaml
-best-cpu:
+cpu-best-1h:
   model: autogluon_baseline
   config:
     hyperparameters:
@@ -157,7 +156,7 @@ best-cpu:
 #### 2. Feature Engineering Template
 
 ```yaml
-best-cpu-fe11:
+cpu-best-2h-fe11:
   model: autogluon_features_11
   config:
     hyperparameters:
@@ -173,7 +172,7 @@ best-cpu-fe11:
 #### 3. GPU Development Template
 
 ```yaml
-dev-gpu:
+gpu-dev-5m:
   model: autogluon_baseline
   config:
     hyperparameters:
@@ -233,7 +232,7 @@ tabicl-full:
 For fast experiments during development:
 
 ```yaml
-fast-cpu:
+cpu-fast-1m:
   model: autogluon_baseline
   config:
     hyperparameters:
@@ -249,7 +248,7 @@ fast-cpu:
 When specific models crash or are too slow:
 
 ```yaml
-best-cpu-stable:
+cpu-best-1h-stable:
   model: autogluon_baseline
   config:
     hyperparameters:
@@ -268,7 +267,7 @@ Systematic feature exploration:
 
 ```yaml
 # Baseline features
-best-cpu-fe00:
+cpu-best-1h-fe00:
   model: autogluon_features_00
   config:
     hyperparameters:
@@ -277,7 +276,7 @@ best-cpu-fe00:
       use_gpu: false
 
 # Variant 1: Add interaction terms
-best-cpu-fe01:
+cpu-best-1h-fe01:
   model: autogluon_features_01
   config:
     hyperparameters:
@@ -286,7 +285,7 @@ best-cpu-fe01:
       use_gpu: false
 
 # Variant 2: Add polynomial features
-best-cpu-fe02:
+cpu-best-1h-fe02:
   model: autogluon_features_02
   config:
     hyperparameters:
@@ -297,46 +296,56 @@ best-cpu-fe02:
 
 ### Running Templates
 
-#### Via Experiment Manager (Recommended)
+#### Via MLArena (Recommended)
 
 ```bash
-uv run python scripts/experiment_manager.py model \
+uv run python scripts/mla.py model \
     --project <project> \
-    --template best-cpu-fe11 \
+    --model-template cpu-best-2h-fe11 \
     --auto-submit \
     --wait-seconds 45
 ```
 
-#### Via ML Runner (Direct)
+#### Direct Module Invocation
 
 ```bash
-uv run python scripts/ml_runner.py \
+# Run specific module with template
+uv run python scripts/mla.py model \
     --project <project> \
-    --template exp01-tier1 \
-    --auto-submit
+    --model-template cpu-dev-5m-tier1
+
+# With preprocessing template
+uv run python scripts/mla.py model \
+    --project <project> \
+    --model-template gpu-dev-5m \
+    --preprocess-template baseline
 ```
 
-#### Via AutoGluon Runner (Legacy)
-
-```bash
-uv run python scripts/autogluon_runner.py \
-    --project <project> \
-    --template dev-gpu
-```
-
-**Note**: `autogluon_runner.py` has limited template support compared to `ml_runner.py`.
+**Note**: MLArena (`mla.py`) is the unified entry point. Legacy runners (`ml_runner.py`, `autogluon_runner.py`) have been deprecated.
 
 ### Template Naming Conventions
 
-- **`fast-*`**: Quick smoke tests (< 5 minutes)
-- **`dev-*`**: Development iteration (5-10 minutes)
-- **`best-*`**: Production quality (1-2 hours)
-- **`extreme-*`**: Maximum quality (24+ hours)
-- **`time8-*`**: 8-hour training jobs
-- **`*-cpu`**: CPU-only training
-- **`*-gpu`**: GPU-accelerated training
-- **`*-fe##`**: Feature engineering variant number
-- **`exp##-*`**: Numbered experiment series
+Format: `{compute}-{variant}-{time}[-{special}]`
+
+**Compute prefix:**
+- `cpu-*`: CPU-only training
+- `gpu-*`: GPU-accelerated training
+
+**Variant:**
+- `fast`: Quick smoke tests (< 5 minutes)
+- `dev`: Development iteration (5-10 minutes)
+- `best`: Production quality (1-8 hours)
+- `extreme`: Maximum quality (24+ hours)
+
+**Time:**
+- `1m`, `5m`: Minutes (60s, 300s)
+- `1h`, `2h`, `8h`: Hours (3600s, 7200s, 28800s)
+- `24h`: 24 hours (86400s)
+
+**Special (optional):**
+- `fe##`: Feature engineering variant number (e.g., `fe11`)
+- `av`, `av-gbm`, `av-xgb`: AutoGluon Variant weights with specific models
+- `tier1`, `stable`: Custom experiment identifiers
 
 ### Validation
 

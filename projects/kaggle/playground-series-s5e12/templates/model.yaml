@@ -34,7 +34,7 @@ templates:
       hyperparameters:
         included_model_types: ["CAT"]
 
-  best-1h-av-gbm:
+  cpu-best-1h-av-gbm:
     preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
@@ -44,7 +44,7 @@ templates:
       hyperparameters:
         included_model_types: ["GBM"]
 
-  best-1h-av-xgb:
+  cpu-best-1h-av-xgb:
     preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
@@ -54,7 +54,7 @@ templates:
       hyperparameters:
         included_model_types: ["XGB"]
 
-  best-3h-av-cat:
+  cpu-best-3h-av-cat:
     preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:
@@ -64,7 +64,7 @@ templates:
       hyperparameters:
         included_model_types: ["CAT"]
 
-  best-8h-av-boost:
+  cpu-best-8h-av-boost:
     preprocess_template: av_weights_best_boost
     model: autogluon_av_weights
     config:

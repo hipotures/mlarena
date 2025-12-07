@@ -46,9 +46,11 @@ class ModuleEntry:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ModuleEntry":
+        # Handle legacy state.json that might not have 'name' field
+        # Infer name from dict key if missing
         return cls(
-            name=data["name"],
-            status=data["status"],
+            name=data.get("name", "unknown"),
+            status=data.get("status", "pending"),
             started_at=data.get("started_at"),
             finished_at=data.get("finished_at"),
             pid=data.get("pid"),
@@ -241,7 +243,11 @@ class ExperimentState:
                         existing = json.loads(self.state_path.read_text())
                         existing_modules = existing.get("modules", {})
                         payload["modules"] = {**existing_modules, **payload["modules"]}
-                        self.modules = {k: ModuleEntry.from_dict(v) for k, v in payload["modules"].items()}
+                        # Use dict key as name if not present in data
+                        self.modules = {
+                            k: ModuleEntry.from_dict({**v, "name": v.get("name", k)})
+                            for k, v in payload["modules"].items()
+                        }
                     except json.JSONDecodeError:
                         pass
                 self.state_path.write_text(json.dumps(payload, indent=2))

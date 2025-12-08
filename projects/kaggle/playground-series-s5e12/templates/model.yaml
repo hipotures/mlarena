@@ -73,3 +73,44 @@ templates:
       use_gpu: false
       hyperparameters:
         included_model_types: ["GBM", "XGB", "CAT"]
+
+  # AV Weights Mix templates (with original dataset merging)
+  cpu-dev-5m-av-mix:
+    preprocess_template: av_weights_mix
+    model: autogluon_av_weights
+    config:
+      preset: medium
+      time_limit: 300
+      use_gpu: false
+      hyperparameters: {}
+
+  cpu-dev-5m-av-mix-gbm:
+    preprocess_template: av_weights_mix
+    included_model_types: ["GBM"]
+    config:
+      preset: medium
+      time_limit: 300
+      use_gpu: false
+
+  cpu-best-1h-av-mix-gbm:
+    preprocess_template: av_weights_mix
+    included_model_types: ["GBM"]
+    config:
+      preset: best
+      time_limit: 3600
+      use_gpu: false
+
+  cpu-best-8h-av-mix-boost:
+    preprocess_template: av_weights_mix_best
+    included_model_types: ["GBM", "XGB", "CAT"]
+    config:
+      preset: best
+      time_limit: 28800
+      use_gpu: false
+
+  cpu-dev-10m-av-mix-union:
+    preprocess_template: av_weights_mix_union
+    config:
+      preset: medium
+      time_limit: 600
+      use_gpu: false

@@ -61,6 +61,9 @@ def _load_processed_or_raw(context, config, preprocess_template: str | None = No
 
             if weights_path_str:
                 weights_path = Path(weights_path_str)
+                # Handle both absolute and relative paths
+                if not weights_path.is_absolute():
+                    weights_path = context.project_root / weights_path
                 if weights_path.exists():
                     sample_weight = pd.read_csv(weights_path)
     else:

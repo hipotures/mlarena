@@ -53,3 +53,48 @@ templates:
       # AV will train on: physical_activity_minutes_per_week, cholesterol_total, ldl_cholesterol, triglycerides
       output_path: train_av_weights_topdrift.csv
       model_output_dir: av_model_topdrift
+
+  av_weights_mix:
+    module: av_weights_mix
+    cache: true
+    config:
+      orig_path: data/diabetes_dataset.csv  # Relative to project root
+      mode: align  # Keep only competition columns
+      source_flag: null  # No source flag
+      time_limit: 300
+      presets: medium_quality_faster_train
+      included_model_types: null
+      drop_columns: []
+      output_filename: train_av_weights.csv
+      model_dir: av_model_mix
+      keep_extra_weights: false
+
+  av_weights_mix_best:
+    module: av_weights_mix
+    cache: true
+    config:
+      orig_path: data/diabetes_dataset.csv
+      mode: align
+      source_flag: null
+      time_limit: 28800  # 8h
+      presets: best_quality
+      included_model_types: ["GBM", "CAT", "XGB"]
+      drop_columns: []
+      output_filename: train_av_weights.csv
+      model_dir: av_model_mix_best
+      keep_extra_weights: false
+
+  av_weights_mix_union:
+    module: av_weights_mix
+    cache: true
+    config:
+      orig_path: data/diabetes_dataset.csv
+      mode: union  # Merge all columns
+      source_flag: is_original  # Add source flag column
+      time_limit: 600
+      presets: medium_quality_faster_train
+      included_model_types: null
+      drop_columns: []
+      output_filename: train_av_weights.csv
+      model_dir: av_model_mix_union
+      keep_extra_weights: false

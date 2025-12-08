@@ -421,6 +421,194 @@ create_submission(predictions, test['id'], model_name="autogluon-baseline",
                   local_cv_score=best_score, notes="...", config={...})
 ```
 
+## Adversarial Validation with Dataset Merging
+
+### Overview
+
+The `av_weights_mix` preprocessing module combines synthetic competition data with original datasets to compute adversarial validation weights. This helps models focus on samples that are most similar to the test set distribution.
+
+**Key Features:**
+- **Two modes**: `align` (competition columns only) or `union` (merge all columns)
+- **Sample weights**: Computed via adversarial validation (train vs test classifier)
+- **Original data integration**: Merges synthetic + original datasets before AV training
+- **Automatic weight transformation**: p/(1-p) ratio, clipped and normalized
+
+### Quick Start
+
+```bash
+# 1. Run preprocessing with dataset merging
+uv run python scripts/mla.py preprocess --project playground-series-s5e12 \
+    --preprocess-template av_weights_mix
+
+# 2. Train model with AV weights
+uv run python scripts/mla.py model --project playground-series-s5e12 \
+    --model-template cpu-dev-5m-av-mix-gbm \
+    --skip-git
+
+# 3. Full pipeline (auto-flow)
+uv run python scripts/mla.py --project playground-series-s5e12 \
+    --preprocess-template av_weights_mix \
+    --model-template cpu-best-1h-av-mix-gbm
+```
+
+### Preprocessing Templates
+
+**Available templates** (`templates/preprocess.yaml`):
+
+```yaml
+av_weights_mix:           # 5min, align mode, medium preset
+av_weights_mix_best:      # 8h, align mode, best preset + boost models
+av_weights_mix_union:     # 10min, union mode with source flag
+```
+
+**Template structure:**
+```yaml
+av_weights_mix:
+  module: av_weights_mix
+  cache: true
+  config:
+    orig_path: data/diabetes_dataset.csv  # Path to original dataset
+    mode: align                            # "align" or "union"
+    source_flag: null                      # Optional: "is_original"
+    time_limit: 300                        # AV model training time
+    presets: medium_quality_faster_train   # AutoGluon preset
+    included_model_types: null             # e.g., ["GBM", "CAT", "XGB"]
+    drop_columns: []                       # Extra columns to drop
+    output_filename: train_av_weights.csv
+    model_dir: av_model_mix
+    keep_extra_weights: false              # Clip to original train length
+```
+
+### Mode Comparison
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `align` | Keep only competition columns; fill missing with NA | **Default**: Safer, prevents data leakage |
+| `union` | Merge all columns from train/test/original; fill missing with NA | Advanced: When original has useful extra features |
+
+**Source flag** (union mode only):
+- Set `source_flag: is_original` to add binary column (0=synthetic, 1=original)
+- Helps model distinguish data sources during training
+
+### Model Templates
+
+**AV Mix templates** automatically link to preprocessing:
+
+```yaml
+cpu-dev-5m-av-mix-gbm:
+  preprocess_template: av_weights_mix  # Links to preprocessing
+  model: autogluon_av_weights
+  config:
+    preset: medium
+    time_limit: 300
+    included_model_types: ["GBM"]
+```
+
+**Available model templates:**
+- `cpu-dev-5m-av-mix` - 5min, all models
+- `cpu-dev-5m-av-mix-gbm` - 5min, GBM only
+- `cpu-best-1h-av-mix-gbm` - 1h, GBM only, best preset
+- `cpu-best-8h-av-mix-boost` - 8h, boost models (GBM/XGB/CAT)
+- `cpu-dev-10m-av-mix-union` - 10min, union mode
+
+### How It Works
+
+1. **Load datasets**: Synthetic train/test + original dataset
+2. **Column alignment**:
+   - `align`: Reindex original to match competition columns
+   - `union`: Merge all unique columns across datasets
+3. **Concatenate**: Combine synthetic train + original → `train_concat`
+4. **Train AV classifier**: Binary model (is_test?) on train_concat vs test
+5. **Compute weights**: `weight = p/(1-p)` where p = P(sample looks like test)
+6. **Transform**: Clip weights to 2.0, normalize to mean=1.0
+7. **Save**: Weights CSV saved to `experiments/pre-{template}/artifacts/preprocess/`
+8. **State**: Weights path stored in state.json for model module
+
+### Output Example
+
+**Weights CSV** (`train_av_weights.csv`):
+```csv
+id,av_prob
+0,1.2534
+1,0.8821
+2,1.5023
+...
+```
+
+**State JSON** (`experiments/pre-av_weights_mix/state.json`):
+```json
+{
+  "modules": {
+    "preprocess": {
+      "status": "completed",
+      "custom_module_state": {
+        "weights_path": "experiments/pre-av_weights_mix/artifacts/preprocess/train_av_weights.csv",
+        "mode": "align",
+        "orig_rows": 5000,
+        "train_rows": 10000,
+        "av_stats": {
+          "mean": 1.0,
+          "min": 0.5123,
+          "max": 2.0,
+          "std": 0.3421
+        }
+      }
+    }
+  }
+}
+```
+
+### Troubleshooting
+
+**Error: "Original dataset not found"**
+- Check `orig_path` in template config
+- Path is relative to project root (e.g., `data/diabetes_dataset.csv`)
+- Verify file exists: `ls projects/kaggle/<project>/data/`
+
+**Error: "Module 'adversarial_validation' not found"**
+- Ensure `code/adversarial_validation.py` exists in project
+- Copy from playground-series-s5e12 if needed
+- Function required: `compute_adversarial_weights()`
+
+**Weights not loaded by model**
+- Verify `preprocess_template` set in model template
+- Check state.json contains `weights_path`
+- Model must use `autogluon_av_weights` (not plain `autogluon`)
+
+**Cache not working**
+- Preprocessing reruns every time despite `cache: true`
+- Delete `experiments/pre-{template}/` to force fresh run
+- Or use `--force` flag to bypass cache
+
+### Advanced Usage
+
+**Custom weight transformation:**
+Edit `av_weights_mix.py`:
+```python
+# Current: p/(1-p) -> clip(2.0) -> normalize
+weights = p / (1 - p)
+weights = weights.clip(upper=2.0)
+weights = weights / weights.mean()
+
+# Custom: Square root transformation
+weights = np.sqrt(p / (1 - p))
+weights = weights / weights.mean()
+```
+
+**Keep weights for original dataset rows:**
+```yaml
+av_weights_mix_full:
+  module: av_weights_mix
+  config:
+    # ... other config ...
+    keep_extra_weights: true  # Don't clip to train length
+```
+
+**Feature drift detection** (future enhancement):
+- Analyze each feature for train-test distribution shift
+- Use only high-drift features for AV model
+- See plan file for implementation ideas
+
 ## Data Management
 
 **NEVER commit:**

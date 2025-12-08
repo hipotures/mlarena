@@ -1,0 +1,111 @@
+{
+  "experiment_id": "pre-av_weights_mix",
+  "project": "playground-series-s5e12",
+  "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
+  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-av_weights_mix",
+  "created_at": "2025-12-08T00:03:52.425254+00:00",
+  "pipeline": {
+    "name": "default",
+    "modules": []
+  },
+  "modules": {
+    "preprocess": {
+      "name": "preprocess",
+      "status": "completed",
+      "started_at": "2025-12-08T00:07:58.516870+00:00",
+      "finished_at": "2025-12-08T00:14:44.546437+00:00",
+      "pid": 147957,
+      "invocation": {
+        "preprocess_template": "av_weights_mix",
+        "force": false
+      },
+      "payload": {
+        "train_processed": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-av_weights_mix/artifacts/preprocess/train_processed.csv",
+        "test_processed": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-av_weights_mix/artifacts/preprocess/test_processed.csv",
+        "ignored_columns": [
+          "id"
+        ],
+        "template": "av_weights_mix",
+        "cached": false,
+        "shapes": {
+          "train_before": [
+            700000,
+            26
+          ],
+          "train_after": [
+            700000,
+            26
+          ],
+          "test_before": [
+            300000,
+            25
+          ],
+          "test_after": [
+            300000,
+            25
+          ]
+        },
+        "custom_module_state": {
+          "version": "1.0",
+          "weights_path": "experiments/pre-av_weights_mix/artifacts/preprocess/train_av_weights.csv",
+          "mode": "align",
+          "source_flag": null,
+          "orig_rows": 100000,
+          "train_rows": 700000,
+          "total_av_rows": 800000,
+          "output_rows": 700000,
+          "keep_extra_weights": false,
+          "av_stats": {
+            "mean": 1.0260827541351318,
+            "min": 0.013410361483693123,
+            "max": 5.917306900024414,
+            "std": 0.4385184943675995
+          },
+          "config": {
+            "presets": "medium_quality_faster_train",
+            "time_limit": 300,
+            "included_model_types": null,
+            "drop_columns": [
+              "id"
+            ]
+          }
+        }
+      },
+      "error": null
+    }
+  },
+  "run": {
+    "argv": [
+      "preprocess",
+      "--project",
+      "playground-series-s5e12",
+      "--preprocess-template",
+      "av_weights_mix"
+    ],
+    "cli_args": {
+      "show_payload": false,
+      "project": "playground-series-s5e12",
+      "model_template": "baseline",
+      "preprocess_template": "av_weights_mix",
+      "force": false,
+      "skip_submit": false,
+      "skip_git": false,
+      "wait_seconds": 30,
+      "command": "preprocess",
+      "experiment_id": null,
+      "skip_deps": false,
+      "cache": false
+    }
+  },
+  "git": {
+    "commit": "1bc8aada531db8949564699a3a3e029f2bdd7f08",
+    "branch": "main",
+    "is_dirty": true,
+    "dirty_files": [
+      "M ../../../AGENTS.md",
+      " M templates/model.yaml",
+      " M templates/preprocess.yaml",
+      "?? code/preprocessing/av_weights_mix.py"
+    ]
+  }
+}

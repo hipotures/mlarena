@@ -194,7 +194,7 @@ def _print_training_summary(
 class ModelModule(BaseModule):
     name = "model"
     description = "Train model"
-    dependencies = {"preprocess"}  # Optional preprocessing in separate exp (pre-{template})
+    dependencies = set()  # No automatic dependencies - preprocessing is optional and loaded by name
 
     @classmethod
     def register_cli_args(cls, parser) -> None:

@@ -30,3 +30,12 @@ templates:
       method: select_k_best
       k: 8
       score_func: f_classif
+
+  # Native categorical handling for boost algorithms
+  categorical_boost:
+    module: categorical_encoder
+    cache: true
+    config:
+      max_cardinality: 50
+      exclude_text_type: false
+      include_numeric_categories: true

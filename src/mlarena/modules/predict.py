@@ -72,8 +72,14 @@ class PredictModule(BaseModule):
             submission_df["id"] = range(len(preds))
         submission_df[getattr(config, "TARGET_COLUMN", "target")] = preds
 
-        suffix = self.invocation_params.get("predict_suffix", "")
-        fname = f"submission{('-' + suffix) if suffix else ''}.csv"
+        # Generate filename with timestamp (like old code)
+        from datetime import datetime
+        suffix = self.invocation_params.get("predict_suffix")
+        if suffix:
+            fname = f"submission-{suffix}.csv"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            fname = f"submission-{timestamp}.csv"
         submission_path = artifact_dir / fname
         submission_df.to_csv(submission_path, index=False)
 
@@ -92,12 +98,11 @@ class PredictModule(BaseModule):
             # Best-effort; creation is optional here.
             pass
 
-        # Print next steps
+        # Print next steps (footer handled by pipeline)
         from rich.console import Console
         from mlarena.core.module import print_next_steps
 
         console = Console()
-        console.print(f"\n[bold green]✓[/bold green] Predictions saved: [cyan]{submission_path.relative_to(self.context.project_root)}[/cyan]")
         print_next_steps("predict", self.context.project_name, self.context.experiment_id, console)
 
         return ModuleResult(

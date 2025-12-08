@@ -119,12 +119,6 @@ class SubmitModule(BaseModule):
         skip_submit = bool(self.invocation_params.get("skip_submit", False))
 
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")
-        console.print(f"File: {submission_file.name}")
-        console.print(f"Competition: {competition}")
-        if feature_count is not None:
-            console.print(f"Features: {feature_count}")
-        if self.context.experiment_id:
-            console.print(f"Experiment: {self.context.experiment_id}")
 
         if skip_submit:
             console.print("\n[yellow]⊘ Skipping submission (--skip-submit)[/yellow]")

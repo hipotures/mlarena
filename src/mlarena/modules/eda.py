@@ -112,29 +112,7 @@ class EDAModule(BaseModule):
         # Display Rich output
         console = Console(force_terminal=True)
 
-        # Dataset info table
-        data_table = Table(title="Dataset Information", show_header=True)
-        data_table.add_column("Dataset", style="cyan")
-        data_table.add_column("Rows", style="green", justify="right")
-        data_table.add_column("Columns", style="green", justify="right")
-        data_table.add_row("Train", str(len(train_df)), str(len(train_df.columns)))
-        data_table.add_row("Test", str(len(test_df)), str(len(test_df.columns)))
-        console.print(data_table)
-
-        # Target column info
-        if target_analysis:
-            console.print(f"\n[bold]Target Column:[/bold] [cyan]{target_col}[/cyan]")
-            console.print(f"  Unique values: {target_analysis['unique']}")
-            console.print(f"  Null values:   {target_analysis['nulls']}")
-            console.print(f"  Sample:        {target_analysis['sample']}")
-
-        # Generated files
-        console.print(f"\n[bold green]✓[/bold green] EDA profiles generated:")
-        console.print(f"  Train: [cyan]{train_html.relative_to(self.context.project_root)}[/cyan]")
-        console.print(f"  Test:  [cyan]{test_html.relative_to(self.context.project_root)}[/cyan]")
-        console.print(f"  Summary: [cyan]{summary_path.relative_to(self.context.project_root)}[/cyan]")
-
-        # Print next steps
+        # Print next steps (footer is handled by pipeline)
         from mlarena.core.module import print_next_steps
         print_next_steps("eda", self.context.project_name, self.context.experiment_id, console)
 
@@ -144,6 +122,8 @@ class EDAModule(BaseModule):
                 "summary_file": str(summary_path),
                 "train_profile": train_summary,
                 "test_profile": test_summary,
+                "train_profile_path": str(train_html),
+                "test_profile_path": str(test_html),
                 "target": target_analysis,
             },
             artifacts=[summary_path, train_html, train_json, test_html, test_json],

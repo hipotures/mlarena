@@ -341,6 +341,14 @@ class ModelModule(BaseModule):
                 error=f"template_not_found: {template_name}",
             )
 
+        # Flatten config dict into template_cfg for backward compatibility
+        if "config" in template_cfg:
+            config_dict = template_cfg.pop("config")
+            # Merge config_dict into template_cfg, but don't override existing top-level keys
+            for key, value in config_dict.items():
+                if key not in template_cfg:
+                    template_cfg[key] = value
+
         # Extract top-level fit args from template
         if not self.invocation_params.get("preset"):
             preset = template_cfg.get("preset") or template_cfg.get("presets") or preset
@@ -474,6 +482,8 @@ class ModelModule(BaseModule):
 
             # Get hyperparameters from template (now properly structured)
             hyperparams: Dict[str, Any] = template_cfg.get("hyperparameters", {})
+            console.print(f"[yellow]DEBUG template_cfg keys: {list(template_cfg.keys())}[/yellow]")
+            console.print(f"[yellow]DEBUG template_cfg: {template_cfg}[/yellow]")
 
             ag_args_fit = {}
             if use_gpu_param is not None:
@@ -489,11 +499,14 @@ class ModelModule(BaseModule):
             # Add top-level included_model_types if present (fit() parameter, not hyperparameters)
             if "included_model_types" in template_cfg:
                 fit_kwargs["included_model_types"] = template_cfg["included_model_types"]
+                console.print(f"[cyan]Restricting to model types: {template_cfg['included_model_types']}[/cyan]")
 
             # Add top-level excluded_model_types if present (fit() parameter, not hyperparameters)
             if "excluded_model_types" in template_cfg:
                 fit_kwargs["excluded_model_types"] = template_cfg["excluded_model_types"]
+                console.print(f"[cyan]Excluding model types: {template_cfg['excluded_model_types']}[/cyan]")
 
+            console.print(f"[dim]fit_kwargs: {fit_kwargs}[/dim]")
             predictor.fit(train_df, **fit_kwargs)
 
             lb_path = artifact_dir / "leaderboard.csv"

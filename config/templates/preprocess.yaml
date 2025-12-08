@@ -39,3 +39,16 @@ templates:
       max_cardinality: 50
       exclude_text_type: false
       include_numeric_categories: true
+      enable_auto_detect: true
+      auto_detect_threshold: 25
+
+  # Auto-detect only (no EDA dependency)
+  categorical_auto:
+    module: categorical_encoder
+    cache: true
+    config:
+      max_cardinality: 50
+      exclude_text_type: false
+      include_numeric_categories: false  # Skip EDA numeric detection
+      enable_auto_detect: true
+      auto_detect_threshold: 25

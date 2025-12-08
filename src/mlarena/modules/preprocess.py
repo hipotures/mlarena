@@ -251,11 +251,7 @@ class PreprocessModule(BaseModule):
         if custom_preprocess_state:
             payload["custom_module_state"] = custom_preprocess_state
 
-        # Print next steps only if last in chain (footer is handled by pipeline)
-        is_last_in_chain = self.invocation_params.get("is_last_in_chain", True)  # Default True for backwards compatibility
-        if is_last_in_chain:
-            from mlarena.core.module import print_next_steps
-            print_next_steps("preprocess", self.context.project_name, self.context.experiment_id, console)
+        # Next steps will be printed by pipeline after footer (only for last in chain)
 
         return ModuleResult(
             success=True,

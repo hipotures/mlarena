@@ -486,6 +486,14 @@ class ModelModule(BaseModule):
                 "hyperparameters": hyperparams or None,
             }
 
+            # Add top-level included_model_types if present (fit() parameter, not hyperparameters)
+            if "included_model_types" in template_cfg:
+                fit_kwargs["included_model_types"] = template_cfg["included_model_types"]
+
+            # Add top-level excluded_model_types if present (fit() parameter, not hyperparameters)
+            if "excluded_model_types" in template_cfg:
+                fit_kwargs["excluded_model_types"] = template_cfg["excluded_model_types"]
+
             predictor.fit(train_df, **fit_kwargs)
 
             lb_path = artifact_dir / "leaderboard.csv"

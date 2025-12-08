@@ -144,15 +144,16 @@ class TemplateLoader:
             except Exception:
                 pass
 
-        # Extract config from nested structure, preserving top-level "model" field
+        # Extract config from nested structure, preserving top-level fields
         if "config" in template_data:
             config = template_data["config"]
             # Ensure config is a dict before copying
             if isinstance(config, dict):
                 result = config.copy()
-                # Preserve top-level "model" field if exists
-                if "model" in template_data:
-                    result["model"] = template_data["model"]
+                # Preserve ALL top-level fields (not just "model")
+                for key, value in template_data.items():
+                    if key != "config":  # Don't re-add config itself
+                        result[key] = value
                 return result
             # If config is not a dict, return as-is
             return config

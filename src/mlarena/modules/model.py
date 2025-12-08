@@ -342,12 +342,19 @@ class ModelModule(BaseModule):
             )
 
         # Flatten config dict into template_cfg for backward compatibility
+        console.print(f"[yellow]BEFORE flatten - template_cfg keys: {list(template_cfg.keys())}[/yellow]")
+        console.print(f"[yellow]BEFORE flatten - included_model_types present: {'included_model_types' in template_cfg}[/yellow]")
         if "config" in template_cfg:
             config_dict = template_cfg.pop("config")
+            console.print(f"[yellow]Config dict keys: {list(config_dict.keys())}[/yellow]")
             # Merge config_dict into template_cfg, but don't override existing top-level keys
             for key, value in config_dict.items():
                 if key not in template_cfg:
                     template_cfg[key] = value
+        console.print(f"[yellow]AFTER flatten - template_cfg keys: {list(template_cfg.keys())}[/yellow]")
+        console.print(f"[yellow]AFTER flatten - included_model_types in template_cfg: {'included_model_types' in template_cfg}[/yellow]")
+        if "included_model_types" in template_cfg:
+            console.print(f"[green]✓ included_model_types value: {template_cfg['included_model_types']}[/green]")
 
         # Extract top-level fit args from template
         if not self.invocation_params.get("preset"):

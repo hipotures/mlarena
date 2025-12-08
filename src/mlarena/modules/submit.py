@@ -224,11 +224,7 @@ class SubmitModule(BaseModule):
             marker = artifact_dir / "submit_success.txt"
             marker.write_text(f"Submitted {submission_file} to {competition}")
 
-            # Print next steps
-            from mlarena.core.module import print_next_steps
-
             console.print(f"\n[bold green]✓[/bold green] Submitted to Kaggle: [cyan]{competition}[/cyan]")
-            print_next_steps("submit", self.context.project_name, self.context.experiment_id, console)
 
             return ModuleResult(
                 success=True,

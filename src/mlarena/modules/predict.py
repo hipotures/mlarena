@@ -98,13 +98,6 @@ class PredictModule(BaseModule):
             # Best-effort; creation is optional here.
             pass
 
-        # Print next steps (footer handled by pipeline)
-        from rich.console import Console
-        from mlarena.core.module import print_next_steps
-
-        console = Console()
-        print_next_steps("predict", self.context.project_name, self.context.experiment_id, console)
-
         return ModuleResult(
             success=True,
             payload={

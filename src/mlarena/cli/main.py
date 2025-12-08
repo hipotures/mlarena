@@ -414,9 +414,9 @@ def run_auto_flow(
         "force": force,
     })
 
-    # Run model (no dependencies)
+    # Run model (skip dependencies - preprocessing already completed)
     executor = PipelineExecutor({"model": model_module})
-    module_results = executor.run_module("model", force=force, skip_deps=False)
+    module_results = executor.run_module("model", force=force, skip_deps=True)
 
     result = module_results.get("model")
     results["model"] = result
@@ -457,7 +457,7 @@ def run_auto_flow(
     # Create single executor with all modules
     executor = PipelineExecutor(all_modules)
 
-    # Run each module in sequence (dependencies resolved automatically)
+    # Run each module in sequence (skip dependencies - model already completed)
     for module_name in remaining_modules:
         # Wait before fetch-score
         if module_name == "fetch-score" and wait_seconds > 0:
@@ -466,7 +466,7 @@ def run_auto_flow(
 
         # (header is now printed by pipeline)
 
-        module_results = executor.run_module(module_name, force=force, skip_deps=False)
+        module_results = executor.run_module(module_name, force=force, skip_deps=True)
 
         result = module_results.get(module_name)
         results[module_name] = result

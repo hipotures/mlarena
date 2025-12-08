@@ -189,15 +189,12 @@ def _print_training_summary(
     if leaderboard_path and leaderboard_path.exists():
         console.print(f"  Leaderboard: [cyan]{leaderboard_path.relative_to(project_root)}[/cyan]")
 
-    # Universal next steps based on dependency graph
-    print_next_steps("model", project_name, experiment_id, console)
-
 
 @ModuleRegistry.register
 class ModelModule(BaseModule):
     name = "model"
     description = "Train model"
-    dependencies = set()  # No dependencies - preprocessing is optional and in separate exp-{id}
+    dependencies = {"preprocess"}  # Optional preprocessing in separate exp (pre-{template})
 
     @classmethod
     def register_cli_args(cls, parser) -> None:

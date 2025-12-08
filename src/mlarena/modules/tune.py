@@ -19,7 +19,7 @@ from mlarena.utils.project import data_paths, load_project_config
 class TuneModule(BaseModule):
     name = "tune"
     description = "Hyperparameter tuning"
-    dependencies = {"preprocess"}
+    dependencies = {"model"}  # Tune requires trained model
 
     @classmethod
     def register_cli_args(cls, parser) -> None:

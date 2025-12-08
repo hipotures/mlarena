@@ -441,12 +441,9 @@ class PipelineExecutor:
                         console=console
                     )
 
-                    # Print next steps after footer (only for preprocessing when last in chain)
-                    if name == "preprocess":
-                        is_last_in_chain = module.invocation_params.get("is_last_in_chain", True)
-                        if is_last_in_chain:
-                            from mlarena.core.module import print_next_steps
-                            print_next_steps(name, module.context.project_name, module.context.experiment_id, console)
+                    # Print next steps after footer (for all modules)
+                    from mlarena.core.module import print_next_steps
+                    print_next_steps(name, module.context.project_name, module.context.experiment_id, console)
                 except Exception as e:
                     # Skip footer if there's an error
                     pass

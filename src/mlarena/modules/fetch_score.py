@@ -76,9 +76,6 @@ class FetchScoreModule(BaseModule):
             )
 
         # Score successfully fetched (footer will display it)
-        # Check for next steps (should be empty as this is typically the end of flow)
-        print_next_steps("fetch-score", self.context.project_name, self.context.experiment_id, console)
-
         return ModuleResult(
             success=True,
             payload={"score": score, "latest_submission": latest},

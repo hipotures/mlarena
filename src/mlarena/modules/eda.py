@@ -112,10 +112,6 @@ class EDAModule(BaseModule):
         # Display Rich output
         console = Console(force_terminal=True)
 
-        # Print next steps (footer is handled by pipeline)
-        from mlarena.core.module import print_next_steps
-        print_next_steps("eda", self.context.project_name, self.context.experiment_id, console)
-
         return ModuleResult(
             success=True,
             payload={

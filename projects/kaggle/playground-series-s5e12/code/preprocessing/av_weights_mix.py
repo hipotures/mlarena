@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
+from rich.console import Console
 
 from adversarial_validation import compute_adversarial_weights
 
@@ -93,18 +94,20 @@ def fit_transform(
             f"Please ensure the file exists or update 'orig_path' in template config."
         )
 
-    print(f"[av_weights_mix] Loading original dataset: {orig_path}")
+    console = Console(force_terminal=True)
+    orig_path_rel = orig_path.relative_to(project_root) if orig_path.is_relative_to(project_root) else orig_path
+    console.print(f"[bold cyan]Loading original dataset:[/bold cyan] {orig_path_rel}")
     orig_df = pd.read_csv(orig_path)
 
     # Build extra_df with IDs if missing
     if id_column not in orig_df.columns:
         start_id = train_df[id_column].max() + 1 if id_column in train_df.columns else 0
         orig_df[id_column] = range(start_id, start_id + len(orig_df))
-        print(f"[av_weights_mix] Added ID column to original dataset: {id_column}")
+        console.print(f"[bold cyan]Added ID column to original dataset:[/bold cyan] {id_column}")
 
     # Mode handling: align or union
     if mode == "align":
-        print(f"[av_weights_mix] Mode: align (keep competition columns only)")
+        console.print(f"[bold cyan]Mode:[/bold cyan] align (keep competition columns only)")
         # Keep only competition columns, fill missing with NA
         keep_cols: List[str] = [
             c for c in train_df.columns
@@ -112,7 +115,7 @@ def fit_transform(
         ]
         extra_df = orig_df.reindex(columns=keep_cols, fill_value=pd.NA)
     elif mode == "union":
-        print(f"[av_weights_mix] Mode: union (merge all columns)")
+        console.print(f"[bold cyan]Mode:[/bold cyan] union (merge all columns)")
         # Union of all columns
         union_cols = sorted(set(train_df.columns) | set(orig_df.columns) | set(test_df.columns))
         train_df = train_df.reindex(columns=union_cols, fill_value=pd.NA)
@@ -148,10 +151,10 @@ def fit_transform(
     model_dir.mkdir(parents=True, exist_ok=True)
     weights_output.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"[av_weights_mix] Training AV model...")
-    print(f"[av_weights_mix]   Train rows: {len(train_concat)} (synthetic: {train_len}, original: {len(extra_df)})")
-    print(f"[av_weights_mix]   Test rows: {len(test_df)}")
-    print(f"[av_weights_mix]   Preset: {presets}, Time limit: {time_limit}s")
+    console.print(f"[bold cyan]Training AV model...[/bold cyan]")
+    console.print(f"  Train rows: [cyan]{len(train_concat):,}[/cyan] (synthetic: {train_len:,}, original: {len(extra_df):,})")
+    console.print(f"  Test rows: [cyan]{len(test_df):,}[/cyan]")
+    console.print(f"  Preset: [cyan]{presets}[/cyan], Time limit: [cyan]{time_limit}s[/cyan]")
 
     # Compute adversarial weights
     av_df = compute_adversarial_weights(
@@ -176,11 +179,12 @@ def fit_transform(
     # Clip to original train length if requested
     if not keep_extra_weights:
         av_df = av_df.iloc[:train_len].reset_index(drop=True)
-        print(f"[av_weights_mix] Clipped weights to original train length: {len(av_df)} rows")
+        console.print(f"[bold cyan]Clipped weights to original train length:[/bold cyan] {len(av_df):,} rows")
 
     # Save weights
     av_df.to_csv(weights_output, index=False)
-    print(f"[av_weights_mix] Saved weights to: {weights_output}")
+    weights_output_rel = weights_output.relative_to(project_root) if weights_output.is_relative_to(project_root) else weights_output
+    console.print(f"[bold cyan]Saved weights to:[/bold cyan] {weights_output_rel}")
 
     # Build state dict
     state: Dict[str, Any] = {
@@ -207,8 +211,12 @@ def fit_transform(
         },
     }
 
-    print(f"[av_weights_mix] AV stats: mean={state['av_stats']['mean']:.4f}, "
-          f"min={state['av_stats']['min']:.4f}, max={state['av_stats']['max']:.4f}")
+    console.print(
+        f"[bold cyan]AV stats:[/bold cyan] "
+        f"mean=[cyan]{state['av_stats']['mean']:.4f}[/cyan], "
+        f"min=[cyan]{state['av_stats']['min']:.4f}[/cyan], "
+        f"max=[cyan]{state['av_stats']['max']:.4f}[/cyan]"
+    )
 
     # Return unchanged data + state
     return train_df.copy(), None if val_df is None else val_df.copy(), test_df.copy(), state

@@ -105,7 +105,7 @@ templates:
     included_model_types: ["GBM", "XGB", "CAT"]
     config:
       preset: best
-      time_limit: 28800
+      time_limit: 21600
       use_gpu: false
 
   cpu-dev-10m-av-mix-union:

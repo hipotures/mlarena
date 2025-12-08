@@ -15,7 +15,7 @@ templates:
     cache: true
     config:
       presets: best
-      time_limit: 28800  # 8h
+      time_limit: 21600
       drop_columns: [id]
       included_model_types: ["CAT", "GBM", "XGB"]
       output_path: train_av_weights.csv

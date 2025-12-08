@@ -64,10 +64,43 @@ class PreprocessModule(BaseModule):
         return df
 
     def _load_preprocessing_module(self, module_name: str):
-        """Dynamically load preprocessing module from code/preprocessing/{module_name}.py"""
-        module_path = self.context.project_root / "code" / "preprocessing" / f"{module_name}.py"
-        if not module_path.exists():
-            raise FileNotFoundError(f"Preprocessing module not found: {module_path}")
+        """
+        Dynamically load preprocessing module.
+
+        Search order:
+        1. Project-local: {project}/code/preprocessing/{module_name}.py
+        2. Global: config/code/preprocessing/{module_name}.py
+        """
+        # Repository root (resolve from this file's location)
+        from pathlib import Path as P
+        repo_root = P(__file__).resolve().parents[3]  # src/mlarena/modules/preprocess.py -> ../../.. -> repo root
+
+        local_path = self.context.project_root / "code" / "preprocessing" / f"{module_name}.py"
+        global_path = repo_root / "config" / "code" / "preprocessing" / f"{module_name}.py"
+
+        local_exists = local_path.exists()
+        global_exists = global_path.exists()
+
+        # Ambiguity detection
+        if local_exists and global_exists:
+            raise RuntimeError(
+                f"Ambiguous preprocessing module '{module_name}': exists in both\n"
+                f"  - project: {local_path}\n"
+                f"  - global:  {global_path}\n"
+                f"Remove one to resolve ambiguity."
+            )
+
+        # Select path
+        if local_exists:
+            module_path = local_path
+        elif global_exists:
+            module_path = global_path
+        else:
+            raise FileNotFoundError(
+                f"Preprocessing module '{module_name}' not found in:\n"
+                f"  - project: {local_path}\n"
+                f"  - global:  {global_path}"
+            )
 
         spec = importlib.util.spec_from_file_location(module_name, module_path)
         if not spec or not spec.loader:
@@ -82,11 +115,11 @@ class PreprocessModule(BaseModule):
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         config = self.context.config_module or load_project_config(self.context.project_root)
-        train_path, test_path = data_paths(config)
         template_name = self.invocation_params.get("preprocess_template")
         if not template_name:
             raise ValueError("--preprocess-template is required")
         cache_ok = bool(self.invocation_params.get("cache"))
+        input_source = self.invocation_params.get("input_source", None)
 
         processed_train = artifact_dir / "train_processed.csv"
         processed_test = artifact_dir / "test_processed.csv"
@@ -95,9 +128,6 @@ class PreprocessModule(BaseModule):
 
         if cache_ok and processed_train.exists() and processed_test.exists():
             console.print(f"\n[bold yellow]Using cached preprocessed data[/bold yellow]")
-            console.print(f"  Template: [cyan]{template_name}[/cyan]")
-            console.print(f"  Train: [dim]{processed_train.relative_to(self.context.project_root)}[/dim]")
-            console.print(f"  Test:  [dim]{processed_test.relative_to(self.context.project_root)}[/dim]")
 
             return ModuleResult(
                 success=True,
@@ -106,14 +136,31 @@ class PreprocessModule(BaseModule):
                     "test_processed": str(processed_test),
                     "cached": True,
                     "template": template_name,
+                    "input_source": input_source,
                 },
                 artifacts=[processed_train, processed_test],
             )
 
-        if not train_path.exists() or not test_path.exists():
-            marker = artifact_dir / "preprocess_skipped.txt"
-            marker.write_text("Missing train/test; preprocess skipped.")
-            return ModuleResult(success=True, payload={"skipped": True}, artifacts=[marker])
+        # Load input data (from previous preprocessing step or raw data)
+        if input_source:
+            # Load from previous preprocessing step
+            prev_exp_dir = self.context.project_root / "experiments" / f"pre-{input_source}"
+            train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
+            test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
+
+            if not train_path.exists():
+                raise FileNotFoundError(
+                    f"Previous preprocessing output not found: {train_path}\n"
+                    f"Chain broken: pre-{input_source} must complete before pre-{template_name}"
+                )
+        else:
+            # First step: load raw data
+            train_path, test_path = data_paths(config)
+
+            if not train_path.exists() or not test_path.exists():
+                marker = artifact_dir / "preprocess_skipped.txt"
+                marker.write_text("Missing train/test; preprocess skipped.")
+                return ModuleResult(success=True, payload={"skipped": True, "input_source": input_source}, artifacts=[marker])
 
         train_df = pd.read_csv(train_path)
         test_df = pd.read_csv(test_path)
@@ -121,9 +168,6 @@ class PreprocessModule(BaseModule):
         # Store original shapes
         orig_train_shape = train_df.shape
         orig_test_shape = test_df.shape
-
-        # Show preprocessing info
-        console.print(f"\n[bold]Template:[/bold] [cyan]{template_name}[/cyan]")
 
         # Get ignored columns for later use
         ignored = getattr(config, "IGNORED_COLUMNS", []) or []
@@ -142,11 +186,8 @@ class PreprocessModule(BaseModule):
         # Use custom preprocessing module if specified (not None and not empty string)
         custom_preprocess_state = {}
         if custom_module_name:
-            console.print(f"[bold]Custom module:[/bold] [cyan]{custom_module_name}[/cyan]")
-
             try:
                 preprocess_module = self._load_preprocessing_module(custom_module_name)
-                console.print(f"[green]✓[/green] Loaded preprocessing module: {custom_module_name}")
 
                 # Prepare config with artifact_dir
                 preprocess_config = template_cfg.get("config", {}).copy()
@@ -164,8 +205,6 @@ class PreprocessModule(BaseModule):
                     test_df=test_df,
                     config=preprocess_config
                 )
-
-                console.print(f"[green]✓[/green] Custom preprocessing completed")
             except Exception as e:
                 console.print(f"[red]Error in custom preprocessing:[/red] {e}")
                 raise
@@ -189,30 +228,8 @@ class PreprocessModule(BaseModule):
                 train_df = self._apply_template(train_df, template_cfg)
                 test_df = self._apply_template(test_df, template_cfg)
 
-        # Show shape changes
-        shape_table = Table(title="Dataset Shapes", show_header=True)
-        shape_table.add_column("Dataset", style="cyan")
-        shape_table.add_column("Before", style="dim")
-        shape_table.add_column("After", style="green")
-        shape_table.add_row(
-            "Train",
-            f"{orig_train_shape[0]:,} × {orig_train_shape[1]}",
-            f"{train_df.shape[0]:,} × {train_df.shape[1]}"
-        )
-        shape_table.add_row(
-            "Test",
-            f"{orig_test_shape[0]:,} × {orig_test_shape[1]}",
-            f"{test_df.shape[0]:,} × {test_df.shape[1]}"
-        )
-        console.print(shape_table)
-
         train_df.to_csv(processed_train, index=False)
         test_df.to_csv(processed_test, index=False)
-
-        # Show output files
-        console.print(f"\n[bold green]✓[/bold green] Preprocessed files saved:")
-        console.print(f"  Train: [cyan]{processed_train.relative_to(self.context.project_root)}[/cyan]")
-        console.print(f"  Test:  [cyan]{processed_test.relative_to(self.context.project_root)}[/cyan]")
 
         # Prepare payload with custom preprocessing state
         payload = {
@@ -220,6 +237,7 @@ class PreprocessModule(BaseModule):
             "test_processed": str(processed_test),
             "ignored_columns": ignored,
             "template": template_name,
+            "input_source": input_source,  # Track previous step in chain
             "cached": False,
             "shapes": {
                 "train_before": orig_train_shape,
@@ -233,13 +251,11 @@ class PreprocessModule(BaseModule):
         if custom_preprocess_state:
             payload["custom_module_state"] = custom_preprocess_state
 
-        # Print next steps
-        from mlarena.core.module import print_next_steps
-
-        console.print(f"\n[bold green]✓[/bold green] Preprocessing completed:")
-        console.print(f"  Train: [cyan]{processed_train.relative_to(self.context.project_root)}[/cyan]")
-        console.print(f"  Test:  [cyan]{processed_test.relative_to(self.context.project_root)}[/cyan]")
-        print_next_steps("preprocess", self.context.project_name, self.context.experiment_id, console)
+        # Print next steps only if last in chain (footer is handled by pipeline)
+        is_last_in_chain = self.invocation_params.get("is_last_in_chain", True)  # Default True for backwards compatibility
+        if is_last_in_chain:
+            from mlarena.core.module import print_next_steps
+            print_next_steps("preprocess", self.context.project_name, self.context.experiment_id, console)
 
         return ModuleResult(
             success=True,

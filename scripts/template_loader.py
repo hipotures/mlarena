@@ -29,6 +29,7 @@ def _read_templates(path: Path, kind: str) -> Dict[str, Any]:
 
 
 def _validate_templates(templates: Dict[str, Any], kind: str, *, source: str) -> Dict[str, Dict[str, Any]]:
+    """Validate templates: regular templates need 'module'/'model', meta-templates need 'chain'."""
     required_key = "model" if kind == "model" else "module"
     validated: Dict[str, Dict[str, Any]] = {}
     for name, payload in templates.items():
@@ -36,16 +37,31 @@ def _validate_templates(templates: Dict[str, Any], kind: str, *, source: str) ->
             payload = {}
         if not isinstance(payload, dict):
             raise TemplateValidationError(f"Template '{name}' in {source} must be a mapping.")
-        if required_key not in payload:
-            raise TemplateValidationError(f"Template '{name}' missing required key '{required_key}' in {source}.")
-        entry = dict(payload)
-        config = entry.get("config", {})
-        if config is None:
-            config = {}
-        if not isinstance(config, dict):
-            raise TemplateValidationError(f"Template '{name}' has non-dict config in {source}.")
-        entry["config"] = config
-        validated[name] = entry
+
+        # Check if meta-template (has "chain" key)
+        if "chain" in payload:
+            # Meta-template: validate chain is list of strings
+            if not isinstance(payload["chain"], list):
+                raise TemplateValidationError(f"Meta-template '{name}' chain must be a list in {source}.")
+            for item in payload["chain"]:
+                if not isinstance(item, str):
+                    raise TemplateValidationError(f"Meta-template '{name}' chain items must be strings in {source}.")
+            # Meta-templates don't need config
+            entry = dict(payload)
+            validated[name] = entry
+        else:
+            # Regular template: validate required key
+            if required_key not in payload:
+                raise TemplateValidationError(f"Template '{name}' missing required key '{required_key}' in {source}.")
+            entry = dict(payload)
+            config = entry.get("config", {})
+            if config is None:
+                config = {}
+            if not isinstance(config, dict):
+                raise TemplateValidationError(f"Template '{name}' has non-dict config in {source}.")
+            entry["config"] = config
+            validated[name] = entry
+
     return validated
 
 

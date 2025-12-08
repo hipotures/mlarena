@@ -30,6 +30,47 @@ COMMON_FLAGS = [
 ]
 
 
+def _parse_preprocess_templates(template_arg: str, project_root: Path) -> List[str]:
+    """
+    Parse preprocess template argument into list of templates to execute.
+
+    Supports:
+    - Single template: "baseline" -> ["baseline"]
+    - Comma-separated list: "pre1,pre2,pre3" -> ["pre1", "pre2", "pre3"]
+    - Meta-template: "full-pipeline" -> expands to chain defined in YAML
+
+    Args:
+        template_arg: Template argument from CLI
+        project_root: Project root path
+
+    Returns:
+        List of template names in execution order
+    """
+    # Split by comma and strip whitespace
+    templates = [t.strip() for t in template_arg.split(",")]
+
+    # Check if single template is a meta-template (has "chain" key)
+    if len(templates) == 1:
+        try:
+            import sys
+            sys.path.insert(0, str(REPO_ROOT / "scripts"))
+            from template_loader import load_templates
+
+            all_templates, _ = load_templates("preprocess", project_root, suppress_warnings=True)
+            template_config = all_templates.get(templates[0], {})
+
+            # If template has "chain" key, it's a meta-template
+            if "chain" in template_config:
+                chain = template_config["chain"]
+                if not isinstance(chain, list):
+                    raise ValueError(f"Meta-template '{templates[0]}' chain must be a list")
+                return chain
+        except Exception:
+            pass  # If template loading fails, treat as regular template
+
+    return templates
+
+
 def _add_common(subparser: argparse.ArgumentParser) -> List[str]:
     dests: List[str] = []
     for long, short, kwargs in COMMON_FLAGS:
@@ -189,10 +230,9 @@ def run_auto_flow(
     setup_modules = ["init", "eda", "preprocess"]
     pipeline_modules = ["model", "predict", "submit", "fetch-score"]
 
-    console.print("\n[bold cyan]AUTO-FLOW PIPELINE[/bold cyan]")
-    console.print(f"Model template: [yellow]{model_template}[/yellow]")
-    console.print(f"Preprocess template: [yellow]{preprocess_template}[/yellow]")
-    console.print(f"Force mode: [yellow]{'ON' if force else 'OFF'}[/yellow]\n")
+    # Pipeline info now shown in INIT module header
+    if force:
+        console.print(f"\n[dim]Force mode: ON[/dim]\n")
 
     # Load config (may not exist for init module)
     config_module = None
@@ -204,17 +244,12 @@ def run_auto_flow(
         except Exception:
             pass  # Init will create project
 
-    # Phase 1: Setup modules (init/eda/preprocess) - smart checking
-    for module_name in setup_modules:
+    # Phase 1: Setup modules (init/eda/preprocess chain) - smart checking
+
+    # Run init and eda first
+    for module_name in ["init", "eda"]:
         # Determine experiment ID for checking
-        if module_name == "init":
-            check_exp_id = "init"
-        elif module_name == "eda":
-            check_exp_id = "eda"
-        elif module_name == "preprocess":
-            check_exp_id = f"pre-{preprocess_template}"
-        else:
-            check_exp_id = None
+        check_exp_id = module_name  # "init" or "eda"
 
         # Check if already completed
         exp_dir = project_root / "experiments" / check_exp_id
@@ -234,9 +269,6 @@ def run_auto_flow(
             results[module_name] = ModuleResult(success=True, payload=module_payload)
             continue
 
-        # Run module
-        console.print(f"\n[bold]Running {module_name}...[/bold]")
-
         # Build context for this module
         context = _build_module_context(
             project_root=project_root,
@@ -253,8 +285,10 @@ def run_auto_flow(
         module = module_cls(context)
 
         # Set invocation params
-        if module_name == "preprocess":
+        if module_name == "init":
+            # Init needs to know about pipeline templates for header display
             module.set_invocation_params({
+                "model_template": model_template,
                 "preprocess_template": preprocess_template,
                 "force": force,
             })
@@ -275,6 +309,76 @@ def run_auto_flow(
                 console.print(f"[red]Error: {result.error}[/red]\n")
             return 1
 
+    # Now handle preprocessing chain
+    preprocess_templates = _parse_preprocess_templates(preprocess_template, project_root)
+
+    for idx, tpl_name in enumerate(preprocess_templates):
+        check_exp_id = f"pre-{tpl_name}"
+        input_source = preprocess_templates[idx - 1] if idx > 0 else None
+
+        # Check if already completed
+        exp_dir = project_root / "experiments" / check_exp_id
+        state_file = exp_dir / "state.json"
+
+        already_completed = False
+        module_payload = {}
+        saved_input_source = None
+
+        if state_file.exists():
+            with open(state_file) as f:
+                saved_state = json.load(f)
+                module_entry = saved_state.get("modules", {}).get("preprocess", {})
+                already_completed = module_entry.get("status") == "completed"
+                module_payload = module_entry.get("payload", {})
+                saved_input_source = module_payload.get("input_source")
+
+        # Smart cache: skip if completed AND input_source matches
+        if already_completed and not force:
+            if saved_input_source == input_source:
+                console.print(f"[dim]✓ preprocess ({tpl_name}) already completed (exp: {check_exp_id}), skipping[/dim]")
+                results[f"preprocess-{tpl_name}"] = ModuleResult(success=True, payload=module_payload)
+                continue
+            else:
+                console.print(f"[yellow]⚠ preprocess ({tpl_name}) input changed, re-running[/yellow]")
+
+        # Build context for this preprocessing step
+        context = _build_module_context(
+            project_root=project_root,
+            project=project_name,
+            module_name="preprocess",
+            experiment_id=check_exp_id,
+            config_module=config_module,
+            pipeline_def=pipeline_def,
+            argv=argv,
+        )
+
+        # Create module instance
+        module_cls = ModuleRegistry.get("preprocess")
+        module = module_cls(context)
+
+        # Set invocation params (include input_source and is_last_in_chain)
+        is_last_in_chain = (idx == len(preprocess_templates) - 1)
+        module.set_invocation_params({
+            "preprocess_template": tpl_name,
+            "input_source": input_source,
+            "is_last_in_chain": is_last_in_chain,
+            "force": force,
+        })
+
+        # Create executor and run
+        executor = PipelineExecutor({"preprocess": module})
+        module_results = executor.run_module("preprocess", force=force, skip_deps=False)
+
+        result = module_results.get("preprocess")
+        results[f"preprocess-{tpl_name}"] = result
+
+        # FAIL FAST: Stop on first failure
+        if not result or not result.success:
+            console.print(f"\n[red]✗ Auto-flow stopped at preprocess step: {tpl_name}[/red]")
+            if result and result.error:
+                console.print(f"[red]Error: {result.error}[/red]\n")
+            return 1
+
     # Reload config after init/eda/preprocess (ensure fresh config)
     if project_root.exists():
         config_module = load_project_config(project_root)
@@ -284,7 +388,7 @@ def run_auto_flow(
     # First run model to get experiment_id, then run rest with that experiment_id
 
     # Step 1: Run model first to create experiment_id
-    console.print(f"\n[bold]Running model...[/bold]")
+    # (header is now printed by pipeline)
 
     model_context = _build_module_context(
         project_root=project_root,
@@ -300,9 +404,13 @@ def run_auto_flow(
 
     model_cls = ModuleRegistry.get("model")
     model_module = model_cls(model_context)
+
+    # Model uses LAST template in preprocessing chain
+    final_preprocess_template = preprocess_templates[-1] if preprocess_templates else preprocess_template
+
     model_module.set_invocation_params({
         "model_template": model_template,
-        "preprocess_template": preprocess_template,
+        "preprocess_template": final_preprocess_template,
         "force": force,
     })
 
@@ -356,7 +464,7 @@ def run_auto_flow(
             console.print(f"\n[dim]Waiting {wait_seconds}s for Kaggle processing...[/dim]")
             time.sleep(wait_seconds)
 
-        console.print(f"\n[bold]Running {module_name}...[/bold]")
+        # (header is now printed by pipeline)
 
         module_results = executor.run_module(module_name, force=force, skip_deps=False)
 
@@ -527,12 +635,73 @@ def main(argv: List[str] | None = None) -> int:
         for w in pipeline_warnings:
             print(f"[warn] {w}")
 
-    # For preprocess module, use pre-{template} as experiment_id
+    # Handle preprocess chain manually (similar to auto-flow)
+    if args.command == "preprocess":
+        from rich.console import Console
+        from mlarena.core.module import ModuleResult
+
+        console = Console(force_terminal=True)
+        preprocess_template_arg = getattr(args, "preprocess_template", "baseline")
+        preprocess_templates = _parse_preprocess_templates(preprocess_template_arg, project_root)
+
+        results_dict = {}
+        for idx, tpl_name in enumerate(preprocess_templates):
+            experiment_id = f"pre-{tpl_name}"
+            input_source = preprocess_templates[idx - 1] if idx > 0 else None
+
+            # Create state for this preprocessing step
+            state = ExperimentState.load_or_create(
+                project_root=project_root,
+                project_name=args.project,
+                experiment_id=experiment_id,
+                pipeline=pipeline_def,
+                run_invocation={"argv": argv, "cli_args": vars(args), "template": tpl_name, "input_source": input_source},
+                create_dirs=True,
+                setup_module_name=None,  # preprocess is not a setup module
+            )
+
+            # Build context for this step
+            context = _build_module_context(
+                project_root=project_root,
+                project=args.project,
+                module_name="preprocess",
+                experiment_id=experiment_id,
+                config_module=config_module,
+                pipeline_def=pipeline_def,
+                argv=argv,
+            )
+
+            # Create module
+            module_cls = ModuleRegistry.get("preprocess")
+            module = module_cls(context)
+
+            # Extract params and add input_source and is_last_in_chain
+            params = _extract_module_params(args, module_arg_map)
+            params["preprocess_template"] = tpl_name
+            params["input_source"] = input_source
+            is_last_in_chain = (idx == len(preprocess_templates) - 1)
+            params["is_last_in_chain"] = is_last_in_chain
+            module.set_invocation_params(params)
+
+            # Run module
+            executor = PipelineExecutor({"preprocess": module})
+            module_results = executor.run_module("preprocess", force=args.force, skip_deps=args.skip_deps)
+
+            result = module_results.get("preprocess")
+            results_dict[f"preprocess-{tpl_name}"] = result
+
+            # Fail fast
+            if not result or not result.success:
+                console.print(f"\n[red]✗ Preprocess chain stopped at: {tpl_name}[/red]")
+                if result and result.error:
+                    console.print(f"[red]Error: {result.error}[/red]\n")
+                return 1
+
+        # All preprocessing steps succeeded
+        return 0
+
+    # For non-preprocess modules, use standard flow
     experiment_id = args.experiment_id
-    if args.command == "preprocess" and not experiment_id:
-        preprocess_template = getattr(args, "preprocess_template", None)
-        if preprocess_template:
-            experiment_id = f"pre-{preprocess_template}"
 
     state = ExperimentState.load_or_create(
         project_root=project_root,

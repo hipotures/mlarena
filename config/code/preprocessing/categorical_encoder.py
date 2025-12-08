@@ -91,8 +91,8 @@ def _extract_categorical_columns(
             categorical_cols.append(col)
             eda_metadata[col] = {
                 "type": col_type,
-                "n_distinct": n_distinct,
-                "n_missing": meta.get("n_missing", 0),
+                "n_distinct": int(n_distinct),
+                "n_missing": int(meta.get("n_missing", 0)),
             }
 
         # Text type (e.g., Name, Ticket, Cabin) - include if low cardinality
@@ -100,8 +100,8 @@ def _extract_categorical_columns(
             categorical_cols.append(col)
             eda_metadata[col] = {
                 "type": col_type,
-                "n_distinct": n_distinct,
-                "n_missing": meta.get("n_missing", 0),
+                "n_distinct": int(n_distinct),
+                "n_missing": int(meta.get("n_missing", 0)),
             }
 
         # Numeric type with low cardinality (e.g., Pclass: 1,2,3)
@@ -109,8 +109,8 @@ def _extract_categorical_columns(
             categorical_cols.append(col)
             eda_metadata[col] = {
                 "type": f"{col_type} (treated as categorical)",
-                "n_distinct": n_distinct,
-                "n_missing": meta.get("n_missing", 0),
+                "n_distinct": int(n_distinct),
+                "n_missing": int(meta.get("n_missing", 0)),
             }
 
     return categorical_cols, eda_metadata
@@ -186,16 +186,25 @@ def _auto_detect_categorical(
             else:
                 col_type = "Nominal (auto-detected)"
 
+            # Convert numpy types to native Python types for JSON serialization
+            import numpy as np
+            unique_vals_native = [
+                int(v) if isinstance(v, np.integer)
+                else float(v) if isinstance(v, np.floating)
+                else v
+                for v in unique_vals
+            ]
+
             categorical_cols.append(col)
             metadata[col] = {
                 "type": col_type,
-                "n_distinct": n_unique,
-                "n_missing": train_df[col].isna().sum(),
-                "unique_values": unique_vals,
-                "is_binary": is_binary,
-                "is_sequential": is_sequential,
-                "train_unique": train_df[col].nunique(),
-                "test_unique": test_df[col].nunique(),
+                "n_distinct": int(n_unique),
+                "n_missing": int(train_df[col].isna().sum()),
+                "unique_values": unique_vals_native,
+                "is_binary": bool(is_binary),
+                "is_sequential": bool(is_sequential),
+                "train_unique": int(train_df[col].nunique()),
+                "test_unique": int(test_df[col].nunique()),
             }
 
     return categorical_cols, metadata
@@ -434,8 +443,8 @@ def fit_transform(
         eda_metadata = {
             col: {
                 "type": "object (fallback)",
-                "n_distinct": train_df[col].nunique(),
-                "n_missing": train_df[col].isna().sum(),
+                "n_distinct": int(train_df[col].nunique()),
+                "n_missing": int(train_df[col].isna().sum()),
             }
             for col in eda_cols
         }

@@ -3,11 +3,15 @@ Preprocessing hook that computes adversarial validation weights and saves them.
 
 Features are returned unchanged; weights are written to CSV so they can be used
 as sample weights or for CV design. Uses compute_adversarial_weights().
+
+Reads categorical_columns from previous preprocessing step (if available) to ensure
+correct dtype='category' before AV training.
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+import json
 
 import pandas as pd
 from uuid import uuid4

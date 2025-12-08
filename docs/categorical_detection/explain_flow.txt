@@ -1,0 +1,86 @@
+PRZEPŁYW TYPÓW CECH OD WYKRYWANIA DO MODELU
+
+┌─────────────────────────────────────────────────────────────────┐
+│ KROK 1: PREPROCESSING (categorical_encoder.py)                  │
+└─────────────────────────────────────────────────────────────────┘
+
+1a. Wykrywa typy cech:
+   - Z EDA: Categorical, Text, Numeric (low cardinality)
+   - Auto-detect: Binary (0/1), Ordinal (1,2,3...), Nominal
+
+1b. Konwertuje DataFrame:
+   train_df['alcohol_consumption'] = train_df['alcohol_consumption'].astype('category')
+   
+1c. Zapisuje do state.json:
+   experiments/pre-categorical_boost/state.json:
+   {
+     "modules": {
+       "preprocess": {
+         "payload": {
+           "custom_module_state": {
+             "categorical_columns": ["alcohol_consumption", "family_history", ...],
+             "auto_detect_metadata": {
+               "alcohol_consumption": {"type": "Ordinal", "n_distinct": 9, ...}
+             }
+           }
+         }
+       }
+     }
+   }
+
+┌─────────────────────────────────────────────────────────────────┐
+│ KROK 2: MODEL (autogluon_boost_categorical.py)                  │
+└─────────────────────────────────────────────────────────────────┘
+
+2a. Czyta state.json:
+   categorical_cols = _read_categorical_metadata(config, 'categorical_boost')
+   # Returns: ['alcohol_consumption', 'family_history', ...]
+
+2b. Weryfikuje dtype='category':
+   if df[col].dtype != 'category':
+       df[col] = df[col].astype('category')
+
+2c. Konfiguruje feature generator:
+   CategoryFeatureGenerator(
+       cat_order='original',    # Zachowaj kolejność kategorii
+       maximum_num_cat=None,    # Nie przycinaj kategorii
+       minimum_cat_count=1,     # Nie łącz rzadkich kategorii
+   )
+
+2d. Konfiguruje hyperparameters dla boost algorytmów:
+   'XGB': {
+       'enable_categorical': True,  # ← KLUCZOWE dla XGBoost
+       'tree_method': 'hist',       # Wymagane dla categorical
+   },
+   'GBM': {},  # LightGBM używa category natively
+   'CAT': {},  # CatBoost używa category natively
+
+┌─────────────────────────────────────────────────────────────────┐
+│ KROK 3: BOOST ALGORITHMS (natywne wsparcie)                     │
+└─────────────────────────────────────────────────────────────────┘
+
+3a. XGBoost (enable_categorical=True):
+   - Używa histogram-based tree method
+   - Bezpośrednie split'y na kategoriach (nie one-hot!)
+   - Obsługuje missing values w kategoriach
+   
+3b. LightGBM (automatyczne):
+   - Wykrywa dtype='category'
+   - Optimal split finding dla kategorii
+   - Many-vs-many splits (nie tylko binary)
+   
+3c. CatBoost (automatyczne):
+   - Target encoding na kategoriach
+   - Obsługuje high-cardinality kategorii
+   - Kombinacje kategorii (interactions)
+
+┌─────────────────────────────────────────────────────────────────┐
+│ REZULTAT: KORZYŚCI                                               │
+└─────────────────────────────────────────────────────────────────┘
+
+✅ Lepsze splity: Algorytmy widzą strukturę kategoryczną
+✅ Mniej wymiarów: Brak one-hot explosion
+✅ Szybsze trenowanie: Efektywne algorytmy dla kategorii
+✅ Lepsza generalizacja: Naturalne grupowanie podobnych kategorii
+✅ Obsługa unseen values: Boost libraries mają strategie fallback
+

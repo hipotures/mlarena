@@ -1,4 +1,12 @@
 templates:
+  # Chain: categorical detection + AV weights (best boost)
+  categorical_av_best_boost:
+    chain: [categorical_boost, av_weights_best_boost]
+
+  # Chain: categorical detection + AV weights (medium 2min)
+  categorical_av:
+    chain: [categorical_boost, av_weights]
+
   av_weights:
     module: av_weights
     cache: true

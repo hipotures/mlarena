@@ -1,0 +1,11 @@
+templates:
+  av_weights:
+    module: av_weights
+    cache: true
+    config:
+      presets: medium
+      time_limit: 120
+      drop_columns: [id]
+      # Paths relative to experiment artifacts dir (experiments/pre-av_weights/artifacts/)
+      output_path: train_av_weights.csv
+      model_output_dir: av_model

@@ -1,0 +1,17 @@
+templates:
+  cpu-gbm-5m:
+    model: autogluon_baseline
+    config:
+      hyperparameters:
+        GBM: {}
+        presets: medium
+        time_limit: 300
+        use_gpu: false
+
+  cpu-dev-5m-av:
+    model: autogluon_av_weights
+    config:
+      hyperparameters:
+        presets: medium
+        time_limit: 300
+        use_gpu: false

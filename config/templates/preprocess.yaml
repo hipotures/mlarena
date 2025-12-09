@@ -52,3 +52,207 @@ templates:
       include_numeric_categories: false  # Skip EDA numeric detection
       enable_auto_detect: true
       auto_detect_threshold: 25
+
+  # ============================================
+  # UNIVERSAL SUB-MODULES (Stage 0 - Infrastructure Ready)
+  # ============================================
+
+  # 0. No-op (Smoke Test)
+  noop:
+    module: noop
+    cache: false
+    config: {}
+
+  # 1. Sanity Check / Types / Basic Cleaning
+  sanity_check:
+    module: sanity_check
+    cache: true
+    config:
+      min_unique_fraction: 0.01
+      max_missing_fraction: 0.95
+      drop_duplicates: true
+      column_types_override: {}
+      ignore_columns: []
+
+  # 2. Missing Value Imputation
+  imputer:
+    module: imputer
+    cache: true
+    config:
+      numeric_strategy: "mean"
+      categorical_strategy: "most_frequent"
+      column_strategies: {}
+      fill_value: 0
+      knn_n_neighbors: 5
+      iterative_estimator: "bayesian_ridge"
+      iterative_max_iter: 10
+      treat_outliers_as_na: false
+      outlier_method: "iqr"
+      outlier_threshold: null
+
+  # 2a. Median imputation (robust to outliers)
+  imputer_median:
+    module: imputer
+    cache: true
+    config:
+      numeric_strategy: "median"
+      categorical_strategy: "most_frequent"
+
+  # 2b. KNN imputation (uses feature correlations)
+  imputer_knn:
+    module: imputer
+    cache: true
+    config:
+      numeric_strategy: "knn"
+      categorical_strategy: "most_frequent"
+      knn_n_neighbors: 5
+
+  # 2c. Iterative imputation (MICE algorithm)
+  imputer_iterative:
+    module: imputer
+    cache: true
+    config:
+      numeric_strategy: "iterative"
+      categorical_strategy: "most_frequent"
+      iterative_max_iter: 10
+
+  # 2d. Outlier-robust imputation
+  imputer_outlier_robust:
+    module: imputer
+    cache: true
+    config:
+      numeric_strategy: "median"
+      categorical_strategy: "most_frequent"
+      treat_outliers_as_na: true
+      outlier_method: "iqr"
+      outlier_threshold: 1.5
+
+  # 3. Rare and High-Cardinality Categories
+  rare_category_handler:
+    module: rare_category_handler
+    cache: true
+    config:
+      min_freq: 10
+      min_freq_ratio: 0.01
+      top_k: null
+      rare_label: "__RARE__"
+      detect_id_like_columns: true
+      id_unique_fraction_threshold: 0.95
+
+  # 4. Categorical Encoding
+  encoder:
+    module: encoder
+    cache: true
+    config:
+      encoding_method: "one_hot"  # none|one_hot|ordinal|target_mean|catboost|hashing
+      drop_first: false
+      handle_unknown: "ignore"
+
+  # 5. Scaling and Numerical Transformations
+  scaler:
+    module: scaler
+    cache: true
+    config:
+      scaling_method: "standard"  # none|standard|minmax|robust|quantile_normal
+      log_transform: []
+      clip_lower_quantile: null
+      clip_upper_quantile: null
+
+  # 6. Feature Selection
+  feature_selector_v2:
+    module: feature_selector_v2
+    cache: true
+    config:
+      selection_method: "variance"  # variance|mi|correlation|model_importance|l1|rfe|none
+      k_features: null
+      keep_fraction: 0.8
+      min_variance: 0.01
+
+  # 7. Drift Detection / Train-Test Differences
+  drift_detector:
+    module: drift_detector
+    cache: true
+    config:
+      drift_metric: "psi"  # psi|ks|chi2|model_auc
+      max_psi: 0.25
+      action: "flag_only"  # none|drop|flag_only
+      max_drop_fraction: 0.2
+
+  # 8. Feature Engineering (Interactions & Aggregations)
+  feature_engineer:
+    module: feature_engineer
+    cache: true
+    config:
+      interaction_types: ["add", "mul"]
+      numeric_pairs: []
+      poly_degree: 2
+      group_keys: []
+      aggs: ["mean", "std"]
+
+  # 9. Target Transformation (Regression)
+  target_transformer:
+    module: target_transformer
+    cache: true
+    config:
+      target_transform: "none"  # none|log1p|boxcox|yeo_johnson
+      clip_lower_quantile: null
+      clip_upper_quantile: null
+
+  # 10. Class Imbalance Handling
+  imbalance_handler:
+    module: imbalance_handler
+    cache: true
+    config:
+      imbalance_method: "none"  # none|class_weight|random_over|random_under|smote|smotenc
+      sampling_strategy: "auto"
+      use_sample_weights: true
+
+  # 11. Outlier Handling
+  outlier_handler:
+    module: outlier_handler
+    cache: true
+    config:
+      outlier_method: "iqr"  # none|quantile|iqr|zscore|isolation_forest
+      iqr_factor: 1.5
+      action: "clip"  # clip|set_na|flag_only
+
+  # 12. AutoGluon Booster
+  autogluon_booster:
+    module: autogluon_booster
+    cache: true
+    config:
+      autogluon_mode: "raw_categories"  # raw_categories|boosted_categories
+      freq_encoding_cols: []
+      auto_text_detection: true
+      enforce_dtypes: true
+
+  # ============================================
+  # META-TEMPLATES (Chains) - Universal Sub-Modules
+  # ============================================
+
+  # Smoke test chain
+  noop_chain:
+    chain: [noop, noop]
+
+  # Test imputer chain
+  test_imputer_chain:
+    chain: [noop, imputer]
+
+  minimal_pipeline:
+    chain: [sanity_check, imputer, autogluon_booster]
+
+  standard_pipeline:
+    chain: [sanity_check, imputer, rare_category_handler, encoder, scaler, feature_selector_v2]
+
+  full_universal_pipeline:
+    chain: [
+      sanity_check,
+      imputer,
+      outlier_handler,
+      rare_category_handler,
+      encoder,
+      scaler,
+      drift_detector,
+      feature_selector_v2,
+      autogluon_booster
+    ]

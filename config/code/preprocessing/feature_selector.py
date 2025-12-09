@@ -1,19 +1,44 @@
 """
-Feature selection using variance threshold or univariate statistical tests.
+Feature Selection Sub-Module
 
-Removes low-variance features or selects K best features based on statistical tests.
-
-This module implements the preprocessing interface expected by MLArena:
-- fit_transform(train_df, val_df, test_df, config) -> (train_df, val_df, test_df, state_dict)
-- transform(df, state_dict, config) -> df  # Optional, for inference
+Purpose: Systematically reduce feature dimensionality using various selection methods
+Libraries: sklearn.feature_selection, sklearn.ensemble, lightgbm, xgboost, scipy
+Parameters:
+    - selection_method: variance|mi|correlation|model_importance|l1|rfe|none
+    - k_features: int or None (number of features to keep)
+    - keep_fraction: float (fraction of features to keep, 0.0-1.0)
+    - min_variance: float (threshold for variance method)
+    - min_importance: float (threshold for importance method)
+    - importance_model_type: lgbm|xgb|rf
+    - n_estimators: int (for model-based methods)
+    - max_depth: int (for model-based methods)
+    - random_state: int
+    - max_drop_fraction: float (max fraction of features to drop in one step)
 """
-from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from pathlib import Path
+from typing import Any, Dict, Tuple, List
+import warnings
 
 import pandas as pd
 import numpy as np
-from sklearn.feature_selection import VarianceThreshold, SelectKBest, f_classif, f_regression
+from sklearn.feature_selection import (
+    VarianceThreshold,
+    SelectKBest,
+    mutual_info_classif,
+    mutual_info_regression,
+    RFE,
+)
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LassoCV, LogisticRegressionCV
+from scipy.stats import pearsonr
+
+from mlarena.preprocessing.utils import (
+    validation,
+    artifacts,
+    dataframe_utils,
+    report,
+)
 
 
 def fit_transform(
@@ -23,162 +48,434 @@ def fit_transform(
     config: Dict[str, Any],
 ) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
     """
-    Select features based on variance or statistical tests.
-
-    Config parameters:
-        method: "variance_threshold" | "select_k_best" (default: "variance_threshold")
-        threshold: Variance threshold (default: 0.01)
-        k: Number of top features to select (for select_k_best, default: 10)
-        score_func: "f_classif" | "f_regression" (for select_k_best, default: "f_classif")
+    Feature selection preprocessing.
 
     Args:
-        train_df: Training dataframe
-        val_df: Validation dataframe (optional)
-        test_df: Test dataframe
-        config: Configuration dictionary
+        train_df: Training data
+        val_df: Validation data (can be None)
+        test_df: Test data
+        config: Configuration dictionary with keys:
+            - _artifact_dir: Path to save artifacts
+            - _dataset: {id_column, target, ignored_columns, problem_type}
+            - selection_method: Method to use for feature selection
+            - k_features: Number of features to keep (or None)
+            - keep_fraction: Fraction of features to keep
+            - min_variance: Minimum variance threshold
+            - min_importance: Minimum importance threshold
+            - importance_model_type: Model type for importance-based selection
+            - n_estimators: Number of estimators for model-based methods
+            - max_depth: Max depth for model-based methods
+            - random_state: Random seed
+            - max_drop_fraction: Maximum fraction of features to drop
 
     Returns:
         Tuple of (train_df, val_df, test_df, state_dict)
     """
-    # Extract config
-    method = config.get("method", "variance_threshold")
-    threshold = config.get("threshold", 0.01)
-    k = config.get("k", 10)
-    score_func_name = config.get("score_func", "f_classif")
+    # 1. Extract config
+    artifact_dir = Path(config.get("_artifact_dir", "."))
+    dataset_config = config.get("_dataset", {})
+    id_column = dataset_config.get("id_column", "id")
+    target_column = dataset_config.get("target")
+    ignored_columns = dataset_config.get("ignored_columns", [])
+    problem_type = dataset_config.get("problem_type", "binary")
 
-    # Make copies to avoid modifying originals
-    train_df = train_df.copy()
-    test_df = test_df.copy()
-    if val_df is not None:
-        val_df = val_df.copy()
+    # 2. Validate config
+    required_params = []
+    optional_params = {
+        "selection_method": "variance",
+        "k_features": None,
+        "keep_fraction": 0.8,
+        "min_variance": 0.01,
+        "min_importance": 0.001,
+        "importance_model_type": "lgbm",
+        "n_estimators": 100,
+        "max_depth": 5,
+        "random_state": 42,
+        "max_drop_fraction": 0.5,
+    }
+    validation.validate_config(config, required_params, optional_params)
 
-    # Get numeric columns only (feature selection works on numeric data)
-    numeric_cols = train_df.select_dtypes(include=[np.number]).columns.tolist()
+    # Validate choice parameters
+    validation.validate_choice(
+        config["selection_method"],
+        ["variance", "mi", "correlation", "model_importance", "l1", "rfe", "none"],
+        "selection_method"
+    )
 
-    # Get target column and remove from features
-    dataset_info = config.get("_dataset", {})
-    target_column = dataset_info.get("target")
-    if target_column and target_column in numeric_cols:
-        numeric_cols.remove(target_column)
+    if config["selection_method"] != "none":
+        if config["importance_model_type"] is not None:
+            validation.validate_choice(
+                config["importance_model_type"],
+                ["lgbm", "xgb", "rf"],
+                "importance_model_type"
+            )
+
+        # Validate numeric ranges
+        if config["keep_fraction"] is not None:
+            validation.validate_numeric_range(
+                config["keep_fraction"],
+                min_value=0.0,
+                max_value=1.0,
+                param_name="keep_fraction"
+            )
+
+        validation.validate_numeric_range(
+            config["max_drop_fraction"],
+            min_value=0.0,
+            max_value=1.0,
+            param_name="max_drop_fraction"
+        )
+
+    # 3. Create sub-module artifact directory
+    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_selector")
+
+    # 4. Save original DataFrames for reporting
+    train_df_original = dataframe_utils.copy_dataframe(train_df)
+    test_df_original = dataframe_utils.copy_dataframe(test_df)
+
+    # 5. Early exit if method is "none"
+    if config["selection_method"] == "none":
+        transformation_summary = report.create_preprocessing_report(
+            train_before=train_df_original,
+            train_after=train_df,
+            test_before=test_df_original,
+            test_after=test_df,
+            config=config,
+        )
+        artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
+
+        state_dict = {
+            "version": "1.0",
+            "method": "none",
+            "message": "Feature selection skipped (method=none)",
+            "config": {k: v for k, v in config.items() if not k.startswith("_")},
+        }
+        return train_df, val_df, test_df, state_dict
+
+    # 6. Get feature columns (exclude id, target, ignored)
+    exclude_cols = [id_column, target_column] + ignored_columns
+    exclude_cols = [col for col in exclude_cols if col]  # Remove None values
+
+    all_feature_cols = [col for col in train_df.columns if col not in exclude_cols]
+    numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
 
     if not numeric_cols:
-        # No numeric columns to select from
-        return train_df, val_df, test_df, {"skipped": True, "reason": "no numeric columns"}
+        warnings.warn("No numeric columns found for feature selection. Returning unchanged.")
+        transformation_summary = report.create_preprocessing_report(
+            train_before=train_df_original,
+            train_after=train_df,
+            test_before=test_df_original,
+            test_after=test_df,
+            config=config,
+        )
+        artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
 
-    X_train = train_df[numeric_cols]
-    X_test = test_df[numeric_cols]
-    X_val = val_df[numeric_cols] if val_df is not None else None
+        state_dict = {
+            "version": "1.0",
+            "method": config["selection_method"],
+            "message": "No numeric columns to select from",
+            "config": {k: v for k, v in config.items() if not k.startswith("_")},
+        }
+        return train_df, val_df, test_df, state_dict
 
-    state = {
-        "method": method,
-        "original_features": numeric_cols,
-        "original_feature_count": len(numeric_cols),
+    # 7. Prepare data for selection
+    if target_column and target_column in train_df.columns:
+        X_train = train_df[numeric_cols].values
+        y_train = train_df[target_column].values
+    else:
+        raise ValueError(f"Target column '{target_column}' not found in training data")
+
+    # 8. Perform feature selection
+    selected_features, feature_scores = _select_features(
+        X_train=X_train,
+        y_train=y_train,
+        feature_names=numeric_cols,
+        method=config["selection_method"],
+        k_features=config["k_features"],
+        keep_fraction=config["keep_fraction"],
+        min_variance=config["min_variance"],
+        min_importance=config["min_importance"],
+        importance_model_type=config["importance_model_type"],
+        n_estimators=config["n_estimators"],
+        max_depth=config["max_depth"],
+        random_state=config["random_state"],
+        max_drop_fraction=config["max_drop_fraction"],
+        problem_type=problem_type,
+    )
+
+    # 9. Apply selection to DataFrames
+    # Keep non-feature columns + selected features
+    keep_cols = [col for col in train_df.columns if col not in numeric_cols] + selected_features
+
+    train_df = train_df[keep_cols]
+    test_df = test_df[[col for col in keep_cols if col in test_df.columns]]
+    if val_df is not None:
+        val_df = val_df[[col for col in keep_cols if col in val_df.columns]]
+
+    # 10. Save feature importance/scores report
+    feature_report = {
+        "method": config["selection_method"],
+        "total_features_before": len(numeric_cols),
+        "total_features_after": len(selected_features),
+        "features_dropped": len(numeric_cols) - len(selected_features),
+        "drop_fraction": (len(numeric_cols) - len(selected_features)) / len(numeric_cols) if numeric_cols else 0,
+        "selected_features": selected_features,
+        "dropped_features": [col for col in numeric_cols if col not in selected_features],
+        "feature_scores": {
+            feature: float(score) if not np.isnan(score) else None
+            for feature, score in zip(numeric_cols, feature_scores)
+        },
+    }
+    artifacts.save_report(feature_report, submodule_dir, "feature_selection_report.json")
+
+    # 11. Generate and save transformation report
+    transformation_summary = report.create_preprocessing_report(
+        train_before=train_df_original,
+        train_after=train_df,
+        test_before=test_df_original,
+        test_after=test_df,
+        config=config,
+    )
+    artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
+
+    # 12. Create state dict
+    state_dict = {
+        "version": "1.0",
+        "method": config["selection_method"],
+        "config": {k: v for k, v in config.items() if not k.startswith("_")},
+        "features_before": len(numeric_cols),
+        "features_after": len(selected_features),
+        "selected_features": selected_features,
+        "feature_scores_summary": {
+            "mean": float(np.nanmean(feature_scores)),
+            "std": float(np.nanstd(feature_scores)),
+            "min": float(np.nanmin(feature_scores)),
+            "max": float(np.nanmax(feature_scores)),
+        },
     }
 
-    if method == "variance_threshold":
-        selector = VarianceThreshold(threshold=threshold)
-        selector.fit(X_train)
-
-        # Get selected feature names
-        selected_mask = selector.get_support()
-        selected_features = [f for f, selected in zip(numeric_cols, selected_mask) if selected]
-
-        # Transform
-        X_train_selected = selector.transform(X_train)
-        X_test_selected = selector.transform(X_test)
-        X_val_selected = selector.transform(X_val) if X_val is not None else None
-
-        # Update dataframes
-        # Drop all original numeric columns
-        train_df = train_df.drop(columns=numeric_cols)
-        test_df = test_df.drop(columns=numeric_cols)
-        if val_df is not None:
-            val_df = val_df.drop(columns=numeric_cols)
-
-        # Add selected features back
-        train_df[selected_features] = X_train_selected
-        test_df[selected_features] = X_test_selected
-        if val_df is not None:
-            val_df[selected_features] = X_val_selected
-
-        # State tracking
-        dropped_features = [f for f in numeric_cols if f not in selected_features]
-
-        state["threshold"] = threshold
-        state["selected_features"] = selected_features
-        state["selected_feature_count"] = len(selected_features)
-        state["dropped_features"] = dropped_features
-        state["dropped_feature_count"] = len(dropped_features)
-        state["variances"] = selector.variances_.tolist() if hasattr(selector, 'variances_') else []
-
-    elif method == "select_k_best":
-        # Need target for SelectKBest
-        if not target_column or target_column not in train_df.columns:
-            raise ValueError("select_k_best requires target column in training data")
-
-        y_train = train_df[target_column]
-
-        # Choose score function
-        score_func = f_classif if score_func_name == "f_classif" else f_regression
-
-        # Select k features (or all if less than k)
-        k_actual = min(k, len(numeric_cols))
-        selector = SelectKBest(score_func=score_func, k=k_actual)
-        selector.fit(X_train, y_train)
-
-        # Get selected feature names
-        selected_mask = selector.get_support()
-        selected_features = [f for f, selected in zip(numeric_cols, selected_mask) if selected]
-
-        # Transform
-        X_train_selected = selector.transform(X_train)
-        X_test_selected = selector.transform(X_test)
-        X_val_selected = selector.transform(X_val) if X_val is not None else None
-
-        # Update dataframes
-        # Drop all original numeric columns
-        train_df = train_df.drop(columns=numeric_cols)
-        test_df = test_df.drop(columns=numeric_cols)
-        if val_df is not None:
-            val_df = val_df.drop(columns=numeric_cols)
-
-        # Add selected features back
-        train_df[selected_features] = X_train_selected
-        test_df[selected_features] = X_test_selected
-        if val_df is not None:
-            val_df[selected_features] = X_val_selected
-
-        # State tracking
-        dropped_features = [f for f in numeric_cols if f not in selected_features]
-
-        state["k"] = k_actual
-        state["score_func"] = score_func_name
-        state["selected_features"] = selected_features
-        state["selected_feature_count"] = len(selected_features)
-        state["dropped_features"] = dropped_features
-        state["dropped_feature_count"] = len(dropped_features)
-        state["scores"] = selector.scores_.tolist() if hasattr(selector, 'scores_') else []
-
-    else:
-        raise ValueError(f"Unknown feature selection method: {method}")
-
-    return train_df, val_df, test_df, state
+    return train_df, val_df, test_df, state_dict
 
 
-def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
+def _select_features(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    feature_names: List[str],
+    method: str,
+    k_features: int,
+    keep_fraction: float,
+    min_variance: float,
+    min_importance: float,
+    importance_model_type: str,
+    n_estimators: int,
+    max_depth: int,
+    random_state: int,
+    max_drop_fraction: float,
+    problem_type: str,
+) -> Tuple[List[str], np.ndarray]:
     """
-    Apply fitted selector to new data.
-
-    Note: This function is not currently used in the preprocessing pipeline
-    but is provided for potential future inference use cases.
-
-    Args:
-        df: Dataframe to transform
-        state_dict: State dictionary from fit_transform
-        config: Configuration dictionary
+    Select features using specified method.
 
     Returns:
-        Transformed dataframe
+        Tuple of (selected_feature_names, feature_scores)
     """
-    # Not needed for current workflow (fit_transform handles everything)
-    return df.copy()
+    n_features = X_train.shape[1]
+
+    # Determine target number of features
+    if k_features is not None:
+        n_features_to_select = min(k_features, n_features)
+    elif keep_fraction is not None:
+        n_features_to_select = max(1, int(n_features * keep_fraction))
+    else:
+        n_features_to_select = n_features
+
+    # Apply max_drop_fraction constraint
+    min_features_to_keep = max(1, int(n_features * (1 - max_drop_fraction)))
+    n_features_to_select = max(n_features_to_select, min_features_to_keep)
+
+    # Initialize scores array
+    feature_scores = np.zeros(n_features)
+
+    if method == "variance":
+        # Variance threshold
+        variances = np.var(X_train, axis=0)
+        feature_scores = variances
+        selected_mask = variances >= min_variance
+        # Ensure we select at least n_features_to_select features
+        if selected_mask.sum() < n_features_to_select:
+            top_indices = np.argsort(variances)[::-1][:n_features_to_select]
+            selected_mask = np.zeros(n_features, dtype=bool)
+            selected_mask[top_indices] = True
+
+    elif method == "mi":
+        # Mutual Information
+        if problem_type in ["binary", "multiclass"]:
+            mi_scores = mutual_info_classif(X_train, y_train, random_state=random_state)
+        else:
+            mi_scores = mutual_info_regression(X_train, y_train, random_state=random_state)
+
+        feature_scores = mi_scores
+        selector = SelectKBest(k=n_features_to_select)
+        selector.fit(X_train, y_train)
+        selected_mask = selector.get_support()
+
+    elif method == "correlation":
+        # Correlation with target
+        correlations = np.array([
+            abs(pearsonr(X_train[:, i], y_train)[0]) if len(np.unique(X_train[:, i])) > 1 else 0
+            for i in range(n_features)
+        ])
+        feature_scores = correlations
+        top_indices = np.argsort(correlations)[::-1][:n_features_to_select]
+        selected_mask = np.zeros(n_features, dtype=bool)
+        selected_mask[top_indices] = True
+
+    elif method == "model_importance":
+        # Model-based feature importance
+        if importance_model_type == "rf":
+            if problem_type in ["binary", "multiclass"]:
+                model = RandomForestClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                )
+            else:
+                model = RandomForestRegressor(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                )
+            model.fit(X_train, y_train)
+            importances = model.feature_importances_
+
+        elif importance_model_type == "lgbm":
+            try:
+                import lightgbm as lgb
+                if problem_type in ["binary", "multiclass"]:
+                    model = lgb.LGBMClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                        verbosity=-1,
+                    )
+                else:
+                    model = lgb.LGBMRegressor(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                        verbosity=-1,
+                    )
+                model.fit(X_train, y_train)
+                importances = model.feature_importances_
+            except ImportError:
+                warnings.warn("LightGBM not available, falling back to RandomForest")
+                return _select_features(
+                    X_train, y_train, feature_names, "model_importance",
+                    k_features, keep_fraction, min_variance, min_importance,
+                    "rf", n_estimators, max_depth, random_state,
+                    max_drop_fraction, problem_type
+                )
+
+        elif importance_model_type == "xgb":
+            try:
+                import xgboost as xgb
+                if problem_type in ["binary", "multiclass"]:
+                    model = xgb.XGBClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                        verbosity=0,
+                    )
+                else:
+                    model = xgb.XGBRegressor(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                        verbosity=0,
+                    )
+                model.fit(X_train, y_train)
+                importances = model.feature_importances_
+            except ImportError:
+                warnings.warn("XGBoost not available, falling back to RandomForest")
+                return _select_features(
+                    X_train, y_train, feature_names, "model_importance",
+                    k_features, keep_fraction, min_variance, min_importance,
+                    "rf", n_estimators, max_depth, random_state,
+                    max_drop_fraction, problem_type
+                )
+        else:
+            raise ValueError(f"Unknown importance_model_type: {importance_model_type}")
+
+        feature_scores = importances
+        # Select features above threshold or top K
+        selected_mask = importances >= min_importance
+        if selected_mask.sum() < n_features_to_select:
+            top_indices = np.argsort(importances)[::-1][:n_features_to_select]
+            selected_mask = np.zeros(n_features, dtype=bool)
+            selected_mask[top_indices] = True
+
+    elif method == "l1":
+        # L1 regularization
+        if problem_type in ["binary", "multiclass"]:
+            model = LogisticRegressionCV(
+                penalty="l1",
+                solver="saga",
+                cv=3,
+                random_state=random_state,
+                n_jobs=-1,
+                max_iter=1000,
+            )
+        else:
+            model = LassoCV(
+                cv=3,
+                random_state=random_state,
+                n_jobs=-1,
+                max_iter=1000,
+            )
+
+        model.fit(X_train, y_train)
+        if hasattr(model, "coef_"):
+            importances = np.abs(model.coef_).flatten()
+        else:
+            importances = np.abs(model.coef_[0])
+
+        feature_scores = importances
+        top_indices = np.argsort(importances)[::-1][:n_features_to_select]
+        selected_mask = np.zeros(n_features, dtype=bool)
+        selected_mask[top_indices] = True
+
+    elif method == "rfe":
+        # Recursive Feature Elimination
+        if problem_type in ["binary", "multiclass"]:
+            estimator = RandomForestClassifier(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                random_state=random_state,
+                n_jobs=-1,
+            )
+        else:
+            estimator = RandomForestRegressor(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                random_state=random_state,
+                n_jobs=-1,
+            )
+
+        rfe = RFE(estimator=estimator, n_features_to_select=n_features_to_select)
+        rfe.fit(X_train, y_train)
+        selected_mask = rfe.support_
+        feature_scores = rfe.ranking_  # Lower is better
+
+    else:
+        raise ValueError(f"Unknown selection method: {method}")
+
+    # Get selected feature names
+    selected_features = [feature_names[i] for i in range(n_features) if selected_mask[i]]
+
+    return selected_features, feature_scores

@@ -145,6 +145,7 @@ templates:
     cache: true
     config:
       encoding_method: "one_hot"  # none|one_hot|ordinal|target_mean|catboost|hashing
+      max_cardinality: 50  # Auto-exclude columns with >50 unique values (prevents explosion)
       drop_first: false
       handle_unknown: "ignore"
 
@@ -153,14 +154,39 @@ templates:
     module: scaler
     cache: true
     config:
-      scaling_method: "standard"  # none|standard|minmax|robust|quantile_normal
+      scaling_method: "standard"  # none|standard|minmax|robust|quantile_normal|quantile_uniform
+      numeric_include: null  # null = all numeric columns
+      numeric_exclude: []
       log_transform: []
       clip_lower_quantile: null
       clip_upper_quantile: null
+      n_quantiles: 1000
+      random_state: 42
+
+  # Scaler variants for testing
+  scaler_robust:
+    module: scaler
+    cache: true
+    config:
+      scaling_method: "robust"
+      clip_lower_quantile: 0.01
+      clip_upper_quantile: 0.99
+
+  scaler_minmax:
+    module: scaler
+    cache: true
+    config:
+      scaling_method: "minmax"
+
+  scaler_none:
+    module: scaler
+    cache: true
+    config:
+      scaling_method: "none"  # Pass-through (for tree-based models)
 
   # 6. Feature Selection
-  feature_selector_v2:
-    module: feature_selector_v2
+  feature_selector:
+    module: feature_selector
     cache: true
     config:
       selection_method: "variance"  # variance|mi|correlation|model_importance|l1|rfe|none
@@ -238,11 +264,19 @@ templates:
   test_imputer_chain:
     chain: [noop, imputer]
 
+  # Test chain with rare_category_handler
+  rare_test_chain:
+    chain: [noop, rare_category_handler, noop]
+
+  # Test scaler chain
+  scaler_test_chain:
+    chain: [imputer, scaler_robust]
+
   minimal_pipeline:
     chain: [sanity_check, imputer, autogluon_booster]
 
   standard_pipeline:
-    chain: [sanity_check, imputer, rare_category_handler, encoder, scaler, feature_selector_v2]
+    chain: [sanity_check, imputer, rare_category_handler, encoder, scaler, feature_selector]
 
   full_universal_pipeline:
     chain: [
@@ -253,6 +287,6 @@ templates:
       encoder,
       scaler,
       drift_detector,
-      feature_selector_v2,
+      feature_selector,
       autogluon_booster
     ]

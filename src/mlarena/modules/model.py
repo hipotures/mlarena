@@ -203,6 +203,10 @@ class ModelModule(BaseModule):
         parser.add_argument("--use-gpu", type=int, choices=[0, 1], default=None, help="Force GPU usage for AutoGluon.")
         parser.add_argument("--model-template", default="gpu-dev-5m", help="Model template name (for hyperparameters).")
         parser.add_argument("--preprocess-template", type=str, default=None, help="Preprocessing template to use (e.g., baseline, av_weights). If not specified, uses raw data.")
+        parser.add_argument("--dev", "-d", action="store_true",
+                           help="Development mode: preset=medium, time_limit=300s, use_gpu=0")
+        parser.add_argument("--smoke", "-s", action="store_true",
+                           help="Smoke test mode: preset=medium, time_limit=60s, use_gpu=0")
 
     def _build_model_config(self, template_cfg: Dict[str, Any], config_module, preset: str, time_limit: int, use_gpu_param: bool, artifact_dir: Path):
         """Build ModelConfig object for custom model interface."""
@@ -310,9 +314,20 @@ class ModelModule(BaseModule):
             marker.write_text("TARGET_COLUMN missing; aborting model step.")
             return ModuleResult(success=False, error="TARGET_COLUMN missing", artifacts=[marker])
 
-        preset = self.invocation_params.get("preset") or getattr(config, "AUTOGLUON_PRESET", "medium")
-        time_limit = self.invocation_params.get("time_limit") or getattr(config, "AUTOGLUON_TIME_LIMIT", None)
-        use_gpu_param = self.invocation_params.get("use_gpu")
+        # Check for convenience flags first
+        if self.invocation_params.get("dev"):
+            preset = "medium"
+            time_limit = 300
+            use_gpu_param = 0
+        elif self.invocation_params.get("smoke"):
+            preset = "medium"
+            time_limit = 60
+            use_gpu_param = 0
+        else:
+            # Default extraction (only if no convenience flags)
+            preset = self.invocation_params.get("preset") or getattr(config, "AUTOGLUON_PRESET", "medium")
+            time_limit = self.invocation_params.get("time_limit") or getattr(config, "AUTOGLUON_TIME_LIMIT", None)
+            use_gpu_param = self.invocation_params.get("use_gpu")
 
         loader = TemplateLoader(self.context.project_root, template_type="model")
         template_cfg = loader.load(template_name)

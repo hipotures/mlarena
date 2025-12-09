@@ -26,6 +26,11 @@ class PreprocessModule(BaseModule):
     def register_cli_args(cls, parser) -> None:
         parser.add_argument("--preprocess-template", type=str, required=True, help="Name of preprocessing template (required to avoid mistakes).")
         parser.add_argument("--cache", action="store_true", help="Reuse existing processed files if present.")
+        # Add convenience flags for consistency (preprocess doesn't use them, but prevents arg parsing errors)
+        parser.add_argument("--dev", "-d", action="store_true",
+                           help="Development mode (not used by preprocess)")
+        parser.add_argument("--smoke", "-s", action="store_true",
+                           help="Smoke test mode (not used by preprocess)")
 
     def can_run(self) -> tuple[bool, str]:
         """Validate that template exists before running."""

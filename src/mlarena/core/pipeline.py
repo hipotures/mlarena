@@ -287,6 +287,7 @@ class PipelineExecutor:
                     template_name=header_data.get("template_name"),
                     template_config=header_data.get("template_config"),
                     cli_overrides=header_data.get("cli_overrides"),
+                    cli_invocation=getattr(module, "invocation_params", {}),
                     input_paths=header_data.get("input_paths"),
                     output_paths=header_data.get("output_paths"),
                     project_root=module.context.project_root,

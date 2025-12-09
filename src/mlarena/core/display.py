@@ -221,6 +221,7 @@ def print_module_header(
     template_name: Optional[str] = None,
     template_config: Optional[Dict[str, Any]] = None,
     cli_overrides: Optional[Dict[str, tuple]] = None,
+    cli_invocation: Optional[Dict[str, Any]] = None,
     input_paths: Optional[Dict[str, str]] = None,
     output_paths: Optional[Dict[str, str]] = None,
     project_root: Optional[Path] = None,
@@ -300,10 +301,18 @@ def print_module_header(
                         cli_value_str = format_time_limit(cli_value)
                     else:
                         cli_value_str = str(cli_value)
+
+                    # Check if from convenience flag
+                    convenience_flag = cli_invocation.get("_convenience_flag") if cli_invocation else None
+                    if convenience_flag:
+                        flag_label = f"--{convenience_flag}"
+                    else:
+                        flag_label = "CLI override"
+
                     lines.append(
                         f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] "
                         f"[{COLOR_OVERRIDE}]{cli_value_str}[/{COLOR_OVERRIDE}] "
-                        f"[dim][CLI override][/dim]"
+                        f"[dim][{flag_label}][/dim]"
                     )
                 else:
                     lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")

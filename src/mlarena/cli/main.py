@@ -92,6 +92,10 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
     parser.add_argument("--skip-submit", action="store_true", help="Skip Kaggle submission (save submission file only)")
     parser.add_argument("--skip-git", action="store_true", help="Skip automatic git commit")
     parser.add_argument("--wait-seconds", type=int, default=30, help="Seconds to wait before fetch-score")
+    parser.add_argument("--dev", "-d", action="store_true",
+                       help="Development mode: preset=medium, time_limit=300s, use_gpu=0")
+    parser.add_argument("--smoke", "-s", action="store_true",
+                       help="Smoke test mode: preset=medium, time_limit=60s, use_gpu=0")
 
     subparsers = parser.add_subparsers(dest="command", required=False)
 
@@ -110,8 +114,53 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
     return parser
 
 
+def _validate_convenience_flags(args: argparse.Namespace) -> None:
+    """Validate that --dev/--smoke aren't used with conflicting flags."""
+    # Check mutual exclusivity
+    if getattr(args, "dev", False) and getattr(args, "smoke", False):
+        raise ValueError(
+            "Cannot use --dev and --smoke together. Choose one:\n"
+            "  --dev:   5-minute development iteration\n"
+            "  --smoke: 1-minute smoke test"
+        )
+
+    # Check for conflicts with explicit config flags
+    convenience_flag = None
+    if getattr(args, "dev", False):
+        convenience_flag = "--dev"
+    elif getattr(args, "smoke", False):
+        convenience_flag = "--smoke"
+
+    if convenience_flag:
+        conflicting = []
+        if getattr(args, "preset", None) is not None:
+            conflicting.append("--preset")
+        if getattr(args, "time_limit", None) is not None:
+            conflicting.append("--time-limit")
+        if getattr(args, "use_gpu", None) is not None:
+            conflicting.append("--use-gpu")
+
+        if conflicting:
+            raise ValueError(
+                f"Cannot use {convenience_flag} with explicit config flags: {', '.join(conflicting)}\n"
+                f"{convenience_flag} already sets these values. Use one or the other."
+            )
+
+
 def _extract_module_params(args: argparse.Namespace, module_arg_map: Dict[str, List[str]]) -> Dict[str, object]:
     params: Dict[str, object] = {}
+
+    # Apply convenience flags FIRST (before extracting CLI args)
+    if getattr(args, "dev", False):
+        params["preset"] = "medium"
+        params["time_limit"] = 300
+        params["use_gpu"] = 0
+        params["_convenience_flag"] = "dev"  # Track for display
+    elif getattr(args, "smoke", False):
+        params["preset"] = "medium"
+        params["time_limit"] = 60
+        params["use_gpu"] = 0
+        params["_convenience_flag"] = "smoke"  # Track for display
 
     # Add common flags (force, skip_deps, etc.)
     common_flag_names = ["force", "skip_deps"]
@@ -210,6 +259,8 @@ def run_auto_flow(
     skip_git: bool = False,
     wait_seconds: int = 30,
     argv: Optional[List[str]] = None,
+    dev: bool = False,
+    smoke: bool = False,
 ) -> int:
     """
     Run full auto-flow: init → eda → preprocess → model → predict → submit → fetch-score.
@@ -408,11 +459,30 @@ def run_auto_flow(
     # Model uses LAST template in preprocessing chain
     final_preprocess_template = preprocess_templates[-1] if preprocess_templates else preprocess_template
 
-    model_module.set_invocation_params({
+    # Build model invocation params
+    model_params = {
         "model_template": model_template,
         "preprocess_template": final_preprocess_template,
         "force": force,
-    })
+    }
+
+    # Apply convenience flags
+    if dev:
+        model_params.update({
+            "preset": "medium",
+            "time_limit": 300,
+            "use_gpu": 0,
+            "_convenience_flag": "dev"
+        })
+    elif smoke:
+        model_params.update({
+            "preset": "medium",
+            "time_limit": 60,
+            "use_gpu": 0,
+            "_convenience_flag": "smoke"
+        })
+
+    model_module.set_invocation_params(model_params)
 
     # Run model (skip dependencies - preprocessing already completed)
     executor = PipelineExecutor({"model": model_module})
@@ -569,6 +639,13 @@ def main(argv: List[str] | None = None) -> int:
     parser = _build_parser(module_arg_map)
     args = parser.parse_args(argv)
 
+    # Validate convenience flags early
+    try:
+        _validate_convenience_flags(args)
+    except ValueError as e:
+        print(f"[error] {e}")
+        return 1
+
     # Detect auto-flow: --project provided but no subcommand
     is_auto_flow = False
     if args.command is None:
@@ -591,6 +668,8 @@ def main(argv: List[str] | None = None) -> int:
             skip_git=args.skip_git,
             wait_seconds=args.wait_seconds,
             argv=argv,
+            dev=args.dev,
+            smoke=args.smoke,
         )
 
     if args.command == "modules":

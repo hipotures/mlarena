@@ -234,9 +234,10 @@ templates:
     module: imbalance_handler
     cache: true
     config:
-      imbalance_method: "none"  # none|class_weight|random_over|random_under|smote|smotenc
+      imbalance_method: "class_weight"  # none|class_weight|random_over|random_under|smote|smotenc|adasyn
       sampling_strategy: "auto"
       use_sample_weights: true
+      random_state: 42
 
   # 11. Outlier Handling
   outlier_handler:

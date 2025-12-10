@@ -335,9 +335,9 @@ def print_module_header(
             train_shape = shapes_meta.get("train")
             test_shape = shapes_meta.get("test")
             if train_shape:
-                lines.append(f"[{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Train: {train_shape[0]:,} × {train_shape[1]}")
+                lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Train: {train_shape[0]:,} × {train_shape[1]}")
             if test_shape:
-                lines.append(f"[{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Test: {test_shape[0]:,} × {test_shape[1]}")
+                lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Test: {test_shape[0]:,} × {test_shape[1]}")
 
     # Output paths (expected)
     if output_paths:
@@ -346,10 +346,6 @@ def print_module_header(
         for key, path in output_paths.items():
             label = key.replace('_', ' ').title()
             lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
-
-    # Enforce max 15 lines (excluding title/border)
-    if len(lines) > 15:
-        lines = lines[:14] + ["[dim]... (output truncated)[/dim]"]
 
     content = "\n".join(lines)
 

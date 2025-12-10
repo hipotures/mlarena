@@ -116,38 +116,76 @@ class PipelineExecutor:
             preprocess_exp_dir = invocation.get("preprocess_exp_dir")
             shapes_meta = None
 
-            if preprocess_exp_dir:
-                pp_dir = Path(preprocess_exp_dir)
+            def _load_shapes_from_state(exp_dir: Path):
+                state_path = exp_dir / "state.json"
+                if not state_path.exists():
+                    return None
+                try:
+                    import json
+                    with open(state_path) as f:
+                        state = json.load(f)
+                    payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
+                    shapes = payload.get("shapes", {})
+                    train_after = shapes.get("train_after")
+                    test_after = shapes.get("test_after")
+                    if train_after or test_after:
+                        return {"train": train_after, "test": test_after}
+                except Exception:
+                    return None
+                return None
+
+            def _load_shapes_from_chain_root(root: Path):
+                # Try root state
+                shapes = _load_shapes_from_state(root)
+                if shapes:
+                    return shapes
+                # Try latest step subdir (named "<idx>-<step>")
+                candidates = []
+                for subdir in root.iterdir():
+                    if not subdir.is_dir():
+                        continue
+                    try:
+                        idx = int(subdir.name.split("-")[0])
+                    except Exception:
+                        continue
+                    candidates.append((idx, subdir))
+                if candidates:
+                    candidates.sort(reverse=True)
+                    _, latest_dir = candidates[0]
+                    shapes = _load_shapes_from_state(latest_dir)
+                    if shapes:
+                        return shapes
+                return None
+
+            def _resolve_preprocess_dir():
+                if preprocess_exp_dir:
+                    return Path(preprocess_exp_dir)
+                if preprocess_template:
+                    default_dir = module.context.project_root / f"experiments/pre-{preprocess_template}"
+                    if default_dir.exists():
+                        return default_dir
+                    # search chain dirs
+                    experiments_dir = module.context.project_root / "experiments"
+                    candidates = sorted(
+                        experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"),
+                        key=lambda p: p.stat().st_mtime,
+                        reverse=True,
+                    )
+                    if candidates:
+                        return candidates[0]  # step dir
+                return None
+
+            pp_dir = _resolve_preprocess_dir()
+            if pp_dir:
                 train_pp = pp_dir / "artifacts" / "preprocess" / "train_processed.csv"
                 test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv"
                 input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
                 input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
-                # Try to read shapes
-                try:
-                    import pandas as pd
-                    train_shape = pd.read_csv(train_pp).shape if train_pp.exists() else None
-                    test_shape = pd.read_csv(test_pp).shape if test_pp.exists() else None
-                    if train_shape or test_shape:
-                        shapes_meta = {"train": train_shape, "test": test_shape}
-                except Exception:
-                    pass
-            elif preprocess_template:
-                # Default single-step location
-                input_paths["train"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/train_processed.csv"
-                input_paths["test"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/test_processed.csv"
-                # Try to read shapes from default location
-                try:
-                    import pandas as pd
-                    train_pp = module.context.project_root / f"experiments/pre-{preprocess_template}/artifacts/preprocess/train_processed.csv"
-                    test_pp = module.context.project_root / f"experiments/pre-{preprocess_template}/artifacts/preprocess/test_processed.csv"
-                    train_shape = pd.read_csv(train_pp).shape if train_pp.exists() else None
-                    test_shape = pd.read_csv(test_pp).shape if test_pp.exists() else None
-                    if train_shape or test_shape:
-                        shapes_meta = {"train": train_shape, "test": test_shape}
-                except Exception:
-                    pass
+                # Try state.json in this dir; if not found, try chain root / latest step
+                shapes_meta = _load_shapes_from_chain_root(pp_dir)
+                if shapes_meta:
+                    input_paths["__shapes__"] = shapes_meta
             else:
-                # Raw data fallback
                 input_paths["train"] = "data/train.csv"
                 input_paths["test"] = "data/test.csv"
                 shapes_meta = None
@@ -156,9 +194,6 @@ class PipelineExecutor:
             experiment_id = module.context.experiment_id
             output_paths["model"] = f"experiments/{experiment_id}/artifacts/"
             output_paths["submission"] = "submissions/"
-
-            if shapes_meta:
-                input_paths["__shapes__"] = shapes_meta
 
         elif module_name == "eda":
             # Input paths for EDA

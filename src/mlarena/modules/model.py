@@ -85,7 +85,28 @@ def _load_processed_or_raw(
         if train_df is not None:
             return train_df, test_df, sample_weight
 
-        # 3) Fallback: search chain directories containing this template (pick most recent)
+        # 3) Fallback: search meta-template chain dir (pre-{template}) and use last step
+        chain_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
+        if chain_dir.exists() and chain_dir.is_dir():
+            # Subdirs are named "<idx>-<module>"; pick the highest idx
+            candidates = []
+            for subdir in chain_dir.iterdir():
+                if not subdir.is_dir():
+                    continue
+                try:
+                    idx_str = subdir.name.split("-")[0]
+                    idx = int(idx_str)
+                except Exception:
+                    continue
+                candidates.append((idx, subdir))
+            if candidates:
+                candidates.sort(reverse=True)
+                _, latest_dir = candidates[0]
+                train_df, test_df, sample_weight = _load_from_exp_dir(latest_dir)
+                if train_df is not None:
+                    return train_df, test_df, sample_weight
+
+        # 4) Fallback: search chain directories containing this template (pick most recent)
         experiments_dir = context.project_root / "experiments"
         candidates = sorted(
             experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"),

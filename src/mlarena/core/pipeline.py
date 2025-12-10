@@ -112,13 +112,21 @@ class PipelineExecutor:
 
         elif module_name == "model":
             # Input paths for model
-            input_paths["train"] = "data/train.csv"
-            input_paths["test"] = "data/test.csv"
-
-            # Check if using preprocessed data
             preprocess_template = invocation.get("preprocess_template") or template_config.get("preprocess_template")
-            if preprocess_template:
-                input_paths["preprocessed"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/"
+            preprocess_exp_dir = invocation.get("preprocess_exp_dir")
+
+            if preprocess_exp_dir:
+                pp_dir = Path(preprocess_exp_dir)
+                input_paths["train"] = format_path_relative(pp_dir / "artifacts" / "preprocess" / "train_processed.csv", module.context.project_root)
+                input_paths["test"] = format_path_relative(pp_dir / "artifacts" / "preprocess" / "test_processed.csv", module.context.project_root)
+            elif preprocess_template:
+                # Default single-step location
+                input_paths["train"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/train_processed.csv"
+                input_paths["test"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/test_processed.csv"
+            else:
+                # Raw data fallback
+                input_paths["train"] = "data/train.csv"
+                input_paths["test"] = "data/test.csv"
 
             # Output paths for model
             experiment_id = module.context.experiment_id

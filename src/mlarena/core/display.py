@@ -109,16 +109,19 @@ def format_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
-def format_time_limit(seconds: int) -> str:
+def format_time_limit(seconds: int | None) -> str:
     """
     Format time limit with both seconds and human-readable form.
 
     Args:
-        seconds: Time limit in seconds
+        seconds: Time limit in seconds (can be None)
 
     Returns:
         Formatted string like "28800s (8.0h)" or "300s (5.0m)"
     """
+    if seconds is None:
+        return "N/A"
+
     hours = seconds / 3600
     minutes = seconds / 60
 

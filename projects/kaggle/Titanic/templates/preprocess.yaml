@@ -12,3 +12,13 @@ templates:
   # Test chain: sanity_check + noop
   sanity_noop_chain:
     chain: [sanity_check_titanic, noop]
+
+  # Full pipeline for Titanic
+  titanic_standard_pipeline:
+    chain:
+      - sanity_check_titanic
+      - imputer
+      - rare_category_handler
+      - encoder
+      - outlier_handler
+      - imbalance_handler

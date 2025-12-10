@@ -153,6 +153,15 @@ Globalne Template'y (config/templates/preprocess.yaml)
 * Parametry w template: `autogluon_mode` (`raw_categories|boosted_categories`), listy kolumn do dodatkowych liczników/frequency (`freq_encoding_cols`), parametry tych encodingów (np. minimalna liczba wystąpień, czy normalizować przez liczebność datasetu), flaga automatycznej detekcji kolumn tekstowych (`auto_text_detection`), flaga wymuszania typów (`enforce_dtypes`).
 * Efekt: dane idealnie przygotowane pod AutoGluon z możliwością testowania, czy dodatkowe encodery/liczniki pomagają w porównaniu z „gołym” trybem natywnych kategorii.
 
+### 13. Moduł transformacji danych czasowych, dat i godzin
+
+* Cel: ujednolicenie reprezentacji dat/czasu oraz generowanie bogatych cech czasowych przy zachowaniu kontroli nad ilością featurów i ryzykiem leakage.
+* Narzędzia: `pandas` (`to_datetime`, atrybuty `.dt`), ewentualnie `dateutil`, proste własne funkcje do obliczania różnic czasu i cyklicznych transformacji (sin/cos) dla cech typu godzina/dzień tygodnia.
+* Funkcje: rzutowanie kolumn na `datetime`, parsowanie wg zadanego formatu lub automatycznie, generowanie cech pochodnych (rok, miesiąc, dzień, godzina, minuta, dzień tygodnia, numer tygodnia, kwartał, pora dnia, weekend/święto – jeśli dostarczysz kalendarz), obliczanie różnic czasowych między parami kolumn (np. „czas_od_rejestracji”), opcjonalne cykliczne kodowanie cech okresowych (godzina, dzień tygodnia, miesiąc).
+* Parametry w template: lista kolumn do parsowania jako daty (`datetime_cols`) z opcjonalnymi formatami (`datetime_formats`), lista kolumn do generowania cech pochodnych (`expand_datetime_cols`), wybór zestawu cech (`time_features_set: basic|extended|custom`), definicje różnic czasowych (`time_diff_pairs: [[col_start, col_end, new_name], ...]`), konfiguracja cyklicznych transformacji (`cyclical_features: [hour, dayofweek, month]`), flaga usuwania oryginalnej kolumny datetime po ekspansji (`drop_original_datetime`).
+* Efekt: zestaw dobrze opisanych cech czasowych (z kontrolowaną granularnością), które można łatwo włączać/wyłączać i porównywać między eksperymentami, oraz spójne typy datetime dla całego pipeline’u.
+
+
 ---
 Każdy zakończony moduł (kod+dokumentacja) ma się sfinalizować commitem w git
 

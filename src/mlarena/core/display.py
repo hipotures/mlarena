@@ -320,13 +320,24 @@ def print_module_header(
                 else:
                     lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
 
-    # Input paths
+    # Input paths (with optional shapes)
     if input_paths:
         lines.append("")
         lines.append(f"[{COLOR_KEY}]Input:[/{COLOR_KEY}]")
         for key, path in input_paths.items():
+            if key == "__shapes__":
+                continue
             label = key.replace('_', ' ').title()
             lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
+        # Show shapes if provided
+        shapes_meta = input_paths.get("__shapes__") if "__shapes__" in input_paths else None
+        if shapes_meta:
+            train_shape = shapes_meta.get("train")
+            test_shape = shapes_meta.get("test")
+            if train_shape:
+                lines.append(f"[{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Train: {train_shape[0]:,} × {train_shape[1]}")
+            if test_shape:
+                lines.append(f"[{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Test: {test_shape[0]:,} × {test_shape[1]}")
 
     # Output paths (expected)
     if output_paths:

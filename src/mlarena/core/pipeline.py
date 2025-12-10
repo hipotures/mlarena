@@ -114,24 +114,51 @@ class PipelineExecutor:
             # Input paths for model
             preprocess_template = invocation.get("preprocess_template") or template_config.get("preprocess_template")
             preprocess_exp_dir = invocation.get("preprocess_exp_dir")
+            shapes_meta = None
 
             if preprocess_exp_dir:
                 pp_dir = Path(preprocess_exp_dir)
-                input_paths["train"] = format_path_relative(pp_dir / "artifacts" / "preprocess" / "train_processed.csv", module.context.project_root)
-                input_paths["test"] = format_path_relative(pp_dir / "artifacts" / "preprocess" / "test_processed.csv", module.context.project_root)
+                train_pp = pp_dir / "artifacts" / "preprocess" / "train_processed.csv"
+                test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv"
+                input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
+                input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
+                # Try to read shapes
+                try:
+                    import pandas as pd
+                    train_shape = pd.read_csv(train_pp).shape if train_pp.exists() else None
+                    test_shape = pd.read_csv(test_pp).shape if test_pp.exists() else None
+                    if train_shape or test_shape:
+                        shapes_meta = {"train": train_shape, "test": test_shape}
+                except Exception:
+                    pass
             elif preprocess_template:
                 # Default single-step location
                 input_paths["train"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/train_processed.csv"
                 input_paths["test"] = f"experiments/pre-{preprocess_template}/artifacts/preprocess/test_processed.csv"
+                # Try to read shapes from default location
+                try:
+                    import pandas as pd
+                    train_pp = module.context.project_root / f"experiments/pre-{preprocess_template}/artifacts/preprocess/train_processed.csv"
+                    test_pp = module.context.project_root / f"experiments/pre-{preprocess_template}/artifacts/preprocess/test_processed.csv"
+                    train_shape = pd.read_csv(train_pp).shape if train_pp.exists() else None
+                    test_shape = pd.read_csv(test_pp).shape if test_pp.exists() else None
+                    if train_shape or test_shape:
+                        shapes_meta = {"train": train_shape, "test": test_shape}
+                except Exception:
+                    pass
             else:
                 # Raw data fallback
                 input_paths["train"] = "data/train.csv"
                 input_paths["test"] = "data/test.csv"
+                shapes_meta = None
 
             # Output paths for model
             experiment_id = module.context.experiment_id
             output_paths["model"] = f"experiments/{experiment_id}/artifacts/"
             output_paths["submission"] = "submissions/"
+
+            if shapes_meta:
+                input_paths["__shapes__"] = shapes_meta
 
         elif module_name == "eda":
             # Input paths for EDA

@@ -307,7 +307,7 @@ def fit_transform(
         if drift_metric == "psi":
             psi = _calculate_psi(train_df[col], test_df[col])
             result["psi"] = float(psi) if not np.isnan(psi) else None
-            result["drifted"] = psi > config["max_psi"] if not np.isnan(psi) else False
+            result["drifted"] = bool(psi > config["max_psi"]) if not np.isnan(psi) else False
 
         elif drift_metric == "ks":
             # Only for numeric columns
@@ -315,7 +315,9 @@ def fit_transform(
                 ks_stat, p_value = _calculate_ks_statistic(train_df[col], test_df[col])
                 result["ks_statistic"] = float(ks_stat) if not np.isnan(ks_stat) else None
                 result["p_value"] = float(p_value) if not np.isnan(p_value) else None
-                result["drifted"] = (ks_stat > config["max_ks"] or p_value < config["max_pvalue"]) if not np.isnan(ks_stat) else False
+                result["drifted"] = bool(
+                    (ks_stat > config["max_ks"] or p_value < config["max_pvalue"])
+                ) if not np.isnan(ks_stat) else False
             else:
                 result["ks_statistic"] = None
                 result["p_value"] = None
@@ -327,7 +329,7 @@ def fit_transform(
                 chi2_stat, p_value = _calculate_chi2_statistic(train_df[col], test_df[col])
                 result["chi2_statistic"] = float(chi2_stat) if not np.isnan(chi2_stat) else None
                 result["p_value"] = float(p_value) if not np.isnan(p_value) else None
-                result["drifted"] = p_value < config["max_pvalue"] if not np.isnan(p_value) else False
+                result["drifted"] = bool(p_value < config["max_pvalue"]) if not np.isnan(p_value) else False
             else:
                 result["chi2_statistic"] = None
                 result["p_value"] = None
@@ -336,7 +338,7 @@ def fit_transform(
         elif drift_metric == "model_auc":
             auc = _calculate_model_auc(train_df[col], test_df[col], config["random_state"])
             result["auc"] = float(auc) if not np.isnan(auc) else None
-            result["drifted"] = auc > config["min_auc"] if not np.isnan(auc) else False
+            result["drifted"] = bool(auc > config["min_auc"]) if not np.isnan(auc) else False
 
         drift_results[col] = result
 

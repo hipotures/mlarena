@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 
@@ -17,14 +17,22 @@ from mlarena.core.config import TemplateLoader
 from mlarena.utils.project import data_paths, load_project_config
 
 
-def _load_processed_or_raw(context, config, preprocess_template: str | None = None):
+def _load_processed_or_raw(
+    context,
+    config,
+    preprocess_template: str | None = None,
+    *,
+    preprocess_exp_dir: str | Path | None = None,
+):
     """
-    Load preprocessed data from experiments/pre-{template}/ or raw data.
+    Load preprocessed data from experiments (supports chains) or raw data.
 
     Args:
         context: Module context
         config: Project config
         preprocess_template: Name of preprocessing template (e.g., 'baseline', 'av_weights')
+        preprocess_exp_dir: Optional explicit experiment directory for the final preprocessing step
+            (e.g., experiments/pre-ps5e12_drift_mi/7-imbalance_handler)
 
     Returns:
         Tuple of (train_df, test_df, sample_weight_df or None)
@@ -34,23 +42,17 @@ def _load_processed_or_raw(context, config, preprocess_template: str | None = No
 
     sample_weight = None
 
-    if preprocess_template:
-        # Load from experiments/pre-{template}/artifacts/preprocess/
-        preprocess_exp_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
-        train_path = preprocess_exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
-        test_path = preprocess_exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
-
+    def _load_from_exp_dir(exp_dir: Path):
+        train_path = exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
+        test_path = exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
         if not train_path.exists():
-            raise FileNotFoundError(
-                f"Preprocessed data not found: {train_path}\n"
-                f"Run: python scripts/mla.py preprocess --project {context.project_name} --preprocess-template {preprocess_template}"
-            )
+            return None, None, None
 
-        train_df = pd.read_csv(train_path)
-        test_df = pd.read_csv(test_path) if test_path.exists() else None
+        train_df_local = pd.read_csv(train_path)
+        test_df_local = pd.read_csv(test_path) if test_path.exists() else None
 
-        # Check if preprocessing created sample weights (e.g., av_weights)
-        state_path = preprocess_exp_dir / "state.json"
+        sample_weight_local = None
+        state_path = exp_dir / "state.json"
         if state_path.exists():
             with open(state_path) as f:
                 state = json.load(f)
@@ -65,7 +67,41 @@ def _load_processed_or_raw(context, config, preprocess_template: str | None = No
                 if not weights_path.is_absolute():
                     weights_path = context.project_root / weights_path
                 if weights_path.exists():
-                    sample_weight = pd.read_csv(weights_path)
+                    sample_weight_local = pd.read_csv(weights_path)
+
+        return train_df_local, test_df_local, sample_weight_local
+
+    if preprocess_template:
+        # 1) Prefer explicit experiment dir (for chains)
+        if preprocess_exp_dir:
+            exp_dir = Path(preprocess_exp_dir)
+            train_df, test_df, sample_weight = _load_from_exp_dir(exp_dir)
+            if train_df is not None:
+                return train_df, test_df, sample_weight
+
+        # 2) Try default single-step location (legacy)
+        default_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
+        train_df, test_df, sample_weight = _load_from_exp_dir(default_dir)
+        if train_df is not None:
+            return train_df, test_df, sample_weight
+
+        # 3) Fallback: search chain directories containing this template (pick most recent)
+        experiments_dir = context.project_root / "experiments"
+        candidates = sorted(
+            experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        for exp_dir in candidates:
+            train_df, test_df, sample_weight = _load_from_exp_dir(exp_dir)
+            if train_df is not None:
+                return train_df, test_df, sample_weight
+
+        raise FileNotFoundError(
+            f"Preprocessed data not found for template '{preprocess_template}'.\n"
+            f"Searched: {default_dir}/artifacts/preprocess/ and any chain step '*-{preprocess_template}'.\n"
+            f"Run: python scripts/mla.py preprocess --project {context.project_name} --preprocess-template {preprocess_template}"
+        )
     else:
         # Use raw data
         train_path, test_path = data_paths(config)
@@ -307,7 +343,13 @@ class ModelModule(BaseModule):
         config = self.context.config_module or load_project_config(self.context.project_root)
 
         preprocess_template = self.invocation_params.get("preprocess_template")
-        train_df, test_df, sample_weight = _load_processed_or_raw(self.context, config, preprocess_template)
+        preprocess_exp_dir = self.invocation_params.get("preprocess_exp_dir")
+        train_df, test_df, sample_weight = _load_processed_or_raw(
+            self.context,
+            config,
+            preprocess_template,
+            preprocess_exp_dir=preprocess_exp_dir,
+        )
         target = getattr(config, "TARGET_COLUMN", None)
         if target is None or target not in train_df.columns:
             marker = artifact_dir / "model_failed.txt"

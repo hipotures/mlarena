@@ -51,6 +51,9 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
         - Chain experiment ID (e.g., "pre-full-pipeline" or "pre-chain-a1b2c3d4")
         - Is meta-template (True if single meta-template, False if CLI chain)
     """
+    if template_arg is None:
+        template_arg = "baseline"
+
     # Split by comma and strip whitespace
     templates = [t.strip() for t in template_arg.split(",")]
 
@@ -105,7 +108,7 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
     # Auto-flow arguments (top-level, before subparsers)
     parser.add_argument("--project", "-p", help="Project name (enables auto-flow if no module specified)")
     parser.add_argument("--model-template", default="baseline", help="Model template for auto-flow")
-    parser.add_argument("--preprocess-template", default="baseline", help="Preprocessing template for auto-flow")
+    parser.add_argument("--preprocess-template", default=None, help="Preprocessing template for auto-flow (defaults to model template's preprocess if set, else baseline)")
     parser.add_argument("--force", "-f", action="store_true", help="Force re-run ALL modules from scratch")
     parser.add_argument("--skip-submit", action="store_true", help="Skip Kaggle submission (save submission file only)")
     parser.add_argument("--skip-git", action="store_true", help="Skip automatic git commit")
@@ -170,7 +173,7 @@ def _extract_module_params(args: argparse.Namespace, module_arg_map: Dict[str, L
 
     # Apply convenience flags FIRST (before extracting CLI args)
     if getattr(args, "dev", False):
-        params["preset"] = "medium"
+        params["preset"] = "high"
         params["time_limit"] = 300
         params["use_gpu"] = 0
         params["_convenience_flag"] = "dev"  # Track for display
@@ -271,7 +274,7 @@ def run_auto_flow(
     project_root: Path,
     project_name: str,
     model_template: str = "baseline",
-    preprocess_template: str = "baseline",
+    preprocess_template: Optional[str] = None,
     force: bool = False,
     skip_submit: bool = False,
     skip_git: bool = False,
@@ -312,6 +315,21 @@ def run_auto_flow(
             pipeline_def, _ = load_pipeline_def("default", project_root=project_root)
         except Exception:
             pass  # Init will create project
+
+    # Resolve preprocess template: CLI override > model template link > baseline
+    resolved_preprocess_template = preprocess_template
+    if resolved_preprocess_template is None:
+        try:
+            import sys
+
+            sys.path.insert(0, str(REPO_ROOT / "scripts"))
+            from template_loader import load_templates  # type: ignore
+
+            model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
+            model_tpl_cfg = model_templates.get(model_template, {})
+            resolved_preprocess_template = model_tpl_cfg.get("preprocess_template", "baseline")
+        except Exception:
+            resolved_preprocess_template = "baseline"
 
     # Phase 1: Setup modules (init/eda/preprocess chain) - smart checking
 
@@ -358,7 +376,7 @@ def run_auto_flow(
             # Init needs to know about pipeline templates for header display
             module.set_invocation_params({
                 "model_template": model_template,
-                "preprocess_template": preprocess_template,
+                "preprocess_template": resolved_preprocess_template,
                 "force": force,
             })
         else:
@@ -379,7 +397,7 @@ def run_auto_flow(
             return 1
 
     # Now handle preprocessing chain
-    preprocess_templates, chain_exp_id, is_meta = _parse_preprocess_templates(preprocess_template, project_root)
+    preprocess_templates, chain_exp_id, is_meta = _parse_preprocess_templates(resolved_preprocess_template, project_root)
 
     # Print chain info
     if len(preprocess_templates) > 1 or is_meta:
@@ -460,6 +478,12 @@ def run_auto_flow(
                 console.print(f"[red]Error: {result.error}[/red]\n")
             return 1
 
+    # Determine final preprocessing experiment directory (chain-aware)
+    final_preprocess_exp_dir = None
+    if preprocess_templates:
+        final_step_id = f"{len(preprocess_templates) - 1}-{preprocess_templates[-1]}"
+        final_preprocess_exp_dir = project_root / "experiments" / chain_exp_id / final_step_id
+
     # Reload config after init/eda/preprocess (ensure fresh config)
     if project_root.exists():
         config_module = load_project_config(project_root)
@@ -487,19 +511,20 @@ def run_auto_flow(
     model_module = model_cls(model_context)
 
     # Model uses LAST template in preprocessing chain
-    final_preprocess_template = preprocess_templates[-1] if preprocess_templates else preprocess_template
+    final_preprocess_template = preprocess_templates[-1] if preprocess_templates else resolved_preprocess_template
 
     # Build model invocation params
     model_params = {
         "model_template": model_template,
         "preprocess_template": final_preprocess_template,
+        "preprocess_exp_dir": str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None,
         "force": force,
     }
 
     # Apply convenience flags
     if dev:
         model_params.update({
-            "preset": "medium",
+            "preset": "high",
             "time_limit": 300,
             "use_gpu": 0,
             "_convenience_flag": "dev"
@@ -551,6 +576,11 @@ def run_auto_flow(
 
         if module_name == "submit":
             module.set_invocation_params({"skip_submit": skip_submit})
+        elif module_name == "predict":
+            module.set_invocation_params({
+                "preprocess_template": final_preprocess_template,
+                "preprocess_exp_dir": str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None,
+            })
 
         all_modules[module_name] = module
 

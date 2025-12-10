@@ -11,6 +11,7 @@ from typing import Optional
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import data_paths, load_project_config, load_submission_module
+from mlarena.modules.model import _load_processed_or_raw  # reuse loader logic
 
 
 def _load_predictor(model_artifact: Path):
@@ -45,15 +46,23 @@ class PredictModule(BaseModule):
         model_artifact = Path(model_entry.payload["model_artifact"])  # type: ignore
         predictor = _load_predictor(model_artifact)
 
-        pre_entry = self.context.state.modules.get("preprocess")
-        processed = getattr(pre_entry, "payload", {}) if pre_entry else {}
-        test_path: Optional[Path] = None
-        if processed and processed.get("test_processed"):
-            test_path = Path(processed["test_processed"])
-        if test_path is None or not test_path.exists():
+        # Try to use preprocessed test set from the same chain as training
+        processed_test: Optional[Path] = None
+        pp_template = self.invocation_params.get("preprocess_template")
+        pp_exp_dir = self.invocation_params.get("preprocess_exp_dir")
+        if pp_template:
+            _, test_df_pp, _ = _load_processed_or_raw(
+                self.context,
+                config,
+                pp_template,
+                preprocess_exp_dir=pp_exp_dir,
+            )
+            processed_test = Path(pp_exp_dir) / "artifacts" / "preprocess" / "test_processed.csv" if pp_exp_dir else None
+            test_df = test_df_pp
+        else:
             _, test_path = data_paths(config)
+            test_df = pd.read_csv(test_path)
 
-        test_df = pd.read_csv(test_path)
         id_col = getattr(config, "ID_COLUMN", None)
         id_series = test_df[id_col] if id_col and id_col in test_df.columns else None
         if id_col and id_col in test_df.columns:

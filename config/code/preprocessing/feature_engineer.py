@@ -167,6 +167,19 @@ def _apply_polynomial_features(
     if degree is None or degree <= 1 or not poly_cols:
         return train_df, val_df, test_df, [], {}
 
+    # Skip if NaNs present to avoid PolynomialFeatures failure; user should impute earlier.
+    if train_df[poly_cols].isnull().any().any():
+        warnings.warn(
+            "Skipping polynomial features because input contains NaN. "
+            "Run an imputer earlier in the chain or set poly_degree: null."
+        )
+        return train_df, val_df, test_df, [], {
+            "type": "polynomial",
+            "skipped": True,
+            "reason": "nan_in_input",
+            "input_columns": poly_cols,
+        }
+
     poly = PolynomialFeatures(
         degree=degree,
         include_bias=include_bias,

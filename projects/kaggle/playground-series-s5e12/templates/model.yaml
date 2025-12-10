@@ -114,3 +114,26 @@ templates:
       preset: medium
       time_limit: 600
       use_gpu: false
+
+  # ============================================
+  # GBM 1h using drift+feature selection pipelines
+  # ============================================
+  cpu-best-1h-gbm-drift-mi:
+    preprocess_template: ps5e12_drift_mi
+    model: autogluon
+    config:
+      preset: best
+      time_limit: 3600
+      use_gpu: false
+      hyperparameters:
+        GBM: {}
+
+  cpu-best-1h-gbm-drift-modelimp:
+    preprocess_template: ps5e12_drift_modelimp
+    model: autogluon
+    config:
+      preset: best
+      time_limit: 3600
+      use_gpu: false
+      hyperparameters:
+        GBM: {}

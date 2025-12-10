@@ -561,6 +561,23 @@ wheels = [
 ]
 
 [[package]]
+name = "category-encoders"
+version = "2.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "patsy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "statsmodels" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/29/59/1184ce74dca0c3e3450bccbb16edfce56f559c76dc794e2d52e1e63b467d/category_encoders-2.9.0.tar.gz", hash = "sha256:659311786e909013b8e8715fd1271244789a1dea278da44058828f88eeab5b40", size = 58005 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a6/06/afcae4dab08612dac244ace7f478543f4fb83bea94177231ef9b4f7bfa06/category_encoders-2.9.0-py3-none-any.whl", hash = "sha256:49c0e49cd3bd93b21c0bcc928ecbe9b3d09951a6f7fff8cc67f1f33967887227", size = 85859 },
+]
+
+[[package]]
 name = "certifi"
 version = "2025.11.12"
 source = { registry = "https://pypi.org/simple" }
@@ -1615,6 +1632,7 @@ source = { editable = "." }
 dependencies = [
     { name = "autogluon" },
     { name = "catboost" },
+    { name = "category-encoders" },
     { name = "filelock" },
     { name = "kaggle" },
     { name = "lightgbm" },
@@ -1645,6 +1663,7 @@ dev = [
 requires-dist = [
     { name = "autogluon", specifier = ">=1.0.0" },
     { name = "catboost", specifier = ">=1.2.0" },
+    { name = "category-encoders", specifier = ">=2.9.0" },
     { name = "filelock", specifier = ">=3.12.0" },
     { name = "kaggle", specifier = ">=1.7.4.5" },
     { name = "lightgbm", specifier = ">=4.0.0" },

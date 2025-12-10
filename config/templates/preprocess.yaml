@@ -225,6 +225,9 @@ templates:
       target_transform: "none"  # none|log1p|boxcox|yeo_johnson
       clip_lower_quantile: null
       clip_upper_quantile: null
+      shift_before_log: true
+      shift_value: null
+      standardize: true
 
   # 10. Class Imbalance Handling
   imbalance_handler:

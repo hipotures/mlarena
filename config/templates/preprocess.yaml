@@ -213,7 +213,9 @@ templates:
       numeric_pairs: []
       poly_degree: 2
       group_keys: []
+      group_value_cols: []
       aggs: ["mean", "std"]
+      max_generated_features: 200
 
   # 9. Target Transformation (Regression)
   target_transformer:

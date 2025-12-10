@@ -265,6 +265,21 @@ templates:
       auto_text_detection: true
       enforce_dtypes: true
 
+  # 13. Datetime Handler
+  datetime_handler:
+    module: datetime_handler
+    cache: true
+    config:
+      datetime_cols: []
+      datetime_formats: {}
+      expand_datetime_cols: null
+      time_features_set: "basic"  # basic|extended|none|custom
+      custom_features: []
+      cyclical_features: []
+      time_diff_pairs: []
+      time_diff_default_unit: "days"
+      drop_original_datetime: false
+
   # ============================================
   # META-TEMPLATES (Chains) - Universal Sub-Modules
   # ============================================

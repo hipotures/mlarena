@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **imbalance_handler** sub-module addresses class imbalance for classification tasks. It can compute class weights (for models that consume sample weights) or resample the training data via random over/under sampling. SMOTE/ADASYN/SMOTENC are signaled but require `imbalanced-learn`; currently the module raises a clear error if those are requested without the dependency.
+The **imbalance_handler** sub-module addresses class imbalance for classification tasks. It can compute class weights (for models that consume sample weights) or resample the training data via random over/under sampling. SMOTE/ADASYN/SMOTENC are supported when `imbalanced-learn` is installed; otherwise the module raises an informative error.
 
 **Module Name**: `imbalance_handler`  
 **Location**: `config/code/preprocessing/imbalance_handler.py`
@@ -21,6 +21,7 @@ The **imbalance_handler** sub-module addresses class imbalance for classificatio
 | `imbalance_method` | str | `"none"` | Strategy: `none`, `class_weight`, `random_over`, `random_under`, `smote`, `smotenc`, `adasyn` |
 | `sampling_strategy` | str | `"auto"` | Currently only `auto` is supported (full balance to majority/minority) |
 | `use_sample_weights` | bool | `true` | When `class_weight`, add `sample_weight` column (also to val if present) |
+| `categorical_features` | List[str] | `[]` | Required for `smotenc` (column names treated as categorical) |
 | `random_state` | int | `42` | Seed for resampling |
 
 ## Examples
@@ -62,6 +63,15 @@ imbalance_smote:
   cache: true
   config:
     imbalance_method: "smote"
+    random_state: 123
+
+imbalance_smotenc:
+  module: imbalance_handler
+  cache: true
+  config:
+    imbalance_method: "smotenc"
+    categorical_features: ["cat_col1", "cat_col2"]
+    random_state: 123
 ```
 If `imbalanced-learn` is not installed, the module raises an ImportError with guidance.
 

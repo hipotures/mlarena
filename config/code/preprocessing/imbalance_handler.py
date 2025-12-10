@@ -7,6 +7,7 @@ Parameters:
   - imbalance_method: none|class_weight|random_over|random_under|smote|smotenc|adasyn
   - sampling_strategy: auto (currently only auto supported)
   - use_sample_weights: bool (for class_weight)
+  - categorical_features: list[str] (for SMOTENC)
   - random_state: int
 """
 
@@ -118,6 +119,7 @@ def fit_transform(
         "imbalance_method": "none",
         "sampling_strategy": "auto",
         "use_sample_weights": True,
+        "categorical_features": [],
         "random_state": 42,
     }
     validation.validate_config(config, required_params, optional_params)
@@ -170,11 +172,39 @@ def fit_transform(
     elif method == "random_under":
         train_df_resampled = _apply_random_under(train_df, target_column, random_state)
     else:
-        # smote/smotenc/adasyn not implemented without imbalanced-learn
-        raise ImportError(
-            f"Imbalance method '{method}' requires imbalanced-learn. "
-            "Install it or use class_weight/random_over/random_under."
-        )
+        # smote/smotenc/adasyn
+        try:
+            from imblearn.over_sampling import SMOTE, SMOTENC, ADASYN
+        except ImportError as e:  # pragma: no cover - optional dependency
+            raise ImportError(
+                f"Imbalance method '{method}' requires imbalanced-learn. "
+                "Install it (pip install imbalanced-learn) or use class_weight/random_over/random_under."
+            ) from e
+
+        feature_cols = [c for c in train_df.columns if c != target_column]
+        X = train_df[feature_cols]
+        y = train_df[target_column]
+
+        if method in ["smote", "adasyn"]:
+            if not all(pd.api.types.is_numeric_dtype(X[c]) for c in feature_cols):
+                raise ValueError(
+                    f"{method.upper()} requires numeric features. Run encoders before imbalance_handler "
+                    "or switch to class_weight/random sampling."
+                )
+            sampler = SMOTE(random_state=random_state) if method == "smote" else ADASYN(random_state=random_state)
+        else:
+            cat_cols = config.get("categorical_features", [])
+            if not cat_cols:
+                raise ValueError("SMOTENC requires categorical_features to be provided (list of column names).")
+            missing = [c for c in cat_cols if c not in feature_cols]
+            if missing:
+                raise ValueError(f"SMOTENC categorical_features not found: {missing}")
+            cat_indices = [feature_cols.index(c) for c in cat_cols]
+            sampler = SMOTENC(categorical_features=cat_indices, random_state=random_state)
+
+        X_res, y_res = sampler.fit_resample(X, y)
+        train_df_resampled = pd.DataFrame(X_res, columns=feature_cols)
+        train_df_resampled[target_column] = y_res
 
     class_counts_after = train_df_resampled[target_column].value_counts().to_dict()
 

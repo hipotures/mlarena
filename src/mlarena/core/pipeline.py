@@ -312,6 +312,7 @@ class PipelineExecutor:
             try:
                 outcome = module.execute()
             except Exception as exc:  # pragma: no cover - defensive
+                import traceback
                 error_msg = f"{exc}"
                 detail = traceback.format_exc()
                 module.context.state.fail_module(name, error_msg)

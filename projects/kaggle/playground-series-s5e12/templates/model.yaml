@@ -124,7 +124,7 @@ templates:
   # ============================================
   cpu-best-1h-gbm-drift-mi:
     preprocess_template: ps5e12_drift_mi
-    model: autogluon
+    model: autogluon_av_weights
     config:
       preset: best
       time_limit: 3600
@@ -134,7 +134,7 @@ templates:
 
   cpu-best-1h-gbm-drift-modelimp:
     preprocess_template: ps5e12_drift_modelimp
-    model: autogluon
+    model: autogluon_av_weights
     config:
       preset: best
       time_limit: 3600

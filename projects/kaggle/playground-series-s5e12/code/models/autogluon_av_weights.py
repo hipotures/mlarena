@@ -18,8 +18,8 @@ WEIGHT_COL = "__sample_weight__"
 def get_default_config() -> Dict[str, Any]:
     return {
         "hyperparameters": {
-            "presets": "medium",
-            "time_limit": 300,
+            "presets": "best",
+            "time_limit": 36000,
             "use_gpu": False,
         },
         "model": {
@@ -71,6 +71,24 @@ def train(
         tuning_data = val_features.copy()
         tuning_data[config.dataset.target] = val_df[config.dataset.target]
 
+    # Categorical fix: Convert categorical columns to category dtype
+    # HARDCODED for s5e12 - these columns should be category dtype
+    CATEGORICAL_COLUMNS = [
+        'alcohol_consumption_per_week',
+        'family_history_diabetes',
+        'hypertension_history',
+        'cardiovascular_history',
+    ]
+
+    print(f"[Categorical Fix] Converting {len(CATEGORICAL_COLUMNS)} columns to category dtype")
+    for col in CATEGORICAL_COLUMNS:
+        if col in train_data.columns:
+            train_data[col] = train_data[col].astype('category')
+            print(f"  ✓ train_data[{col}] → category")
+        if tuning_data is not None and col in tuning_data.columns:
+            tuning_data[col] = tuning_data[col].astype('category')
+            print(f"  ✓ tuning_data[{col}] → category")
+
     av_weights = _load_av_weights(train_df, config)
     if av_weights is not None:
         train_data[WEIGHT_COL] = av_weights
@@ -86,11 +104,37 @@ def train(
         verbosity=2,
     )
 
+    # Configure default hyperparameters for native categorical handling in boost models
+    default_hyperparams = {
+
+#        'CAT': {},  # CatBoost uses category dtype natively
+        'CAT': {
+    	    "ag_args_fit": {"num_gpus": 0},
+        },
+        'GBM': {"ag_args_fit": {"num_gpus": 0}},  # LightGBM uses category dtype natively        
+        'XGB': {
+            'enable_categorical': True,  # Enable XGBoost native categorical
+            'tree_method': 'hist',       # Required for categorical support
+            'max_cat_to_onehot': 1,      # Disable one-hot fallback
+            "ag_args_fit": {"num_gpus": 0}
+        },
+    }
+
     fit_kwargs = {
         "presets": config.hyperparameters.presets,
         "time_limit": config.hyperparameters.time_limit,
         "num_gpus": 1 if config.hyperparameters.use_gpu else 0,
+        #"num_gpus": 1,
+
     }
+
+    fit_kwargs["hyperparameter_tune_kwargs"] = {
+	'num_trials': 50,
+	'scheduler': 'local',
+	'searcher': 'auto',
+    }
+
+
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
     included_models = getattr(config.hyperparameters, "included_model_types", None)
@@ -106,8 +150,21 @@ def train(
         "preset",
     }
     model_hparams = {k: v for k, v in hyper_dict.items() if k not in known_keys}
+
+    # Merge user hyperparameters with default categorical hyperparameters
     if model_hparams:
-        fit_kwargs["hyperparameters"] = model_hparams
+        # Deep merge: update default_hyperparams with user's model_hparams
+        for model_type, params in default_hyperparams.items():
+            if model_type in model_hparams:
+                # Merge user params into default params
+                default_hyperparams[model_type].update(model_hparams[model_type])
+        # Add any user model types not in defaults
+        for model_type, params in model_hparams.items():
+            if model_type not in default_hyperparams:
+                default_hyperparams[model_type] = params
+        fit_kwargs["hyperparameters"] = default_hyperparams
+    else:
+        fit_kwargs["hyperparameters"] = default_hyperparams
 
     predictor.fit(
         train_data,
@@ -132,6 +189,20 @@ def predict(
     artifacts: Optional[Any] = None,
 ) -> pd.DataFrame:
     features = _drop_ignored(test_df, config)
+
+    # Categorical fix: Convert categorical columns to category dtype (same as training)
+    # HARDCODED for s5e12 - these columns should be category dtype
+    CATEGORICAL_COLUMNS = [
+        'alcohol_consumption_per_week',
+        'family_history_diabetes',
+        'hypertension_history',
+        'cardiovascular_history',
+    ]
+
+    for col in CATEGORICAL_COLUMNS:
+        if col in features.columns:
+            features[col] = features[col].astype('category')
+
     submission = pd.DataFrame()
     submission[config.dataset.id_column] = test_df[config.dataset.id_column]
 

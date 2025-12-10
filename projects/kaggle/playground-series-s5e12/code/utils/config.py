@@ -1,6 +1,4 @@
-"""
-Configuration and constants for the competition
-"""
+"""Configuration for playground-series-s5e12"""
 
 from pathlib import Path
 
@@ -17,7 +15,7 @@ TEST_PATH = DATA_DIR / "test.csv"
 SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv"
 
 # Model settings
-RANDOM_SEED = 47
+RANDOM_SEED = 42
 N_FOLDS = 5
 
 # Target column
@@ -33,10 +31,11 @@ IGNORED_COLUMNS = ['id']
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
 AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
 AUTOGLUON_PROBLEM_TYPE = "binary"  # binary, regression, multiclass
-AUTOGLUON_EVAL_METRIC = "roc_auc"  # evaluation metric
+AUTOGLUON_EVAL_METRIC = "roc_auc"  # AutoGluon metric (approximates Kaggle metric if different)
 
 # Competition details
 COMPETITION_NAME = "playground-series-s5e12"
-METRIC = "roc_auc"
+METRIC = "roc_auc"  # Kaggle evaluation metric
+
 # Submission format
 SUBMISSION_PROBAS = True

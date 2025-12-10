@@ -1,1 +1,14 @@
-templates: {}
+templates:
+  # Adjusted sanity_check for small Titanic dataset
+  sanity_check_titanic:
+    module: sanity_check
+    cache: true
+    config:
+      min_unique_fraction: 0.0001  # Lower threshold for small dataset (891 rows)
+      max_missing_fraction: 0.95
+      drop_duplicates: true
+      ignore_columns: []
+
+  # Test chain: sanity_check + noop
+  sanity_noop_chain:
+    chain: [sanity_check_titanic, noop]

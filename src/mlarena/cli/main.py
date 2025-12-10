@@ -6,9 +6,11 @@ executes them through the PipelineExecutor with dependency handling.
 """
 
 import argparse
+import hashlib
+import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from mlarena.core.config import load_pipeline_def
 from mlarena.core.experiment import ExperimentState
@@ -30,7 +32,7 @@ COMMON_FLAGS = [
 ]
 
 
-def _parse_preprocess_templates(template_arg: str, project_root: Path) -> List[str]:
+def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[List[str], str, bool]:
     """
     Parse preprocess template argument into list of templates to execute.
 
@@ -44,7 +46,10 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> List[s
         project_root: Project root path
 
     Returns:
-        List of template names in execution order
+        Tuple of:
+        - List of template names in execution order
+        - Chain experiment ID (e.g., "pre-full-pipeline" or "pre-chain-a1b2c3d4")
+        - Is meta-template (True if single meta-template, False if CLI chain)
     """
     # Split by comma and strip whitespace
     templates = [t.strip() for t in template_arg.split(",")]
@@ -64,11 +69,24 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> List[s
                 chain = template_config["chain"]
                 if not isinstance(chain, list):
                     raise ValueError(f"Meta-template '{templates[0]}' chain must be a list")
-                return chain
+
+                # Meta-template: use template name as experiment ID
+                chain_exp_id = f"pre-{templates[0]}"
+                return chain, chain_exp_id, True
         except Exception:
             pass  # If template loading fails, treat as regular template
 
-    return templates
+    # CLI chain or single template
+    if len(templates) == 1:
+        # Single template (not meta)
+        chain_exp_id = f"pre-{templates[0]}"
+    else:
+        # CLI chain: create hash from template list
+        chain_str = ",".join(templates)
+        chain_hash = hashlib.md5(chain_str.encode()).hexdigest()[:8]
+        chain_exp_id = f"pre-chain-{chain_hash}"
+
+    return templates, chain_exp_id, False
 
 
 def _add_common(subparser: argparse.ArgumentParser) -> List[str]:
@@ -361,14 +379,24 @@ def run_auto_flow(
             return 1
 
     # Now handle preprocessing chain
-    preprocess_templates = _parse_preprocess_templates(preprocess_template, project_root)
+    preprocess_templates, chain_exp_id, is_meta = _parse_preprocess_templates(preprocess_template, project_root)
+
+    # Print chain info
+    if len(preprocess_templates) > 1 or is_meta:
+        console.print(f"\n[bold cyan]Preprocessing Chain:[/bold cyan] {' → '.join(preprocess_templates)}")
+        console.print(f"[dim]Chain experiment: {chain_exp_id}[/dim]\n")
 
     for idx, tpl_name in enumerate(preprocess_templates):
-        check_exp_id = f"pre-{tpl_name}"
-        input_source = preprocess_templates[idx - 1] if idx > 0 else None
+        # Sub-module experiment ID: chain_exp_id/{idx}-{submodule}
+        # Index prevents duplicate names when same template used multiple times
+        submodule_exp_id = f"{idx}-{tpl_name}"
+        full_exp_id = f"{chain_exp_id}/{submodule_exp_id}"
+
+        input_source_idx = idx - 1
+        input_source = f"{input_source_idx}-{preprocess_templates[input_source_idx]}" if idx > 0 else None
 
         # Check if already completed
-        exp_dir = project_root / "experiments" / check_exp_id
+        exp_dir = project_root / "experiments" / chain_exp_id / submodule_exp_id
         state_file = exp_dir / "state.json"
 
         already_completed = False
@@ -386,18 +414,19 @@ def run_auto_flow(
         # Smart cache: skip if completed AND input_source matches
         if already_completed and not force:
             if saved_input_source == input_source:
-                console.print(f"[dim]✓ preprocess ({tpl_name}) already completed (exp: {check_exp_id}), skipping[/dim]")
+                console.print(f"[dim]✓ preprocess ({tpl_name}) already completed (exp: {full_exp_id}), skipping[/dim]")
                 results[f"preprocess-{tpl_name}"] = ModuleResult(success=True, payload=module_payload)
                 continue
             else:
                 console.print(f"[yellow]⚠ preprocess ({tpl_name}) input changed, re-running[/yellow]")
 
         # Build context for this preprocessing step
+        # Use full_exp_id which includes chain directory
         context = _build_module_context(
             project_root=project_root,
             project=project_name,
             module_name="preprocess",
-            experiment_id=check_exp_id,
+            experiment_id=full_exp_id,
             config_module=config_module,
             pipeline_def=pipeline_def,
             argv=argv,
@@ -407,11 +436,12 @@ def run_auto_flow(
         module_cls = ModuleRegistry.get("preprocess")
         module = module_cls(context)
 
-        # Set invocation params (include input_source and is_last_in_chain)
+        # Set invocation params BEFORE creating executor (can_run() needs them)
         is_last_in_chain = (idx == len(preprocess_templates) - 1)
         module.set_invocation_params({
             "preprocess_template": tpl_name,
             "input_source": input_source,
+            "chain_exp_id": chain_exp_id,
             "is_last_in_chain": is_last_in_chain,
             "force": force,
         })
@@ -721,30 +751,39 @@ def main(argv: List[str] | None = None) -> int:
 
         console = Console(force_terminal=True)
         preprocess_template_arg = getattr(args, "preprocess_template", "baseline")
-        preprocess_templates = _parse_preprocess_templates(preprocess_template_arg, project_root)
+        preprocess_templates, chain_exp_id, is_meta = _parse_preprocess_templates(preprocess_template_arg, project_root)
+
+        # Print chain info
+        if len(preprocess_templates) > 1 or is_meta:
+            console.print(f"\n[bold cyan]Preprocessing Chain:[/bold cyan] {' → '.join(preprocess_templates)}")
+            console.print(f"[dim]Chain experiment: {chain_exp_id}[/dim]\n")
 
         results_dict = {}
         for idx, tpl_name in enumerate(preprocess_templates):
-            experiment_id = f"pre-{tpl_name}"
-            input_source = preprocess_templates[idx - 1] if idx > 0 else None
+            # Sub-module experiment ID: chain_exp_id/{idx}-{submodule}
+            # Index prevents duplicate names when same template used multiple times
+            submodule_exp_id = f"{idx}-{tpl_name}"
+            full_exp_id = f"{chain_exp_id}/{submodule_exp_id}"
+            input_source_idx = idx - 1
+            input_source = f"{input_source_idx}-{preprocess_templates[input_source_idx]}" if idx > 0 else None
 
             # Create state for this preprocessing step
             state = ExperimentState.load_or_create(
                 project_root=project_root,
                 project_name=args.project,
-                experiment_id=experiment_id,
+                experiment_id=full_exp_id,
                 pipeline=pipeline_def,
                 run_invocation={"argv": argv, "cli_args": vars(args), "template": tpl_name, "input_source": input_source},
                 create_dirs=True,
                 setup_module_name=None,  # preprocess is not a setup module
             )
 
-            # Build context for this step
+            # Build context for this step (use full_exp_id which includes chain directory)
             context = _build_module_context(
                 project_root=project_root,
                 project=args.project,
                 module_name="preprocess",
-                experiment_id=experiment_id,
+                experiment_id=full_exp_id,
                 config_module=config_module,
                 pipeline_def=pipeline_def,
                 argv=argv,
@@ -754,10 +793,11 @@ def main(argv: List[str] | None = None) -> int:
             module_cls = ModuleRegistry.get("preprocess")
             module = module_cls(context)
 
-            # Extract params and add input_source and is_last_in_chain
+            # Extract params and add input_source, chain_exp_id, and is_last_in_chain
             params = _extract_module_params(args, module_arg_map)
             params["preprocess_template"] = tpl_name
             params["input_source"] = input_source
+            params["chain_exp_id"] = chain_exp_id
             is_last_in_chain = (idx == len(preprocess_templates) - 1)
             params["is_last_in_chain"] = is_last_in_chain
             module.set_invocation_params(params)

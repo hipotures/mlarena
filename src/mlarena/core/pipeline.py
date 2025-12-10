@@ -75,13 +75,20 @@ class PipelineExecutor:
         elif module_name == "preprocess":
             # Check if part of chain (input_source in invocation)
             input_source = invocation.get("input_source")
+            chain_exp_id = invocation.get("chain_exp_id", "")
 
             # Input paths for preprocessing
             if input_source:
                 # Part of chain: show previous step as input
-                input_paths["from"] = f"pre-{input_source}"
-                input_paths["train"] = f"experiments/pre-{input_source}/artifacts/preprocess/train_processed.csv"
-                input_paths["test"] = f"experiments/pre-{input_source}/artifacts/preprocess/test_processed.csv"
+                # input_source now contains index (e.g., "0-noop")
+                input_paths["from"] = input_source
+                if chain_exp_id:
+                    input_paths["train"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/train_processed.csv"
+                    input_paths["test"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/test_processed.csv"
+                else:
+                    # Legacy fallback (shouldn't happen)
+                    input_paths["train"] = f"experiments/pre-{input_source}/artifacts/preprocess/train_processed.csv"
+                    input_paths["test"] = f"experiments/pre-{input_source}/artifacts/preprocess/test_processed.csv"
             else:
                 # First step: show raw data
                 try:

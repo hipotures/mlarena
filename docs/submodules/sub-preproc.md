@@ -14,6 +14,26 @@ LIST TODO:
 Poniżej proponowana lista głównych sub-modułów preprocessingowych pod Kaggle (tablice, AutoGluon), projektowanych tak, żeby można je było składać w dowolne łańcuchy i sterować samą konfiguracją w template’ach.
 
 ---
+Globalne Template'y (config/templates/preprocess.yaml)
+
+  - ✅ Dodane 12 placeholder'ów dla sub-modułów:
+    a. sanity_check - Typy, czyszczenie, duplikaty
+    b. imputer - Imputacja wartości brakujących
+    c. rare_category_handler - Obsługa rzadkich kategorii
+    d. encoder - Kodowanie kategorii
+    e. scaler - Skalowanie i transformacje numeryczne
+    f. feature_selector - Selekcja cech
+    g. drift_detector - Detekcja dryfu train-test
+    h. feature_engineer - Feature engineering
+    i. target_transformer - Transformacje targetu (regresja)
+    j. imbalance_handler - Obsługa niezbalansowanych klas
+    k. outlier_handler - Obsługa outlierów
+    l. autogluon_booster - Optymalizacja pod AutoGluon
+  - ✅ Meta-template'y (chains):
+    - minimal_pipeline
+    - standard_pipeline
+    - full_universal_pipeline
+
 
 ### 1. Moduł sanity check / typy / podstawowe czyszczenie
 
@@ -134,6 +154,8 @@ Poniżej proponowana lista głównych sub-modułów preprocessingowych pod Kaggl
 * Efekt: dane idealnie przygotowane pod AutoGluon z możliwością testowania, czy dodatkowe encodery/liczniki pomagają w porównaniu z „gołym” trybem natywnych kategorii.
 
 ---
+Każdy zakończony moduł (kod+dokumentacja) ma się sfinalizować commitem w git
+
 
 Na tej bazie możesz budować template’y typu:
 

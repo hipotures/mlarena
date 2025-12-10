@@ -38,6 +38,10 @@ class PreprocessModule(BaseModule):
         if not template_name:
             return False, "Missing --preprocess-template argument"
 
+        # template_name should be a string, not a list
+        if isinstance(template_name, list):
+            return False, f"preprocess_template should be string, got list: {template_name}"
+
         # Check if template exists by trying to load it
         import sys
         from pathlib import Path as P
@@ -48,10 +52,11 @@ class PreprocessModule(BaseModule):
             from template_loader import load_templates
             templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
             if template_name not in templates:
-                available = ", ".join(templates.keys()) if templates else "none"
+                available = ", ".join(list(templates.keys())[:10]) if templates else "none"
                 return False, f"Template '{template_name}' not found. Available: {available}"
         except Exception as e:
-            return False, f"Failed to load templates: {e}"
+            import traceback
+            return False, f"Failed to load templates: {e}\n{traceback.format_exc()}"
 
         return True, ""
 
@@ -125,6 +130,7 @@ class PreprocessModule(BaseModule):
             raise ValueError("--preprocess-template is required")
         cache_ok = bool(self.invocation_params.get("cache"))
         input_source = self.invocation_params.get("input_source", None)
+        chain_exp_id = self.invocation_params.get("chain_exp_id", f"pre-{template_name}")
 
         processed_train = artifact_dir / "train_processed.csv"
         processed_test = artifact_dir / "test_processed.csv"
@@ -148,15 +154,17 @@ class PreprocessModule(BaseModule):
 
         # Load input data (from previous preprocessing step or raw data)
         if input_source:
-            # Load from previous preprocessing step
-            prev_exp_dir = self.context.project_root / "experiments" / f"pre-{input_source}"
+            # Load from previous preprocessing step (within same chain)
+            # input_source already contains index (e.g., "0-noop")
+            prev_exp_dir = self.context.project_root / "experiments" / chain_exp_id / input_source
             train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
             test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
 
             if not train_path.exists():
                 raise FileNotFoundError(
                     f"Previous preprocessing output not found: {train_path}\n"
-                    f"Chain broken: pre-{input_source} must complete before pre-{template_name}"
+                    f"Chain broken: {input_source} must complete before {template_name}\n"
+                    f"Chain experiment: {chain_exp_id}"
                 )
         else:
             # First step: load raw data

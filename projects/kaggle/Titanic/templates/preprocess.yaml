@@ -13,12 +13,33 @@ templates:
   sanity_noop_chain:
     chain: [sanity_check_titanic, noop]
 
+  # Rare category handler tuned for Titanic (process Name instead of skipping as ID-like)
+  rare_titanic:
+    module: rare_category_handler
+    cache: true
+    config:
+      min_freq: 5
+      min_freq_ratio: 0.0
+      top_k: 30
+      rare_label: "__RARE__"
+      detect_id_like_columns: false  # process Name instead of skipping
+      id_unique_fraction_threshold: 1.0
+
+  # Encoder tuned for Titanic (after rare handling)
+  encoder_titanic:
+    module: encoder
+    cache: true
+    config:
+      encoding_method: "one_hot"
+      max_cardinality: 100  # safe after rare handling
+      handle_unknown: "ignore"
+
   # Full pipeline for Titanic
   titanic_standard_pipeline:
     chain:
       - sanity_check_titanic
       - imputer
-      - rare_category_handler
-      - encoder
+      - rare_titanic
+      - encoder_titanic
       - outlier_handler
       - imbalance_handler

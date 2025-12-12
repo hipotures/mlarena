@@ -44,6 +44,73 @@ def _compute_feature_count(config) -> Optional[int]:
         return None
 
 
+def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[str]]:
+    """
+    Validate submission format before upload.
+    Returns (is_valid, error_message)
+    """
+    try:
+        import pandas as pd
+
+        # Load submission
+        sub_df = pd.read_csv(submission_file)
+
+        # Load sample submission for format reference
+        sample_sub_path = getattr(config, "SAMPLE_SUBMISSION_PATH", None)
+        if not sample_sub_path or not Path(sample_sub_path).exists():
+            # Try common names
+            data_dir = Path(getattr(config, "DATA_DIR", submission_file.parent.parent.parent / "data"))
+            for name in ["sample_submission.csv", "gender_submission.csv", "sample_solution.csv"]:
+                candidate = data_dir / name
+                if candidate.exists():
+                    sample_sub_path = candidate
+                    break
+
+        if not sample_sub_path or not Path(sample_sub_path).exists():
+            return True, None  # Can't validate without sample
+
+        sample_df = pd.read_csv(sample_sub_path)
+
+        # Check column names match
+        if list(sub_df.columns) != list(sample_df.columns):
+            return False, (
+                f"Column mismatch!\n"
+                f"  Expected: {list(sample_df.columns)}\n"
+                f"  Got:      {list(sub_df.columns)}"
+            )
+
+        # Check row count matches
+        if len(sub_df) != len(sample_df):
+            return False, (
+                f"Row count mismatch!\n"
+                f"  Expected: {len(sample_df)} rows\n"
+                f"  Got:      {len(sub_df)} rows"
+            )
+
+        # Check for missing values
+        if sub_df.isnull().any().any():
+            null_cols = sub_df.columns[sub_df.isnull().any()].tolist()
+            return False, f"Missing values detected in columns: {null_cols}"
+
+        # Check ID column matches (if present)
+        id_col = sub_df.columns[0]  # First column is usually ID
+        if not sub_df[id_col].equals(sample_df[id_col]):
+            # Show first mismatch
+            diff_idx = (sub_df[id_col] != sample_df[id_col]).idxmax()
+            return False, (
+                f"ID mismatch detected!\n"
+                f"  Row {diff_idx}: expected {sample_df[id_col].iloc[diff_idx]}, "
+                f"got {sub_df[id_col].iloc[diff_idx]}\n"
+                f"  First 3 IDs - Expected: {sample_df[id_col].head(3).tolist()}\n"
+                f"  First 3 IDs - Got:      {sub_df[id_col].head(3).tolist()}"
+            )
+
+        return True, None
+
+    except Exception as e:
+        return False, f"Validation error: {str(e)}"
+
+
 def _build_kaggle_message(context, submission_file: Path, model_payload, feature_count: Optional[int]) -> str:
     """Replicates legacy descriptive message: exp | local | model | features | filename."""
     parts = []
@@ -114,8 +181,23 @@ class SubmitModule(BaseModule):
         else:
             message = _build_kaggle_message(self.context, submission_file, model_payload, feature_count)
 
-        # Preview + 60s countdown with interactive confirmation
+        # Validate submission format BEFORE upload
         console = Console()
+        valid, error_msg = _validate_submission(submission_file, config)
+        if not valid:
+            console.print(f"\n[bold red]✗ Submission validation failed![/bold red]")
+            console.print(f"[red]{error_msg}[/red]\n")
+            marker = artifact_dir / "submit_failed.txt"
+            marker.write_text(f"Validation failed: {error_msg}")
+            return ModuleResult(
+                success=False,
+                error=f"Submission validation failed: {error_msg}",
+                artifacts=[marker]
+            )
+
+        console.print(f"[green]✓[/green] Submission validation passed")
+
+        # Preview + 60s countdown with interactive confirmation
         skip_submit = bool(self.invocation_params.get("skip_submit", False))
 
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")

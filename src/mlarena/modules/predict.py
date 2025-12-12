@@ -47,6 +47,13 @@ class PredictModule(BaseModule):
         predictor = _load_predictor(model_artifact)
 
         # Try to use preprocessed test set from the same chain as training
+        # Load ID column BEFORE preprocessing (preprocessing may drop it)
+        _, test_path_raw = data_paths(config)
+        test_df_raw = pd.read_csv(test_path_raw)
+        id_col = getattr(config, "ID_COLUMN", None)
+        id_series = test_df_raw[id_col].copy() if id_col and id_col in test_df_raw.columns else None
+
+        # Load preprocessed or raw test data
         processed_test: Optional[Path] = None
         pp_template = self.invocation_params.get("preprocess_template")
         pp_exp_dir = self.invocation_params.get("preprocess_exp_dir")
@@ -60,11 +67,9 @@ class PredictModule(BaseModule):
             processed_test = Path(pp_exp_dir) / "artifacts" / "preprocess" / "test_processed.csv" if pp_exp_dir else None
             test_df = test_df_pp
         else:
-            _, test_path = data_paths(config)
-            test_df = pd.read_csv(test_path)
+            test_df = test_df_raw
 
-        id_col = getattr(config, "ID_COLUMN", None)
-        id_series = test_df[id_col] if id_col and id_col in test_df.columns else None
+        # Drop ID column from features if still present
         if id_col and id_col in test_df.columns:
             test_df = test_df.drop(columns=[id_col])
 

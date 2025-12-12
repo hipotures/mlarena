@@ -25,7 +25,8 @@ def create_directory_structure(project_root: Path, console: Console) -> None:
         "code/models",
         "code/preprocessing",
         "code/utils",
-        "templates",
+        "templates/model",
+        "templates/preprocess",
         "docs",
         "experiments",
         "submissions",
@@ -74,12 +75,8 @@ def copy_templates(project_root: Path, console: Console) -> None:
         (project_root / "configs" / ".gitkeep").touch()
     console.print("  [green]✓[/green] configs/")
 
-    # Initialize empty template files
-    templates_dir = project_root / "templates"
-    for tpl_name in ["model.yaml", "preprocess.yaml"]:
-        tpl_path = templates_dir / tpl_name
-        if not tpl_path.exists():
-            tpl_path.write_text("templates: {}\n")
+    # Template directories are created by create_directory_structure()
+    # No need to create placeholder files - users can add custom templates as needed
 
 
 def download_kaggle_data(competition_slug: str, project_root: Path, console: Console) -> bool:

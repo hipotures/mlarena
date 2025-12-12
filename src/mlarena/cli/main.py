@@ -852,6 +852,11 @@ def main(argv: List[str] | None = None) -> int:
     # For non-preprocess modules, use standard flow
     experiment_id = args.experiment_id
 
+    # If an experiment_id is provided for downstream modules, skip deps by default
+    # to avoid requiring preprocess/model templates again.
+    if args.command in ("predict", "submit", "fetch-score", "stack") and experiment_id:
+        args.skip_deps = True
+
     state = ExperimentState.load_or_create(
         project_root=project_root,
         project_name=args.project,

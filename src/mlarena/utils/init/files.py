@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import zipfile
 from pathlib import Path
-from typing import Dict
 
 from rich.console import Console
 
@@ -44,7 +43,7 @@ def create_directory_structure(project_root: Path, console: Console) -> None:
 
 
 def copy_templates(project_root: Path, console: Console) -> None:
-    """Copy template files (.gitignore, README, configs, etc.)."""
+    """Copy template files (.gitignore, configs, etc.)."""
     console.print("\n[cyan]Copying template files...[/cyan]")
 
     template_project = TEMPLATE_ROOT / "kaggle_competition"
@@ -65,15 +64,6 @@ def copy_templates(project_root: Path, console: Console) -> None:
             "__pycache__/\n"
         )
     console.print("  [green]✓[/green] .gitignore")
-
-    # README.md
-    readme_src = template_project / "README.md"
-    readme_dst = project_root / "README.md"
-    if readme_src.exists():
-        shutil.copy(readme_src, readme_dst)
-    else:
-        readme_dst.write_text(f"# {project_root.name}\n\n")
-    console.print("  [green]✓[/green] README.md")
 
     # configs/
     configs_src = template_project / "configs"
@@ -140,20 +130,3 @@ def download_kaggle_data(competition_slug: str, project_root: Path, console: Con
             console.print("[yellow]You can download data manually later with:[/yellow]")
             console.print(f"  cd {competition_slug}/data && kaggle competitions download -c {competition_slug}")
             return False
-
-
-def customize_readme(project_root: Path, replacements: Dict[str, str], console: Console) -> None:
-    """Replace placeholders in README.md with actual values."""
-    readme_path = project_root / "README.md"
-    if not readme_path.exists():
-        console.print(f"[yellow]! README.md missing; skipped customization[/yellow]")
-        return
-
-    try:
-        readme_content = readme_path.read_text()
-        for needle, repl in replacements.items():
-            readme_content = readme_content.replace(needle, str(repl))
-        readme_path.write_text(readme_content)
-        console.print(f"[green]✓[/green] Customized README.md")
-    except Exception as exc:
-        console.print(f"[yellow]! README customization failed: {exc}[/yellow]")

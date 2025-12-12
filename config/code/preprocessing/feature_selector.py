@@ -204,8 +204,14 @@ def fit_transform(
     )
 
     # 9. Apply selection to DataFrames
-    # Keep non-feature columns + selected features
-    keep_cols = [col for col in train_df.columns if col not in numeric_cols] + selected_features
+    # Always keep non-numeric columns
+    base_keep = [col for col in train_df.columns if col not in numeric_cols]
+
+    # Protect key numeric columns (encoded categoricals ending with "_cb")
+    protected_numeric = [col for col in numeric_cols if col.endswith("_cb")]
+
+    # Keep non-feature columns + protected numeric + selected numeric features
+    keep_cols = base_keep + protected_numeric + selected_features
 
     train_df = train_df[keep_cols]
     test_df = test_df[[col for col in keep_cols if col in test_df.columns]]

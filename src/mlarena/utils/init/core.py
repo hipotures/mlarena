@@ -13,55 +13,7 @@ from rich.table import Table
 from .ai import detect_problem_type_and_metric, validate_and_fix_metric
 from .cdp import fetch_kaggle_evaluation
 from .config import generate_config_py
-from .files import copy_templates, create_directory_structure, customize_readme, download_kaggle_data
-
-
-def _compute_data_snapshot(project_root: Path, target_column: str) -> Dict[str, Any]:
-    """Collect basic dataset stats for README templating."""
-    data_dir = project_root / "data"
-    train_path = data_dir / "train.csv"
-    test_path = data_dir / "test.csv"
-    sample_path = None
-
-    # Find sample submission file
-    submission_files = list(data_dir.glob("*submission*.csv"))
-    if submission_files:
-        sample_path = submission_files[0]
-
-    snapshot = {
-        "TRAIN_ROWS": "unknown",
-        "TRAIN_COLS": "unknown",
-        "TEST_ROWS": "unknown",
-        "TEST_COLS": "unknown",
-        "SAMPLE_COLUMNS": "unknown",
-        "CLASS_SUMMARY": "N/A",
-    }
-
-    try:
-        train_df = pd.read_csv(train_path)
-        snapshot["TRAIN_ROWS"] = f"{len(train_df):,}"
-        snapshot["TRAIN_COLS"] = train_df.shape[1] - (1 if target_column in train_df.columns else 0)
-        if target_column in train_df.columns:
-            counts = train_df[target_column].value_counts()
-            snapshot["CLASS_SUMMARY"] = " | ".join([f"{k}: {v:,}" for k, v in counts.items()])
-    except Exception:
-        pass
-
-    try:
-        test_df = pd.read_csv(test_path)
-        snapshot["TEST_ROWS"] = f"{len(test_df):,}"
-        snapshot["TEST_COLS"] = test_df.shape[1]
-    except Exception:
-        pass
-
-    try:
-        if sample_path:
-            sample_df = pd.read_csv(sample_path, nrows=1)
-            snapshot["SAMPLE_COLUMNS"] = ", ".join(sample_df.columns.tolist())
-    except Exception:
-        pass
-
-    return snapshot
+from .files import copy_templates, create_directory_structure, download_kaggle_data
 
 # Import template loader from scripts
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -281,31 +233,6 @@ def init_project(
         console,
         kaggle_metric=kaggle_metric_name,
     )
-
-    # Compute data snapshot for README
-    data_snapshot = _compute_data_snapshot(project_root, target_column)
-
-    # Determine metric direction
-    metric_direction = "higher is better"
-    if any(word in metric.lower() for word in ["error", "loss"]):
-        metric_direction = "lower is better"
-
-    # Customize README
-    readme_replacements = {
-        "{{COMPETITION_NAME}}": competition_slug,
-        "{{TARGET_COLUMN}}": target_column,
-        "{{ID_COLUMN}}": id_column,
-        "{{METRIC_NAME}}": metric,
-        "{{METRIC_LABEL}}": metric.replace("_", " ").title(),
-        "{{METRIC_DIRECTION}}": metric_direction,
-        "{{TRAIN_ROWS}}": data_snapshot.get("TRAIN_ROWS", "unknown"),
-        "{{TRAIN_COLS}}": str(data_snapshot.get("TRAIN_COLS", "unknown")),
-        "{{TEST_ROWS}}": data_snapshot.get("TEST_ROWS", "unknown"),
-        "{{TEST_COLS}}": str(data_snapshot.get("TEST_COLS", "unknown")),
-        "{{SAMPLE_COLUMNS}}": data_snapshot.get("SAMPLE_COLUMNS", "unknown"),
-        "{{CLASS_SUMMARY}}": data_snapshot.get("CLASS_SUMMARY", "N/A"),
-    }
-    customize_readme(project_root, readme_replacements, console)
 
     # Print summary
     console.rule(f"[bold green]✓ Project '{competition_slug}' initialized successfully![/bold green]", style="green")

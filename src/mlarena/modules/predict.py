@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 # pandas imported in execute()
-
+from rich.console import Console
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry

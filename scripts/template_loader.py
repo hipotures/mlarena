@@ -57,20 +57,11 @@ def _validate_case_insensitive(templates: Dict[str, Any], directory: Path) -> No
 def _validate_global_uniqueness() -> None:
     """
     Validate global name uniqueness across model and preprocess types.
-    This ensures no template name exists in both types.
+    Note: This is now a no-op - we allow same names in different types.
     """
-    model_dir = GLOBAL_TEMPLATE_DIR / "model"
-    preprocess_dir = GLOBAL_TEMPLATE_DIR / "preprocess"
-
-    model_templates = set(_read_templates_from_directory(model_dir, "model").keys())
-    preprocess_templates = set(_read_templates_from_directory(preprocess_dir, "preprocess").keys())
-
-    conflicts = model_templates & preprocess_templates
-    if conflicts:
-        raise TemplateValidationError(
-            f"Global name conflict: template(s) exist in both model/ and preprocess/:\n"
-            + "\n".join(f"  - {name}" for name in sorted(conflicts))
-        )
+    # Allow same template names in model/ and preprocess/
+    # They are distinguished by context (type)
+    pass
 
 
 def _validate_templates(templates: Dict[str, Any], kind: str, *, source: str) -> Dict[str, Dict[str, Any]]:

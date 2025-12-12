@@ -64,25 +64,10 @@ class TemplateLoader:
     def _validate_global_uniqueness(self) -> None:
         """
         Validate global name uniqueness across model and preprocess types.
-        This ensures no template name exists in both types.
+        Note: This is now a no-op - we allow same names in different types.
         """
-        if self._validated:
-            return
-
-        repo_root = Path(__file__).resolve().parents[3]
-        model_dir = repo_root / "config" / "templates" / "model"
-        preprocess_dir = repo_root / "config" / "templates" / "preprocess"
-
-        model_templates = set(self._scan_directory(model_dir).keys())
-        preprocess_templates = set(self._scan_directory(preprocess_dir).keys())
-
-        conflicts = model_templates & preprocess_templates
-        if conflicts:
-            raise ValueError(
-                f"Global name conflict: template(s) exist in both model/ and preprocess/:\n"
-                + "\n".join(f"  - {name}" for name in sorted(conflicts))
-            )
-
+        # Allow same template names in model/ and preprocess/
+        # They are distinguished by context (type)
         self._validated = True
 
     def list_available(self) -> List[str]:

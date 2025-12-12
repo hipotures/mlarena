@@ -18,14 +18,59 @@ class TemplateValidationError(RuntimeError):
     """Raised when template files fail validation."""
 
 
-def _read_templates(path: Path, kind: str) -> Dict[str, Any]:
-    if not path.exists():
+def _read_templates_from_directory(directory: Path, kind: str) -> Dict[str, Any]:
+    """
+    Read all *.yaml files from directory, return {name: content}.
+    Template name is derived from filename (without .yaml extension).
+    """
+    if not directory.exists():
         return {}
-    data = yaml.safe_load(path.read_text()) or {}
-    templates = data.get("templates") or {}
-    if templates and not isinstance(templates, dict):
-        raise TemplateValidationError(f"Invalid {kind} templates in {path}: 'templates' must be a mapping.")
+
+    templates = {}
+    for file in directory.glob("*.yaml"):
+        name = file.stem  # filename without .yaml
+        try:
+            content = yaml.safe_load(file.read_text()) or {}
+            if not isinstance(content, dict):
+                raise TemplateValidationError(f"Invalid {kind} template in {file}: content must be a mapping.")
+            templates[name] = content
+        except yaml.YAMLError as e:
+            raise TemplateValidationError(f"Failed to parse {file}: {e}")
+
     return templates
+
+
+def _validate_case_insensitive(templates: Dict[str, Any], directory: Path) -> None:
+    """Validate no case-insensitive duplicates in template names."""
+    seen = {}
+    for name in templates.keys():
+        name_lower = name.lower()
+        if name_lower in seen:
+            raise TemplateValidationError(
+                f"Case-insensitive conflict in {directory}:\n"
+                f"  - {seen[name_lower]}\n"
+                f"  - {name}"
+            )
+        seen[name_lower] = name
+
+
+def _validate_global_uniqueness() -> None:
+    """
+    Validate global name uniqueness across model and preprocess types.
+    This ensures no template name exists in both types.
+    """
+    model_dir = GLOBAL_TEMPLATE_DIR / "model"
+    preprocess_dir = GLOBAL_TEMPLATE_DIR / "preprocess"
+
+    model_templates = set(_read_templates_from_directory(model_dir, "model").keys())
+    preprocess_templates = set(_read_templates_from_directory(preprocess_dir, "preprocess").keys())
+
+    conflicts = model_templates & preprocess_templates
+    if conflicts:
+        raise TemplateValidationError(
+            f"Global name conflict: template(s) exist in both model/ and preprocess/:\n"
+            + "\n".join(f"  - {name}" for name in sorted(conflicts))
+        )
 
 
 def _validate_templates(templates: Dict[str, Any], kind: str, *, source: str) -> Dict[str, Dict[str, Any]]:
@@ -73,14 +118,22 @@ def load_templates(kind: str, project_root: Path, *, suppress_warnings: bool | N
     if kind not in {"model", "preprocess"}:
         raise ValueError(f"Unsupported template kind '{kind}'")
 
+    # Validate global uniqueness first
+    _validate_global_uniqueness()
+
     env_no_warn = os.getenv("KAGGLE_TEMPLATE_NO_WARN")
     env_no_warn_flag = env_no_warn is not None and env_no_warn.strip().lower() not in {"", "0", "false"}
     no_warn = bool(suppress_warnings) or env_no_warn_flag
-    global_path = GLOBAL_TEMPLATE_DIR / f"{kind}.yaml"
-    local_path = project_root / "templates" / f"{kind}.yaml"
 
-    global_templates = _read_templates(global_path, kind)
-    local_templates = _read_templates(local_path, kind)
+    global_dir = GLOBAL_TEMPLATE_DIR / kind
+    local_dir = project_root / "templates" / kind
+
+    global_templates = _read_templates_from_directory(global_dir, kind)
+    local_templates = _read_templates_from_directory(local_dir, kind)
+
+    # Validate case-insensitive in each directory
+    _validate_case_insensitive(global_templates, global_dir)
+    _validate_case_insensitive(local_templates, local_dir)
 
     merged: Dict[str, Any] = dict(global_templates)
     warnings: List[str] = []
@@ -88,14 +141,14 @@ def load_templates(kind: str, project_root: Path, *, suppress_warnings: bool | N
     for name, payload in local_templates.items():
         if name in merged and not no_warn:
             warnings.append(
-                f"Template '{name}' overridden by project/{project_root.name} template ({local_path} > {global_path})"
+                f"Template '{name}' overridden by project/{project_root.name} template ({local_dir} > {global_dir})"
             )
         merged[name] = payload
 
     if not merged:
         raise TemplateValidationError(
-            f"No {kind} templates found. Add entries to {global_path} or {local_path} before running."
+            f"No {kind} templates found. Add entries to {global_dir} or {local_dir} before running."
         )
 
-    validated = _validate_templates(merged, kind, source=f"{local_path} or {global_path}")
+    validated = _validate_templates(merged, kind, source=f"{local_dir} or {global_dir}")
     return validated, warnings

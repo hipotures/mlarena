@@ -32,32 +32,98 @@ class TemplateLoader:
     def __init__(self, project_root: Path, template_type: str = "model"):
         self.project_root = Path(project_root)
         self.template_type = template_type
+        self._validated = False
+
+    def _scan_directory(self, directory: Path) -> Dict[str, Path]:
+        """
+        Scan directory for *.yaml files, return {name: path}.
+        Template name is derived from filename (without .yaml extension).
+        """
+        if not directory.exists():
+            return {}
+
+        templates = {}
+        for file in directory.glob("*.yaml"):
+            name = file.stem  # filename without .yaml
+            templates[name] = file
+        return templates
+
+    def _validate_case_insensitive(self, templates: Dict[str, Path], source: str) -> None:
+        """Validate no case-insensitive duplicates in template names."""
+        seen = {}
+        for name, path in templates.items():
+            name_lower = name.lower()
+            if name_lower in seen:
+                raise ValueError(
+                    f"Case-insensitive conflict in {source}:\n"
+                    f"  - {seen[name_lower]}\n"
+                    f"  - {path}"
+                )
+            seen[name_lower] = path
+
+    def _validate_global_uniqueness(self) -> None:
+        """
+        Validate global name uniqueness across model and preprocess types.
+        This ensures no template name exists in both types.
+        """
+        if self._validated:
+            return
+
+        repo_root = Path(__file__).resolve().parents[3]
+        model_dir = repo_root / "config" / "templates" / "model"
+        preprocess_dir = repo_root / "config" / "templates" / "preprocess"
+
+        model_templates = set(self._scan_directory(model_dir).keys())
+        preprocess_templates = set(self._scan_directory(preprocess_dir).keys())
+
+        conflicts = model_templates & preprocess_templates
+        if conflicts:
+            raise ValueError(
+                f"Global name conflict: template(s) exist in both model/ and preprocess/:\n"
+                + "\n".join(f"  - {name}" for name in sorted(conflicts))
+            )
+
+        self._validated = True
 
     def list_available(self) -> List[str]:
-        """List available templates from global and project-local {type}.yaml."""
+        """List available templates from global and project-local directories."""
         if yaml is None:
+            return []
+
+        # Validate global uniqueness on first call
+        try:
+            self._validate_global_uniqueness()
+        except ValueError:
+            # If validation fails, return empty list (graceful degradation)
             return []
 
         templates = {}
 
         # Load global templates
-        repo_root = Path(__file__).resolve().parents[3]  # src/mlarena/core/config.py -> ../../.. -> repo root
-        global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
-        if global_file.exists():
-            try:
-                data = yaml.safe_load(global_file.read_text())
-                templates.update(data.get("templates", {}))
-            except Exception:
-                pass
+        repo_root = Path(__file__).resolve().parents[3]
+        global_dir = repo_root / "config" / "templates" / self.template_type
+        global_templates = self._scan_directory(global_dir)
+
+        # Validate case-insensitive in global
+        try:
+            self._validate_case_insensitive(global_templates, f"global {self.template_type}")
+        except ValueError:
+            return []
+
+        templates.update(global_templates)
 
         # Load project-local templates (override globals)
-        local_file = self.project_root / "templates" / f"{self.template_type}.yaml"
-        if local_file.exists():
-            try:
-                data = yaml.safe_load(local_file.read_text())
-                templates.update(data.get("templates", {}))
-            except Exception:
-                pass
+        local_dir = self.project_root / "templates" / self.template_type
+        local_templates = self._scan_directory(local_dir)
+
+        # Validate case-insensitive in local
+        try:
+            self._validate_case_insensitive(local_templates, f"local {self.template_type}")
+        except ValueError:
+            return []
+
+        # Project-local templates override global ones (by name)
+        templates.update(local_templates)
 
         return sorted(templates.keys())
 
@@ -70,27 +136,31 @@ class TemplateLoader:
         if yaml is None:
             return []
 
-        global_templates = set()
-        local_templates = set()
+        # Validate global uniqueness
+        try:
+            self._validate_global_uniqueness()
+        except ValueError:
+            return []
 
-        # Load global templates
         repo_root = Path(__file__).resolve().parents[3]
-        global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
-        if global_file.exists():
-            try:
-                data = yaml.safe_load(global_file.read_text())
-                global_templates = set(data.get("templates", {}).keys())
-            except Exception:
-                pass
+        global_dir = repo_root / "config" / "templates" / self.template_type
+        local_dir = self.project_root / "templates" / self.template_type
 
-        # Load project-local templates
-        local_file = self.project_root / "templates" / f"{self.template_type}.yaml"
-        if local_file.exists():
-            try:
-                data = yaml.safe_load(local_file.read_text())
-                local_templates = set(data.get("templates", {}).keys())
-            except Exception:
-                pass
+        global_templates = set(self._scan_directory(global_dir).keys())
+        local_templates = set(self._scan_directory(local_dir).keys())
+
+        # Validate case-insensitive
+        try:
+            self._validate_case_insensitive(
+                self._scan_directory(global_dir),
+                f"global {self.template_type}"
+            )
+            self._validate_case_insensitive(
+                self._scan_directory(local_dir),
+                f"local {self.template_type}"
+            )
+        except ValueError:
+            return []
 
         conflicts = global_templates & local_templates
 
@@ -112,35 +182,35 @@ class TemplateLoader:
 
     def load(self, template_name: str) -> Dict[str, Any]:
         """
-        Load template from global or project-local {type}.yaml.
+        Load template from global or project-local directory.
         Project-local templates override global ones.
         Returns empty dict when not found to allow graceful defaults.
         """
         if yaml is None:
             return {}
 
+        # Validate global uniqueness
+        try:
+            self._validate_global_uniqueness()
+        except ValueError:
+            return {}
+
         template_data = {}
 
         # Load from global first
-        repo_root = Path(__file__).resolve().parents[3]  # src/mlarena/core/config.py -> ../../.. -> repo root
-        global_file = repo_root / "config" / "templates" / f"{self.template_type}.yaml"
+        repo_root = Path(__file__).resolve().parents[3]
+        global_file = repo_root / "config" / "templates" / self.template_type / f"{template_name}.yaml"
         if global_file.exists():
             try:
-                data = yaml.safe_load(global_file.read_text())
-                templates_dict = data.get("templates", {})
-                if template_name in templates_dict:
-                    template_data = templates_dict[template_name]
+                template_data = yaml.safe_load(global_file.read_text()) or {}
             except Exception:
                 pass
 
         # Override with project-local if exists
-        local_file = self.project_root / "templates" / f"{self.template_type}.yaml"
+        local_file = self.project_root / "templates" / self.template_type / f"{template_name}.yaml"
         if local_file.exists():
             try:
-                data = yaml.safe_load(local_file.read_text())
-                templates_dict = data.get("templates", {})
-                if template_name in templates_dict:
-                    template_data = templates_dict[template_name]
+                template_data = yaml.safe_load(local_file.read_text()) or {}
             except Exception:
                 pass
 

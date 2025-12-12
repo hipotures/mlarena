@@ -1,5 +1,5 @@
 templates:
-  baseline:
+  preprocess-baseline:
     module: null  # No custom module - just drop IGNORED_COLUMNS
     config: {}
     cache: true

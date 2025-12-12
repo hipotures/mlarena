@@ -20,6 +20,8 @@ import pandas as pd
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
+from adversarial_validation import compute_adversarial_weights
+
 RANDOM_SEED = 42
 
 
@@ -134,11 +136,17 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
 ) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Dict[str, Any]]:
+    artifact_dir = Path(config.get("_artifact_dir", ".")).resolve()
+    project_root = artifact_dir.parent.parent.parent.parent
     meta = _dataset_meta(config)
     id_col = meta.get("id_column") or "id"
     target = meta.get("target") or config.get("target_column")
     if not target:
         raise ValueError("target column not provided in dataset metadata")
+
+    # Keep raw copies (without external merge, without target encoding) for AV
+    av_train_raw = train_df.copy()
+    av_test_raw = test_df.copy()
 
     # Merge external dataset if available
     train_merged = _merge_original(train_df.copy(), test_df, config, id_col=id_col, target=target)
@@ -159,41 +167,6 @@ def fit_transform(
     train_le[num_cols_all] = scaler.fit_transform(train_le[num_cols_all])
     test_le[num_cols_all] = scaler.transform(test_le[num_cols_all])
 
-    # Optional: compute adversarial weights on processed features to match model
-    artifact_dir = Path(config.get("_artifact_dir", Path(".")))
-    project_root = artifact_dir.parent.parent.parent.parent
-    weights_output = Path(config.get("weights_output", project_root / "data" / "train_av_weights.csv"))
-    av_model_dir = artifact_dir / "av_model_te_ext"
-    av_model_dir.mkdir(parents=True, exist_ok=True)
-
-    drop_cols = [id_col]
-    if target:
-        drop_cols.append(target)
-
-    av_df = compute_adversarial_weights(
-        train_df=train_le,
-        test_df=test_le,
-        id_column=id_col,
-        target_column=None,
-        drop_columns=drop_cols,
-        presets=config.get("av_presets", "best_quality"),
-        time_limit=int(config.get("av_time_limit", 1200)),
-        included_model_types=config.get("av_included_model_types", ["GBM"]),
-        output_dir=av_model_dir,
-        hyperparameter_tune_kwargs=config.get("av_hpo_kwargs"),
-        random_seed=RANDOM_SEED,
-    )
-
-    # Persist weights relative to project root (data/) and in artifacts
-    weights_output = weights_output if weights_output.is_absolute() else project_root / weights_output
-    weights_output.parent.mkdir(parents=True, exist_ok=True)
-    av_df.to_csv(weights_output, index=False)
-
-    # Save under the preprocess artifacts dir (artifact_dir already points to experiments/pre-*/artifacts/preprocess)
-    artifact_weights = artifact_dir / "train_av_weights.csv"
-    artifact_weights.parent.mkdir(parents=True, exist_ok=True)
-    av_df.to_csv(artifact_weights, index=False)
-
     state = {
         "categorical_cols": cat_cols,
         "numeric_cols": num_cols_all,
@@ -203,8 +176,71 @@ def fit_transform(
         "orig_path": str(config.get("orig_path", "data/diabetes_dataset.csv")),
         "scaler_mean": scaler.mean_.tolist(),
         "scaler_scale": scaler.scale_.tolist(),
-        "weights_path": str(weights_output),
     }
+
+    # Adversarial validation weights (train vs test) on processed features
+    av_presets = config.get("av_presets")
+    av_time_limit = int(config.get("av_time_limit", 0) or 0)
+    av_included = config.get("av_included_model_types")
+    av_hpo = config.get("av_hyperparameter_tune_kwargs")
+    if av_presets and av_time_limit > 0:
+        weights_output = Path(config.get("weights_output", "data/train_av_weights.csv"))
+        if not weights_output.is_absolute():
+            weights_output = project_root / weights_output
+        artifact_weights = artifact_dir / "train_av_weights.csv"
+        av_model_dir = artifact_dir / "av_model"
+
+        # Compute AV on processed features but only on original competition rows.
+        # External rows would make AV trivial (AUC=1), so we exclude them from fitting
+        # and assign them the mean weight afterwards.
+        orig_len = len(av_train_raw)
+        av_train_proc = train_le.iloc[:orig_len].copy()
+        av_test_proc = test_le.copy()
+
+        # Drop label and target-derived TE features to avoid trivial AV (AUC=1)
+        drop_for_av = [id_col, target] + [c for c in av_train_proc.columns if c.startswith("mean_")]
+
+        av_df_core = compute_adversarial_weights(
+            train_df=av_train_proc,
+            test_df=av_test_proc,
+            id_column=id_col,
+            target_column=target,
+            drop_columns=drop_for_av,
+            presets=av_presets,
+            time_limit=av_time_limit,
+            included_model_types=av_included,
+            output_dir=av_model_dir,
+            hyperparameter_tune_kwargs=av_hpo,
+            random_seed=RANDOM_SEED,
+        )
+
+        # If external rows were added, give them mean weight to keep file length consistent
+        av_df = av_df_core
+        merged_rows = len(train_le) - orig_len
+        if merged_rows > 0:
+            mean_weight = float(av_df_core["av_prob"].mean())
+            extra_df = pd.DataFrame({
+                id_col: train_le.iloc[orig_len:][id_col].values,
+                "av_prob": np.full(merged_rows, mean_weight, dtype=float),
+            })
+            av_df = pd.concat([av_df_core, extra_df], ignore_index=True)
+
+        artifact_weights.parent.mkdir(parents=True, exist_ok=True)
+        av_df.to_csv(artifact_weights, index=False)
+        weights_output.parent.mkdir(parents=True, exist_ok=True)
+        av_df.to_csv(weights_output, index=False)
+
+        state.update(
+            {
+                "av_weights_path": str(weights_output),
+                "av_weights_artifact": str(artifact_weights),
+                "weights_path": str(artifact_weights),
+                "av_rows": len(av_df),
+                "av_presets": av_presets,
+                "av_time_limit": av_time_limit,
+                "av_included_model_types": av_included,
+            }
+        )
 
     return train_le, None if val_df is None else val_df, test_le, state
 

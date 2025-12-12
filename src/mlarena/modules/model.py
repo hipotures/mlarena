@@ -377,20 +377,11 @@ class ModelModule(BaseModule):
             marker.write_text("TARGET_COLUMN missing; aborting model step.")
             return ModuleResult(success=False, error="TARGET_COLUMN missing", artifacts=[marker])
 
-        # Check for convenience flags first
-        if self.invocation_params.get("dev"):
-            preset = "medium"
-            time_limit = 300
-            use_gpu_param = 0
-        elif self.invocation_params.get("smoke"):
-            preset = "medium"
-            time_limit = 60
-            use_gpu_param = 0
-        else:
-            # Default extraction (only if no convenience flags)
-            preset = self.invocation_params.get("preset") or getattr(config, "AUTOGLUON_PRESET", "medium")
-            time_limit = self.invocation_params.get("time_limit") or getattr(config, "AUTOGLUON_TIME_LIMIT", None)
-            use_gpu_param = self.invocation_params.get("use_gpu")
+        # Priority order (lowest to highest): defaults -> template -> CLI args -> convenience flags
+        # 1. Start with defaults
+        preset = getattr(config, "AUTOGLUON_PRESET", "medium")
+        time_limit = getattr(config, "AUTOGLUON_TIME_LIMIT", None)
+        use_gpu_param = None
 
         loader = TemplateLoader(self.context.project_root, template_type="model")
         template_cfg = loader.load(template_name)
@@ -424,17 +415,40 @@ class ModelModule(BaseModule):
                 if key not in template_cfg:
                     template_cfg[key] = value
 
-        # Extract top-level fit args from template
-        if not self.invocation_params.get("preset"):
-            preset = template_cfg.get("preset") or template_cfg.get("presets") or preset
+        # 2. Override with template values
+        preset = template_cfg.get("preset") or template_cfg.get("presets") or preset
+        time_limit = template_cfg.get("time_limit") or time_limit
+        use_gpu_from_template = template_cfg.get("use_gpu")
+        if use_gpu_from_template is not None:
+            use_gpu_param = use_gpu_from_template
 
-        if not self.invocation_params.get("time_limit"):
-            time_limit = template_cfg.get("time_limit") or time_limit
+        # 3. Override with CLI args if provided
+        if self.invocation_params.get("preset"):
+            preset = self.invocation_params.get("preset")
+        if self.invocation_params.get("time_limit"):
+            time_limit = self.invocation_params.get("time_limit")
+        if self.invocation_params.get("use_gpu") is not None:
+            use_gpu_param = self.invocation_params.get("use_gpu")
 
-        if use_gpu_param is None:
-            use_gpu_from_template = template_cfg.get("use_gpu")
-            if use_gpu_from_template is not None:
-                use_gpu_param = use_gpu_from_template
+        # 4. Convenience flags have highest priority (override everything)
+        if self.invocation_params.get("dev"):
+            preset = "medium"
+            time_limit = 300
+            use_gpu_param = 0
+            self.invocation_params["_convenience_flag"] = "dev"
+            # Update invocation_params so header shows final values
+            self.invocation_params["preset"] = preset
+            self.invocation_params["time_limit"] = time_limit
+            self.invocation_params["use_gpu"] = use_gpu_param
+        elif self.invocation_params.get("smoke"):
+            preset = "medium"
+            time_limit = 60
+            use_gpu_param = 0
+            self.invocation_params["_convenience_flag"] = "smoke"
+            # Update invocation_params so header shows final values
+            self.invocation_params["preset"] = preset
+            self.invocation_params["time_limit"] = time_limit
+            self.invocation_params["use_gpu"] = use_gpu_param
 
         # Allow template to supply default preprocess template (overridable by CLI)
         if not preprocess_template:

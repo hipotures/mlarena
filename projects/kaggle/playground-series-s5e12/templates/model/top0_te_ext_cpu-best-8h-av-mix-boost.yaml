@@ -1,0 +1,7 @@
+preprocess_template: top0_te_scale_ext
+model: top_autogluon_av_weights
+included_model_types: ["GBM"]
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: false

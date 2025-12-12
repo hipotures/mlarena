@@ -1,0 +1,15 @@
+module: top0_te_scale_ext
+cache: true
+config:
+  te_folds: 5
+  orig_path: data/diabetes_dataset.csv
+  drop_orig_columns:
+    - diabetes_risk_score
+    - diabetes_stage
+    - glucose_fasting
+    - glucose_postprandial
+    - hba1c
+    - insulin_level
+  av_presets: best_quality
+  av_time_limit: 3600
+  av_included_model_types: ["GBM", "CAT", "XGB"]

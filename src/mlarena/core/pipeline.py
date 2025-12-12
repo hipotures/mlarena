@@ -42,6 +42,19 @@ class PipelineExecutor:
                 templates, _ = load_templates(module_name, module.context.project_root, suppress_warnings=True)
                 template_config = templates.get(template_name, {}).get("config", {})
 
+                # Apply convenience flags to invocation BEFORE extracting overrides
+                # This ensures header shows final values
+                if invocation.get("dev"):
+                    invocation["preset"] = "medium"
+                    invocation["time_limit"] = 300
+                    invocation["use_gpu"] = 0
+                    invocation["_convenience_flag"] = "dev"
+                elif invocation.get("smoke"):
+                    invocation["preset"] = "medium"
+                    invocation["time_limit"] = 60
+                    invocation["use_gpu"] = 0
+                    invocation["_convenience_flag"] = "smoke"
+
                 # Extract CLI overrides
                 cli_overrides = extract_template_overrides(template_config, invocation)
             except Exception:

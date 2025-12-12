@@ -3,7 +3,7 @@
   "project": "playground-series-s5e12",
   "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
   "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda",
-  "created_at": "2025-12-10T23:09:52.751557+00:00",
+  "created_at": "2025-12-12T15:36:24.969229+00:00",
   "pipeline": {
     "name": "default",
     "modules": []
@@ -12,11 +12,13 @@
     "eda": {
       "name": "eda",
       "status": "completed",
-      "started_at": "2025-12-10T23:09:52.764072+00:00",
-      "finished_at": "2025-12-10T23:10:17.975350+00:00",
-      "pid": 223592,
+      "started_at": "2025-12-12T15:36:28.279805+00:00",
+      "finished_at": "2025-12-12T15:36:56.455876+00:00",
+      "pid": 2479720,
       "invocation": {
-        "force": true
+        "force": true,
+        "skip_deps": false,
+        "eda_notes": ""
       },
       "payload": {
         "summary_file": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/eda_summary.json",
@@ -1955,31 +1957,35 @@
   },
   "run": {
     "argv": [
+      "eda",
       "--project",
       "playground-series-s5e12",
-      "--model-template",
-      "cpu-best-1h-gbm-drift-mi",
-      "--preprocess-template",
-      "ps5e12_drift_mi",
-      "--dev",
       "--force"
     ],
-    "module": "eda"
+    "cli_args": {
+      "show_payload": false,
+      "project": "playground-series-s5e12",
+      "model_template": "baseline",
+      "preprocess_template": null,
+      "force": true,
+      "skip_submit": false,
+      "skip_git": false,
+      "wait_seconds": 30,
+      "dev": false,
+      "smoke": false,
+      "command": "eda",
+      "experiment_id": null,
+      "skip_deps": false,
+      "eda_notes": ""
+    }
   },
   "git": {
-    "commit": "6f4a95431cf38ac5265fad867f507ef8458a0135",
+    "commit": "42b72da42e850722072df307f2c1815e2a223bfd",
     "branch": "main",
     "is_dirty": true,
     "dirty_files": [
-      "M ../../../config/code/preprocessing/feature_selector.py",
-      " M .gitignore",
-      " M README.md",
-      " M code/models/autogluon_av_weights.py",
-      " M code/utils/config.py",
-      " M experiments/init/state.json",
-      " M templates/model.yaml",
-      "?? code/models/autogluon_av_weights_all_models.py",
-      "?? configs/.gitkeep"
+      "M experiments/eda/state.json",
+      " M ../../../src/mlarena/modules/eda.py"
     ]
   }
 }

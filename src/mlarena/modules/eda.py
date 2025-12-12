@@ -15,6 +15,45 @@ from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import data_paths, load_project_config
 
 
+# Keys to remove from ydata profiling output
+PROFILE_REMOVE_KEYS = {
+    "value_counts_without_nan",
+    "value_counts_index_sorted",
+    "histogram",
+    "histogram_length",
+    "character_counts",
+    "block_alias_values",
+    "category_alias_values",
+    "block_alias_char_counts",
+    "script_char_counts",
+    "category_alias_char_counts",
+    "package",
+    "analysis",
+    "time_index_analysis",
+}
+WORD_COUNT_LIMIT = 50
+
+
+def _sanitize_payload(payload: Any) -> Any:
+    """Recursively remove heavy keys from nested dict/list structure."""
+    def _clean(node: Any) -> Any:
+        if isinstance(node, dict):
+            cleaned = {}
+            for key, value in node.items():
+                if key in PROFILE_REMOVE_KEYS:
+                    continue
+                if key == "word_counts" and isinstance(value, dict):
+                    cleaned[key] = value if len(value) <= WORD_COUNT_LIMIT else {}
+                    continue
+                cleaned[key] = _clean(value)
+            return cleaned
+        if isinstance(node, list):
+            return [_clean(item) for item in node]
+        return node
+
+    return _clean(payload)
+
+
 def _safe_profile(df: "pd.DataFrame", title: str, output_html: Path, output_json: Path) -> Dict[str, Any]:
     """
     Run ydata-profiling when available; otherwise save describe() summary.
@@ -39,6 +78,8 @@ def _safe_profile(df: "pd.DataFrame", title: str, output_html: Path, output_json
             "variables": payload.get("variables", {}),
             "alerts": payload.get("alerts", []),
         }
+        # Remove heavy keys from profiling data
+        trimmed = _sanitize_payload(trimmed)
     except Exception:
         trimmed = {}
     return {

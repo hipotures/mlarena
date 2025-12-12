@@ -1,0 +1,9 @@
+module: av_weights
+cache: true
+config:
+  presets: best
+  time_limit: 3600
+  drop_columns:
+  - id
+  output_path: data/train_av_weights.csv
+  model_output_dir: preprocess_cache/av_model

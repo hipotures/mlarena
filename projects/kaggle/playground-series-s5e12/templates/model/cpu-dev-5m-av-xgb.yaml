@@ -1,0 +1,8 @@
+model: autogluon_av_weights
+config:
+  preset: high
+  time_limit: 600
+  use_gpu: false
+  hyperparameters:
+    included_model_types:
+    - XGB

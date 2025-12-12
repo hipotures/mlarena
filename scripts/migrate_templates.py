@@ -134,22 +134,7 @@ def validate_migration(directory: Path) -> List[str]:
                 )
             seen[name_lower] = file.stem
 
-    # Check global name uniqueness
-    all_names = {}
-    for template_type in ["model", "preprocess"]:
-        type_dir = directory / template_type
-        if not type_dir.exists():
-            continue
-
-        for file in type_dir.glob("*.yaml"):
-            name = file.stem
-            if name in all_names:
-                errors.append(
-                    f"Global name conflict: template '{name}' exists in both "
-                    f"{all_names[name]}/ and {template_type}/"
-                )
-            all_names[name] = template_type
-
+    # Global name uniqueness removed - same names allowed in model/ and preprocess/
     return errors
 
 
@@ -186,21 +171,6 @@ def migrate_global_templates(dry_run: bool = True) -> Dict[str, int]:
         else:
             all_preprocess_names = names
 
-    # Check for name conflicts
-    conflicts = detect_name_conflicts(all_model_names, all_preprocess_names)
-    if conflicts:
-        console.print(f"\n[bold red]⚠ NAME CONFLICTS DETECTED![/bold red]")
-        console.print(f"The following template names exist in BOTH model and preprocess:")
-        for name in conflicts:
-            console.print(f"  [red]✗[/red] {name}")
-        console.print(f"\n[yellow]Action required:[/yellow]")
-        console.print(f"  You must rename these templates to ensure global uniqueness.")
-        console.print(f"  Recommendation: Rename preprocess templates to '{name}-preprocess'")
-
-        if not dry_run:
-            console.print(f"\n[red]Migration aborted due to name conflicts.[/red]")
-            console.print(f"Please resolve conflicts manually in the source YAML files first.")
-            return {}
 
     return counts
 

@@ -1,0 +1,8 @@
+module: outlier_handler
+cache: true
+config:
+  outlier_method: iqr
+  iqr_factor: 2.0
+  action: clip
+  lower_quantile: 0.001
+  upper_quantile: 0.999

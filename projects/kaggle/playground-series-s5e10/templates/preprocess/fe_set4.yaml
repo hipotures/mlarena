@@ -1,0 +1,37 @@
+module: fe_set4
+cache: true
+config:
+  target_encoding_features: false
+  sample_frac: 1.0
+  sample_seed: 42
+  fill_missing: true
+  string_clean: true
+  quantile_bins:
+  - 20
+  - 100
+  uniform_bins:
+  - 20
+  log1p_bins:
+  - 20
+  round_multipliers:
+  - 1
+  - 10
+  - 100
+  digit_mods:
+  - 3
+  - 5
+  - 7
+  - 10
+  pairwise_cat_limit: 8
+  target_encoding:
+    enabled: true
+    folds: 5
+    smoothing: 10.0
+    min_samples_leaf: 20
+    seed: 42
+  categorical_overrides: []
+  numeric_overrides: []
+  correlation_threshold: 0.99
+  selection_enabled: true
+  selection_holdout_frac: 0.2
+  selection_epsilon: 0.0

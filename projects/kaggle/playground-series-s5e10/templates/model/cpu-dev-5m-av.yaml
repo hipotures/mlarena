@@ -1,0 +1,8 @@
+model: autogluon_av_weights
+config:
+  hyperparameters:
+    presets: medium
+    time_limit: 300
+    use_gpu: false
+  model:
+    av_weights_path: data/train_av_weights.csv

@@ -1,0 +1,13 @@
+module: av_weights_mix
+cache: true
+config:
+  orig_path: data/diabetes_dataset.csv
+  mode: union
+  source_flag: is_original
+  time_limit: 600
+  presets: medium_quality_faster_train
+  included_model_types: null
+  drop_columns: []
+  output_filename: train_av_weights.csv
+  model_dir: av_model_mix_union
+  keep_extra_weights: false

@@ -1,0 +1,6 @@
+model: autogluon_av_weights
+config:
+  hyperparameters:
+    presets: medium
+    time_limit: 300
+    use_gpu: false

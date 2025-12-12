@@ -1,0 +1,6 @@
+preprocess_template: av_weights_mix_union
+model: autogluon_av_weights
+config:
+  preset: medium
+  time_limit: 600
+  use_gpu: false

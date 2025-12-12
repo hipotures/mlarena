@@ -1,0 +1,8 @@
+preprocess_template: av_weights_mix
+model: autogluon_av_weights
+included_model_types:
+- GBM
+config:
+  preset: medium
+  time_limit: 300
+  use_gpu: false

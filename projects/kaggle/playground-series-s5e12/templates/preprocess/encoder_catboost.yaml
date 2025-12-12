@@ -1,0 +1,7 @@
+module: encoder
+cache: true
+config:
+  encoding_method: catboost
+  max_cardinality: 1000
+  handle_unknown: ignore
+  drop_first: false

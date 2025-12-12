@@ -1,0 +1,16 @@
+module: av_weights_mix
+cache: true
+config:
+  orig_path: data/diabetes_dataset.csv
+  mode: align
+  source_flag: null
+  time_limit: 28800
+  presets: best_quality
+  included_model_types:
+  - GBM
+  - CAT
+  - XGB
+  drop_columns: []
+  output_filename: train_av_weights.csv
+  model_dir: av_model_mix_best
+  keep_extra_weights: false

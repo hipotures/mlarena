@@ -1,0 +1,3 @@
+chain:
+- categorical_boost
+- av_weights

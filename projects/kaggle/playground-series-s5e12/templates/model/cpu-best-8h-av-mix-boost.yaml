@@ -1,0 +1,10 @@
+preprocess_template: av_weights_mix_best
+model: autogluon_av_weights
+included_model_types:
+- GBM
+- XGB
+- CAT
+config:
+  preset: best
+  time_limit: 21600
+  use_gpu: false

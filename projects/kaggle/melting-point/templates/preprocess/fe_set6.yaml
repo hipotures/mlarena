@@ -1,0 +1,27 @@
+module: fe_set6
+cache: true
+config:
+  target_encoding_features: false
+  fill_missing: true
+  string_clean: true
+  quantile_bins:
+  - 10
+  - 20
+  uniform_bins: []
+  log1p_bins: []
+  quantile_cols:
+  - physical_activity_minutes_per_week
+  - triglycerides
+  - cholesterol_total
+  - ldl_cholesterol
+  target_encoding:
+    enabled: true
+    folds: 5
+    smoothing: 10.0
+    min_samples_leaf: 20
+    seed: 42
+  categorical_overrides: []
+  numeric_overrides: []
+  correlation_threshold: 0.99
+  skewed_cols:
+  - physical_activity_minutes_per_week

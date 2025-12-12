@@ -1,0 +1,11 @@
+preprocess_template: av_weights_best_boost
+model: autogluon_av_weights
+config:
+  preset: best
+  time_limit: 28800
+  use_gpu: false
+  hyperparameters:
+    included_model_types:
+    - GBM
+    - XGB
+    - CAT

@@ -1,0 +1,8 @@
+preprocess_template: ps5e12_drift_modelimp
+model: autogluon_av_weights
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: false
+  hyperparameters:
+    GBM: {}

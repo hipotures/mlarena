@@ -1,0 +1,13 @@
+module: outlier_handler
+cache: true
+config:
+  outlier_method: iqr
+  iqr_factor: 1.5
+  lower_quantile: 0.01
+  upper_quantile: 0.99
+  zscore_threshold: 3.0
+  isoforest_contamination: 0.05
+  action: clip
+  include_cols: null
+  exclude_cols: []
+  random_state: 42

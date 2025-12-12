@@ -1,0 +1,8 @@
+module: imputer
+cache: true
+config:
+  numeric_strategy: median
+  categorical_strategy: most_frequent
+  treat_outliers_as_na: true
+  outlier_method: iqr
+  outlier_threshold: 1.5

@@ -1,0 +1,11 @@
+module: scaler
+cache: true
+config:
+  scaling_method: standard
+  numeric_include: null
+  numeric_exclude: []
+  log_transform: []
+  clip_lower_quantile: null
+  clip_upper_quantile: null
+  n_quantiles: 1000
+  random_state: 42

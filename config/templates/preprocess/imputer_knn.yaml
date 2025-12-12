@@ -1,0 +1,6 @@
+module: imputer
+cache: true
+config:
+  numeric_strategy: knn
+  categorical_strategy: most_frequent
+  knn_n_neighbors: 5

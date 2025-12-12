@@ -1,0 +1,13 @@
+model: autogluon_baseline
+config:
+  preset: best
+  time_limit: 28800
+  use_gpu: true
+  included_model_types:
+  - NN_TORCH
+  hyperparameters:
+    NN_TORCH:
+    - ag_args_fit:
+        num_gpus: 1
+        num_workers: 0
+        batch_size: 256

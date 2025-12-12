@@ -1,0 +1,8 @@
+preprocess_template: categorical_boost
+model: autogluon_boost_categorical
+config:
+  preset: best
+  time_limit: 28800
+  use_gpu: false
+  included_model_types:
+  - CAT

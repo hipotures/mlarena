@@ -1,0 +1,6 @@
+module: scaler
+cache: true
+config:
+  scaling_method: robust
+  clip_lower_quantile: 0.01
+  clip_upper_quantile: 0.99

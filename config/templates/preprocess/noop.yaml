@@ -1,0 +1,3 @@
+module: noop
+cache: false
+config: {}

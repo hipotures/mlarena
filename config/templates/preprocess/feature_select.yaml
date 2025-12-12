@@ -1,0 +1,5 @@
+module: feature_selector
+cache: true
+config:
+  method: variance_threshold
+  threshold: 0.01

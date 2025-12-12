@@ -1,0 +1,4 @@
+chain:
+- noop
+- rare_category_handler
+- noop

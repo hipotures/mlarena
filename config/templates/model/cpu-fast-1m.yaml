@@ -1,0 +1,8 @@
+model: autogluon_baseline
+config:
+  preset: medium
+  time_limit: 60
+  use_gpu: false
+  excluded_model_types:
+  - NN_TORCH
+  - FASTAI

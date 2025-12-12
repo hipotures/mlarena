@@ -1,0 +1,12 @@
+module: datetime_handler
+cache: true
+config:
+  datetime_cols: []
+  datetime_formats: {}
+  expand_datetime_cols: null
+  time_features_set: basic
+  custom_features: []
+  cyclical_features: []
+  time_diff_pairs: []
+  time_diff_default_unit: days
+  drop_original_datetime: false

@@ -1,0 +1,5 @@
+model: autogluon_baseline
+config:
+  preset: extreme
+  time_limit: 86400
+  use_gpu: true

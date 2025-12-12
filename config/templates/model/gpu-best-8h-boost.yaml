@@ -1,0 +1,24 @@
+preprocess_template: categorical_boost
+model: autogluon_boost_categorical
+config:
+  preset: best
+  time_limit: 28800
+  use_gpu: true
+  included_model_types:
+  - GBM
+  - CAT
+  - XGB
+  hyperparameters:
+    ag_args_fit:
+      num_gpus: 1
+      num_cpus: 8
+    GBM:
+    - device: gpu
+    CAT:
+    - task_type: GPU
+      devices: '0'
+    XGB:
+    - device: cuda
+      tree_method: hist
+      enable_categorical: true
+      n_jobs: 8

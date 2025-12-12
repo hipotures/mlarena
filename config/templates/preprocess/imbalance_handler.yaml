@@ -1,0 +1,7 @@
+module: imbalance_handler
+cache: true
+config:
+  imbalance_method: class_weight
+  sampling_strategy: auto
+  use_sample_weights: true
+  random_state: 42

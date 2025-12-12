@@ -1,0 +1,7 @@
+module: encoder
+cache: true
+config:
+  encoding_method: one_hot
+  max_cardinality: 50
+  drop_first: false
+  handle_unknown: ignore

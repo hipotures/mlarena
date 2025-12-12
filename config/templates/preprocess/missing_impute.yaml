@@ -1,0 +1,5 @@
+module: missing_values_imputer
+cache: true
+config:
+  numeric_strategy: median
+  categorical_strategy: most_frequent

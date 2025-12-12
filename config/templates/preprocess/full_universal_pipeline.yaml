@@ -1,0 +1,10 @@
+chain:
+- sanity_check
+- imputer
+- outlier_handler
+- rare_category_handler
+- encoder
+- scaler
+- drift_detector
+- feature_selector
+- autogluon_booster

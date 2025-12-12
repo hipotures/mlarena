@@ -1,0 +1,8 @@
+module: categorical_encoder
+cache: true
+config:
+  max_cardinality: 50
+  exclude_text_type: false
+  include_numeric_categories: false
+  enable_auto_detect: true
+  auto_detect_threshold: 25

@@ -1,0 +1,6 @@
+module: feature_selector
+cache: true
+config:
+  method: select_k_best
+  k: 8
+  score_func: f_classif

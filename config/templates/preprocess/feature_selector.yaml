@@ -1,0 +1,7 @@
+module: feature_selector
+cache: true
+config:
+  selection_method: variance
+  k_features: null
+  keep_fraction: 0.8
+  min_variance: 0.01

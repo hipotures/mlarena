@@ -1,0 +1,7 @@
+model: autogluon_baseline
+config:
+  preset: best
+  time_limit: 28800
+  use_gpu: false
+  included_model_types:
+  - KNN

@@ -1,0 +1,4 @@
+chain:
+- sanity_check
+- imputer
+- autogluon_booster

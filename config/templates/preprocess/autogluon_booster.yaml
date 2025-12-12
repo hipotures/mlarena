@@ -1,0 +1,7 @@
+module: autogluon_booster
+cache: true
+config:
+  autogluon_mode: raw_categories
+  freq_encoding_cols: []
+  auto_text_detection: true
+  enforce_dtypes: true

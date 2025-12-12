@@ -1,0 +1,7 @@
+chain:
+- sanity_check
+- imputer
+- rare_category_handler
+- encoder
+- scaler
+- feature_selector

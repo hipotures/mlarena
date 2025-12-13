@@ -1,0 +1,9 @@
+module: adversarial_validation
+cache: true
+config:
+  # Smoke test: fast settings
+  presets: medium_quality_faster_train
+  time_limit: 60  # 1 minute
+  included_model_types: ["GBM"]  # Only GBM for speed
+  weight_transform: odds_ratio_normalized
+  weights_output_name: sample_weights.csv

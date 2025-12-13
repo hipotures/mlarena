@@ -2,6 +2,6 @@ module: dataset_merger
 cache: true
 config:
   orig_path: data/diabetes_dataset.csv
-  mode: union  # Test union mode (all columns)
-  source_flag: null  # No source flag for first test
+  mode: union
+  source_flag: null
   column_mapping: {}

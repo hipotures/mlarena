@@ -1,8 +1,7 @@
-module: top0_te_scale_ext
+module: top0_te_scale_ext_m
 cache: true
 config:
   te_folds: 5
-  orig_path: data/diabetes_dataset.csv
   drop_orig_columns:
     - diabetes_risk_score
     - diabetes_stage

@@ -1,0 +1,18 @@
+module: adversarial_validation
+cache: true
+config:
+  # AutoGluon training parameters
+  presets: medium_quality_faster_train
+  time_limit: 600
+  included_model_types: null
+
+  # Feature engineering
+  drop_columns: []
+
+  # Weight transformation
+  # Options: raw | odds_ratio | odds_ratio_capped | odds_ratio_normalized
+  weight_transform: odds_ratio_normalized
+
+  # Output
+  weights_output_name: sample_weights.csv
+  weight_column_name: __sample_weight__

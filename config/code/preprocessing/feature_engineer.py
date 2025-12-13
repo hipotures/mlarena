@@ -83,11 +83,12 @@ def _apply_interactions(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     pairs: List[Tuple[str, str]],
     interaction_types: List[str],
     max_new_features: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, List[str], List[Dict[str, Any]]]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], List[Dict[str, Any]]]:
     new_cols: List[str] = []
     details: List[Dict[str, Any]] = []
     allowed_ops = {"add", "sub", "mul", "div"}
@@ -108,7 +109,7 @@ def _apply_interactions(
                 warnings.warn(f"Unsupported interaction '{op}' - skipping")
                 continue
             if len(new_cols) >= max_new_features:
-                return train_df, val_df, test_df, new_cols, details
+                return train_df, val_df, test_df, orig_df, new_cols, details
 
             base_name = f"{col_a}_{op}_{col_b}"
             new_name = _unique_name(base_name, existing_cols.union(new_cols))
@@ -138,6 +139,16 @@ def _apply_interactions(
             test_df[new_name] = test_series
             if val_df is not None and val_series is not None:
                 val_df[new_name] = val_series
+            if orig_df is not None and col_a in orig_df.columns and col_b in orig_df.columns:
+                if op == "add":
+                    orig_df[new_name] = orig_df[col_a] + orig_df[col_b]
+                elif op == "sub":
+                    orig_df[new_name] = orig_df[col_a] - orig_df[col_b]
+                elif op == "mul":
+                    orig_df[new_name] = orig_df[col_a] * orig_df[col_b]
+                elif op == "div":
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        orig_df[new_name] = np.where(orig_df[col_b] != 0, orig_df[col_a] / orig_df[col_b], np.nan)
 
             new_cols.append(new_name)
             details.append({
@@ -148,24 +159,25 @@ def _apply_interactions(
             })
 
             if len(new_cols) >= max_new_features:
-                return train_df, val_df, test_df, new_cols, details
+                return train_df, val_df, test_df, orig_df, new_cols, details
 
-    return train_df, val_df, test_df, new_cols, details
+    return train_df, val_df, test_df, orig_df, new_cols, details
 
 
 def _apply_polynomial_features(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     poly_cols: List[str],
     degree: int,
     include_bias: bool,
     interaction_only: bool,
     remaining_slots: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, List[str], Dict[str, Any]]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], Dict[str, Any]]:
     if degree is None or degree <= 1 or not poly_cols:
-        return train_df, val_df, test_df, [], {}
+        return train_df, val_df, test_df, orig_df, [], {}
 
     # Skip if NaNs present to avoid PolynomialFeatures failure; user should impute earlier.
     if train_df[poly_cols].isnull().any().any():
@@ -189,11 +201,13 @@ def _apply_polynomial_features(
     train_poly = poly.fit_transform(train_df[poly_cols])
     test_poly = poly.transform(test_df[poly_cols])
     val_poly = poly.transform(val_df[poly_cols]) if val_df is not None else None
+    orig_poly = poly.transform(orig_df[poly_cols]) if orig_df is not None and all(c in orig_df.columns for c in poly_cols) else None
 
     feature_names = poly.get_feature_names_out(poly_cols)
     poly_train_df = pd.DataFrame(train_poly, columns=feature_names, index=train_df.index)
     poly_test_df = pd.DataFrame(test_poly, columns=feature_names, index=test_df.index)
     poly_val_df = pd.DataFrame(val_poly, columns=feature_names, index=val_df.index) if val_df is not None else None
+    poly_orig_df = pd.DataFrame(orig_poly, columns=feature_names, index=orig_df.index) if orig_poly is not None else None
 
     # Only keep new columns to avoid overwriting originals
     new_feature_names = [name for name in feature_names if name not in train_df.columns]
@@ -211,6 +225,8 @@ def _apply_polynomial_features(
         test_df[unique_name] = poly_test_df[name]
         if val_df is not None and poly_val_df is not None:
             val_df[unique_name] = poly_val_df[name]
+        if orig_df is not None and poly_orig_df is not None:
+            orig_df[unique_name] = poly_orig_df[name]
         created_names.append(unique_name)
 
     details = {
@@ -222,34 +238,35 @@ def _apply_polynomial_features(
         "generated_columns": created_names,
     }
 
-    return train_df, val_df, test_df, created_names, details
+    return train_df, val_df, test_df, orig_df, created_names, details
 
 
 def _apply_group_aggregations(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     group_keys: List[str],
     value_cols: List[str],
     aggs: List[str],
     remaining_slots: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, List[str], Dict[str, Any]]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], Dict[str, Any]]:
     if not group_keys or not value_cols or not aggs:
-        return train_df, val_df, test_df, [], {}
+        return train_df, val_df, test_df, orig_df, [], {}
 
     missing_keys = [col for col in group_keys if col not in train_df.columns]
     missing_values = [col for col in value_cols if col not in train_df.columns]
     if missing_keys:
         warnings.warn(f"Group keys missing in train: {missing_keys} - skipping aggregations")
-        return train_df, val_df, test_df, [], {}
+        return train_df, val_df, test_df, orig_df, [], {}
     if missing_values:
         warnings.warn(f"Value columns missing in train: {missing_values} - skipping aggregations")
-        return train_df, val_df, test_df, [], {}
+        return train_df, val_df, test_df, orig_df, [], {}
 
     if any(col not in test_df.columns for col in group_keys):
         warnings.warn("Group keys missing in test data - skipping aggregations")
-        return train_df, val_df, test_df, [], {}
+        return train_df, val_df, test_df, orig_df, [], {}
 
     agg_df = train_df[group_keys + value_cols].groupby(group_keys).agg(aggs)
     agg_df.columns = [
@@ -271,6 +288,8 @@ def _apply_group_aggregations(
     test_df = test_df.merge(agg_df, on=group_keys, how="left")
     if val_df is not None:
         val_df = val_df.merge(agg_df, on=group_keys, how="left")
+    if orig_df is not None and all(col in orig_df.columns for col in group_keys):
+        orig_df = orig_df.merge(agg_df, on=group_keys, how="left")
 
     # Ensure unique names against existing columns
     renamed_columns = []
@@ -281,6 +300,8 @@ def _apply_group_aggregations(
             test_df.rename(columns={col: unique_name}, inplace=True)
             if val_df is not None:
                 val_df.rename(columns={col: unique_name}, inplace=True)
+            if orig_df is not None and col in orig_df.columns:
+                orig_df.rename(columns={col: unique_name}, inplace=True)
         renamed_columns.append(unique_name)
 
     details = {
@@ -291,7 +312,7 @@ def _apply_group_aggregations(
         "generated_columns": renamed_columns,
     }
 
-    return train_df, val_df, test_df, renamed_columns, details
+    return train_df, val_df, test_df, orig_df, renamed_columns, details
 
 
 def fit_transform(
@@ -299,7 +320,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Feature engineering preprocessing sub-module.
 
@@ -322,9 +344,10 @@ def fit_transform(
             - group_value_cols: List[str] - Value columns to aggregate
             - aggs: List[str] - Aggregations to compute (mean, std, min, max, count, nunique, etc.)
             - max_generated_features: int - Safety cap for new features
+        orig_df: External dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
 
         state_dict contains:
         - version: str
@@ -408,10 +431,11 @@ def fit_transform(
         auto_pair_numeric=config["auto_pair_numeric"],
         max_auto_pairs=config["max_auto_pairs"],
     )
-    train_df, val_df, test_df, inter_cols, inter_details = _apply_interactions(
+    train_df, val_df, test_df, orig_df, inter_cols, inter_details = _apply_interactions(
         train_df=train_df,
         val_df=val_df,
         test_df=test_df,
+        orig_df=orig_df,
         pairs=pairs,
         interaction_types=config["interaction_types"],
         max_new_features=max_new,
@@ -426,10 +450,11 @@ def fit_transform(
     poly_cols = config["poly_columns"] if config["poly_columns"] is not None else numeric_cols
     poly_cols = [col for col in poly_cols if col in numeric_cols]
 
-    train_df, val_df, test_df, poly_cols_added, polynomial_details = _apply_polynomial_features(
+    train_df, val_df, test_df, orig_df, poly_cols_added, polynomial_details = _apply_polynomial_features(
         train_df=train_df,
         val_df=val_df,
         test_df=test_df,
+        orig_df=orig_df,
         poly_cols=poly_cols,
         degree=config["poly_degree"],
         include_bias=config["poly_include_bias"],
@@ -446,10 +471,11 @@ def fit_transform(
         warnings.warn("Target column included in group_value_cols - this may cause leakage.")
 
     if remaining_slots > 0:
-        train_df, val_df, test_df, agg_cols_added, group_details = _apply_group_aggregations(
+        train_df, val_df, test_df, orig_df, agg_cols_added, group_details = _apply_group_aggregations(
             train_df=train_df,
             val_df=val_df,
             test_df=test_df,
+            orig_df=orig_df,
             group_keys=config["group_keys"],
             value_cols=config["group_value_cols"],
             aggs=config["aggs"],
@@ -491,4 +517,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

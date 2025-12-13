@@ -21,7 +21,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Select features based on variance or statistical tests.
 
@@ -36,9 +37,10 @@ def fit_transform(
         val_df: Validation dataframe (optional)
         test_df: Test dataframe
         config: Configuration dictionary
+        orig_df: External dataset (optional)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
     # Extract config
     method = config.get("method", "variance_threshold")
@@ -51,6 +53,8 @@ def fit_transform(
     test_df = test_df.copy()
     if val_df is not None:
         val_df = val_df.copy()
+    if orig_df is not None:
+        orig_df = orig_df.copy()
 
     # Get numeric columns only (feature selection works on numeric data)
     numeric_cols = train_df.select_dtypes(include=[np.number]).columns.tolist()
@@ -63,11 +67,12 @@ def fit_transform(
 
     if not numeric_cols:
         # No numeric columns to select from
-        return train_df, val_df, test_df, {"skipped": True, "reason": "no numeric columns"}
+        return train_df, val_df, test_df, orig_df, {"skipped": True, "reason": "no numeric columns"}
 
     X_train = train_df[numeric_cols]
     X_test = test_df[numeric_cols]
     X_val = val_df[numeric_cols] if val_df is not None else None
+    X_orig = orig_df[numeric_cols] if orig_df is not None else None
 
     state = {
         "method": method,
@@ -87,6 +92,7 @@ def fit_transform(
         X_train_selected = selector.transform(X_train)
         X_test_selected = selector.transform(X_test)
         X_val_selected = selector.transform(X_val) if X_val is not None else None
+        X_orig_selected = selector.transform(X_orig) if X_orig is not None else None
 
         # Update dataframes
         # Drop all original numeric columns
@@ -94,12 +100,16 @@ def fit_transform(
         test_df = test_df.drop(columns=numeric_cols)
         if val_df is not None:
             val_df = val_df.drop(columns=numeric_cols)
+        if orig_df is not None:
+            orig_df = orig_df.drop(columns=numeric_cols)
 
         # Add selected features back
         train_df[selected_features] = X_train_selected
         test_df[selected_features] = X_test_selected
         if val_df is not None:
             val_df[selected_features] = X_val_selected
+        if orig_df is not None:
+            orig_df[selected_features] = X_orig_selected
 
         # State tracking
         dropped_features = [f for f in numeric_cols if f not in selected_features]
@@ -134,6 +144,7 @@ def fit_transform(
         X_train_selected = selector.transform(X_train)
         X_test_selected = selector.transform(X_test)
         X_val_selected = selector.transform(X_val) if X_val is not None else None
+        X_orig_selected = selector.transform(X_orig) if X_orig is not None else None
 
         # Update dataframes
         # Drop all original numeric columns
@@ -141,12 +152,16 @@ def fit_transform(
         test_df = test_df.drop(columns=numeric_cols)
         if val_df is not None:
             val_df = val_df.drop(columns=numeric_cols)
+        if orig_df is not None:
+            orig_df = orig_df.drop(columns=numeric_cols)
 
         # Add selected features back
         train_df[selected_features] = X_train_selected
         test_df[selected_features] = X_test_selected
         if val_df is not None:
             val_df[selected_features] = X_val_selected
+        if orig_df is not None:
+            orig_df[selected_features] = X_orig_selected
 
         # State tracking
         dropped_features = [f for f in numeric_cols if f not in selected_features]
@@ -162,7 +177,7 @@ def fit_transform(
     else:
         raise ValueError(f"Unknown feature selection method: {method}")
 
-    return train_df, val_df, test_df, state
+    return train_df, val_df, test_df, orig_df, state
 
 
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:

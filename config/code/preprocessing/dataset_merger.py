@@ -1,6 +1,16 @@
 """
 Dataset merger preprocessing module.
 
+**DEPRECATION NOTICE**: This module is deprecated in favor of `external_dataset`.
+
+`dataset_merger` merges external data directly into the training set during preprocessing.
+`external_dataset` provides the original dataset as a separate file (orig_processed.csv),
+allowing more flexible merge strategies in model code.
+
+**Migration Path**: Use `external_dataset` module instead for new projects.
+`external_dataset` returns orig_df as a 4th parameter, allowing models to decide
+whether and how to merge train+orig data.
+
 Merges external/original dataset with Kaggle competition training data.
 Supports column alignment, name mapping, and optional source tracking.
 """
@@ -23,6 +33,8 @@ def fit_transform(
     """
     Merge external dataset with Kaggle train data.
 
+    **DEPRECATED**: Use `external_dataset` module instead.
+
     Config keys:
         orig_path (str): Path to original dataset CSV (required)
         mode (str): 'align' (intersection) or 'union' (all columns), default 'align'
@@ -30,7 +42,7 @@ def fit_transform(
         column_mapping (dict): Map original column names to Kaggle names, default {}
 
     Returns:
-        - train_merged: Kaggle train + original dataset
+        - train_merged: Kaggle train + original dataset (concatenated)
         - val_df: Unchanged (pass-through)
         - test_df: With source_flag if enabled (for feature consistency)
         - state_dict: Column alignment report and merge statistics

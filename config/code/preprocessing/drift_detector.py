@@ -208,7 +208,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Drift detection preprocessing - detect and optionally remove features with distribution drift.
 
@@ -228,9 +229,10 @@ def fit_transform(
             - max_drop_fraction: Maximum fraction of features to drop (default: 0.2)
             - exclude_cols: Columns to exclude from drift detection
             - random_state: Random state for reproducibility (default: 42)
+        orig_df: External dataset (can be None) - passed through unchanged
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
 
         state_dict contains:
         - version: str - Version of this sub-module
@@ -421,4 +423,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

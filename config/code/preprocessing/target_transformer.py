@@ -40,7 +40,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Transform target column for regression tasks.
 
@@ -57,9 +58,10 @@ def fit_transform(
             - shift_before_log: Auto-shift if data <= 0 (log/Box-Cox)
             - shift_value: Manual shift override (added before log/Box-Cox)
             - standardize: Whether to standardize PowerTransformer output
+        orig_df: External dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -108,6 +110,7 @@ def fit_transform(
     # 5. Prepare target series and clipping
     train_target = train_df[target_column].astype(float)
     val_target = val_df[target_column].astype(float) if val_df is not None and target_column in val_df.columns else None
+    orig_target = orig_df[target_column].astype(float) if orig_df is not None and target_column in orig_df.columns else None
 
     lower_q = config["clip_lower_quantile"]
     upper_q = config["clip_upper_quantile"]
@@ -117,6 +120,8 @@ def fit_transform(
     train_target = _clip_series(train_target, lower_bound, upper_bound)
     if val_target is not None:
         val_target = _clip_series(val_target, lower_bound, upper_bound)
+    if orig_target is not None:
+        orig_target = _clip_series(orig_target, lower_bound, upper_bound)
 
     # 6. Determine shift for log/Box-Cox
     method = config["target_transform"]
@@ -128,6 +133,8 @@ def fit_transform(
             min_val = train_target.min()
             if val_target is not None:
                 min_val = min(min_val, val_target.min())
+            if orig_target is not None:
+                min_val = min(min_val, orig_target.min())
             if min_val <= 0:
                 shift_used = abs(min_val) + 1e-6
 
@@ -137,12 +144,15 @@ def fit_transform(
     if method == "none":
         transformed_train = train_target
         transformed_val = val_target
+        transformed_orig = orig_target
     elif method == "log1p":
         transformed_train = np.log1p(train_target + shift_used)
         transformed_val = np.log1p(val_target + shift_used) if val_target is not None else None
+        transformed_orig = np.log1p(orig_target + shift_used) if orig_target is not None else None
     elif method in ["boxcox", "yeo_johnson"]:
         adjusted_train = train_target + shift_used if method == "boxcox" else train_target
         adjusted_val = val_target + shift_used if (val_target is not None and method == "boxcox") else val_target
+        adjusted_orig = orig_target + shift_used if (orig_target is not None and method == "boxcox") else orig_target
 
         if method == "boxcox" and (adjusted_train <= 0).any():
             raise ValueError("Box-Cox requires strictly positive data after shift; adjust shift_value/shift_before_log.")
@@ -158,6 +168,11 @@ def fit_transform(
             if adjusted_val is not None
             else None
         )
+        transformed_orig = (
+            power_transformer.transform(adjusted_orig.values.reshape(-1, 1)).ravel()
+            if adjusted_orig is not None
+            else None
+        )
 
         transformer_path = artifacts.save_fitted_object(power_transformer, submodule_dir, "power_transformer.pkl")
     else:
@@ -167,6 +182,8 @@ def fit_transform(
     train_df[target_column] = transformed_train
     if val_df is not None and transformed_val is not None:
         val_df[target_column] = transformed_val
+    if orig_df is not None and transformed_orig is not None:
+        orig_df[target_column] = transformed_orig
 
     # 9. Reports
     transform_report = {
@@ -202,4 +219,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

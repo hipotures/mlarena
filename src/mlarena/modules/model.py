@@ -35,7 +35,7 @@ def _load_processed_or_raw(
             (e.g., experiments/pre-ps5e12_drift_mi/7-imbalance_handler)
 
     Returns:
-        Tuple of (train_df, test_df, sample_weight_df or None)
+        Tuple of (train_df, test_df, sample_weight_df or None, orig_df or None)
     """
     import pandas as pd
     import json
@@ -45,11 +45,14 @@ def _load_processed_or_raw(
     def _load_from_exp_dir(exp_dir: Path):
         train_path = exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
         test_path = exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
+        orig_path = exp_dir / "artifacts" / "preprocess" / "orig_processed.csv"
+
         if not train_path.exists():
-            return None, None, None
+            return None, None, None, None
 
         train_df_local = pd.read_csv(train_path)
         test_df_local = pd.read_csv(test_path) if test_path.exists() else None
+        orig_df_local = pd.read_csv(orig_path) if orig_path.exists() else None
 
         sample_weight_local = None
         state_path = exp_dir / "state.json"
@@ -69,21 +72,21 @@ def _load_processed_or_raw(
                 if weights_path.exists():
                     sample_weight_local = pd.read_csv(weights_path)
 
-        return train_df_local, test_df_local, sample_weight_local
+        return train_df_local, test_df_local, sample_weight_local, orig_df_local
 
     if preprocess_template:
         # 1) Prefer explicit experiment dir (for chains)
         if preprocess_exp_dir:
             exp_dir = Path(preprocess_exp_dir)
-            train_df, test_df, sample_weight = _load_from_exp_dir(exp_dir)
+            train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(exp_dir)
             if train_df is not None:
-                return train_df, test_df, sample_weight
+                return train_df, test_df, sample_weight, orig_df
 
         # 2) Try default single-step location (legacy)
         default_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
-        train_df, test_df, sample_weight = _load_from_exp_dir(default_dir)
+        train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(default_dir)
         if train_df is not None:
-            return train_df, test_df, sample_weight
+            return train_df, test_df, sample_weight, orig_df
 
         # 3) Fallback: search meta-template chain dir (pre-{template}) and use last step
         chain_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
@@ -102,9 +105,9 @@ def _load_processed_or_raw(
             if candidates:
                 candidates.sort(reverse=True)
                 _, latest_dir = candidates[0]
-                train_df, test_df, sample_weight = _load_from_exp_dir(latest_dir)
+                train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(latest_dir)
                 if train_df is not None:
-                    return train_df, test_df, sample_weight
+                    return train_df, test_df, sample_weight, orig_df
 
         # 4) Fallback: search chain directories containing this template (pick most recent)
         experiments_dir = context.project_root / "experiments"
@@ -114,9 +117,9 @@ def _load_processed_or_raw(
             reverse=True,
         )
         for exp_dir in candidates:
-            train_df, test_df, sample_weight = _load_from_exp_dir(exp_dir)
+            train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(exp_dir)
             if train_df is not None:
-                return train_df, test_df, sample_weight
+                return train_df, test_df, sample_weight, orig_df
 
         raise FileNotFoundError(
             f"Preprocessed data not found for template '{preprocess_template}'.\n"
@@ -124,12 +127,13 @@ def _load_processed_or_raw(
             f"Run: python scripts/mla.py preprocess --project {context.project_name} --preprocess-template {preprocess_template}"
         )
     else:
-        # Use raw data
+        # Use raw data (no orig in raw data)
         train_path, test_path = data_paths(config)
         train_df = pd.read_csv(train_path)
         test_df = pd.read_csv(test_path) if test_path.exists() else None
+        orig_df = None
 
-    return train_df, test_df, sample_weight
+    return train_df, test_df, sample_weight, orig_df
 
 
 def _resolve_model_path(project_root: Path, model_name: str) -> Path:
@@ -365,7 +369,7 @@ class ModelModule(BaseModule):
 
         preprocess_template = self.invocation_params.get("preprocess_template")
         preprocess_exp_dir = self.invocation_params.get("preprocess_exp_dir")
-        train_df, test_df, sample_weight = _load_processed_or_raw(
+        train_df, test_df, sample_weight, orig_df = _load_processed_or_raw(
             self.context,
             config,
             preprocess_template,
@@ -467,13 +471,20 @@ class ModelModule(BaseModule):
             # Build ModelConfig for model interface
             model_config = self._build_model_config(template_cfg, config, preset, time_limit, use_gpu_param, artifact_dir)
 
+            # Build artifacts dict with orig_df and sample_weight
+            artifacts = {}
+            if orig_df is not None:
+                artifacts['orig_df'] = orig_df
+            if sample_weight is not None:
+                artifacts['sample_weight'] = sample_weight
+
             # Call train()
             console.print("[green]Training model...[/green]")
             train_result = model_module.train(
                 train_df=train_df,
                 val_df=None,
                 config=model_config,
-                artifacts=None,
+                artifacts=artifacts if artifacts else None,  # Backward compat: None if empty
             )
 
             # Handle return: (model, summary) tuple or just model

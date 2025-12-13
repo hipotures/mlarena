@@ -95,10 +95,12 @@ def _apply_isolation_forest(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
-) -> Tuple[pd.Series, pd.Series | None, pd.Series, Dict[str, Any]]:
+    orig_series: pd.Series | None = None,
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.Series, pd.Series | None, pd.Series, pd.Series | None, Dict[str, Any]]:
     non_null = train_series.dropna()
     if non_null.empty:
-        return train_series, val_series, test_series, {
+        return train_series, val_series, test_series, orig_series, {
             "skipped": True,
             "reason": "all_nan",
         }
@@ -120,6 +122,7 @@ def _apply_isolation_forest(
     train_mask = predict_mask(train_series)
     val_mask = predict_mask(val_series) if val_series is not None else None
     test_mask = predict_mask(test_series)
+    orig_mask = predict_mask(orig_series) if orig_series is not None else None
 
     if action == "flag_only":
         if flag_col:
@@ -127,7 +130,9 @@ def _apply_isolation_forest(
             test_df[flag_col] = test_mask.astype(int)
             if val_df is not None and val_mask is not None:
                 val_df[flag_col] = val_mask.astype(int)
-        return train_series, val_series, test_series, {
+            if orig_df is not None and orig_mask is not None:
+                orig_df[flag_col] = orig_mask.astype(int)
+        return train_series, val_series, test_series, orig_series, {
             "skipped": False,
             "bounds": None,
         }
@@ -137,14 +142,18 @@ def _apply_isolation_forest(
         if val_series is not None and val_mask is not None:
             val_series = val_series.mask(val_mask, np.nan)
         test_series = test_series.mask(test_mask, np.nan)
+        if orig_series is not None and orig_mask is not None:
+            orig_series = orig_series.mask(orig_mask, np.nan)
     elif action == "clip":
         median_train = train_series[~train_mask].median()
         train_series = train_series.mask(train_mask, median_train)
         if val_series is not None and val_mask is not None:
             val_series = val_series.mask(val_mask, median_train)
         test_series = test_series.mask(test_mask, median_train)
+        if orig_series is not None and orig_mask is not None:
+            orig_series = orig_series.mask(orig_mask, median_train)
 
-    return train_series, val_series, test_series, {
+    return train_series, val_series, test_series, orig_series, {
         "skipped": False,
         "bounds": None,
     }
@@ -155,7 +164,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Outlier handling preprocessing.
 
@@ -176,9 +186,10 @@ def fit_transform(
             - include_cols: List[str] or None
             - exclude_cols: List[str]
             - random_state: int
+        orig_df: External dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -305,19 +316,34 @@ def fit_transform(
                 test_df[col], lower, upper, action, flag_col, test_df if flag_col else None
             )
             test_df[col] = test_series
+            # Orig
+            if orig_df is not None:
+                orig_series, orig_mask = _apply_bounds_action(
+                    orig_df[col] if col in orig_df.columns else pd.Series([], dtype=float),
+                    lower,
+                    upper,
+                    action,
+                    flag_col,
+                    orig_df if flag_col and col in orig_df.columns else None,
+                )
+                if col in orig_df.columns:
+                    orig_df[col] = orig_series
+            else:
+                orig_mask = None
 
             column_detail.update({
                 "bounds": {"lower": lower, "upper": upper},
                 "train_outliers": int(train_mask.sum()) if train_mask is not None else 0,
                 "val_outliers": int(val_mask.sum()) if val_mask is not None else 0,
                 "test_outliers": int(test_mask.sum()) if test_mask is not None else 0,
+                "orig_outliers": int(orig_mask.sum()) if orig_mask is not None else 0,
             })
             if flag_col:
                 flag_columns.append(flag_col)
 
         elif method == "isolation_forest":
             flag_col = f"{col}_outlier_flag" if action == "flag_only" else None
-            train_series, val_series, test_series, detail = _apply_isolation_forest(
+            train_series, val_series, test_series, orig_series, detail = _apply_isolation_forest(
                 train_df[col],
                 val_df[col] if (val_df is not None and col in val_df.columns) else None,
                 test_df[col],
@@ -328,11 +354,15 @@ def fit_transform(
                 train_df=train_df,
                 val_df=val_df,
                 test_df=test_df,
+                orig_series=orig_df[col] if (orig_df is not None and col in orig_df.columns) else None,
+                orig_df=orig_df,
             )
             train_df[col] = train_series
             if val_df is not None and val_series is not None and col in val_df.columns:
                 val_df[col] = val_series
             test_df[col] = test_series
+            if orig_df is not None and orig_series is not None and col in orig_df.columns:
+                orig_df[col] = orig_series
 
             column_detail.update({
                 "bounds": detail.get("bounds"),
@@ -375,4 +405,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

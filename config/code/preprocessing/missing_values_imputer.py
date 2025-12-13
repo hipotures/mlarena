@@ -23,7 +23,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Impute missing values in numeric and categorical columns.
 
@@ -37,9 +38,10 @@ def fit_transform(
         val_df: Validation dataframe (optional)
         test_df: Test dataframe
         config: Configuration dictionary
+        orig_df: External dataset (optional)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
     # Extract config
     numeric_strategy = config.get("numeric_strategy", "median")
@@ -51,6 +53,8 @@ def fit_transform(
     test_df = test_df.copy()
     if val_df is not None:
         val_df = val_df.copy()
+    if orig_df is not None:
+        orig_df = orig_df.copy()
 
     # Separate numeric and categorical columns
     numeric_cols = train_df.select_dtypes(include=[np.number]).columns.tolist()
@@ -88,6 +92,8 @@ def fit_transform(
         test_df[numeric_cols] = num_imputer.transform(test_df[numeric_cols])
         if val_df is not None:
             val_df[numeric_cols] = num_imputer.transform(val_df[numeric_cols])
+        if orig_df is not None:
+            orig_df[numeric_cols] = num_imputer.transform(orig_df[numeric_cols])
 
         state["numeric_imputer_params"] = {
             "statistics": num_imputer.statistics_.tolist() if hasattr(num_imputer, 'statistics_') else [],
@@ -100,12 +106,14 @@ def fit_transform(
         test_df[categorical_cols] = cat_imputer.transform(test_df[categorical_cols])
         if val_df is not None:
             val_df[categorical_cols] = cat_imputer.transform(val_df[categorical_cols])
+        if orig_df is not None:
+            orig_df[categorical_cols] = cat_imputer.transform(orig_df[categorical_cols])
 
         state["categorical_imputer_params"] = {
             "statistics": [str(s) for s in cat_imputer.statistics_] if hasattr(cat_imputer, 'statistics_') else [],
         }
 
-    return train_df, val_df, test_df, state
+    return train_df, val_df, test_df, orig_df, state
 
 
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:

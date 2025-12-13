@@ -79,7 +79,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Handle class imbalance for classification tasks.
 
@@ -96,9 +97,10 @@ def fit_transform(
             - sampling_strategy: "auto" (only supported value)
             - use_sample_weights: bool (for class_weight)
             - random_state: int
+        orig_df: External dataset (can be None) - passed through unchanged
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -134,7 +136,7 @@ def fit_transform(
 
     if problem_type not in ["binary", "multiclass"]:
         warnings.warn(f"Imbalance handler is intended for classification; detected problem_type={problem_type}. Skipping.")
-        return train_df, val_df, test_df, {
+        return train_df, val_df, test_df, orig_df, {
             "version": "1.0",
             "method": "none",
             "message": f"Skipped (problem_type={problem_type})",
@@ -250,4 +252,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df_resampled, val_df, test_df, state_dict
+    return train_df_resampled, val_df, test_df, orig_df, state_dict

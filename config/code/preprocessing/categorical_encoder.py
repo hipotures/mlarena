@@ -359,7 +359,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Convert categorical columns to dtype='category' using EDA metadata + auto-detection.
 
@@ -384,9 +385,10 @@ def fit_transform(
         val_df: Validation dataframe (optional)
         test_df: Test dataframe
         config: Configuration dictionary
+        orig_df: External dataset (optional)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
 
     Raises:
         FileNotFoundError: If EDA summary not found (and fallback enabled)
@@ -488,6 +490,11 @@ def fit_transform(
     else:
         val_converted = []
 
+    if orig_df is not None:
+        orig_df, orig_converted = _convert_to_category(orig_df, categorical_cols, "orig")
+    else:
+        orig_converted = []
+
     console.print(f"  [green]✓[/green] Converted {len(train_converted)} columns to category dtype")
 
     # Step 5: Display comprehensive feature type summary (footer)
@@ -503,6 +510,7 @@ def fit_transform(
             "train_converted": len(train_converted),
             "test_converted": len(test_converted),
             "val_converted": len(val_converted),
+            "orig_converted": len(orig_converted),
             "target_excluded": target_column,
             "eda_count": len(eda_cols),
             "auto_detect_count": len(auto_detect_cols),
@@ -517,7 +525,7 @@ def fit_transform(
         },
     }
 
-    return train_df, val_df, test_df, state
+    return train_df, val_df, test_df, orig_df, state
 
 
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:

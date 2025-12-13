@@ -26,7 +26,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Handle rare and high-cardinality categorical variables.
 
@@ -174,6 +175,8 @@ def fit_transform(
         test_df[col] = test_df[col].map(mapping).fillna(config["rare_label"])
         if val_df is not None:
             val_df[col] = val_df[col].map(mapping).fillna(config["rare_label"])
+        if orig_df is not None and col in orig_df.columns:
+            orig_df[col] = orig_df[col].map(mapping).fillna(config["rare_label"])
 
     # 9. Save artifacts
     artifacts.save_report(
@@ -210,7 +213,7 @@ def fit_transform(
         "n_id_detected": len(detected_id_columns),
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict
 
 
 def transform(

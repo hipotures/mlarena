@@ -99,7 +99,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Datetime preprocessing: parse datetime columns, expand features, add cyclical encodings, compute time diffs.
     """
@@ -187,6 +188,8 @@ def fit_transform(
             val_df[col] = _parse_datetime_column(val_df, col, fmt)
         if col in test_df.columns:
             test_df[col] = _parse_datetime_column(test_df, col, fmt)
+        if orig_df is not None and col in orig_df.columns:
+            orig_df[col] = _parse_datetime_column(orig_df, col, fmt)
         parsed_columns.append(col)
 
     # 7. Determine feature set
@@ -228,6 +231,8 @@ def fit_transform(
                 val_df[new_col] = _extract_feature(val_df[col], feat)
             if col in test_df.columns:
                 test_df[new_col] = _extract_feature(test_df[col], feat)
+            if orig_df is not None and col in orig_df.columns:
+                orig_df[new_col] = _extract_feature(orig_df[col], feat)
             derived_columns.append(new_col)
 
         # Cyclical encodings
@@ -255,6 +260,10 @@ def fit_transform(
                 sin_test, cos_test = _cyclical_encode(test_df[source_col], period)
                 test_df[sin_col] = sin_test
                 test_df[cos_col] = cos_test
+            if orig_df is not None and source_col in orig_df.columns:
+                sin_orig, cos_orig = _cyclical_encode(orig_df[source_col], period)
+                orig_df[sin_col] = sin_orig
+                orig_df[cos_col] = cos_orig
             cyclical_columns.extend([sin_col, cos_col])
 
     # 9. Time differences
@@ -289,6 +298,8 @@ def fit_transform(
             val_df[new_name] = _compute_time_diff(val_df[start_col], val_df[end_col], unit)
         if start_col in test_df.columns and end_col in test_df.columns:
             test_df[new_name] = _compute_time_diff(test_df[start_col], test_df[end_col], unit)
+        if orig_df is not None and start_col in orig_df.columns and end_col in orig_df.columns:
+            orig_df[new_name] = _compute_time_diff(orig_df[start_col], orig_df[end_col], unit)
         time_diff_columns.append(new_name)
 
     # 10. Optionally drop original datetime columns
@@ -297,6 +308,8 @@ def fit_transform(
         test_df = dataframe_utils.safe_drop_columns(test_df, datetime_cols)
         if val_df is not None:
             val_df = dataframe_utils.safe_drop_columns(val_df, datetime_cols)
+        if orig_df is not None:
+            orig_df = dataframe_utils.safe_drop_columns(orig_df, datetime_cols)
 
     # 11. Reports
     datetime_report = {
@@ -327,4 +340,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

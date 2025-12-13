@@ -1,11 +1,23 @@
 # Dataset Merger Sub-Module
 
+> **⚠️ DEPRECATION NOTICE**
+>
+> **This module is deprecated in favor of [`external_dataset`](./external_dataset.md).**
+>
+> - **`dataset_merger`**: Merges external data directly into training set during preprocessing (inflexible)
+> - **`external_dataset`**: Provides external dataset as separate file, allowing models to decide if/how to merge (flexible)
+>
+> **Migration**: Use `external_dataset` for new projects. Existing projects using `dataset_merger` will continue to work, but we recommend migrating to `external_dataset` for better flexibility.
+>
+> **Key Benefit**: With `external_dataset`, models can optionally merge train+orig, while preprocessing modules like adversarial validation can ignore orig entirely.
+
 ## Overview
 
 The **dataset_merger** sub-module merges external/original datasets with Kaggle competition training data. It handles column alignment, name mapping, and optional source tracking to enable training on combined datasets while maintaining feature consistency.
 
-**Module Name**: `dataset_merger`
+**Module Name**: `dataset_merger` (⚠️ deprecated)
 **Location**: `config/code/preprocessing/dataset_merger.py`
+**Replacement**: [`external_dataset`](./external_dataset.md)
 
 ## Capabilities
 
@@ -355,8 +367,45 @@ When `cache: true`:
 **Cause**: Original dataset or test setup issue
 **Solution**: Check that test.csv doesn't have target (standard Kaggle format)
 
+## Migration Guide
+
+### From `dataset_merger` to `external_dataset`
+
+**Old Template** (dataset_merger):
+```yaml
+module: dataset_merger
+config:
+  orig_path: data/diabetes.csv
+  mode: align
+```
+**Result**: Train = Kaggle + External (merged)
+
+**New Template** (external_dataset):
+```yaml
+module: external_dataset
+config:
+  orig_path: data/diabetes.csv
+  mode: align
+```
+**Result**: Train = Kaggle, Orig = External (separate files)
+
+**Model Code Update**:
+```python
+# OLD: Model receives merged data automatically
+def train(train_df, val_df, config, artifacts=None):
+    predictor.fit(train_df)  # Already contains orig
+
+# NEW: Model decides if/how to merge
+def train(train_df, val_df, config, artifacts=None):
+    if artifacts and 'orig_df' in artifacts:
+        orig_df = artifacts['orig_df']
+        train_df = pd.concat([train_df, orig_df])  # Manual merge
+    predictor.fit(train_df)
+```
+
 ## See Also
 
+- **[external_dataset.md](./external_dataset.md)** - ⭐ Recommended replacement (flexible merge strategy)
 - [imputer.md](imputer.md) - Handle missing values from union mode
 - [scaler.md](scaler.md) - Scale merged features
 - [feature_selector.md](feature_selector.md) - Select relevant features after merge

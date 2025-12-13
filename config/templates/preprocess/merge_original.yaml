@@ -1,0 +1,7 @@
+module: dataset_merger
+cache: true
+config:
+  orig_path: data/original_dataset.csv
+  mode: align       # 'align' (intersection) or 'union' (all columns)
+  source_flag: null # Optional: column name (e.g., 'is_original') or null
+  column_mapping: {}  # Optional: map original -> kaggle column names

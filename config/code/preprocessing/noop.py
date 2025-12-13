@@ -12,7 +12,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Pass-through transformation (does nothing).
 
@@ -23,9 +24,10 @@ def fit_transform(
         val_df: Validation data (can be None)
         test_df: Test data
         config: Configuration dictionary
+        orig_df: External dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict) - unchanged
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict) - unchanged
     """
     artifact_dir = Path(config.get("_artifact_dir", "."))
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "noop")
@@ -53,6 +55,7 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
         "train_shape": list(train_df.shape),
         "test_shape": list(test_df.shape),
+        "orig_shape": list(orig_df.shape) if orig_df is not None else None,
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

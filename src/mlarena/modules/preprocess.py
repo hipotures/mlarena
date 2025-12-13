@@ -159,6 +159,7 @@ class PreprocessModule(BaseModule):
             prev_exp_dir = self.context.project_root / "experiments" / chain_exp_id / input_source
             train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
             test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
+            orig_path = prev_exp_dir / "artifacts" / "preprocess" / "orig_processed.csv"
 
             if not train_path.exists():
                 raise FileNotFoundError(
@@ -169,6 +170,7 @@ class PreprocessModule(BaseModule):
         else:
             # First step: load raw data
             train_path, test_path = data_paths(config)
+            orig_path = None  # No orig at start of chain
 
             if not train_path.exists() or not test_path.exists():
                 marker = artifact_dir / "preprocess_skipped.txt"
@@ -177,10 +179,12 @@ class PreprocessModule(BaseModule):
 
         train_df = pd.read_csv(train_path)
         test_df = pd.read_csv(test_path)
+        orig_df = pd.read_csv(orig_path) if orig_path and orig_path.exists() else None
 
         # Store original shapes
         orig_train_shape = train_df.shape
         orig_test_shape = test_df.shape
+        orig_orig_shape = orig_df.shape if orig_df is not None else None
 
         # Get ignored columns for later use
         ignored = getattr(config, "IGNORED_COLUMNS", []) or []
@@ -211,13 +215,27 @@ class PreprocessModule(BaseModule):
                     "ignored_columns": getattr(config, "IGNORED_COLUMNS", []),
                 }
 
-                # Call fit_transform(train, val, test, config)
-                train_df, val_df, test_df, custom_preprocess_state = preprocess_module.fit_transform(
+                # Call fit_transform with orig_df parameter (backward compatible)
+                result = preprocess_module.fit_transform(
                     train_df=train_df,
                     val_df=None,
                     test_df=test_df,
-                    config=preprocess_config
+                    config=preprocess_config,
+                    orig_df=orig_df
                 )
+
+                # Handle both old (4-tuple) and new (5-tuple) return signatures
+                if len(result) == 5:
+                    # New modules: return train, val, test, orig, state
+                    train_df, val_df, test_df, orig_df, custom_preprocess_state = result
+                elif len(result) == 4:
+                    # Old modules: return train, val, test, state (no orig)
+                    train_df, val_df, test_df, custom_preprocess_state = result
+                    orig_df = None  # Old modules don't support orig
+                else:
+                    raise ValueError(
+                        f"Invalid fit_transform return signature: expected 4 or 5 values, got {len(result)}"
+                    )
             except Exception as e:
                 console.print(f"[red]Error in custom preprocessing:[/red] {e}")
                 raise
@@ -244,10 +262,17 @@ class PreprocessModule(BaseModule):
         train_df.to_csv(processed_train, index=False)
         test_df.to_csv(processed_test, index=False)
 
+        # Save orig if present
+        processed_orig = None
+        if orig_df is not None:
+            processed_orig = artifact_dir / "orig_processed.csv"
+            orig_df.to_csv(processed_orig, index=False)
+
         # Prepare payload with custom preprocessing state
         payload = {
             "train_processed": str(processed_train),
             "test_processed": str(processed_test),
+            "orig_processed": str(processed_orig) if processed_orig else None,
             "ignored_columns": ignored,
             "template": template_name,
             "input_source": input_source,  # Track previous step in chain
@@ -257,6 +282,8 @@ class PreprocessModule(BaseModule):
                 "train_after": train_df.shape,
                 "test_before": orig_test_shape,
                 "test_after": test_df.shape,
+                "orig_before": orig_orig_shape,
+                "orig_after": orig_df.shape if orig_df is not None else None,
             }
         }
 
@@ -266,8 +293,13 @@ class PreprocessModule(BaseModule):
 
         # Next steps will be printed by pipeline after footer (only for last in chain)
 
+        # Build artifacts list (include orig if present)
+        artifacts_list = [processed_train, processed_test]
+        if processed_orig:
+            artifacts_list.append(processed_orig)
+
         return ModuleResult(
             success=True,
             payload=payload,
-            artifacts=[processed_train, processed_test],
+            artifacts=artifacts_list,
         )

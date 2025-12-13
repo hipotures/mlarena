@@ -26,7 +26,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Sanity check preprocessing - basic cleaning and type enforcement.
 
@@ -42,9 +43,10 @@ def fit_transform(
             - max_missing_fraction: Maximum fraction of missing values to keep column (default: 0.95)
             - drop_duplicates: Whether to drop duplicate rows (default: True)
             - ignore_columns: List of columns to never drop (default: [])
+        orig_df: External dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
 
         state_dict contains:
         - version: str
@@ -109,7 +111,11 @@ def fit_transform(
     }
 
     # 6.1. Check for infinite values
-    for df_name, df in [("train", train_df), ("test", test_df)]:
+    datasets_to_check = [("train", train_df), ("test", test_df)]
+    if orig_df is not None:
+        datasets_to_check.append(("orig", orig_df))
+
+    for df_name, df in datasets_to_check:
         numeric_cols = dataframe_utils.get_numeric_columns(df)
         for col in numeric_cols:
             inf_count = np.isinf(df[col]).sum()
@@ -156,10 +162,13 @@ def fit_transform(
     test_df = dataframe_utils.safe_drop_columns(test_df, columns_to_drop)
     if val_df is not None:
         val_df = dataframe_utils.safe_drop_columns(val_df, columns_to_drop)
+    if orig_df is not None:
+        orig_df = dataframe_utils.safe_drop_columns(orig_df, columns_to_drop)
 
     # 6.5. Drop duplicate rows
     duplicates_removed_train = 0
     duplicates_removed_test = 0
+    duplicates_removed_orig = 0
 
     if config["drop_duplicates"]:
         # For train, keep first occurrence
@@ -180,6 +189,13 @@ def fit_transform(
             if duplicates_removed_val > 0:
                 val_df = val_df.drop_duplicates(keep='first')
 
+        # For orig, keep first occurrence
+        if orig_df is not None:
+            duplicates_removed_orig = orig_df.duplicated().sum()
+            if duplicates_removed_orig > 0:
+                orig_df = orig_df.drop_duplicates(keep='first')
+                issues_found["duplicate_rows_orig"] = int(duplicates_removed_orig)
+
     # 6.6. Enforce column types (if specified)
     types_changed = {}
     for col, dtype in config["column_types_override"].items():
@@ -193,6 +209,8 @@ def fit_transform(
                 test_df[col] = test_df[col].astype(dtype)
             if val_df is not None and col in val_df.columns:
                 val_df[col] = val_df[col].astype(dtype)
+            if orig_df is not None and col in orig_df.columns:
+                orig_df[col] = orig_df[col].astype(dtype)
 
             types_changed[col] = {"from": old_dtype, "to": dtype}
         except Exception as e:
@@ -208,6 +226,8 @@ def fit_transform(
     test_df = test_df.reset_index(drop=True)
     if val_df is not None:
         val_df = val_df.reset_index(drop=True)
+    if orig_df is not None:
+        orig_df = orig_df.reset_index(drop=True)
 
     # 8. Generate and save detailed report
     sanity_report = {
@@ -245,7 +265,8 @@ def fit_transform(
         "columns_dropped_count": len(columns_to_drop),
         "duplicates_removed_train": int(duplicates_removed_train),
         "duplicates_removed_test": int(duplicates_removed_test),
+        "duplicates_removed_orig": int(duplicates_removed_orig) if orig_df is not None else 0,
         "types_changed": types_changed,
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict

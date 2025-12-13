@@ -27,7 +27,8 @@ def fit_transform(
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict[str, Any]]:
+    orig_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
     """
     Categorical encoding with multiple strategies.
 
@@ -48,9 +49,10 @@ def fit_transform(
             - target_encoding_smoothing: Smoothing parameter for target encoding (default: 1.0)
             - target_encoding_min_samples: Min samples for target encoding (default: 1)
             - keep_original: Keep original categorical columns (default: False)
+        orig_df: External dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, state_dict)
+        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -113,7 +115,7 @@ def fit_transform(
         )
         artifacts.save_report(summary, submodule_dir, "summary.json")
 
-        return train_df, val_df, test_df, state_dict
+        return train_df, val_df, test_df, orig_df, state_dict
 
     # Get categorical columns
     exclude_cols = [id_column, target_column] + ignored_columns
@@ -170,42 +172,42 @@ def fit_transform(
         )
         artifacts.save_report(summary, submodule_dir, "summary.json")
 
-        return train_df, val_df, test_df, state_dict
+        return train_df, val_df, test_df, orig_df, state_dict
 
     # 6. Perform encoding
     encoded_columns_info = {}
 
     if encoding_method == "one_hot":
-        train_df, val_df, test_df, encoder_info = _encode_onehot(
-            train_df, val_df, test_df, categorical_cols, config, submodule_dir
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_onehot(
+            train_df, val_df, test_df, orig_df, categorical_cols, config, submodule_dir
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "ordinal":
-        train_df, val_df, test_df, encoder_info = _encode_ordinal(
-            train_df, val_df, test_df, categorical_cols, config, submodule_dir
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_ordinal(
+            train_df, val_df, test_df, orig_df, categorical_cols, config, submodule_dir
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "target_mean":
         if target_column is None:
             raise ValueError("target_mean encoding requires target column")
-        train_df, val_df, test_df, encoder_info = _encode_target_mean(
-            train_df, val_df, test_df, categorical_cols, target_column, config, submodule_dir
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_target_mean(
+            train_df, val_df, test_df, orig_df, categorical_cols, target_column, config, submodule_dir
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "catboost":
         if target_column is None:
             raise ValueError("catboost encoding requires target column")
-        train_df, val_df, test_df, encoder_info = _encode_catboost(
-            train_df, val_df, test_df, categorical_cols, target_column, config, submodule_dir
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_catboost(
+            train_df, val_df, test_df, orig_df, categorical_cols, target_column, config, submodule_dir
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "hashing":
-        train_df, val_df, test_df, encoder_info = _encode_hashing(
-            train_df, val_df, test_df, categorical_cols, config, submodule_dir
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_hashing(
+            train_df, val_df, test_df, orig_df, categorical_cols, config, submodule_dir
         )
         encoded_columns_info = encoder_info
 
@@ -215,6 +217,8 @@ def fit_transform(
         test_df = dataframe_utils.safe_drop_columns(test_df, categorical_cols)
         if val_df is not None:
             val_df = dataframe_utils.safe_drop_columns(val_df, categorical_cols)
+        if orig_df is not None:
+            orig_df = dataframe_utils.safe_drop_columns(orig_df, categorical_cols)
 
     # 8. Generate and save report
     summary = report.create_preprocessing_report(
@@ -243,10 +247,11 @@ def _encode_onehot(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
     submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
     """One-hot encoding using sklearn."""
     from sklearn.preprocessing import OneHotEncoder
 
@@ -266,6 +271,7 @@ def _encode_onehot(
     train_encoded = encoder.transform(train_df[categorical_cols])
     test_encoded = encoder.transform(test_df[categorical_cols])
     val_encoded = encoder.transform(val_df[categorical_cols]) if val_df is not None else None
+    orig_encoded = encoder.transform(orig_df[categorical_cols]) if orig_df is not None and all(c in orig_df.columns for c in categorical_cols) else None
 
     # Generate feature names
     feature_names = encoder.get_feature_names_out(categorical_cols)
@@ -281,6 +287,10 @@ def _encode_onehot(
         val_encoded_df = pd.DataFrame(val_encoded, columns=feature_names, index=val_df.index)
         val_df = pd.concat([val_df, val_encoded_df], axis=1)
 
+    if orig_df is not None and orig_encoded is not None:
+        orig_encoded_df = pd.DataFrame(orig_encoded, columns=feature_names, index=orig_df.index)
+        orig_df = pd.concat([orig_df, orig_encoded_df], axis=1)
+
     # Save encoder
     artifacts.save_fitted_object(encoder, submodule_dir, "onehot_encoder.pkl")
 
@@ -290,17 +300,18 @@ def _encode_onehot(
         "drop_first": config["drop_first"],
     }
 
-    return train_df, val_df, test_df, encoder_info
+    return train_df, val_df, test_df, orig_df, encoder_info
 
 
 def _encode_ordinal(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
     submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
     """Ordinal encoding using sklearn."""
     from sklearn.preprocessing import OrdinalEncoder
 
@@ -320,6 +331,10 @@ def _encode_ordinal(
     test_df[categorical_cols] = encoder.transform(test_df[categorical_cols])
     if val_df is not None:
         val_df[categorical_cols] = encoder.transform(val_df[categorical_cols])
+    if orig_df is not None:
+        orig_cols = [c for c in categorical_cols if c in orig_df.columns]
+        if orig_cols:
+            orig_df[orig_cols] = encoder.transform(orig_df[orig_cols])
 
     # Save encoder
     artifacts.save_fitted_object(encoder, submodule_dir, "ordinal_encoder.pkl")
@@ -332,18 +347,19 @@ def _encode_ordinal(
         "unknown_value": config["unknown_value"],
     }
 
-    return train_df, val_df, test_df, encoder_info
+    return train_df, val_df, test_df, orig_df, encoder_info
 
 
 def _encode_target_mean(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     target_column: str,
     config: Dict[str, Any],
     submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
     """Target mean encoding with smoothing."""
 
     smoothing = config["target_encoding_smoothing"]
@@ -374,6 +390,8 @@ def _encode_target_mean(
         test_df[f"{col}_te"] = test_df[col].map(encodings[col]).fillna(global_mean)
         if val_df is not None:
             val_df[f"{col}_te"] = val_df[col].map(encodings[col]).fillna(global_mean)
+        if orig_df is not None and col in orig_df.columns:
+            orig_df[f"{col}_te"] = orig_df[col].map(encodings[col]).fillna(global_mean)
 
     # Save encodings
     artifacts.save_report(
@@ -390,24 +408,25 @@ def _encode_target_mean(
         "smoothing": smoothing,
     }
 
-    return train_df, val_df, test_df, encoder_info
+    return train_df, val_df, test_df, orig_df, encoder_info
 
 
 def _encode_catboost(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     target_column: str,
     config: Dict[str, Any],
     submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
     """CatBoost-style target encoding (ordered target statistics)."""
     try:
         from category_encoders import CatBoostEncoder
     except ImportError:
         warnings.warn("category_encoders not installed, falling back to target_mean encoding")
-        return _encode_target_mean(train_df, val_df, test_df, categorical_cols, target_column, config, submodule_dir)
+        return _encode_target_mean(train_df, val_df, test_df, orig_df, categorical_cols, target_column, config, submodule_dir)
 
     encoder = CatBoostEncoder(cols=categorical_cols)
 
@@ -418,6 +437,7 @@ def _encode_catboost(
     train_encoded = encoder.transform(train_df[categorical_cols])
     test_encoded = encoder.transform(test_df[categorical_cols])
     val_encoded = encoder.transform(val_df[categorical_cols]) if val_df is not None else None
+    orig_encoded = encoder.transform(orig_df[categorical_cols]) if orig_df is not None and all(c in orig_df.columns for c in categorical_cols) else None
 
     # Rename columns
     encoded_cols = [f"{col}_cb" for col in categorical_cols]
@@ -425,6 +445,8 @@ def _encode_catboost(
     test_df[encoded_cols] = test_encoded.values
     if val_df is not None:
         val_df[encoded_cols] = val_encoded.values
+    if orig_df is not None and orig_encoded is not None:
+        orig_df[encoded_cols] = orig_encoded.values
 
     # Save encoder
     artifacts.save_fitted_object(encoder, submodule_dir, "catboost_encoder.pkl")
@@ -434,17 +456,18 @@ def _encode_catboost(
         "encoded_feature_names": encoded_cols,
     }
 
-    return train_df, val_df, test_df, encoder_info
+    return train_df, val_df, test_df, orig_df, encoder_info
 
 
 def _encode_hashing(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
     submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, Dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
     """Feature hashing."""
     from sklearn.feature_extraction import FeatureHasher
 
@@ -459,6 +482,7 @@ def _encode_hashing(
         train_hashed = hasher.transform([[str(x)] for x in train_df[col]]).toarray()
         test_hashed = hasher.transform([[str(x)] for x in test_df[col]]).toarray()
         val_hashed = hasher.transform([[str(x)] for x in val_df[col]]).toarray() if val_df is not None else None
+        orig_hashed = hasher.transform([[str(x)] for x in orig_df[col]]).toarray() if orig_df is not None and col in orig_df.columns else None
 
         # Generate feature names
         feature_names = [f"{col}_hash_{i}" for i in range(hash_dim)]
@@ -469,6 +493,8 @@ def _encode_hashing(
         test_df[feature_names] = test_hashed
         if val_df is not None:
             val_df[feature_names] = val_hashed
+        if orig_df is not None and orig_hashed is not None:
+            orig_df[feature_names] = orig_hashed
 
     encoder_info = {
         "n_features": len(all_encoded_features),
@@ -476,4 +502,4 @@ def _encode_hashing(
         "encoded_feature_names": all_encoded_features,
     }
 
-    return train_df, val_df, test_df, encoder_info
+    return train_df, val_df, test_df, orig_df, encoder_info

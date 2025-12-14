@@ -89,6 +89,72 @@ AutoGluon `TabularPredictor.fit()` parameters:
   - Default: 1 (or based on preset)
   - Higher = deeper ensemble, longer training
 
+##### Sample Weight Configuration
+
+Controls how AutoGluon handles sample weights for training and evaluation:
+
+- **`sample_weight_strategy`** (string, optional): Strategy for sample weighting
+  - `null` (default): Use weights from preprocessing artifacts (legacy behavior)
+  - `"auto_weight"`: AutoGluon automatic balancing (experimental)
+  - `"balance_weight"`: Equal class weights for classification
+  - `"<column_name>"`: Use specific column from train_df as weights
+  - **Note**: When using preprocessing modules like `adversarial_validation` or `imbalance_handler` that return weights via artifacts, leave this as `null`
+
+- **`weight_evaluation`** (boolean, optional): Use sample weights for evaluation metrics
+  - `null` (default): Auto-detect
+    - `true` when using explicit weights (artifacts, custom column)
+    - `false` when using `auto_weight` or `balance_weight`
+  - `true`: Apply weights to validation/test metrics (weighted CV scores)
+  - `false`: Ignore weights for evaluation (only use for training)
+  - **AutoGluon Warning**: Setting `weight_evaluation: true` with `sample_weight_strategy: "auto_weight"` or `"balance_weight"` is not recommended by AutoGluon docs. Use appropriate `eval_metric` instead.
+
+**Examples**:
+
+```yaml
+# Example 1: Use weights from preprocessing (default)
+cpu-best-1h-av:
+  model: autogluon_baseline
+  config:
+    preset: best
+    time_limit: 3600
+    # sample_weight_strategy: null (implicit)
+    # weight_evaluation: null (auto-detect -> true if weights present)
+  preprocess_template: av_weights  # Returns weights via artifacts
+```
+
+```yaml
+# Example 2: Auto-balancing without weighted evaluation (recommended)
+cpu-best-1h-balanced:
+  model: autogluon_baseline
+  config:
+    preset: best
+    time_limit: 3600
+    sample_weight_strategy: "auto_weight"
+    weight_evaluation: false  # Recommended by AutoGluon
+```
+
+```yaml
+# Example 3: Equal class weights
+cpu-best-1h-equal:
+  model: autogluon_baseline
+  config:
+    preset: best
+    time_limit: 3600
+    sample_weight_strategy: "balance_weight"
+    # weight_evaluation: null (auto -> false)
+```
+
+```yaml
+# Example 4: Disable weighted evaluation with preprocessing weights
+cpu-best-1h-av-unweighted-eval:
+  model: autogluon_baseline
+  config:
+    preset: best
+    time_limit: 3600
+    weight_evaluation: false  # Use weights for training, not evaluation
+  preprocess_template: av_weights
+```
+
 ##### model
 
 Model-specific configuration passed to the model implementation:

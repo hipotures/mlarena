@@ -380,6 +380,8 @@ class ModelModule(BaseModule):
                 ignored_columns=getattr(config_module, "IGNORED_COLUMNS", []),
                 sample_submission_path=getattr(config_module, "SAMPLE_SUBMISSION_PATH", test_path.parent / "sample_submission.csv"),
                 submission_probas=getattr(config_module, "SUBMISSION_PROBAS", False),
+                sample_weight_strategy=template_cfg.get("sample_weight_strategy"),
+                weight_evaluation=template_cfg.get("weight_evaluation"),
             ),
             system=SystemConfig(
                 project_root=self.context.project_root,

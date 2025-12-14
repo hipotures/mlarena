@@ -43,6 +43,10 @@ class DatasetConfig(ExtraModel):
     metric: Optional[str] = None
     submission_probas: bool = True
 
+    # Sample weight configuration (AutoGluon TabularPredictor params)
+    sample_weight_strategy: Optional[str] = None  # None, 'auto_weight', 'balance_weight', or custom column name
+    weight_evaluation: Optional[bool] = None  # If None, auto-detect based on sample_weight_strategy
+
 
 class PreprocessingConfig(ExtraModel):
     """Feature engineering configuration."""

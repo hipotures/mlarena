@@ -33,6 +33,15 @@ def train(
         train_df: Kaggle training data (preprocessed)
         val_df: Validation data (optional, not used)
         config: Model configuration
+            - config.dataset.sample_weight_strategy: Optional[str]
+                'auto_weight' - AutoGluon auto-balancing
+                'balance_weight' - Equal class weights
+                custom column name - Use specific column from train_df
+                None - Use weights from artifacts (legacy behavior)
+            - config.dataset.weight_evaluation: Optional[bool]
+                True - Use sample weights for evaluation metrics
+                False - Ignore weights for evaluation
+                None - Auto-detect (True for explicit weights, False for auto/balance)
         artifacts: Optional dict containing:
             - orig_df: External dataset (from external_dataset preprocessing module)
             - sample_weight: Sample weights (from imbalance_handler or av_weights)
@@ -94,8 +103,26 @@ def train(
 
     # Handle sample weights (if provided) and (optionally) extend for external rows.
     # Preprocessing weights are typically a single-column DataFrame (column name may vary).
-    sample_weight_col = None
-    if sample_weight is not None:
+    sample_weight_param = None  # Value passed to TabularPredictor(sample_weight=...)
+
+    # Check for config override (sample_weight_strategy: 'auto_weight', 'balance_weight', or custom column)
+    sample_weight_strategy = config.dataset.sample_weight_strategy
+
+    if sample_weight_strategy:
+        # User explicitly configured sample_weight_strategy in template
+        if sample_weight_strategy in ["auto_weight", "balance_weight"]:
+            # Special AutoGluon strategies - pass directly to TabularPredictor
+            sample_weight_param = sample_weight_strategy
+            print(f"[AutoGluon Sample Weights] Using strategy: {sample_weight_strategy}")
+        else:
+            # Custom column name - assume it's already in train_data
+            if sample_weight_strategy in train_data.columns:
+                sample_weight_param = sample_weight_strategy
+                print(f"[AutoGluon Sample Weights] Using custom column: {sample_weight_strategy}")
+            else:
+                print(f"[AutoGluon Sample Weights] Warning: column '{sample_weight_strategy}' not found, ignoring")
+    elif sample_weight is not None:
+        # Legacy behavior: weights from artifacts (preprocessing modules like adversarial_validation)
         weights_series: Optional[pd.Series] = None
         if isinstance(sample_weight, pd.Series):
             weights_series = sample_weight
@@ -133,13 +160,28 @@ def train(
                 )
 
             if len(weights) == expected_rows:
-                sample_weight_col = "__sample_weight__"
-                train_data[sample_weight_col] = weights.values
-                print(f"[AutoGluon with Orig] Using sample weights: {sample_weight_col}")
+                sample_weight_param = "__sample_weight__"
+                train_data[sample_weight_param] = weights.values
+                print(f"[AutoGluon Sample Weights] Using sample weights from artifacts: {sample_weight_param}")
             else:
                 print(
-                    f"[AutoGluon with Orig] Ignoring sample weights: expected {expected_rows:,} rows, got {len(weights):,}"
+                    f"[AutoGluon Sample Weights] Ignoring sample weights: expected {expected_rows:,} rows, got {len(weights):,}"
                 )
+
+    # Determine weight_evaluation setting
+    # Priority: config.dataset.weight_evaluation > auto-detect based on sample_weight_param
+    weight_evaluation_param = config.dataset.weight_evaluation
+    if weight_evaluation_param is None:
+        # Auto-detect: True if using explicit weights (not 'auto_weight'/'balance_weight')
+        if sample_weight_param and sample_weight_param not in ["auto_weight", "balance_weight"]:
+            weight_evaluation_param = True
+        else:
+            weight_evaluation_param = False
+
+    if sample_weight_param:
+        print(f"[AutoGluon Sample Weights] weight_evaluation={weight_evaluation_param}")
+        if weight_evaluation_param and sample_weight_param in ["auto_weight", "balance_weight"]:
+            print(f"[AutoGluon Sample Weights] WARNING: weight_evaluation=True with {sample_weight_param} is not recommended by AutoGluon docs")
 
     # Train model
     predictor = TabularPredictor(
@@ -147,8 +189,8 @@ def train(
         path=str(config.system.model_path),
         eval_metric=config.dataset.metric,
         problem_type=config.dataset.problem_type,
-        sample_weight=sample_weight_col,
-        weight_evaluation=True if sample_weight_col else False,  # Weighted metrics when sample_weight is used
+        sample_weight=sample_weight_param,
+        weight_evaluation=weight_evaluation_param,
         verbosity=2,
     )
 

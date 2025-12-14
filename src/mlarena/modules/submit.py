@@ -112,29 +112,46 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
 
 
 def _build_kaggle_message(context, submission_file: Path, model_payload, feature_count: Optional[int]) -> str:
-    """Replicates legacy descriptive message: exp | local | model | features | filename."""
+    """Build submission message: local_cv | features | exp | model_template | preprocess_template | filename."""
     parts = []
     exp_id = context.experiment_id
-    if exp_id:
-        parts.append(exp_id)
 
     local_cv = None
-    model_label = None
-    if model_payload and getattr(model_payload, "payload", None):
-        local_cv = model_payload.payload.get("local_cv")
-        model_label = (
-            model_payload.payload.get("model_implementation")
-            or model_payload.payload.get("template")
-        )
+    model_template = None
+    preprocess_template = None
+
+    if model_payload:
+        # Get local_cv from payload
+        if getattr(model_payload, "payload", None):
+            local_cv = model_payload.payload.get("local_cv")
+
+        # Get templates from invocation (actual parameters used)
+        if getattr(model_payload, "invocation", None):
+            model_template = model_payload.invocation.get("model_template")
+            preprocess_exp_dir = model_payload.invocation.get("preprocess_exp_dir")
+
+            # Extract chain name from preprocess_exp_dir
+            # e.g., "...experiments/pre-top0_te_scale_ext_m/5-top0_av_weights" -> "top0_te_scale_ext_m"
+            if preprocess_exp_dir:
+                from pathlib import Path
+                exp_dir_path = Path(preprocess_exp_dir)
+                # Go up to experiments/pre-{name} level
+                while exp_dir_path.name and not exp_dir_path.name.startswith("pre-"):
+                    exp_dir_path = exp_dir_path.parent
+                if exp_dir_path.name.startswith("pre-"):
+                    preprocess_template = exp_dir_path.name[4:]  # Remove "pre-" prefix
 
     if local_cv is not None:
-        parts.append(f"local {float(local_cv):.5f}")
-    if model_label:
-        parts.append(str(model_label))
+        parts.append(f"{float(local_cv):.5f}")
     if feature_count is not None:
-        parts.append(f"features: {feature_count}")
+        parts.append(f"feat: {feature_count}")
+    if exp_id:
+        parts.append(exp_id)
+    if model_template:
+        parts.append(str(model_template))
+    if preprocess_template:
+        parts.append(str(preprocess_template))
 
-    # Legacy message sometimes added smoke/stack; omitted here when unavailable.
     parts.append(submission_file.name)
 
     return " | ".join(parts) if parts else "MLArena submission"

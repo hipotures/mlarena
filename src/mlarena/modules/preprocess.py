@@ -79,11 +79,11 @@ class PreprocessModule(BaseModule):
 
         Search order:
         1. Project-local: {project}/code/preprocessing/{module_name}.py
-        2. Global: config/code/preprocessing/{module_name}.py
+        2. Global: src/mlarena/defaults/preprocessing/{module_name}.py
         """
         # Ensure project + global helper modules are importable inside dynamically loaded files.
         # Many project preprocess modules do `import adversarial_validation` (from code/utils)
-        # or `import categorical_utils` (from config/code/preprocessing). Without these paths,
+        # or `import categorical_utils` (from mlarena/defaults/preprocessing). Without these paths,
         # imports fail because modules are loaded via spec_from_file_location (not a package).
         import sys
 
@@ -97,7 +97,7 @@ class PreprocessModule(BaseModule):
             self.context.project_root / "code" / "preprocessing",
             self.context.project_root / "code",
             # Global helpers
-            repo_root / "config" / "code" / "preprocessing",
+            repo_root / "src" / "mlarena" / "defaults" / "preprocessing",
             repo_root / "scripts",
         ]
         # Insert in reverse so the first item ends up with highest precedence.
@@ -107,7 +107,7 @@ class PreprocessModule(BaseModule):
                 sys.path.insert(0, path_str)
 
         local_path = self.context.project_root / "code" / "preprocessing" / f"{module_name}.py"
-        global_path = repo_root / "config" / "code" / "preprocessing" / f"{module_name}.py"
+        global_path = repo_root / "src" / "mlarena" / "defaults" / "preprocessing" / f"{module_name}.py"
 
         local_exists = local_path.exists()
         global_exists = global_path.exists()

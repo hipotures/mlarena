@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Tuple
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-GLOBAL_TEMPLATE_DIR = REPO_ROOT / "config" / "templates"
+GLOBAL_TEMPLATE_DIR = REPO_ROOT / "src" / "mlarena" / "templates"
 
 
 class TemplateValidationError(RuntimeError):

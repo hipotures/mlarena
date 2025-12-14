@@ -86,7 +86,7 @@ class TemplateLoader:
 
         # Load global templates
         repo_root = Path(__file__).resolve().parents[3]
-        global_dir = repo_root / "config" / "templates" / self.template_type
+        global_dir = repo_root / "src" / "mlarena" / "templates" / self.template_type
         global_templates = self._scan_directory(global_dir)
 
         # Validate case-insensitive in global
@@ -128,7 +128,7 @@ class TemplateLoader:
             return []
 
         repo_root = Path(__file__).resolve().parents[3]
-        global_dir = repo_root / "config" / "templates" / self.template_type
+        global_dir = repo_root / "src" / "mlarena" / "templates" / self.template_type
         local_dir = self.project_root / "templates" / self.template_type
 
         global_templates = set(self._scan_directory(global_dir).keys())
@@ -184,7 +184,7 @@ class TemplateLoader:
 
         # Load from global first
         repo_root = Path(__file__).resolve().parents[3]
-        global_file = repo_root / "config" / "templates" / self.template_type / f"{template_name}.yaml"
+        global_file = repo_root / "src" / "mlarena" / "templates" / self.template_type / f"{template_name}.yaml"
         if global_file.exists():
             try:
                 template_data = yaml.safe_load(global_file.read_text()) or {}

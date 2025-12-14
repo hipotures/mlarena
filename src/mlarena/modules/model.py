@@ -153,7 +153,7 @@ def _resolve_model_path(project_root: Path, model_name: str) -> Path:
     repo_root = Path(__file__).resolve().parents[3]  # src/mlarena/modules/model.py -> ../../.. -> repo root
 
     local_path = project_root / "code" / "models" / f"{model_name}.py"
-    global_path = repo_root / "config" / "code" / "models" / f"{model_name}.py"
+    global_path = repo_root / "src" / "mlarena" / "defaults" / "models" / f"{model_name}.py"
 
     local_exists = local_path.exists()
     global_exists = global_path.exists()

@@ -148,6 +148,7 @@ def train(
         eval_metric=config.dataset.metric,
         problem_type=config.dataset.problem_type,
         sample_weight=sample_weight_col,
+        weight_evaluation=True if sample_weight_col else False,  # Weighted metrics when sample_weight is used
         verbosity=2,
     )
 

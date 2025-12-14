@@ -1,0 +1,11 @@
+module: encoder
+cache: true
+config:
+  encoding_method: target_mean_oof
+  oof_folds: 5
+  oof_shuffle: true
+  oof_random_state: 42
+  oof_feature_prefix: mean_
+  target_encoding_smoothing: 1.0
+  target_encoding_min_samples: 1
+  keep_original: true

@@ -1,0 +1,10 @@
+module: sanity_check
+cache: true
+config:
+  # Drop external-only columns added by union alignment (100% missing in Kaggle train).
+  # Keep threshold very high to avoid dropping real Kaggle columns with partial missingness.
+  min_unique_fraction: 0.0
+  max_missing_fraction: 0.9999
+  drop_duplicates: false
+  column_types_override: {}
+  ignore_columns: []

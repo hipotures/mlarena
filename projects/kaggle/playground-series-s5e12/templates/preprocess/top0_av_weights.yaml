@@ -1,0 +1,11 @@
+module: adversarial_validation
+cache: true
+config:
+  presets: best_quality
+  time_limit: 60
+  included_model_types: ["GBM", "CAT", "XGB"]
+  # Target-encoding features are derived from the label and can make AV "trivial".
+  drop_prefixes: ["mean_"]
+  weight_transform: odds_ratio_normalized
+  weights_output_name: train_av_weights.csv
+  weight_column_name: __sample_weight__

@@ -74,6 +74,11 @@ def fit_transform(
         "hash_dim": 8,
         "target_encoding_smoothing": 1.0,
         "target_encoding_min_samples": 1,
+        # Target-mean OOF encoding (KFold)
+        "oof_folds": 5,
+        "oof_shuffle": True,
+        "oof_random_state": 42,
+        "oof_feature_prefix": "mean_",
         "keep_original": False,
     }
     validation.validate_config(config, required_params, optional_params)
@@ -81,7 +86,7 @@ def fit_transform(
     # Validate encoding_method choice
     validation.validate_choice(
         config["encoding_method"],
-        ["none", "one_hot", "ordinal", "target_mean", "catboost", "hashing"],
+        ["none", "one_hot", "ordinal", "target_mean", "target_mean_oof", "catboost", "hashing"],
         "encoding_method"
     )
 
@@ -197,6 +202,14 @@ def fit_transform(
         )
         encoded_columns_info = encoder_info
 
+    elif encoding_method == "target_mean_oof":
+        if target_column is None:
+            raise ValueError("target_mean_oof encoding requires target column")
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_target_mean_oof(
+            train_df, val_df, test_df, orig_df, categorical_cols, target_column, config, submodule_dir
+        )
+        encoded_columns_info = encoder_info
+
     elif encoding_method == "catboost":
         if target_column is None:
             raise ValueError("catboost encoding requires target column")
@@ -240,7 +253,7 @@ def fit_transform(
         "keep_original": config["keep_original"],
     }
 
-    return train_df, val_df, test_df, state_dict
+    return train_df, val_df, test_df, orig_df, state_dict
 
 
 def _encode_onehot(
@@ -406,6 +419,109 @@ def _encode_target_mean(
         "encoded_feature_names": [f"{col}_te" for col in categorical_cols],
         "global_mean": global_mean,
         "smoothing": smoothing,
+    }
+
+    return train_df, val_df, test_df, orig_df, encoder_info
+
+
+def _encode_target_mean_oof(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame | None,
+    test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
+    categorical_cols: List[str],
+    target_column: str,
+    config: Dict[str, Any],
+    submodule_dir: Path,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
+    """
+    KFold out-of-fold target mean encoding.
+
+    - Train: encoded with OOF means (no target leakage within folds)
+    - Test/Val/Orig: encoded with full-train means
+
+    Output feature names are `{oof_feature_prefix}{col}` (default: `mean_{col}`).
+    """
+    from sklearn.model_selection import KFold
+
+    folds = int(config.get("oof_folds", 5))
+    if folds < 2:
+        raise ValueError(f"oof_folds must be >= 2, got {folds}")
+
+    shuffle = bool(config.get("oof_shuffle", True))
+    random_state = int(config.get("oof_random_state", 42))
+    prefix = str(config.get("oof_feature_prefix", "mean_"))
+
+    smoothing = float(config["target_encoding_smoothing"])
+    min_samples = int(config["target_encoding_min_samples"])
+
+    global_mean = float(train_df[target_column].mean())
+    kf = KFold(n_splits=folds, shuffle=shuffle, random_state=random_state if shuffle else None)
+
+    full_train_encodings: Dict[str, Dict] = {}
+    oof_feature_names: List[str] = []
+
+    for col in categorical_cols:
+        out_col = f"{prefix}{col}"
+        oof_feature_names.append(out_col)
+
+        # OOF for train
+        oof_values = np.full(len(train_df), global_mean, dtype=np.float32)
+        for tr_idx, va_idx in kf.split(train_df):
+            tr = train_df.iloc[tr_idx]
+
+            stats = tr.groupby(col)[target_column].agg(["mean", "count"])
+            smoothed = (stats["count"] * stats["mean"] + smoothing * global_mean) / (stats["count"] + smoothing)
+            if min_samples > 1:
+                smoothed = smoothed[stats["count"] >= min_samples]
+
+            mapping = smoothed.to_dict()
+            va = train_df.iloc[va_idx]
+            oof_values[va_idx] = va[col].map(mapping).fillna(global_mean).astype(np.float32).values
+
+        train_df[out_col] = oof_values
+
+        # Full-train mapping for inference datasets
+        full_stats = train_df.groupby(col)[target_column].agg(["mean", "count"])
+        full_smoothed = (full_stats["count"] * full_stats["mean"] + smoothing * global_mean) / (full_stats["count"] + smoothing)
+        if min_samples > 1:
+            full_smoothed = full_smoothed[full_stats["count"] >= min_samples]
+
+        full_mapping = full_smoothed.to_dict()
+        full_train_encodings[col] = full_mapping
+
+        test_df[out_col] = test_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+        if val_df is not None:
+            val_df[out_col] = val_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+        if orig_df is not None and col in orig_df.columns:
+            orig_df[out_col] = orig_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+
+    artifacts.save_report(
+        {
+            "method": "target_mean_oof",
+            "folds": folds,
+            "shuffle": shuffle,
+            "random_state": random_state,
+            "feature_prefix": prefix,
+            "smoothing": smoothing,
+            "min_samples": min_samples,
+            "global_mean": global_mean,
+            "encodings_full_train": {k: {str(key): val for key, val in v.items()} for k, v in full_train_encodings.items()},
+        },
+        submodule_dir,
+        "target_encodings_oof.json",
+    )
+
+    encoder_info = {
+        "n_features": len(categorical_cols),
+        "encoded_feature_names": oof_feature_names,
+        "global_mean": global_mean,
+        "smoothing": smoothing,
+        "min_samples": min_samples,
+        "oof_folds": folds,
+        "oof_shuffle": shuffle,
+        "oof_random_state": random_state,
+        "feature_prefix": prefix,
     }
 
     return train_df, val_df, test_df, orig_df, encoder_info

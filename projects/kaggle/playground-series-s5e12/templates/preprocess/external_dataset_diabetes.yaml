@@ -1,4 +1,4 @@
-module: dataset_merger
+module: external_dataset
 cache: true
 config:
   orig_path: data/diabetes_dataset.csv

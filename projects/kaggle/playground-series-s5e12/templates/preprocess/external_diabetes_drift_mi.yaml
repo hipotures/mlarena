@@ -1,0 +1,8 @@
+chain:
+- sanity_check_ps5e12
+- external_dataset_diabetes
+- imputer
+- rare_category_handler
+- encoder_catboost
+- feature_selector_mi
+- imbalance_handler

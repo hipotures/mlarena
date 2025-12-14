@@ -1,0 +1,9 @@
+module: encoder
+cache: true
+config:
+  encoding_method: ordinal
+  # Ordinal encoding is safe for high-cardinality features; avoid auto-excluding columns.
+  max_cardinality: 1000000
+  keep_original: true
+  handle_unknown: ignore
+  unknown_value: -1

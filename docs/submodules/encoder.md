@@ -15,6 +15,7 @@ Provides flexible categorical encoding with support for:
 - **One-Hot Encoding** - Binary features for each category
 - **Ordinal Encoding** - Integer labels for categories
 - **Target Mean Encoding** - Replace categories with target mean (smoothed)
+- **Target Mean Encoding (OOF)** - KFold out-of-fold target mean features (recommended to reduce leakage)
 - **CatBoost Encoding** - Ordered target statistics
 - **Feature Hashing** - Fixed-size hash space for high-cardinality features
 
@@ -30,12 +31,13 @@ None - all parameters have defaults.
 
 Encoding strategy to use.
 
-**Choices**: `none` | `one_hot` | `ordinal` | `target_mean` | `catboost` | `hashing`
+**Choices**: `none` | `one_hot` | `ordinal` | `target_mean` | `target_mean_oof` | `catboost` | `hashing`
 
 - `none` - Keep categorical columns as-is (recommended for AutoGluon)
 - `one_hot` - One-hot encoding (sklearn)
 - `ordinal` - Ordinal encoding (sklearn)
 - `target_mean` - Target mean encoding with smoothing
+- `target_mean_oof` - KFold out-of-fold target mean encoding (train is OOF; test/orig use full-train mapping)
 - `catboost` - CatBoost-style ordered target encoding (requires `category_encoders`)
 - `hashing` - Feature hashing for high-cardinality features
 
@@ -123,6 +125,22 @@ Smoothing parameter for `target_mean` and `catboost` encodings. Higher values = 
 Minimum samples required for a category to get its own encoding (target_mean only). Categories below threshold use global mean.
 
 **Recommended**: 1-10 depending on dataset size.
+
+#### `oof_folds` (int, default: `5`)
+
+For `target_mean_oof`: number of KFold splits used to compute out-of-fold encodings on train.
+
+#### `oof_shuffle` (bool, default: `true`)
+
+For `target_mean_oof`: whether to shuffle rows before KFold splitting.
+
+#### `oof_random_state` (int, default: `42`)
+
+For `target_mean_oof`: random seed used when `oof_shuffle: true`.
+
+#### `oof_feature_prefix` (str, default: `"mean_"`)
+
+For `target_mean_oof`: output feature prefix. Encoded columns are named `{prefix}{col}` (default: `mean_<col>`).
 
 #### `keep_original` (bool, default: `false`)
 
@@ -230,7 +248,41 @@ encoder:
 
 ---
 
-### 5. CatBoost Encoding (`encoding_method: "catboost"`)
+### 5. Target Mean Encoding (OOF) (`encoding_method: "target_mean_oof"`)
+
+**Best for**: High-cardinality features with reduced leakage risk
+
+Computes target mean encoding with KFold:
+- **Train**: out-of-fold encodings (each row is encoded using a mapping fit without that row)
+- **Test / Val / Orig**: full-train mapping
+
+**Requires**: Target column must be present in training data.
+
+**Example**:
+```yaml
+encoder:
+  module: encoder
+  cache: true
+  config:
+    encoding_method: "target_mean_oof"
+    oof_folds: 5
+    oof_shuffle: true
+    oof_random_state: 42
+    oof_feature_prefix: "mean_"
+    target_encoding_smoothing: 5.0
+    target_encoding_min_samples: 10
+    keep_original: true
+```
+
+**Output**:
+- Original column: `Cabin`
+- Encoded feature: `mean_Cabin` (default prefix `mean_`)
+
+**Artifacts**: `target_encodings_oof.json` (full-train mappings + config used)
+
+---
+
+### 6. CatBoost Encoding (`encoding_method: "catboost"`)
 
 **Best for**: High-cardinality features, tree-based models, reducing overfitting
 
@@ -257,7 +309,7 @@ encoder:
 
 ---
 
-### 6. Feature Hashing (`encoding_method: "hashing"`)
+### 7. Feature Hashing (`encoding_method: "hashing"`)
 
 **Best for**: Very high-cardinality features, memory constraints
 
@@ -368,6 +420,10 @@ Mapping of category → smoothed target mean for each column.
 
 Fitted `category_encoders.CatBoostEncoder` object.
 
+### `target_encodings_oof.json` (target_mean_oof method)
+
+Full-train mappings (used for test/val/orig) plus OOF configuration.
+
 ---
 
 ## State Dictionary
@@ -438,7 +494,7 @@ With `handle_unknown="ignore"`:
 
 ### Target Encoding Without Target
 
-If using `target_mean` or `catboost` methods, target column must be present in config. If not, error will be raised.
+If using `target_mean`, `target_mean_oof`, or `catboost` methods, target column must be present in config. If not, error will be raised.
 
 ---
 

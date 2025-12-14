@@ -81,9 +81,30 @@ class PreprocessModule(BaseModule):
         1. Project-local: {project}/code/preprocessing/{module_name}.py
         2. Global: config/code/preprocessing/{module_name}.py
         """
+        # Ensure project + global helper modules are importable inside dynamically loaded files.
+        # Many project preprocess modules do `import adversarial_validation` (from code/utils)
+        # or `import categorical_utils` (from config/code/preprocessing). Without these paths,
+        # imports fail because modules are loaded via spec_from_file_location (not a package).
+        import sys
+
         # Repository root (resolve from this file's location)
         from pathlib import Path as P
         repo_root = P(__file__).resolve().parents[3]  # src/mlarena/modules/preprocess.py -> ../../.. -> repo root
+
+        extra_sys_paths = [
+            # Project-local helpers (highest priority)
+            self.context.project_root / "code" / "utils",
+            self.context.project_root / "code" / "preprocessing",
+            self.context.project_root / "code",
+            # Global helpers
+            repo_root / "config" / "code" / "preprocessing",
+            repo_root / "scripts",
+        ]
+        # Insert in reverse so the first item ends up with highest precedence.
+        for path in reversed(extra_sys_paths):
+            path_str = str(path)
+            if path.exists() and path_str not in sys.path:
+                sys.path.insert(0, path_str)
 
         local_path = self.context.project_root / "code" / "preprocessing" / f"{module_name}.py"
         global_path = repo_root / "config" / "code" / "preprocessing" / f"{module_name}.py"
@@ -215,14 +236,30 @@ class PreprocessModule(BaseModule):
                     "ignored_columns": getattr(config, "IGNORED_COLUMNS", []),
                 }
 
-                # Call fit_transform with orig_df parameter (backward compatible)
-                result = preprocess_module.fit_transform(
-                    train_df=train_df,
-                    val_df=None,
-                    test_df=test_df,
-                    config=preprocess_config,
-                    orig_df=orig_df
+                # Call fit_transform with orig_df only if supported (backward compatible).
+                import inspect
+
+                fit_sig = inspect.signature(preprocess_module.fit_transform)
+                supports_kwargs = any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD for p in fit_sig.parameters.values()
                 )
+                supports_orig_df = "orig_df" in fit_sig.parameters or supports_kwargs
+
+                if supports_orig_df:
+                    result = preprocess_module.fit_transform(
+                        train_df=train_df,
+                        val_df=None,
+                        test_df=test_df,
+                        config=preprocess_config,
+                        orig_df=orig_df,
+                    )
+                else:
+                    result = preprocess_module.fit_transform(
+                        train_df=train_df,
+                        val_df=None,
+                        test_df=test_df,
+                        config=preprocess_config,
+                    )
 
                 # Handle both old (4-tuple) and new (5-tuple) return signatures
                 if len(result) == 5:

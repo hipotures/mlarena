@@ -214,6 +214,14 @@ def fit_transform(
 
     # Keep non-feature columns + protected numeric + selected numeric features
     keep_cols = base_keep + protected_numeric + selected_features
+    keep_cols_unique: List[str] = []
+    seen_cols = set()
+    for col in keep_cols:
+        if col in seen_cols:
+            continue
+        keep_cols_unique.append(col)
+        seen_cols.add(col)
+    keep_cols = keep_cols_unique
 
     train_df = train_df[keep_cols]
     test_df = test_df[[col for col in keep_cols if col in test_df.columns]]

@@ -141,12 +141,24 @@ def fit_transform(
     # 8. Perform imputation
     imputers = {}
     column_strategies_used = {}
+    empty_columns_no_observed = []
 
     # Impute numeric columns
     for col in numeric_cols:
         # Check for column-specific strategy
         strategy = config["column_strategies"].get(col, config["numeric_strategy"])
         column_strategies_used[col] = strategy
+
+        if train_df[col].isna().all():
+            empty_columns_no_observed.append(col)
+            fill_value = config["fill_value"]
+            train_df[col] = fill_value
+            test_df[col] = fill_value
+            if val_df is not None:
+                val_df[col] = fill_value
+            if orig_df is not None and col in orig_df.columns:
+                orig_df[col] = orig_df[col].fillna(fill_value)
+            continue
 
         # Fit and transform
         imputer = _create_imputer(
@@ -175,6 +187,17 @@ def fit_transform(
         # Check for column-specific strategy
         strategy = config["column_strategies"].get(col, config["categorical_strategy"])
         column_strategies_used[col] = strategy
+
+        if train_df[col].isna().all():
+            empty_columns_no_observed.append(col)
+            fill_value = "__MISSING__"
+            train_df[col] = fill_value
+            test_df[col] = fill_value
+            if val_df is not None:
+                val_df[col] = fill_value
+            if orig_df is not None and col in orig_df.columns:
+                orig_df[col] = orig_df[col].fillna(fill_value)
+            continue
 
         # Fit and transform
         imputer = _create_imputer(
@@ -208,6 +231,7 @@ def fit_transform(
         "missing_before": missing_before,
         "missing_after": missing_after,
         "column_strategies": column_strategies_used,
+        "empty_columns_no_observed": empty_columns_no_observed,
         "outlier_treatment": outlier_stats,
         "imputed_columns": {
             "numeric": numeric_cols,
@@ -231,6 +255,7 @@ def fit_transform(
         "version": "1.0",
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
         "imputed_columns": len(numeric_cols) + len(categorical_cols),
+        "empty_columns_no_observed": empty_columns_no_observed,
         "missing_before_total": sum(missing_before.values()),
         "missing_after_total": sum(missing_after.values()),
         "column_strategies": column_strategies_used,
@@ -270,11 +295,11 @@ def _create_imputer(
         )
 
     elif strategy == "constant":
-        return SimpleImputer(strategy="constant", fill_value=fill_value)
+        return SimpleImputer(strategy="constant", fill_value=fill_value, keep_empty_features=True)
 
     else:
         # mean, median, most_frequent
-        return SimpleImputer(strategy=strategy)
+        return SimpleImputer(strategy=strategy, keep_empty_features=True)
 
 
 def _treat_outliers_as_na(

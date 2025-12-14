@@ -98,6 +98,7 @@ def fit_transform(
             - time_limit: Training time in seconds (default: 600)
             - included_model_types: List of model types or None (default: None)
             - drop_columns: Additional columns to drop (default: [])
+            - drop_prefixes: Drop columns whose name starts with any of these prefixes (default: [])
             - weight_transform: Transformation method (default: "odds_ratio_normalized")
             - weights_output_name: Output filename (default: "sample_weights.csv")
             - weight_column_name: Column header in CSV (default: "__sample_weight__")
@@ -129,6 +130,18 @@ def fit_transform(
     drop_cols.add(id_col)
     if target_col:
         drop_cols.add(target_col)
+
+    drop_prefixes = config.get("drop_prefixes") or []
+    if not isinstance(drop_prefixes, list):
+        raise ValueError(f"drop_prefixes must be a list of strings, got: {type(drop_prefixes)}")
+    for prefix in drop_prefixes:
+        if prefix is None:
+            continue
+        prefix_str = str(prefix)
+        if not prefix_str:
+            continue
+        drop_cols.update([c for c in train_df.columns if str(c).startswith(prefix_str)])
+        drop_cols.update([c for c in test_df.columns if str(c).startswith(prefix_str)])
 
     # 3. Prepare AV datasets
     train_av = train_df.drop(columns=[c for c in drop_cols if c in train_df.columns])

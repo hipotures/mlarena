@@ -42,6 +42,7 @@ This helps models focus on learning patterns that generalize to the test set, im
 | `time_limit` | int | `600` | Training time limit in seconds |
 | `included_model_types` | list[str] \| null | `null` | Limit model types (e.g., `["GBM", "CAT", "XGB"]`) |
 | `drop_columns` | list[str] | `[]` | Additional columns to drop beyond ID/target |
+| `drop_prefixes` | list[str] | `[]` | Drop columns whose names start with these prefixes (e.g., `["mean_"]`) |
 | `weight_transform` | str | `"odds_ratio_normalized"` | Weight transformation method (see below) |
 | `weights_output_name` | str | `"sample_weights.csv"` | Output CSV filename |
 | `weight_column_name` | str | `"__sample_weight__"` | Column header in weights CSV |
@@ -167,12 +168,12 @@ uv run python scripts/mla.py --project playground-series-s5e12 \
     --model-template baseline
 ```
 
-### Example 2: With Dataset Merger Chain
+### Example 2: With External Dataset Chain (No Preprocess Merge)
 
 ```yaml
 # projects/kaggle/playground-series-s5e12/templates/preprocess/av_with_external.yaml
 chain:
-  - dataset_merger_diabetes
+  - test_external_diabetes
   - adversarial_validation_step  # MUST be LAST
 
 adversarial_validation_step:
@@ -182,6 +183,7 @@ adversarial_validation_step:
     presets: best_quality
     time_limit: 3600
     weight_transform: odds_ratio_normalized
+    drop_prefixes: ["mean_"]  # e.g., exclude target-encoded features
 ```
 
 **WARNING**: Do NOT add resampling modules after AV - weights will mismatch!

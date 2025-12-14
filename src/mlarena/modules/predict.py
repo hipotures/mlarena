@@ -58,7 +58,7 @@ class PredictModule(BaseModule):
         pp_template = self.invocation_params.get("preprocess_template")
         pp_exp_dir = self.invocation_params.get("preprocess_exp_dir")
         if pp_template:
-            _, test_df_pp, _ = _load_processed_or_raw(
+            _, test_df_pp, _, _ = _load_processed_or_raw(
                 self.context,
                 config,
                 pp_template,

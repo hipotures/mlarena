@@ -2,7 +2,7 @@
 Target encoding + label encoding + standard scaling using external dataset_merger module.
 
 Steps:
-- Expects train to be already merged with original dataset (via dataset_merger chain)
+- Expects external dataset to be provided via preprocessing chain (e.g. external_dataset)
 - (Optional) drop specified columns from merged train (drop_orig_columns config)
 - Target-mean encoding per categorical column using KFold (train-only), added as mean_<col>.
 - Label-encode categorical columns (fit on train, unseen -> -1).
@@ -95,7 +95,8 @@ def fit_transform(
     val_df: Optional[pd.DataFrame],
     test_df: pd.DataFrame,
     config: Dict[str, Any],
-) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Dict[str, Any]]:
+    orig_df: Optional[pd.DataFrame] = None,
+) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Optional[pd.DataFrame], Dict[str, Any]]:
     artifact_dir = Path(config.get("_artifact_dir", ".")).resolve()
     # For preprocessing chains: artifacts/preprocess → artifacts → step → chain → experiments → project_root
     project_root = artifact_dir.parent.parent.parent.parent.parent
@@ -107,13 +108,30 @@ def fit_transform(
 
     # Drop specified columns if provided (e.g., columns from original dataset that we don't want)
     drop_cols = config.get("drop_orig_columns") or []
-    train_merged = train_df.copy()
+    train_core = train_df.copy()
     test = test_df.copy()
+    orig = orig_df.copy() if orig_df is not None else None
 
     # Fill missing IDs (from external dataset merger) with sequential values
     # Use safe offset: max(train_max, test_max) + 1 to avoid collision with test IDs
-    if id_col in train_merged.columns and train_merged[id_col].isna().any():
-        train_max = train_merged[id_col].max()
+    if orig is not None:
+        # When external_dataset is used in union mode, orig often has id_col all-NA.
+        # Assign synthetic ids to keep downstream AV utilities stable.
+        if id_col in orig.columns and orig[id_col].isna().any():
+            train_max = train_core[id_col].max() if id_col in train_core.columns else 0
+            test_max = test[id_col].max() if id_col in test.columns else 0
+
+            if pd.isna(train_max):
+                train_max = 0
+            if pd.isna(test_max):
+                test_max = 0
+
+            start_id = int(max(train_max, test_max)) + 1
+            na_mask = orig[id_col].isna()
+            orig.loc[na_mask, id_col] = range(start_id, start_id + na_mask.sum())
+
+    if id_col in train_core.columns and train_core[id_col].isna().any():
+        train_max = train_core[id_col].max()
         test_max = test[id_col].max() if id_col in test.columns else 0
 
         if pd.isna(train_max):
@@ -122,38 +140,36 @@ def fit_transform(
             test_max = 0
 
         start_id = int(max(train_max, test_max)) + 1
-        na_mask = train_merged[id_col].isna()
-        train_merged.loc[na_mask, id_col] = range(start_id, start_id + na_mask.sum())
+        na_mask = train_core[id_col].isna()
+        train_core.loc[na_mask, id_col] = range(start_id, start_id + na_mask.sum())
 
     if drop_cols:
-        train_merged = train_merged.drop(columns=[c for c in drop_cols if c in train_merged.columns], errors="ignore")
+        train_core = train_core.drop(columns=[c for c in drop_cols if c in train_core.columns], errors="ignore")
         test = test.drop(columns=[c for c in drop_cols if c in test.columns], errors="ignore")
-
-    # Keep raw copies for AV weight calculation metadata
-    # We need to know how many rows were originally from competition (before dataset_merger added external rows)
-    # For this, we'll assume dataset_merger preserved order: competition rows first, external rows after
-    # We can get original competition size from config if dataset_merger passes it, or we estimate
-    # For now, we'll compute AV on ALL rows (merged dataset) - this is different from original behavior
-    # Original computed AV only on competition rows and gave external rows mean weight
-    # To replicate that, we'd need dataset_merger to pass original row count via state
-
-    # For simplicity in this version: compute AV on all merged rows
-    # (User can adjust later if needed)
+        if orig is not None:
+            orig = orig.drop(columns=[c for c in drop_cols if c in orig.columns], errors="ignore")
 
     cat_override = config.get("categorical_columns") or None
-    cat_cols, num_cols = _infer_columns(train_merged, meta, cat_override)
+    cat_cols, _ = _infer_columns(train_core, meta, cat_override)
+
+    n_train = len(train_core)
+    combined = pd.concat([train_core, orig], ignore_index=True) if orig is not None else train_core
 
     # Target encoding
-    train_te, test_te = _target_encode(train_merged, test, target, cat_cols, folds=int(config.get("te_folds", 5)))
+    combined_te, test_te = _target_encode(combined, test, target, cat_cols, folds=int(config.get("te_folds", 5)))
 
     # Label encode categorical columns
-    train_le, test_le = _label_encode(train_te, test_te, cat_cols)
+    combined_le, test_le = _label_encode(combined_te, test_te, cat_cols)
 
     # Standard scale numeric columns (including mean_* features) but exclude target
-    num_cols_all = [c for c in train_le.columns if c not in {id_col, target} and c not in cat_cols]
+    num_cols_all = [c for c in combined_le.columns if c not in {id_col, target} and c not in cat_cols]
     scaler = StandardScaler()
-    train_le[num_cols_all] = scaler.fit_transform(train_le[num_cols_all])
+    combined_le[num_cols_all] = scaler.fit_transform(combined_le[num_cols_all])
     test_le[num_cols_all] = scaler.transform(test_le[num_cols_all])
+
+    # Split back (NO row-merge output in preprocessing)
+    train_le = combined_le.iloc[:n_train].reset_index(drop=True)
+    orig_le = combined_le.iloc[n_train:].reset_index(drop=True) if orig is not None else None
 
     state = {
         "categorical_cols": cat_cols,
@@ -178,9 +194,7 @@ def fit_transform(
         # Drop label and target-derived TE features to avoid trivial AV (AUC=1)
         drop_for_av = [id_col, target] + [c for c in train_le.columns if c.startswith("mean_")]
 
-        # NOTE: This version computes AV on ALL merged rows (competition + external)
-        # Original version computed only on competition rows and assigned mean weight to external
-        # To replicate original behavior exactly, would need dataset_merger to pass row count metadata
+        # Compute AV weights only for Kaggle train rows (external/orig stays separate in preprocessing).
         av_df = compute_adversarial_weights(
             train_df=train_le,
             test_df=test_le,
@@ -210,7 +224,7 @@ def fit_transform(
             }
         )
 
-    return train_le, None if val_df is None else val_df, test_le, state
+    return train_le, None if val_df is None else val_df, test_le, orig_le, state
 
 
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:

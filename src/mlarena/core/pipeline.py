@@ -40,7 +40,7 @@ class PipelineExecutor:
                 from template_loader import load_templates
 
                 templates, _ = load_templates(module_name, module.context.project_root, suppress_warnings=True)
-                template_config = templates.get(template_name, {}).get("config", {})
+                template_config = templates.get(template_name, {})
 
                 # Apply convenience flags to invocation BEFORE extracting overrides
                 # This ensures header shows final values
@@ -56,7 +56,7 @@ class PipelineExecutor:
                     invocation["_convenience_flag"] = "smoke"
 
                 # Extract CLI overrides
-                cli_overrides = extract_template_overrides(template_config, invocation)
+                cli_overrides = extract_template_overrides(template_config.get("config", {}), invocation)
             except Exception:
                 pass  # Template loading failed, continue with empty config
 
@@ -112,8 +112,9 @@ class PipelineExecutor:
                     input_paths["test"] = format_path_relative(test_path, module.context.project_root)
 
                     # Check for original dataset in template config
-                    if template_config and "orig_path" in template_config:
-                        orig_path = template_config["orig_path"]
+                    config_dict = template_config.get("config", {})
+                    if config_dict and "orig_path" in config_dict:
+                        orig_path = config_dict["orig_path"]
                         input_paths["original"] = format_path_relative(orig_path, module.context.project_root)
                 except Exception:
                     pass

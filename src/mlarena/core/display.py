@@ -273,52 +273,99 @@ def print_module_header(
         lines.append("")
         lines.append(f"[{COLOR_KEY}]Template:[/{COLOR_KEY}] {template_name}")
 
-        # Show key config parameters
-        config_params = [
-            ("preset", "Preset"),
-            ("presets", "Preset"),
-            ("time_limit", "Time Limit"),
-            ("use_gpu", "GPU"),
-            ("mode", "Mode"),
-            ("included_model_types", "Model Types"),
-        ]
+        # Display module/model name based on template type
+        # Preprocess templates have 'module' field, model templates have 'model' field
+        implementation_name = template_config.get("module") or template_config.get("model")
+        if implementation_name:
+            # Determine label based on which field exists
+            label = "Module" if "module" in template_config else "Model"
+            lines.append(f"[{COLOR_KEY}]{label}:[/{COLOR_KEY}] {implementation_name}")
 
-        for param_key, param_label in config_params:
-            if param_key in template_config:
-                value = template_config[param_key]
+        # Show ALL config parameters (dynamically)
+        config_dict = template_config.get("config", {})
 
-                # Format value
-                if param_key == "time_limit":
-                    value_str = format_time_limit(value)
-                elif param_key == "included_model_types" and isinstance(value, list):
-                    value_str = str(value)
-                elif param_key == "use_gpu":
-                    value_str = "Yes" if value else "No"
+        def format_config_value(key: str, value: Any, max_length: int = 70) -> str:
+            """Format config value based on type with truncation."""
+            # None/null -> skip (handled by caller)
+            if value is None:
+                return "null"
+
+            # Boolean -> Yes/No
+            if isinstance(value, bool):
+                return "Yes" if value else "No"
+
+            # List -> join with " | "
+            if isinstance(value, list):
+                if len(value) == 0:
+                    return "[]"
+                items_str = " | ".join(str(item) for item in value)
+                # Add count if >1 elements
+                count_prefix = f"[{len(value)}] " if len(value) > 1 else ""
+                if len(items_str) > max_length:
+                    return f"{count_prefix}{items_str[:max_length - 3]}..."
+                return f"{count_prefix}{items_str}"
+
+            # Dict -> key:val pairs with " | "
+            if isinstance(value, dict):
+                if len(value) == 0:
+                    return "{}"
+                items = [f"{k}:{v}" for k, v in value.items()]
+                dict_str = " | ".join(items)
+                # Add count if >1 elements
+                count_prefix = f"[{len(value)}] " if len(value) > 1 else ""
+                if len(dict_str) > max_length:
+                    return f"{count_prefix}{dict_str[:max_length - 3]}..."
+                return f"{count_prefix}{dict_str}"
+
+            # time_limit -> special formatting
+            if key == "time_limit":
+                return format_time_limit(value)
+
+            # use_gpu -> handle int/bool
+            if key == "use_gpu":
+                if isinstance(value, bool):
+                    return "Yes" if value else "No"
+                elif isinstance(value, int):
+                    return "Yes" if value else "No"
+
+            # Default: convert to string and truncate
+            value_str = str(value)
+            if len(value_str) > max_length:
+                return value_str[:max_length - 3] + "..."
+            return value_str
+
+        for param_key in sorted(config_dict.keys()):
+            value = config_dict[param_key]
+
+            # Skip None values
+            if value is None:
+                continue
+
+            # Convert snake_case to Title Case for display
+            param_label = param_key.replace('_', ' ').title()
+
+            # Format value
+            value_str = format_config_value(param_key, value)
+
+            # Check if overridden by CLI
+            if param_key in cli_overrides:
+                _, cli_value = cli_overrides[param_key]
+                cli_value_str = format_config_value(param_key, cli_value)
+
+                # Check if from convenience flag
+                convenience_flag = cli_invocation.get("_convenience_flag") if cli_invocation else None
+                if convenience_flag:
+                    flag_label = f"--{convenience_flag}"
                 else:
-                    value_str = str(value)
+                    flag_label = "CLI override"
 
-                # Check if overridden
-                if param_key in cli_overrides:
-                    _, cli_value = cli_overrides[param_key]
-                    if param_key == "time_limit":
-                        cli_value_str = format_time_limit(cli_value)
-                    else:
-                        cli_value_str = str(cli_value)
-
-                    # Check if from convenience flag
-                    convenience_flag = cli_invocation.get("_convenience_flag") if cli_invocation else None
-                    if convenience_flag:
-                        flag_label = f"--{convenience_flag}"
-                    else:
-                        flag_label = "CLI override"
-
-                    lines.append(
-                        f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] "
-                        f"[{COLOR_OVERRIDE}]{cli_value_str}[/{COLOR_OVERRIDE}] "
-                        f"[dim][{flag_label}][/dim]"
-                    )
-                else:
-                    lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
+                lines.append(
+                    f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] "
+                    f"[{COLOR_OVERRIDE}]{cli_value_str}[/{COLOR_OVERRIDE}] "
+                    f"[dim][{flag_label}][/dim]"
+                )
+            else:
+                lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
 
     # Input paths (with optional shapes)
     if input_paths:

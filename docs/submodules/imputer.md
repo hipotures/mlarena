@@ -6,7 +6,7 @@ Universal missing value imputation with configurable strategies per column type 
 
 **Module Name**: `imputer`
 
-**Location**: `config/code/preprocessing/imputer.py`
+**Location**: `src/mlarena/defaults/preprocessing/imputer.py`
 
 ## Features
 

@@ -8,7 +8,7 @@ The `sanity_check` sub-module performs basic data cleaning and quality checks to
 
 **Libraries**: `pandas`, `numpy`
 
-**Location**: `config/code/preprocessing/sanity_check.py`
+**Location**: `src/mlarena/defaults/preprocessing/sanity_check.py`
 
 ---
 

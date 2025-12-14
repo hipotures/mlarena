@@ -152,7 +152,7 @@ Local CV: 0.851  # Potentially improved with weights
 ### Example 1: Basic Standalone Usage
 
 ```yaml
-# config/templates/preprocess/av_basic.yaml
+# src/mlarena/templates/preprocess/av_basic.yaml
 module: adversarial_validation
 cache: true
 config:
@@ -191,7 +191,7 @@ adversarial_validation_step:
 ### Example 3: Fast Development Iteration
 
 ```yaml
-# config/templates/preprocess/av_smoke.yaml
+# src/mlarena/templates/preprocess/av_smoke.yaml
 module: adversarial_validation
 cache: true
 config:
@@ -204,7 +204,7 @@ config:
 ### Example 4: Production Quality AV
 
 ```yaml
-# config/templates/preprocess/av_production.yaml
+# src/mlarena/templates/preprocess/av_production.yaml
 module: adversarial_validation
 cache: true
 config:
@@ -217,7 +217,7 @@ config:
 ### Example 5: Different Weight Transformations
 
 ```yaml
-# config/templates/preprocess/av_raw_weights.yaml
+# src/mlarena/templates/preprocess/av_raw_weights.yaml
 module: adversarial_validation
 cache: true
 config:
@@ -230,7 +230,7 @@ config:
 ### Example 6: Custom Column Dropping
 
 ```yaml
-# config/templates/preprocess/av_custom_drops.yaml
+# src/mlarena/templates/preprocess/av_custom_drops.yaml
 module: adversarial_validation
 cache: true
 config:
@@ -391,7 +391,7 @@ def train(train_df, val_df, config, artifacts):
 
 When using fallback inline AutoGluon baseline:
 ```yaml
-# config/templates/model/baseline.yaml
+# src/mlarena/templates/model/baseline.yaml
 # NO model: key specified - uses fallback
 config:
   preset: medium_quality
@@ -606,7 +606,7 @@ def train(train_df, val_df, config, artifacts):
 
 ### Error: "AV classifier model not found"
 
-**Cause**: `av_classifier.py` missing from `config/code/models/`
+**Cause**: `av_classifier.py` missing from `src/mlarena/defaults/models/`
 
 **Solutions**:
 1. Verify file exists at correct path
@@ -644,7 +644,7 @@ def compute_adversarial_weights(train_df, test_df, ...):
 ### New Approach (Global Module)
 
 ```yaml
-# config/templates/preprocess/adversarial_validation.yaml
+# src/mlarena/templates/preprocess/adversarial_validation.yaml
 module: adversarial_validation
 cache: true
 config:

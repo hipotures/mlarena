@@ -5,7 +5,7 @@
 The **datetime_handler** sub-module parses datetime columns, generates derived time features, optionally adds cyclical encodings (sin/cos), and computes time differences between timestamp columns. It is designed to be configurable so you can control how many time features are created and avoid leakage.
 
 **Module Name**: `datetime_handler`  
-**Location**: `config/code/preprocessing/datetime_handler.py`
+**Location**: `src/mlarena/defaults/preprocessing/datetime_handler.py`
 
 ## Capabilities
 - Parse specified columns to datetime with optional per-column format.

@@ -17,7 +17,7 @@ Each sub-module is a standalone preprocessing template that can be chained with 
 ### Step 1: Copy Template
 
 ```bash
-cp src/mlarena/preprocessing/TEMPLATE.py config/code/preprocessing/my_submodule.py
+cp src/mlarena/preprocessing/TEMPLATE.py src/mlarena/defaults/preprocessing/my_submodule.py
 ```
 
 ### Step 2: Implement fit_transform
@@ -31,7 +31,7 @@ Follow the template structure:
 
 ### Step 3: Add to Templates
 
-Edit `config/templates/preprocess.yaml`:
+Edit `src/mlarena/templates/preprocess.yaml`:
 
 ```yaml
 my_submodule:
@@ -250,7 +250,7 @@ train_df, test_df = dataframe_utils.align_columns(train_df, test_df, fill_value=
 Sub-modules are chained at the template level using meta-templates:
 
 ```yaml
-# config/templates/preprocess.yaml
+# src/mlarena/templates/preprocess.yaml
 templates:
   # Individual sub-modules
   sanity_check:
@@ -282,7 +282,7 @@ uv run python scripts/mla.py preprocess \
 ### "Module not found"
 
 Check that:
-- File is in `config/code/preprocessing/` or `{project}/code/preprocessing/`
+- File is in `src/mlarena/defaults/preprocessing/` or `{project}/code/preprocessing/`
 - Filename matches template's `module:` field
 - Function `fit_transform` is defined
 
@@ -307,7 +307,7 @@ from mlarena.preprocessing.utils import validation, artifacts, dataframe_utils, 
 
 ## Sub-Module Template Locations
 
-- **Global sub-modules**: `config/code/preprocessing/`
+- **Global sub-modules**: `src/mlarena/defaults/preprocessing/`
 - **Project-local sub-modules**: `projects/kaggle/{competition}/code/preprocessing/`
 - **Template file**: `src/mlarena/preprocessing/TEMPLATE.py`
 
@@ -366,7 +366,7 @@ experiments/
 ## Next Steps
 
 1. Implement your sub-module using the TEMPLATE.py
-2. Add it to `config/templates/preprocess.yaml`
+2. Add it to `src/mlarena/templates/preprocess.yaml`
 3. Test it standalone
 4. Test it in chains with other sub-modules
 5. Verify artifacts are saved correctly

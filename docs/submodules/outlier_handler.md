@@ -5,7 +5,7 @@
 The **outlier_handler** sub-module detects and handles outliers in numeric features with configurable strategies. It can clip, set to NA, or just flag outliers. Supports quantile-, IQR-, z-score-based rules and IsolationForest.
 
 **Module Name**: `outlier_handler`  
-**Location**: `config/code/preprocessing/outlier_handler.py`
+**Location**: `src/mlarena/defaults/preprocessing/outlier_handler.py`
 
 ## Capabilities
 - Methods: `quantile`, `iqr`, `zscore`, `isolation_forest`, or `none`.

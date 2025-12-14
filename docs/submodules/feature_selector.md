@@ -5,7 +5,7 @@
 The **feature_selector** sub-module systematically reduces feature dimensionality using multiple selection strategies (filter, embedded, wrapper). It keeps one implementation with behavior controlled by YAML, so you can quickly compare selection methods without changing code.
 
 **Module Name**: `feature_selector`  
-**Location**: `config/code/preprocessing/feature_selector.py`
+**Location**: `src/mlarena/defaults/preprocessing/feature_selector.py`
 
 ## Capabilities
 - Multiple selection modes: variance filtering, mutual information, correlation with target, model-based importances, L1 sparsity, and RFE

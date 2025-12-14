@@ -5,7 +5,7 @@
 The **target_transformer** sub-module applies configurable transformations to the target column for regression problems. It supports log, Box-Cox, and Yeo–Johnson, with optional clipping and automatic shifting for non-positive values. The fitted transformer (for PowerTransformer-based methods) is saved for inverse-transformation during prediction.
 
 **Module Name**: `target_transformer`  
-**Location**: `config/code/preprocessing/target_transformer.py`
+**Location**: `src/mlarena/defaults/preprocessing/target_transformer.py`
 
 ## Purpose
 - Stabilize variance and normalize skewed targets

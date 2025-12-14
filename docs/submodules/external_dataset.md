@@ -24,7 +24,7 @@ This allows models to decide whether and how to merge the external data with tra
 ### Template Format
 
 ```yaml
-# config/templates/preprocess/external_dataset.yaml
+# src/mlarena/templates/preprocess/external_dataset.yaml
 module: external_dataset
 cache: true
 config:
@@ -109,7 +109,7 @@ experiments/pre-{template}/
 ### Example 1: Basic Usage (Column Alignment)
 
 ```yaml
-# config/templates/preprocess/load_diabetes.yaml
+# src/mlarena/templates/preprocess/load_diabetes.yaml
 module: external_dataset
 config:
   orig_path: data/diabetes_original.csv
@@ -158,7 +158,7 @@ config:
 ### Example 4: In Preprocessing Chain
 
 ```yaml
-# config/templates/preprocess/full_pipeline.yaml
+# src/mlarena/templates/preprocess/full_pipeline.yaml
 chain:
   - external_dataset       # Load orig dataset
   - scaler                 # Scale train, test, AND orig
@@ -177,7 +177,7 @@ Models receive `orig_df` via the `artifacts` parameter.
 ### Example Model: Merge Train + Orig
 
 ```python
-# config/code/models/autogluon_baseline.py
+# src/mlarena/defaults/models/autogluon_baseline.py
 def train(train_df, val_df, config, artifacts=None):
     # Check for orig_df in artifacts
     if artifacts and 'orig_df' in artifacts:

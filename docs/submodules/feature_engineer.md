@@ -5,7 +5,7 @@
 The **feature_engineer** sub-module creates interaction, polynomial, and group-aggregation features in one configurable step. It is designed to stay generic (one code path) while letting YAML pick which families of features to generate and how many. A safety cap (`max_generated_features`) prevents explosion.
 
 **Module Name**: `feature_engineer`  
-**Location**: `config/code/preprocessing/feature_engineer.py`
+**Location**: `src/mlarena/defaults/preprocessing/feature_engineer.py`
 
 ## Capabilities
 - Numeric interactions: add/subtract/multiply/divide across selected pairs (explicit or auto-generated).

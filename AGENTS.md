@@ -88,13 +88,13 @@ State structure:
 **Structure**: Each template in its own file, filename = template name (without `.yaml` extension)
 
 **Directories**:
-- Global: `config/templates/model/*.yaml`, `config/templates/preprocess/*.yaml`
+- Global: `src/mlarena/templates/model/*.yaml`, `src/mlarena/templates/preprocess/*.yaml`
 - Project: `projects/kaggle/{comp}/templates/model/*.yaml`, `projects/kaggle/{comp}/templates/preprocess/*.yaml`
 
 **Template File Format** (direct content, no `templates:` wrapper):
 
 ```yaml
-# config/templates/model/cpu-dev-5m.yaml
+# src/mlarena/templates/model/cpu-dev-5m.yaml
 model: autogluon_baseline
 config:
   preset: medium
@@ -105,7 +105,7 @@ config:
 **Meta-templates** (preprocessing chains):
 
 ```yaml
-# config/templates/preprocess/full-pipeline.yaml
+# src/mlarena/templates/preprocess/full-pipeline.yaml
 chain: [imputer, encoder, feature_selector]
 ```
 
@@ -113,7 +113,7 @@ chain: [imputer, encoder, feature_selector]
 
 ### 1. Model Files
 
-**Location**: `projects/kaggle/{comp}/code/models/{name}.py` OR `config/code/models/{name}.py`
+**Location**: `projects/kaggle/{comp}/code/models/{name}.py` OR `src/mlarena/defaults/models/{name}.py`
 
 **Interface**:
 
@@ -133,7 +133,7 @@ def train(train_df, val_df, config, artifacts=None):
 
 ### 2. Preprocessing Files
 
-**Location**: `projects/kaggle/{comp}/code/preprocessing/{name}.py` OR `config/code/preprocessing/{name}.py`
+**Location**: `projects/kaggle/{comp}/code/preprocessing/{name}.py` OR `src/mlarena/defaults/preprocessing/{name}.py`
 
 **Interface**:
 
@@ -149,7 +149,7 @@ def fit_transform(train_df, val_df, test_df, config, orig_df=None):
 **Chaining**: Multiple templates run sequentially; outputs flow through `train_processed.csv`, `test_processed.csv`,
 and (if present) `orig_processed.csv`.
 
-**Global preprocess submodules** (`config/code/preprocessing/*.py`, may be overridden per-project):
+**Global preprocess submodules** (`src/mlarena/defaults/preprocessing/*.py`, may be overridden per-project):
 
 - `external_dataset` (load/align external/orig; no merge)
 - `sanity_check` (basic data validation)

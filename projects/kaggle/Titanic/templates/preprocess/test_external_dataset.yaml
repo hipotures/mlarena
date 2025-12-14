@@ -1,0 +1,4 @@
+chain:
+- external_dataset_titanic
+- sanity_check_titanic
+- encoder_titanic

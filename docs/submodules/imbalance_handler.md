@@ -5,7 +5,7 @@
 The **imbalance_handler** sub-module addresses class imbalance for classification tasks. It can compute class weights (for models that consume sample weights) or resample the training data via random over/under sampling. SMOTE/ADASYN/SMOTENC are supported when `imbalanced-learn` is installed; otherwise the module raises an informative error.
 
 **Module Name**: `imbalance_handler`  
-**Location**: `config/code/preprocessing/imbalance_handler.py`
+**Location**: `src/mlarena/defaults/preprocessing/imbalance_handler.py`
 
 ## Capabilities
 - `class_weight`: Adds a `sample_weight` column using balanced weights (total / (n_classes * count)).

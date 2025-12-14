@@ -110,11 +110,36 @@ def fit_transform(
         "type_mismatches": [],
     }
 
-    # 6.1. Check for infinite values
+    # 6.1. Check for reserved column names (sample weights should be in artifacts, not DataFrame)
+    reserved_columns = ["__sample_weight__", "sample_weight"]
     datasets_to_check = [("train", train_df), ("test", test_df)]
+    if val_df is not None:
+        datasets_to_check.append(("val", val_df))
     if orig_df is not None:
         datasets_to_check.append(("orig", orig_df))
 
+    found_reserved = []
+    for df_name, df in datasets_to_check:
+        for reserved_col in reserved_columns:
+            if reserved_col in df.columns:
+                found_reserved.append(f"{df_name}.{reserved_col}")
+
+    if found_reserved:
+        raise RuntimeError(
+            f"[Sanity Check] Reserved column names found in DataFrames: {', '.join(found_reserved)}\n"
+            f"\n"
+            f"Sample weights should be returned via artifacts (custom_module_state['weights_path']),\n"
+            f"NOT as columns in the DataFrame. This ensures AutoGluon uses them correctly.\n"
+            f"\n"
+            f"How to fix:\n"
+            f"1. Save weights to a separate CSV file in artifacts/preprocess/\n"
+            f"2. Return weights_path in state_dict['custom_module_state']\n"
+            f"3. Remove the weight column from train_df/test_df\n"
+            f"\n"
+            f"See: src/mlarena/defaults/preprocessing/adversarial_validation.py for example"
+        )
+
+    # 6.2. Check for infinite values
     for df_name, df in datasets_to_check:
         numeric_cols = dataframe_utils.get_numeric_columns(df)
         for col in numeric_cols:
@@ -124,7 +149,7 @@ def fit_transform(
                 # Replace inf with NaN
                 df[col] = df[col].replace([np.inf, -np.inf], np.nan)
 
-    # 6.2. Detect constant/nearly-constant columns (in train only)
+    # 6.3. Detect constant/nearly-constant columns (in train only)
     constant_cols = []
     for col in train_df.columns:
         if col in protected_cols:
@@ -139,7 +164,7 @@ def fit_transform(
                 "unique_fraction": float(unique_fraction),
             })
 
-    # 6.3. Detect high missing columns (in train only)
+    # 6.4. Detect high missing columns (in train only)
     high_missing_cols = []
     for col in train_df.columns:
         if col in protected_cols:
@@ -154,7 +179,7 @@ def fit_transform(
                 "missing_fraction": float(missing_fraction),
             })
 
-    # 6.4. Combine columns to drop
+    # 6.5. Combine columns to drop
     columns_to_drop = list(set(constant_cols + high_missing_cols))
 
     # Drop from all DataFrames
@@ -165,7 +190,7 @@ def fit_transform(
     if orig_df is not None:
         orig_df = dataframe_utils.safe_drop_columns(orig_df, columns_to_drop)
 
-    # 6.5. Drop duplicate rows
+    # 6.6. Drop duplicate rows
     duplicates_removed_train = 0
     duplicates_removed_test = 0
     duplicates_removed_orig = 0
@@ -196,7 +221,7 @@ def fit_transform(
                 orig_df = orig_df.drop_duplicates(keep='first')
                 issues_found["duplicate_rows_orig"] = int(duplicates_removed_orig)
 
-    # 6.6. Enforce column types (if specified)
+    # 6.7. Enforce column types (if specified)
     types_changed = {}
     for col, dtype in config["column_types_override"].items():
         if col not in train_df.columns:

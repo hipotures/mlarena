@@ -261,9 +261,19 @@ projects/kaggle/[competition]/
 
 ### Smoke Test
 
+**Quick model-only test:**
 ```bash
 uv run python scripts/mla.py model --project <proj> --smoke --skip-submit
 ```
+
+**Full pipeline test (init → preprocess → model → predict):**
+```bash
+uv run python scripts/mla.py -p <project>
+```
+- Example: `uv run python scripts/mla.py -p Titanic`
+- **Duration**: ~2-3 minutes for complete flow
+- Auto-runs: init (if needed) → eda → preprocess → model → predict → submit
+- Use `--smoke` for faster testing (60s time limit instead of default)
 
 ### Commit Format
 - `feat:`, `fix:`, `experiment:`

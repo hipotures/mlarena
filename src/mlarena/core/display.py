@@ -228,6 +228,7 @@ def print_module_header(
     input_paths: Optional[Dict[str, str]] = None,
     output_paths: Optional[Dict[str, str]] = None,
     project_root: Optional[Path] = None,
+    project_name: Optional[str] = None,
     console: Optional[Console] = None
 ) -> None:
     """
@@ -236,12 +237,15 @@ def print_module_header(
     Args:
         module_name: Name of the module (e.g., "preprocess", "model")
         started_at: ISO-8601 timestamp of module start
+        experiment_id: Experiment ID
         template_name: Template name if applicable
         template_config: Configuration from template YAML
         cli_overrides: Parameters overridden by CLI (from extract_template_overrides)
+        cli_invocation: CLI invocation parameters
         input_paths: Input file paths dict
         output_paths: Expected output file paths dict
         project_root: Project root for path formatting
+        project_name: Project name to display at top
         console: Rich console instance (creates new if None)
     """
     if console is None:
@@ -264,6 +268,9 @@ def print_module_header(
 
     # Build content lines
     lines = []
+    # Show project name first (most important context)
+    if project_name:
+        lines.append(f"[{COLOR_KEY}]Project:[/{COLOR_KEY}] {project_name}")
     lines.append(f"[{COLOR_KEY}]Started:[/{COLOR_KEY}] {formatted_time}")
     if experiment_id:
         lines.append(f"[{COLOR_KEY}]Experiment:[/{COLOR_KEY}] {experiment_id}")
@@ -417,6 +424,7 @@ def print_module_footer(
     shapes: Optional[Dict[str, list]] = None,
     error: Optional[str] = None,
     project_root: Optional[Path] = None,
+    project_name: Optional[str] = None,
     console: Optional[Console] = None
 ) -> None:
     """
@@ -431,6 +439,7 @@ def print_module_footer(
         shapes: Dataset shape changes (for preprocess)
         error: Error message if failed
         project_root: Project root for path formatting
+        project_name: Project name to display at top
         console: Rich console instance (creates new if None)
     """
     if console is None:
@@ -459,6 +468,9 @@ def print_module_footer(
 
     # Build content lines
     lines = []
+    # Show project name first (most important context)
+    if project_name:
+        lines.append(f"[{COLOR_KEY}]Project:[/{COLOR_KEY}] {project_name}")
     lines.append(f"[{COLOR_KEY}]Finished:[/{COLOR_KEY}] {formatted_time}")
     lines.append(f"[{COLOR_KEY}]Duration:[/{COLOR_KEY}] {format_duration(duration)}")
 

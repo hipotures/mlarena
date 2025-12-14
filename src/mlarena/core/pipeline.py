@@ -382,6 +382,7 @@ class PipelineExecutor:
                     input_paths=header_data.get("input_paths"),
                     output_paths=header_data.get("output_paths"),
                     project_root=module.context.project_root,
+                    project_name=module.context.project_name,
                     console=console
                 )
             except Exception as e:
@@ -422,6 +423,7 @@ class PipelineExecutor:
                         duration=duration,
                         error=error_msg,
                         project_root=module.context.project_root,
+                        project_name=module.context.project_name,
                         console=console
                     )
                 except:
@@ -461,7 +463,7 @@ class PipelineExecutor:
                         if "test_processed" in payload:
                             output_paths["test"] = format_path_relative(payload["test_processed"], module.context.project_root)
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
-                            output_paths["weights"] = payload["custom_module_state"]["weights_path"]
+                            output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)
                         if "custom_module_state" in payload and "av_stats" in payload["custom_module_state"]:
                             metrics["av_stats"] = payload["custom_module_state"]["av_stats"]
                             if "output_rows" in payload["custom_module_state"]:
@@ -531,6 +533,7 @@ class PipelineExecutor:
                         metrics=metrics,
                         shapes=shapes,
                         project_root=module.context.project_root,
+                        project_name=module.context.project_name,
                         console=console
                     )
 
@@ -566,6 +569,7 @@ class PipelineExecutor:
                         duration=duration,
                         error=outcome.error or "unknown error",
                         project_root=module.context.project_root,
+                        project_name=module.context.project_name,
                         console=console
                     )
                 except:

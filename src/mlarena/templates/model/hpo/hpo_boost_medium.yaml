@@ -3,7 +3,7 @@
 # Usage: hpo_preset: hpo_boost_medium
 
 hpo:
-  num_trials: 50
+  num_trials: 20
   scheduler: local
   searcher: auto
 

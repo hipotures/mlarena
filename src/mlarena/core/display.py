@@ -288,6 +288,11 @@ def print_module_header(
             label = "Module" if "module" in template_config else "Model"
             lines.append(f"[{COLOR_KEY}]{label}:[/{COLOR_KEY}] {implementation_name}")
 
+        # Display HPO preset if specified
+        hpo_preset = template_config.get("hpo_preset")
+        if hpo_preset:
+            lines.append(f"[{COLOR_KEY}]HPO Preset:[/{COLOR_KEY}] [{COLOR_OVERRIDE}]{hpo_preset}[/{COLOR_OVERRIDE}]")
+
         # Show ALL config parameters (dynamically)
         config_dict = template_config.get("config", {})
 
@@ -357,20 +362,25 @@ def print_module_header(
             # Check if overridden by CLI
             if param_key in cli_overrides:
                 _, cli_value = cli_overrides[param_key]
-                cli_value_str = format_config_value(param_key, cli_value)
 
-                # Check if from convenience flag
-                convenience_flag = cli_invocation.get("_convenience_flag") if cli_invocation else None
-                if convenience_flag:
-                    flag_label = f"--{convenience_flag}"
+                # If CLI value is None, use template value (argparse default)
+                if cli_value is None:
+                    lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
                 else:
-                    flag_label = "CLI override"
+                    cli_value_str = format_config_value(param_key, cli_value)
 
-                lines.append(
-                    f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] "
-                    f"[{COLOR_OVERRIDE}]{cli_value_str}[/{COLOR_OVERRIDE}] "
-                    f"[dim][{flag_label}][/dim]"
-                )
+                    # Check if from convenience flag
+                    convenience_flag = cli_invocation.get("_convenience_flag") if cli_invocation else None
+                    if convenience_flag:
+                        flag_label = f"--{convenience_flag}"
+                    else:
+                        flag_label = "CLI override"
+
+                    lines.append(
+                        f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] "
+                        f"[{COLOR_OVERRIDE}]{cli_value_str}[/{COLOR_OVERRIDE}] "
+                        f"[dim][{flag_label}][/dim]"
+                    )
             else:
                 lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
 

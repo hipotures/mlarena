@@ -3,7 +3,7 @@
 # Usage: hpo_preset: hpo_boost_best
 
 hpo:
-  num_trials: 200
+  num_trials: 500
   scheduler: local
   searcher: auto
 

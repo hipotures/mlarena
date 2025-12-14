@@ -352,10 +352,13 @@ class ModelModule(BaseModule):
             hyperparams_dict["hyperparameter_tune_kwargs"] = hpo_tune_kwargs
             hyperparams_dict["search_space"] = hpo_search_space
 
-            console.print(f"[cyan]Using HPO preset: {hpo_preset_name}[/cyan]")
-            console.print(f"[dim]  num_trials: {hpo_tune_kwargs['num_trials']}[/dim]")
-            console.print(f"[dim]  scheduler: {hpo_tune_kwargs['scheduler']}[/dim]")
-            console.print(f"[dim]  searcher: {hpo_tune_kwargs['searcher']}[/dim]")
+            # Display HPO configuration (will also appear in console)
+            console.print(f"\n[cyan]HPO Configuration:[/cyan]")
+            console.print(f"  [bold]Preset:[/bold] {hpo_preset_name}")
+            console.print(f"  [bold]Trials:[/bold] {hpo_tune_kwargs['num_trials']}")
+            console.print(f"  [bold]Scheduler:[/bold] {hpo_tune_kwargs['scheduler']}")
+            console.print(f"  [bold]Searcher:[/bold] {hpo_tune_kwargs['searcher']}")
+            console.print(f"  [bold]Models:[/bold] {list(hpo_search_space.keys())}\n")
 
         # Add model-specific hyperparameters (e.g., NN_TORCH, GBM configs)
         hyperparams_dict.update(template_cfg.get("hyperparameters", {}))

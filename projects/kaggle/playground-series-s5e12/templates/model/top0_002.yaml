@@ -1,0 +1,16 @@
+# Full equivalent of old exp-top0_te_scale_ext_3 (CV 0.71966, Public 0.69887)
+# Model: autogluon_baseline with HPO
+# Template: top0_te_ext_cpu-best-8h-av-mix-boost
+
+model: autogluon_baseline
+hpo_preset: hpo_boost_medium  # Use medium preset (50 trials, auto searcher)
+preprocess_template: top0_te_scale_ext_m
+included_model_types: ["XGB"]  # XGB only (like old system)
+config:
+  preset: best
+  time_limit: 46000  # 12.7 hours (like old system)
+  use_gpu: false
+
+  # Override HPO settings to match old system exactly
+  num_trials: 200  # Override medium default (50) to match old system
+  searcher: bayes  # Override medium default (auto) to use Bayesian optimization

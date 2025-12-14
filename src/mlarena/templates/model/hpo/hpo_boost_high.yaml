@@ -5,7 +5,7 @@
 hpo:
   num_trials: 100
   scheduler: local
-  searcher: auto
+  searcher: auto  # Valid options: auto, random, bayes
 
 search_space:
   GBM:

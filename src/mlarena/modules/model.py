@@ -194,7 +194,12 @@ def _load_model_module(project_root: Path, model_name: str):
     import importlib.util
 
     model_path = _resolve_model_path(project_root, model_name)
-    console.print(f"[dim]Loading model from: {model_path.relative_to(Path.cwd())}[/dim]")
+    try:
+        display_path = model_path.relative_to(Path.cwd())
+    except ValueError:
+        # Model is outside cwd (e.g., global defaults), use absolute path
+        display_path = model_path
+    console.print(f"[dim]Loading model from: {display_path}[/dim]")
 
     spec = importlib.util.spec_from_file_location(model_name, model_path)
     if spec is None:

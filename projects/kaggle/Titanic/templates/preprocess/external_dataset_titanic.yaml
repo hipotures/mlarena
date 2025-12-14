@@ -1,7 +1,0 @@
-module: external_dataset
-cache: true
-config:
-  orig_path: data/train.csv
-  mode: align
-  source_flag: is_external
-  column_mapping: {}

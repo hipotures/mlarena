@@ -1,7 +1,0 @@
-chain:
-- sanity_check_titanic
-- imputer
-- rare_titanic
-- encoder_titanic
-- outlier_handler
-- imbalance_handler

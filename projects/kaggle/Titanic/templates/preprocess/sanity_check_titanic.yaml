@@ -1,7 +1,0 @@
-module: sanity_check
-cache: true
-config:
-  min_unique_fraction: 0.0001
-  max_missing_fraction: 0.95
-  drop_duplicates: true
-  ignore_columns: []

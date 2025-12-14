@@ -177,7 +177,7 @@ Models receive `orig_df` via the `artifacts` parameter.
 ### Example Model: Merge Train + Orig
 
 ```python
-# config/code/models/autogluon_with_orig.py
+# config/code/models/autogluon_baseline.py
 def train(train_df, val_df, config, artifacts=None):
     # Check for orig_df in artifacts
     if artifacts and 'orig_df' in artifacts:

@@ -1,0 +1,12 @@
+# Smoke test: XGB + AV weights + weight_evaluation=true
+# Fast test of weight_evaluation functionality
+
+preprocess_template: av_smoke  # Fast AV (30s)
+included_model_types: ["XGB"]
+config:
+  preset: medium
+  time_limit: 60
+  use_gpu: false
+
+  # Sample weights from av_smoke preprocessing
+  weight_evaluation: true  # Test weighted evaluation

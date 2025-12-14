@@ -1,0 +1,13 @@
+# T1-A + T6-B2: Boosting + Neural Network + weight_evaluation=True
+# Test: does NN help with drift when using weighted evaluation?
+# NOTE: Requires GPU for reasonable training time
+
+preprocess_template: top0_te_scale_ext_m
+included_model_types: ["GBM", "XGB", "CAT", "NN_TORCH"]
+config:
+  preset: best
+  time_limit: 14400  # 4h (NN needs more time)
+  use_gpu: true  # NN requires GPU for efficiency
+
+  # Sample weights from preprocessing (top0_av_weights via artifacts)
+  weight_evaluation: true  # Use weights for evaluation metrics

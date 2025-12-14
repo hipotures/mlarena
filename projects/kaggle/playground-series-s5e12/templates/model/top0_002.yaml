@@ -11,6 +11,10 @@ config:
   time_limit: 46000  # 12.7 hours (like old system)
   use_gpu: false
 
+  # Sample weights from preprocessing (top0_av_weights via artifacts)
+  # sample_weight_strategy: null (default - use weights from preprocessing artifacts)
+  weight_evaluation: true  # Use weights for evaluation metrics (weighted CV)
+
   # Override HPO settings to match old system exactly
   num_trials: 200  # Override medium default (50) to match old system
   searcher: bayes  # Override medium default (auto) to use Bayesian optimization

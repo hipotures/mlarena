@@ -1,0 +1,14 @@
+module: adversarial_validation
+cache: true
+config:
+  # Fast AV for smoke tests
+  presets: medium_quality_faster_train
+  time_limit: 30  # 30s for quick smoke test
+  included_model_types: ["XGB"]
+
+  # Weight transformation
+  weight_transform: odds_ratio_normalized
+
+  # Output
+  weights_output_name: train_av_weights.csv
+  weight_column_name: __sample_weight__

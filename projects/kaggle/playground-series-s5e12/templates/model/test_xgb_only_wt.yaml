@@ -1,0 +1,12 @@
+# T1-A + T6-Fast: XGB only + weight_evaluation=True
+# Fast baseline for quick iteration (~30min instead of 3h)
+
+preprocess_template: top0_te_scale_ext_m
+included_model_types: ["XGB"]
+config:
+  preset: best
+  time_limit: 1800  # 30min (faster iteration)
+  use_gpu: false
+
+  # Sample weights from preprocessing (top0_av_weights via artifacts)
+  weight_evaluation: true  # Use weights for evaluation metrics

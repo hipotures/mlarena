@@ -1,0 +1,12 @@
+# Smoke test: XGB + weight_evaluation (compatible with --smoke / baseline preprocessing)
+# Works without AV weights (baseline preprocessing has no weights)
+
+preprocess_template: baseline  # Explicitly use baseline (no weights)
+included_model_types: ["XGB"]
+config:
+  preset: medium
+  time_limit: 60
+  use_gpu: false
+
+  # No weights available with baseline preprocessing
+  # weight_evaluation: false (implicit default when no weights)

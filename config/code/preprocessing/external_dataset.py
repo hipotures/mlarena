@@ -226,7 +226,7 @@ def fit_transform(
             f"Consider using 'column_mapping' to align column names.[/bold yellow]"
         )
 
-    console.print(f"\n[green]✓ External dataset loaded and aligned (NOT merged - returned separately)[/green]")
+    console.print(f"\n[green]✓ External dataset loaded and aligned[/green]")
 
     # 6. Return state
     state_dict = {

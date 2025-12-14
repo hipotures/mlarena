@@ -57,6 +57,14 @@ class PredictModule(BaseModule):
         processed_test: Optional[Path] = None
         pp_template = self.invocation_params.get("preprocess_template")
         pp_exp_dir = self.invocation_params.get("preprocess_exp_dir")
+
+        # If not provided explicitly (common when running `predict` with `--experiment-id`),
+        # fall back to whatever preprocessing the model was trained with.
+        if not pp_template:
+            pp_template = (model_entry.payload or {}).get("preprocess_template") or (model_entry.invocation or {}).get("preprocess_template")  # type: ignore[union-attr]
+        if not pp_exp_dir:
+            pp_exp_dir = (model_entry.payload or {}).get("preprocess_exp_dir") or (model_entry.invocation or {}).get("preprocess_exp_dir")  # type: ignore[union-attr]
+
         if pp_template:
             _, test_df_pp, _, _ = _load_processed_or_raw(
                 self.context,
@@ -65,7 +73,7 @@ class PredictModule(BaseModule):
                 preprocess_exp_dir=pp_exp_dir,
             )
             processed_test = Path(pp_exp_dir) / "artifacts" / "preprocess" / "test_processed.csv" if pp_exp_dir else None
-            test_df = test_df_pp
+            test_df = test_df_pp if test_df_pp is not None else test_df_raw
         else:
             test_df = test_df_raw
 

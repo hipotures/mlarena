@@ -1,0 +1,15 @@
+# Wariant 2: AutoGluon balance_weight strategy
+# Equal class weights for classification
+# Recommended: weight_evaluation=false per AutoGluon docs
+
+model: autogluon_baseline
+preprocess_template: av_weights  # Still runs AV, but weights are NOT used
+config:
+  preset: medium
+  time_limit: 180  # 3 minutes
+  use_gpu: false
+  included_model_types: ["GBM", "XGB", "CAT"]
+
+  # AutoGluon balance_weight strategy (ignores preprocessing weights)
+  sample_weight_strategy: "balance_weight"
+  weight_evaluation: false  # Recommended by AutoGluon for balance_weight

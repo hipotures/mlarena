@@ -1,0 +1,15 @@
+# Wariant 1: Sample weights from preprocessing (adversarial validation)
+# Uses weights from artifacts (train_av_weights.csv)
+# Weighted evaluation metrics (weighted CV scores)
+
+model: autogluon_baseline
+preprocess_template: av_weights
+config:
+  preset: medium
+  time_limit: 180  # 3 minutes
+  use_gpu: false
+  included_model_types: ["GBM", "XGB", "CAT"]
+
+  # Sample weights from preprocessing artifacts (default behavior)
+  # sample_weight_strategy: null (implicit - use weights from preprocessing)
+  weight_evaluation: true  # Use weights for evaluation metrics

@@ -61,8 +61,10 @@ The pipeline consists of the following modules:
 -   `predict`: Generates predictions from a trained model.
 -   `submit`: Submits predictions to Kaggle.
 -   `fetch-score`: Fetches the public score for a submission.
--   `tune`: (Coming soon) Hyperparameter tuning.
+-   `tune`: (Coming soon) Advanced hyperparameter tuning with Optuna.
 -   `stack`: (Coming soon) Stacking/ensembling models.
+
+**Note**: AutoGluon native HPO is available through model templates with `hpo_preset`. See [HPO Guide](docs/MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 
 ### Manual Workflow Example
 
@@ -87,6 +89,15 @@ uv run python scripts/mla.py preprocess --project <competition-slug> --preproces
 **4. Train a Model:**
 ```bash
 uv run python scripts/mla.py model --project <competition-slug> --model-template <template-name>
+```
+
+**5. Train with Hyperparameter Optimization (HPO):**
+```bash
+# Quick HPO (50 trials, 1-2h)
+uv run python scripts/mla.py model --project <competition-slug> --model-template test_hpo_medium
+
+# Advanced HPO (100 trials, 4-6h)
+uv run python scripts/mla.py model --project <competition-slug> --model-template test_hpo_high
 ```
 
 ### Common Flags

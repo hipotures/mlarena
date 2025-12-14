@@ -225,6 +225,62 @@ tabicl-full:
 
 **Usage**: Full TabICL training with multiple normalization methods on GPU.
 
+#### 6. Hyperparameter Optimization (HPO) Template
+
+```yaml
+test_hpo_medium:
+  model: autogluon_baseline
+  hpo_preset: hpo_boost_medium  # 50 trials, conservative ranges
+  config:
+    preset: best
+    time_limit: 3600
+    use_gpu: false
+    included_model_types: [GBM, XGB, CAT]
+
+    # Optional: Override preset defaults
+    # num_trials: 150      # Override medium default (50)
+    # searcher: bayesian   # Override auto
+```
+
+**Usage**: AutoGluon native HPO with 50 trials on boost models (GBM, XGB, CAT).
+
+**Available HPO presets**:
+- `hpo_boost_medium` - 50 trials, conservative ranges (1-2h)
+- `hpo_boost_high` - 100 trials, broader ranges (4-6h)
+- `hpo_boost_best` - 200 trials, exhaustive ranges (8-12h)
+
+**How HPO works**:
+1. Template specifies `hpo_preset` which references a preset file
+2. Preset defines `num_trials`, `scheduler`, `searcher` and search spaces
+3. Search spaces use YAML notation: `[min, max, log]` → `space.Real(min, max, log=True)`
+4. Template can override any preset defaults
+5. Only boost models (GBM, XGB, CAT) use custom search spaces
+6. Other models use AutoGluon defaults
+
+**HPO preset files**:
+- Global: `src/mlarena/templates/model/hpo/*.yaml`
+- Project: `projects/{comp}/templates/model/hpo/*.yaml` (overrides global)
+
+**Example preset** (`hpo_boost_medium.yaml`):
+```yaml
+hpo:
+  num_trials: 50
+  scheduler: local
+  searcher: auto
+
+search_space:
+  GBM:
+    learning_rate: [0.01, 0.3, log]
+    num_leaves: [20, 150]
+    lambda_l1: [1e-5, 10.0, log]
+  XGB:
+    learning_rate: [0.01, 0.3, log]
+    max_depth: [3, 8]
+  CAT:
+    learning_rate: [0.01, 0.3, log]
+    depth: [4, 8]
+```
+
 ### Common Use Cases
 
 #### Quick Iteration

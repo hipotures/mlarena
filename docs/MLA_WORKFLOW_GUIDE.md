@@ -326,6 +326,77 @@ uv run python scripts/mla.py model --project titanic --experiment-id eda --model
 uv run python scripts/submissions_tracker.py --project titanic list
 ```
 
+### Hyperparameter Optimization (HPO)
+
+Run AutoGluon native hyperparameter tuning with presets:
+
+```bash
+# Quick HPO test (50 trials, ~1-2h)
+uv run python scripts/mla.py model \
+  --project titanic \
+  --model-template test_hpo_medium
+
+# Serious tuning (100 trials, ~4-6h)
+uv run python scripts/mla.py model \
+  --project titanic \
+  --model-template test_hpo_high
+
+# Final push (200 trials, ~8-12h)
+uv run python scripts/mla.py model \
+  --project titanic \
+  --model-template test_hpo_best
+```
+
+**Available HPO presets:**
+- `hpo_boost_medium` - 50 trials, conservative search spaces
+- `hpo_boost_high` - 100 trials, broader search spaces
+- `hpo_boost_best` - 200 trials, exhaustive search spaces
+
+**Create custom HPO template:**
+
+```yaml
+# projects/kaggle/titanic/templates/model/my_hpo.yaml
+model: autogluon_baseline
+hpo_preset: hpo_boost_high
+config:
+  preset: best
+  time_limit: 7200
+  use_gpu: false
+  included_model_types: [GBM, XGB, CAT]
+
+  # Override preset defaults
+  num_trials: 150      # Increase from 100
+  searcher: bayesian   # Change from auto
+```
+
+**What you'll see:**
+
+```
+HPO Preset: hpo_boost_medium
+
+HPO Configuration:
+  Preset: hpo_boost_medium
+  Trials: 50
+  Scheduler: local
+  Searcher: auto
+  Models: ['GBM', 'XGB', 'CAT']
+
+[AutoGluon HPO] Enabled with 50 trials
+[AutoGluon HPO] Search spaces defined for: ['GBM', 'XGB', 'CAT']
+[AutoGluon HPO]   GBM: 8 parameters
+[AutoGluon HPO]   XGB: 8 parameters
+[AutoGluon HPO]   CAT: 5 parameters
+
+Fitted model: LightGBM/T1 ...
+Fitted model: LightGBM/T2 ...
+...
+```
+
+**Expected improvements:**
+- Medium preset: +0.5-1% over baseline
+- High preset: +1-2% over baseline
+- Best preset: +2-3% over baseline (diminishing returns)
+
 ---
 
 ## Verification Steps

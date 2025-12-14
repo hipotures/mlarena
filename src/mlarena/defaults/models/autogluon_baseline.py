@@ -155,6 +155,7 @@ def train(
         "presets": preset,
         "time_limit": time_limit,
         "num_gpus": 1 if use_gpu else 0,
+        "weight_evaluation": True,  # Report weighted metrics when sample_weight is used
     }
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models

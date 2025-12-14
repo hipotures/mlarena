@@ -172,7 +172,11 @@ class SubmitModule(BaseModule):
 
         config = self.context.config_module or load_project_config(self.context.project_root)
         competition = getattr(config, "COMPETITION_NAME", self.context.project_name)
-        feature_count = _compute_feature_count(config)
+
+        # Get feature_count from predict payload (real processed data), fallback to original train.csv
+        feature_count = predict_payload.payload.get("feature_count") if predict_payload.payload else None  # type: ignore
+        if feature_count is None:
+            feature_count = _compute_feature_count(config)
 
         user_message = self.invocation_params.get("message")
         model_payload = self.context.state.modules.get("model")

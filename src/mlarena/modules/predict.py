@@ -81,6 +81,9 @@ class PredictModule(BaseModule):
         if id_col and id_col in test_df.columns:
             test_df = test_df.drop(columns=[id_col])
 
+        # Count features after preprocessing and ID removal
+        feature_count = len(test_df.columns)
+
         submit_probas = bool(getattr(config, "SUBMISSION_PROBAS", False))
         if submit_probas and predictor.problem_type != "regression":
             preds = predictor.predict_proba(test_df, as_multiclass=False)
@@ -125,6 +128,7 @@ class PredictModule(BaseModule):
             payload={
                 "predictions": str(submission_path),
                 "submission_file": str(submission_path),
+                "feature_count": feature_count,
             },
             artifacts=[submission_path],
         )

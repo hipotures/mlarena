@@ -66,7 +66,7 @@ def validate_paths(source: Path, dest: Path, dry_run: bool = False):
         sys.exit(1)
 
 
-def build_rsync_command(source: Path, dest: Path, dry_run: bool = False) -> list:
+def build_rsync_command(source: Path, dest: Path, dry_run: bool = False, projects: list = None) -> list:
     """
     Buduje komendę rsync z odpowiednimi flagami.
 
@@ -74,6 +74,7 @@ def build_rsync_command(source: Path, dest: Path, dry_run: bool = False) -> list
         source: Ścieżka źródłowa
         dest: Ścieżka docelowa
         dry_run: Czy dodać flagę --dry-run
+        projects: Lista nazw projektów do synchronizacji (None = wszystkie)
 
     Returns:
         Lista argumentów do subprocess
@@ -83,27 +84,60 @@ def build_rsync_command(source: Path, dest: Path, dry_run: bool = False) -> list
         "-avh",  # archive, verbose, human-readable
         "--progress",
         "--stats",
+        "--prune-empty-dirs",  # Nie kopiuj pustych katalogów
     ]
 
     # Dry run
     if dry_run:
         cmd.append("--dry-run")
 
-    # Wykluczenia - artefakty i cache
+    # Jeśli podano listę projektów, ustaw include/exclude dla projektów NAJPIERW
+    # (rsync przetwarza reguły w kolejności, więc include musi być przed exclude)
+    if projects:
+        # Include katalogów nadrzędnych
+        cmd.extend(["--include", "projects/"])
+        cmd.extend(["--include", "projects/kaggle/"])
+        # Include wybranych projektów
+        for project in projects:
+            cmd.extend(["--include", f"projects/kaggle/{project}/"])
+            cmd.extend(["--include", f"projects/kaggle/{project}/**"])
+        # Wyklucz wszystkie pozostałe projekty
+        cmd.extend(["--exclude", "projects/kaggle/*"])
+
+    # WYKLUCZENIA ARTEFAKTÓW
+    # Strategia: wyklucz katalogi AutoGluon tylko wewnątrz artifacts/
+
+    # Wyklucz katalogi AutoGluon wewnątrz artifacts/ (używamy pełnej ścieżki z projects/kaggle/)
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/model/model/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/model/models/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/model/utils/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/model/av_model/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/model/AutogluonModels/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/model/ds_sub_fit/"])
+
+    # To samo dla preprocessing
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/preprocess/av_model/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/artifacts/preprocess/model/"])
+
+    # Dla chainowanych preprocessingów (0-*, 1-*, etc.)
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/[0-9]*-*/artifacts/model/model/"])
+    cmd.extend(["--exclude", "projects/kaggle/*/experiments/*/[0-9]*-*/artifacts/preprocess/av_model/"])
+
+    # Pozostałe wykluczenia
     excludes = [
         ".git/",
         ".venv/",
         "venv/",
         "__pycache__/",
         "*.pyc",
-        "**/AutogluonModels/",
+        "**/*.pkl",  # Wszystkie pliki .pkl
         "**/*.lock",
         "**/state.lock",
         "*.egg-info/",
         ".pytest_cache/",
         ".mypy_cache/",
         ".ruff_cache/",
-        "*.pkl",  # Dodatkowe pickle files poza AutogluonModels
+        "**/logs/",
     ]
 
     for exclude in excludes:
@@ -151,7 +185,7 @@ def parse_rsync_stats(output: str) -> dict:
     return stats
 
 
-def display_sync_summary(source: Path, dest: Path, dry_run: bool = False):
+def display_sync_summary(source: Path, dest: Path, dry_run: bool = False, projects: list = None):
     """Wyświetla podsumowanie przed synchronizacją."""
     console.print()
     title = "[bold cyan]DRY RUN[/bold cyan] - Synchronizacja" if dry_run else "[bold green]Synchronizacja[/bold green]"
@@ -164,6 +198,12 @@ def display_sync_summary(source: Path, dest: Path, dry_run: bool = False):
 
     table.add_row("Źródło:", str(source))
     table.add_row("Cel:", str(dest))
+
+    if projects:
+        projects_str = ", ".join(projects)
+        table.add_row("Projekty:", f"[yellow]{projects_str}[/yellow] (tylko te)")
+    else:
+        table.add_row("Projekty:", "[green]wszystkie[/green]")
 
     console.print(table)
     console.print()
@@ -178,10 +218,14 @@ def display_sync_summary(source: Path, dest: Path, dry_run: bool = False):
     ]
     for excl in excludes_display:
         console.print(f"  [dim]- {excl}[/dim]")
+
+    if projects:
+        console.print(f"  [dim]- projects/kaggle/* (oprócz wybranych: {', '.join(projects)})[/dim]")
+
     console.print()
 
 
-def run_rsync(source: Path, dest: Path, dry_run: bool = False):
+def run_rsync(source: Path, dest: Path, dry_run: bool = False, projects: list = None):
     """
     Uruchamia rsync i wyświetla wyniki.
 
@@ -189,12 +233,13 @@ def run_rsync(source: Path, dest: Path, dry_run: bool = False):
         source: Ścieżka źródłowa
         dest: Ścieżka docelowa
         dry_run: Czy uruchomić w trybie dry-run
+        projects: Lista nazw projektów do synchronizacji (None = wszystkie)
     """
     # Wyświetl podsumowanie
-    display_sync_summary(source, dest, dry_run)
+    display_sync_summary(source, dest, dry_run, projects)
 
     # Zbuduj komendę
-    cmd = build_rsync_command(source, dest, dry_run)
+    cmd = build_rsync_command(source, dest, dry_run, projects)
 
     # Info o komendzie (dla debugowania)
     if dry_run:
@@ -256,6 +301,12 @@ Przykłady użycia:
     projects/kaggle \\
     /mnt/backup/kaggle
 
+  # Synchronizuj cały kod + tylko wybrane projekty
+  python scripts/sync.py \\
+    /home/xai/ml/kaggle \\
+    /mnt/mlarena \\
+    --projects Titanic,playground-series-s5e12
+
 Co jest kopiowane:
   - code/ (cały kod projektu)
   - templates/ (templaty)
@@ -293,7 +344,18 @@ Co jest POMIJANE:
         help="Pokaż co zostanie zsynchronizowane bez wykonywania kopiowania"
     )
 
+    parser.add_argument(
+        "--projects",
+        type=str,
+        help="Lista projektów do synchronizacji (oddzielone przecinkami), np: Titanic,playground-s5e12. Pomija wszystkie pozostałe projekty."
+    )
+
     args = parser.parse_args()
+
+    # Parse projects list
+    projects_list = None
+    if args.projects:
+        projects_list = [p.strip() for p in args.projects.split(",")]
 
     # Sprawdź czy rsync jest dostępny
     if not check_rsync_available():
@@ -313,7 +375,7 @@ Co jest POMIJANE:
     validate_paths(source, dest, args.dry_run)
 
     # Uruchom synchronizację
-    run_rsync(source, dest, args.dry_run)
+    run_rsync(source, dest, args.dry_run, projects_list)
 
 
 if __name__ == "__main__":

@@ -155,13 +155,43 @@ def train(
         "presets": preset,
         "time_limit": time_limit,
         "num_gpus": 1 if use_gpu else 0,
-        "weight_evaluation": True,  # Report weighted metrics when sample_weight is used
     }
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
     included_models = getattr(config.hyperparameters, "included_model_types", None)
     if included_models:
         fit_kwargs["included_model_types"] = included_models
+
+    # NEW: Add HPO support
+    hpo_tune_kwargs = getattr(config.hyperparameters, "hyperparameter_tune_kwargs", None)
+    search_space_dict = getattr(config.hyperparameters, "search_space", None)
+
+    if hpo_tune_kwargs:
+        # Enable HPO
+        fit_kwargs["hyperparameter_tune_kwargs"] = hpo_tune_kwargs
+        print(f"[AutoGluon HPO] Enabled with {hpo_tune_kwargs['num_trials']} trials")
+        print(f"[AutoGluon HPO] Scheduler: {hpo_tune_kwargs['scheduler']}, Searcher: {hpo_tune_kwargs['searcher']}")
+
+    if search_space_dict:
+        # Convert YAML search space to autogluon.common.space objects
+        from mlarena.utils.hpo_space import parse_search_space
+
+        converted_space = parse_search_space(search_space_dict)
+
+        # Only apply search spaces for included models (if specified)
+        if included_models:
+            filtered_space = {
+                model: params for model, params in converted_space.items() if model in included_models
+            }
+            converted_space = filtered_space
+
+        # Set hyperparameters with search spaces
+        fit_kwargs["hyperparameters"] = converted_space
+
+        print(f"[AutoGluon HPO] Search spaces defined for: {list(converted_space.keys())}")
+        for model_type in converted_space:
+            print(f"[AutoGluon HPO]   {model_type}: {len(converted_space[model_type])} parameters")
+
     # Forward any model-specific hyperparameters (e.g., NN_TORCH, FASTAI) to AutoGluon.
     hyper_dict = config.hyperparameters.model_dump(exclude_none=True)
     known_keys = {
@@ -171,10 +201,23 @@ def train(
         "excluded_models",
         "included_model_types",
         "preset",
+        "hyperparameter_tune_kwargs",  # NEW
+        "search_space",  # NEW
     }
     model_hparams = {k: v for k, v in hyper_dict.items() if k not in known_keys}
+
+    # Merge model-specific hyperparameters with search spaces
     if model_hparams:
-        fit_kwargs["hyperparameters"] = model_hparams
+        if "hyperparameters" in fit_kwargs:
+            # Deep merge: model_hparams can add non-HPO models or static params
+            existing = fit_kwargs["hyperparameters"]
+            for model_type, params in model_hparams.items():
+                if model_type not in existing:
+                    existing[model_type] = params
+                elif isinstance(existing[model_type], dict) and isinstance(params, dict):
+                    existing[model_type].update(params)
+        else:
+            fit_kwargs["hyperparameters"] = model_hparams
 
     predictor.fit(train_data, **fit_kwargs)
 

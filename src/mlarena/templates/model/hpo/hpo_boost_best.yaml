@@ -1,0 +1,43 @@
+# AutoGluon HPO Preset: Best
+# Target: Final push for top leaderboard (8-12 hours total)
+# Usage: hpo_preset: hpo_boost_best
+
+hpo:
+  num_trials: 200
+  scheduler: local
+  searcher: auto
+
+search_space:
+  GBM:
+    learning_rate: [0.001, 0.5, log]
+    num_leaves: [10, 512]
+    min_data_in_leaf: [1, 200]
+    feature_fraction: [0.4, 1.0]
+    bagging_fraction: [0.4, 1.0]
+    bagging_freq: [1, 15]
+    lambda_l1: [1e-10, 1000.0, log]
+    lambda_l2: [1e-10, 1000.0, log]
+    min_gain_to_split: [0.0, 10.0]
+    max_depth: [3, 15]
+
+  XGB:
+    learning_rate: [0.001, 0.5, log]
+    max_depth: [2, 12]
+    min_child_weight: [1, 15]
+    subsample: [0.4, 1.0]
+    colsample_bytree: [0.4, 1.0]
+    colsample_bylevel: [0.4, 1.0]
+    colsample_bynode: [0.4, 1.0]
+    gamma: [0.0, 10.0]
+    reg_alpha: [1e-10, 1000.0, log]
+    reg_lambda: [1e-10, 1000.0, log]
+    max_delta_step: [0, 10]
+    scale_pos_weight: [0.5, 2.0]
+
+  CAT:
+    learning_rate: [0.001, 0.5, log]
+    depth: [3, 12]
+    l2_leaf_reg: [0.1, 50.0]
+    border_count: [32, 512]
+    bagging_temperature: [0.0, 2.0]
+    random_strength: [0.0, 10.0]

@@ -82,6 +82,10 @@ class Hyperparameters(ExtraModel):
     # NEW: Optuna preset reference
     preset: Optional[str] = None  # References configs/presets/{preset}.yaml
 
+    # NEW: AutoGluon native HPO support
+    hyperparameter_tune_kwargs: Optional[Dict[str, Any]] = None  # HPO config (num_trials, scheduler, searcher)
+    search_space: Optional[Dict[str, Dict[str, Any]]] = None    # Per-model search spaces
+
 
 class ModelConfig(ExtraModel):
     """

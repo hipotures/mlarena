@@ -1,0 +1,38 @@
+# AutoGluon HPO Preset: High
+# Target: Serious tuning for competition submissions (4-6 hours total)
+# Usage: hpo_preset: hpo_boost_high
+
+hpo:
+  num_trials: 100
+  scheduler: local
+  searcher: auto
+
+search_space:
+  GBM:
+    learning_rate: [0.005, 0.4, log]
+    num_leaves: [15, 255]
+    min_data_in_leaf: [5, 100]
+    feature_fraction: [0.5, 1.0]
+    bagging_fraction: [0.5, 1.0]
+    bagging_freq: [1, 10]
+    lambda_l1: [1e-8, 100.0, log]
+    lambda_l2: [1e-8, 100.0, log]
+    min_gain_to_split: [0.0, 5.0]
+
+  XGB:
+    learning_rate: [0.005, 0.4, log]
+    max_depth: [3, 10]
+    min_child_weight: [1, 10]
+    subsample: [0.5, 1.0]
+    colsample_bytree: [0.5, 1.0]
+    gamma: [0.0, 5.0]
+    reg_alpha: [1e-8, 100.0, log]
+    reg_lambda: [1e-8, 100.0, log]
+
+  CAT:
+    learning_rate: [0.005, 0.4, log]
+    depth: [4, 10]
+    l2_leaf_reg: [0.5, 15.0]
+    border_count: [32, 255]
+    bagging_temperature: [0.0, 1.5]
+    random_strength: [0.0, 5.0]

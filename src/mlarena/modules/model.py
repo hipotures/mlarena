@@ -294,6 +294,69 @@ class ModelModule(BaseModule):
         if "included_model_types" in template_cfg:
             hyperparams_dict["included_model_types"] = template_cfg["included_model_types"]
 
+        # NEW: Load HPO preset if specified
+        hpo_preset_name = template_cfg.get("hpo_preset")
+        if hpo_preset_name:
+            from pathlib import Path
+            import yaml
+            from rich.console import Console
+
+            console = Console()
+            repo_root = Path(__file__).resolve().parents[3]
+
+            # Try global preset first
+            hpo_preset_path = repo_root / "src" / "mlarena" / "templates" / "model" / "hpo" / f"{hpo_preset_name}.yaml"
+
+            # Check project-local override
+            if not hpo_preset_path.exists():
+                project_hpo_path = self.context.project_root / "templates" / "model" / "hpo" / f"{hpo_preset_name}.yaml"
+                if project_hpo_path.exists():
+                    hpo_preset_path = project_hpo_path
+                else:
+                    raise FileNotFoundError(
+                        f"HPO preset '{hpo_preset_name}' not found. "
+                        f"Checked: {hpo_preset_path} and {project_hpo_path}"
+                    )
+
+            # Load preset YAML
+            hpo_preset_data = yaml.safe_load(hpo_preset_path.read_text()) or {}
+
+            # Extract HPO config defaults
+            hpo_config = hpo_preset_data.get("hpo", {})
+            hpo_tune_kwargs = {
+                "num_trials": hpo_config.get("num_trials", 50),
+                "scheduler": hpo_config.get("scheduler", "local"),
+                "searcher": hpo_config.get("searcher", "auto"),
+            }
+
+            # Extract search space
+            hpo_search_space = hpo_preset_data.get("search_space", {})
+
+            # Allow template to override HPO defaults
+            if "num_trials" in template_cfg:
+                hpo_tune_kwargs["num_trials"] = template_cfg["num_trials"]
+            if "scheduler" in template_cfg:
+                hpo_tune_kwargs["scheduler"] = template_cfg["scheduler"]
+            if "searcher" in template_cfg:
+                hpo_tune_kwargs["searcher"] = template_cfg["searcher"]
+
+            # Allow template to extend/override search space
+            if "search_space" in template_cfg:
+                template_space = template_cfg["search_space"]
+                for model_type, params in template_space.items():
+                    if model_type not in hpo_search_space:
+                        hpo_search_space[model_type] = {}
+                    hpo_search_space[model_type].update(params)
+
+            # Add to hyperparams_dict
+            hyperparams_dict["hyperparameter_tune_kwargs"] = hpo_tune_kwargs
+            hyperparams_dict["search_space"] = hpo_search_space
+
+            console.print(f"[cyan]Using HPO preset: {hpo_preset_name}[/cyan]")
+            console.print(f"[dim]  num_trials: {hpo_tune_kwargs['num_trials']}[/dim]")
+            console.print(f"[dim]  scheduler: {hpo_tune_kwargs['scheduler']}[/dim]")
+            console.print(f"[dim]  searcher: {hpo_tune_kwargs['searcher']}[/dim]")
+
         # Add model-specific hyperparameters (e.g., NN_TORCH, GBM configs)
         hyperparams_dict.update(template_cfg.get("hyperparameters", {}))
 

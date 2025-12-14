@@ -167,16 +167,16 @@ def fit_transform(
     # 4. Dynamically import av_classifier model (stable path resolution)
     # Use Path(__file__).resolve() to get absolute path of this file
     current_file = Path(__file__).resolve()
-    # This file is in: config/code/preprocessing/adversarial_validation.py
-    # Navigate up to repo root: preprocessing -> code -> config -> repo_root
-    repo_root = current_file.parents[3]
+    # This file is in: src/mlarena/defaults/preprocessing/adversarial_validation.py
+    # Navigate up to repo root: preprocessing -> defaults -> mlarena -> src -> repo_root
+    repo_root = current_file.parents[4]
 
     # Resolve av_classifier model path (check project-local first, then global)
     # Note: This follows same pattern as src/mlarena/modules/model.py:_resolve_model_path
     model_name = "av_classifier"
     project_models_dir = artifact_dir.parents[3] / "code" / "models"  # From artifacts back to project
     project_model_path = project_models_dir / f"{model_name}.py"
-    global_model_path = repo_root / "config" / "code" / "models" / f"{model_name}.py"
+    global_model_path = repo_root / "src" / "mlarena" / "defaults" / "models" / f"{model_name}.py"
 
     # Use global model by default (project-local would take precedence if exists)
     if project_model_path.exists():

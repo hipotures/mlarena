@@ -583,12 +583,12 @@ class ModelModule(BaseModule):
 
         local_cv = training_summary.get("local_cv")
 
-        # Save leaderboard if model has it
+        # Save leaderboard if returned by train() (extract before JSON serialization)
         lb_path = None
-        if hasattr(predictor, "leaderboard"):
+        leaderboard = training_summary.pop("leaderboard", None)  # Remove from dict to avoid JSON error
+        if leaderboard is not None:
             try:
                 lb_path = artifact_dir / "leaderboard.csv"
-                leaderboard = predictor.leaderboard(silent=True)
                 leaderboard.to_csv(lb_path, index=False)
             except Exception:
                 pass

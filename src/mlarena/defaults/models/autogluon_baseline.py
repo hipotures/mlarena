@@ -268,13 +268,18 @@ def train(
 
     predictor.fit(train_data, **fit_kwargs)
 
-    # Get best model score
-    leaderboard = predictor.leaderboard(train_data, silent=True)
-    best_score = leaderboard["score_val"].iloc[0] if not leaderboard.empty and "score_val" in leaderboard else None
+    # Get best model info
+    best_model_name = predictor.model_best
+    best_score = predictor.model_info(best_model_name).get("val_score")
+
+    # Get leaderboard for saving to file (called once here, not in model.py)
+    leaderboard = predictor.leaderboard(silent=True)
 
     # Build training summary
     training_summary = {
         "local_cv": float(best_score) if best_score is not None else None,
+        "best_model": best_model_name,
+        "leaderboard": leaderboard,
         "model_path": str(config.system.model_path),
         "used_orig": orig_df is not None,
         "orig_rows": merged_rows,

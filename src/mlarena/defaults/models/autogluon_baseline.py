@@ -107,6 +107,10 @@ def train(
 
     # Check for config override (sample_weight_strategy: 'auto_weight', 'balance_weight', or custom column)
     sample_weight_strategy = config.dataset.sample_weight_strategy
+    print(f"[DEBUG] sample_weight_strategy from config: {sample_weight_strategy}")
+    print(f"[DEBUG] sample_weight from artifacts: {type(sample_weight).__name__ if sample_weight is not None else 'None'}")
+    if sample_weight is not None and hasattr(sample_weight, 'shape'):
+        print(f"[DEBUG] sample_weight shape: {sample_weight.shape}")
 
     if sample_weight_strategy:
         # User explicitly configured sample_weight_strategy in template

@@ -1,12 +1,18 @@
-# T1-B + T6-Fast: XGB only + weight_evaluation=False
-# Fast test for unweighted evaluation (~30min instead of 3h)
+# T1-B + T6-Fast: XGB only + weight_evaluation=False + HPO
+# 1 model → 3h, 150 trials
 
+model: autogluon_baseline
+hpo_preset: hpo_boost_medium
 preprocess_template: top0_te_scale_ext_m
 included_model_types: ["XGB"]
 config:
   preset: best
-  time_limit: 1800  # 30min (faster iteration)
+  time_limit: 10800  # 3h
   use_gpu: false
 
   # Sample weights from preprocessing (top0_av_weights via artifacts)
   weight_evaluation: false  # Use weights for TRAINING only, not evaluation
+
+  # HPO settings: 1 model → 150 trials
+  num_trials: 150
+  searcher: bayes

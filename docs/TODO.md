@@ -51,6 +51,50 @@
 - [ ] Opcjonalny alias `mla list-experiments --project X` jako cienka nakładka na `experiment_logger.py`.
 - [ ] W `admin clean` dodać ochronę przed przypadkowym usuwaniem: pokazanie targetów i prompt.
 
+## Portability / Path Handling
+
+### Issue: Absolute paths in state.json prevent cross-environment execution
+
+**Problem:**
+- Preprocessing modules save **absolute paths** in `state.json` (e.g., `weights_path`, artifact paths)
+- Example: `/home/xai/ml/kaggle/projects/kaggle/.../train_av_weights.csv`
+- When syncing to different environment (e.g., `/home/xai/ml/mlarena/...`), paths break
+- `weights_path.exists() = False` → sample weights not loaded → training fails
+
+**Impact:**
+- Cannot run experiments on synced/copied projects
+- Breaks CI/CD, remote execution, multi-machine workflows
+- Requires manual symlink workarounds
+
+**Solution:**
+- [ ] **Use relative paths in state.json** - Store paths relative to project root
+  - Change preprocessing modules to save: `experiments/pre-{template}/...` instead of absolute
+  - Files affected: `adversarial_validation.py`, `external_dataset.py`, and any module saving artifact paths
+  - Update `model.py` to resolve relative paths: `project_root / relative_path`
+
+**Implementation:**
+1. Modify preprocessing modules to compute relative path:
+   ```python
+   # Instead of:
+   weights_path = str(weights_file.absolute())
+
+   # Use:
+   weights_path = str(weights_file.relative_to(project_root))
+   ```
+
+2. Update `model.py` `_load_from_exp_dir()` to handle both formats (backward compat):
+   ```python
+   if weights_path_str:
+       weights_path = Path(weights_path_str)
+       if not weights_path.is_absolute():
+           weights_path = project_root / weights_path
+       # else: already absolute (legacy)
+   ```
+
+**Priority:** Medium (blocks remote/sync workflows)
+
+**Workaround:** Symlink `/home/xai/ml/kaggle → /home/xai/ml/mlarena`
+
 ## Sample Weight Enhancements (Drift/AV optimization)
 
 Based on AutoGluon best practices for covariate shift and importance weighting. See: [AutoGluon sample_weight docs](https://auto.gluon.ai/stable/api/autogluon.tabular.TabularPredictor.html)

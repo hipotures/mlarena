@@ -294,3 +294,4 @@ uv run python scripts/mla.py -p <project>
 - `docs/MLA_WORKFLOW_GUIDE.md`
 - `docs/configs.md`
 - `README.md`
+- Poprawny test na projekcie Titanic to: uv run python scripts/mla.py -p Titanic (nie musi być --smoke /bo to mało danych/, bez --force, chyba, ze chce się przetestować działanie AI)

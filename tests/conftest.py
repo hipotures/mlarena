@@ -107,9 +107,17 @@ class DummyPredictor:
 @pytest.fixture()
 def mock_autogluon(monkeypatch):
     ag_tabular = SimpleNamespace(TabularPredictor=DummyPredictor)
-    ag = SimpleNamespace(tabular=ag_tabular)
+    space_mod = SimpleNamespace(
+        Real=lambda *a, **k: ("real", a, k),
+        Int=lambda *a, **k: ("int", a, k),
+        Categorical=lambda *a, **k: ("cat", a, k),
+    )
+    ag_common = SimpleNamespace(space=space_mod)
+    ag = SimpleNamespace(tabular=ag_tabular, common=ag_common)
     monkeypatch.setitem(sys.modules, "autogluon", ag)
     monkeypatch.setitem(sys.modules, "autogluon.tabular", ag_tabular)
+    monkeypatch.setitem(sys.modules, "autogluon.common", ag_common)
+    monkeypatch.setitem(sys.modules, "autogluon.common.space", space_mod)
     return DummyPredictor
 
 

@@ -71,3 +71,28 @@ def test_feature_pipeline_feat_and_cv(monkeypatch, tmp_path):
     loaded = FeaturePipeline.load(save_dir, cfg)
     assert len(loaded.cv_stage_transformers) == 1
     assert isinstance(loaded.feat_stage_transformers[0], AddConstant)
+
+
+def test_feature_pipeline_handles_empty_and_all_aggregation(monkeypatch):
+    from kaggle_tools.preprocessing import feat_stage, cv_stage
+
+    monkeypatch.setattr(feat_stage, "AddConstant", AddConstant, raising=False)
+    monkeypatch.setattr(cv_stage, "AddConstant", AddConstant, raising=False)
+
+    cfg = PreprocessingConfig(
+        feat_stage={"enabled": True, "transformers": ["AddConstant"]},
+        cv_stage={"enabled": True, "transformers": ["AddConstant"]},
+    )
+    pipeline = FeaturePipeline(cfg)
+
+    empty = pd.DataFrame(columns=["a"])
+    pipeline.fit_feat_stage(empty)
+    out = pipeline.transform_feat_stage(empty)
+    assert "const" in out.columns
+
+    # Multiple folds to exercise aggregation="all"
+    pipeline.fit_transform_cv_stage(pd.DataFrame({"a": [1]}), pd.DataFrame({"a": [1]}), fold_id=0)
+    pipeline.fit_transform_cv_stage(pd.DataFrame({"a": [2]}), pd.DataFrame({"a": [2]}), fold_id=1)
+    all_versions = pipeline.transform_cv_stage_inference(pd.DataFrame({"a": [3]}), aggregation="all")
+    assert isinstance(all_versions, list)
+    assert len(all_versions) == 2

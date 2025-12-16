@@ -30,10 +30,14 @@ class DummyModel:
 
 def test_meta_learner_fit_predict(monkeypatch):
     # Stub cross_val_score to avoid sklearn CV constraints
-    monkeypatch.setattr(
-        "kaggle_tools.stacking.meta_learner.cross_val_score",
-        lambda model, X, y, cv, scoring: np.array([0.8, 0.85]),
-    )
+    calls = {}
+
+    def fake_cv(model, X, y, cv, scoring):
+        calls["cv"] = cv
+        calls["shape"] = X.shape
+        return np.array([0.8, 0.85])
+
+    monkeypatch.setattr("kaggle_tools.stacking.meta_learner.cross_val_score", fake_cv)
 
     oof1 = pd.DataFrame({"m1": [0.1, 0.9, 0.4, 0.6]})
     oof2 = pd.DataFrame({"m2": [0.2, 0.8, 0.3, 0.7]})
@@ -41,6 +45,8 @@ def test_meta_learner_fit_predict(monkeypatch):
 
     meta = MetaLearner(meta_model_class=DummyModel, meta_model_params={"alpha": 1})
     meta.fit([oof1, oof2], y)
+    assert calls["cv"] == 5
+    assert calls["shape"] == (4, 2)
 
     test_preds = meta.predict([pd.DataFrame({"m1": [0.5]}), pd.DataFrame({"m2": [0.5]})])
     assert len(test_preds) == 1

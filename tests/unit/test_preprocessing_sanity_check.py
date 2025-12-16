@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -45,3 +46,23 @@ def test_sanity_check_reserved_columns_raise(tmp_path):
     cfg = _base_config(tmp_path)
     with pytest.raises(RuntimeError):
         sanity_check.fit_transform(train_df=train, val_df=None, test_df=test, config=cfg, orig_df=None)
+
+
+def test_sanity_check_infinite_and_duplicates(tmp_path):
+    train = pd.DataFrame(
+        {
+            "id": [1, 1, 2],
+            "target": [0, 0, 1],
+            "num": [1.0, 1.0, float("inf")],
+        }
+    )
+    test = pd.DataFrame({"id": [3, 3], "num": [float("-inf"), 5.0]})
+    cfg = _base_config(tmp_path)
+    out_train, _, out_test, _, state = sanity_check.fit_transform(
+        train_df=train, val_df=None, test_df=test, config=cfg, orig_df=None
+    )
+
+    # Infinite replaced (column dropped due to low uniqueness after inf->NaN)
+    assert "num" not in out_train.columns
+    assert state["issues_found"]["duplicate_rows_train"] >= 1 or state.get("duplicates_removed_train", 0) >= 1
+    assert state["issues_found"]["infinite_values"]

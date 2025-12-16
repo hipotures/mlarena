@@ -1,4 +1,7 @@
-"""Score fetching module."""
+"""Score fetching module.
+
+Uses Kaggle CLI to retrieve the latest public leaderboard score.
+"""
 
 from __future__ import annotations
 
@@ -14,12 +17,20 @@ from mlarena.utils.project import load_project_config
 
 @ModuleRegistry.register
 class FetchScoreModule(BaseModule):
+    """Fetch the latest public leaderboard score for a submission."""
+
     name = "fetch-score"
     description = "Fetch public leaderboard score"
     dependencies = {"submit"}
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
+        """
+        Register CLI arguments for score fetching.
+
+        Args:
+            parser: Argparse parser for the ``fetch-score`` subcommand.
+        """
         parser.add_argument("--score-placeholder", type=float, default=None, help="Optional score value to store.")
 
     def _fetch_latest_submission(self, competition: str) -> Optional[dict]:
@@ -36,6 +47,12 @@ class FetchScoreModule(BaseModule):
         return rows[0] if rows else None
 
     def execute(self) -> ModuleResult:
+        """
+        Fetch the most recent submission score from Kaggle.
+
+        Returns:
+            ModuleResult containing the public score and submission metadata.
+        """
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
 

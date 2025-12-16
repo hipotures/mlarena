@@ -1,4 +1,7 @@
-"""Data preprocessing module."""
+"""Data preprocessing module.
+
+Executes a single preprocessing step defined by a template, supports chains, caching, and custom modules.
+"""
 
 from __future__ import annotations
 
@@ -19,11 +22,19 @@ from mlarena.utils.project import data_paths, load_project_config
 
 @ModuleRegistry.register
 class PreprocessModule(BaseModule):
+    """Apply preprocessing defined by a template (supports chaining)."""
+
     name = "preprocess"
     description = "Data preprocessing"
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
+        """
+        Register CLI arguments for preprocessing.
+
+        Args:
+            parser: Argparse parser for the ``preprocess`` subcommand.
+        """
         parser.add_argument("--preprocess-template", type=str, required=True, help="Name of preprocessing template (required to avoid mistakes).")
         parser.add_argument("--cache", action="store_true", help="Reuse existing processed files if present.")
         # Add convenience flags for consistency (preprocess doesn't use them, but prevents arg parsing errors)
@@ -33,7 +44,12 @@ class PreprocessModule(BaseModule):
                            help="Smoke test mode (not used by preprocess)")
 
     def can_run(self) -> tuple[bool, str]:
-        """Validate that template exists before running."""
+        """
+        Validate that the referenced template exists before execution.
+
+        Returns:
+            Tuple of (is_valid, message) where ``is_valid`` is False when validation fails.
+        """
         template_name = self.invocation_params.get("preprocess_template")
         if not template_name:
             return False, "Missing --preprocess-template argument"
@@ -142,6 +158,16 @@ class PreprocessModule(BaseModule):
         return module
 
     def execute(self) -> ModuleResult:
+        """
+        Execute preprocessing for the provided template.
+
+        Returns:
+            ModuleResult capturing processed file locations and shape metadata.
+
+        Raises:
+            FileNotFoundError: When input data or referenced modules are missing.
+            RuntimeError: When a custom preprocessing module fails to import or run.
+        """
         import pandas as pd
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)

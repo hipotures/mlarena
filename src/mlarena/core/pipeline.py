@@ -18,11 +18,28 @@ from pathlib import Path
 
 
 class PipelineExecutor:
+    """Resolve dependencies and run MLArena modules with consistent UX output."""
+
     def __init__(self, modules: Dict[str, BaseModule]):
+        """
+        Initialize the executor.
+
+        Args:
+            modules: Mapping of module name to instantiated ``BaseModule``.
+        """
         self.modules = modules
 
     def _collect_module_header_data(self, module_name: str, module: BaseModule) -> dict:
-        """Collect template and path data for module header display."""
+        """
+        Collect template, invocation overrides, and IO path metadata for header display.
+
+        Args:
+            module_name: Name of the module being prepared.
+            module: Instantiated module object.
+
+        Returns:
+            Dictionary with template name/config, CLI overrides, and resolved input/output paths.
+        """
         invocation = getattr(module, "invocation_params", {})
 
         # Get template info
@@ -251,6 +268,19 @@ class PipelineExecutor:
         }
 
     def _resolve_execution_order(self, target_module: str) -> List[str]:
+        """
+        Topologically sort dependencies for a target module.
+
+        Args:
+            target_module: Module to execute.
+
+        Returns:
+            Ordered list of module names where dependencies precede dependents.
+
+        Raises:
+            KeyError: When a referenced dependency is missing.
+            ValueError: On cyclic dependency detection.
+        """
         if target_module not in self.modules:
             raise KeyError(f"Module '{target_module}' is not registered in pipeline.")
 
@@ -279,6 +309,17 @@ class PipelineExecutor:
         return order
 
     def run_module(self, module_name: str, force: bool = False, skip_deps: bool = False) -> Dict[str, ModuleResult]:
+        """
+        Execute a module (and optionally its dependencies) with rich header/footer output.
+
+        Args:
+            module_name: Name of the primary module to run.
+            force: Re-run the target even if previously completed.
+            skip_deps: Skip dependency resolution and run only the target module.
+
+        Returns:
+            Mapping of module name to ``ModuleResult`` for executed steps.
+        """
         results: Dict[str, ModuleResult] = {}
         execution_plan = [module_name] if skip_deps else self._resolve_execution_order(module_name)
 

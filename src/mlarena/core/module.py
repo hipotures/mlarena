@@ -16,7 +16,15 @@ if TYPE_CHECKING:
 
 @dataclass
 class ModuleResult:
-    """Execution result container for modules."""
+    """
+    Execution result container for modules.
+
+    Attributes:
+        success: Whether the module finished successfully.
+        payload: Optional dictionary with module-specific outputs.
+        artifacts: List of produced artifact paths.
+        error: Error message when ``success`` is False.
+    """
 
     success: bool
     payload: Dict[str, Any] = field(default_factory=dict)
@@ -26,7 +34,19 @@ class ModuleResult:
 
 @dataclass
 class ModuleContext:
-    """Context passed to modules during execution."""
+    """
+    Context passed to modules during execution.
+
+    Attributes:
+        project_name: Kaggle project slug.
+        project_root: Project root directory.
+        experiment_id: Current experiment identifier.
+        experiment_dir: Directory where state/artifacts are stored.
+        artifact_dir: Directory dedicated to the module's artifacts.
+        cli_args: Parsed CLI arguments for the module.
+        state: ``ExperimentState`` object associated with this run.
+        config_module: Loaded project configuration module.
+    """
 
     project_name: str
     project_root: Path
@@ -39,12 +59,7 @@ class ModuleContext:
 
 
 class BaseModule(ABC):
-    """
-    Base class for all MLArena modules.
-
-    Subclasses should define `name`, `description`, `dependencies`,
-    and override `execute`.
-    """
+    """Base class for MLArena pipeline modules."""
 
     name: str = ""
     description: str = ""
@@ -56,22 +71,37 @@ class BaseModule(ABC):
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
-        """Hook for argparse registration; optional per module."""
+        """
+        Optional hook for argparse argument registration.
+
+        Args:
+            parser: Argparse parser for the module subcommand.
+        """
 
     def set_invocation_params(self, params: Dict[str, Any]) -> None:
-        """Store invocation parameters for state tracking."""
+        """
+        Store invocation parameters for state tracking and execution.
+
+        Args:
+            params: Dictionary of CLI-provided parameters.
+        """
         self.invocation_params = params or {}
 
     @abstractmethod
     def execute(self) -> ModuleResult:
-        """Execute module logic and return a ModuleResult."""
+        """
+        Execute the module logic.
+
+        Returns:
+            ModuleResult capturing success status, payload, and artifacts.
+        """
 
     def can_run(self) -> Tuple[bool, str]:
         """
         Optional pre-flight validation.
 
         Returns:
-            (ok, reason) where ok=False blocks execution and reason is stored.
+            Tuple of (is_allowed, reason). When ``is_allowed`` is False, the pipeline aborts with ``reason``.
         """
         return True, ""
 
@@ -82,15 +112,19 @@ def suggest_next_steps(
     experiment_id: str,
 ) -> List[str]:
     """
-    Suggest next module(s) to run based on dependency graph.
+    Suggest follow-up CLI invocations based on module dependencies.
 
     Args:
-        current_module: Name of the module that just completed (e.g., "model")
-        project_name: Project name
-        experiment_id: Experiment ID
+        current_module: Recently completed module name (for example ``"model"``).
+        project_name: Kaggle project slug.
+        experiment_id: Experiment identifier to reuse.
 
     Returns:
-        List of command strings to run next modules (formatted with line continuations)
+        List of formatted CLI commands for dependent modules.
+
+    Examples:
+        >>> isinstance(suggest_next_steps("model", "titanic", "exp-123"), list)
+        True
     """
     from mlarena.core.registry import ModuleRegistry
 
@@ -124,13 +158,13 @@ def print_next_steps(
     console: Optional["Console"] = None,
 ) -> None:
     """
-    Print suggested next steps after module completion.
+    Render follow-up command suggestions to the console.
 
     Args:
-        current_module: Name of the module that just completed
-        project_name: Project name
-        experiment_id: Experiment ID
-        console: Optional Rich console instance
+        current_module: Recently completed module name.
+        project_name: Kaggle project slug.
+        experiment_id: Experiment identifier to reuse.
+        console: Optional Rich console instance.
     """
     if console is None:
         from rich.console import Console

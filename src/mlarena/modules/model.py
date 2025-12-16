@@ -276,12 +276,20 @@ def _print_training_summary(
 
 @ModuleRegistry.register
 class ModelModule(BaseModule):
+    """Train a model using a YAML template and optional preprocessing artifacts."""
+
     name = "model"
     description = "Train model"
     dependencies = set()  # No automatic dependencies - preprocessing is optional and loaded by name
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
+        """
+        Register CLI arguments for model training.
+
+        Args:
+            parser: Argparse parser for the ``model`` subcommand.
+        """
         parser.add_argument("--time-limit", type=int, default=None, help="Optional time limit override.")
         parser.add_argument("--preset", type=str, default=None, help="AutoGluon preset override.")
         parser.add_argument("--use-gpu", type=int, choices=[0, 1], default=None, help="Force GPU usage for AutoGluon.")
@@ -416,6 +424,16 @@ class ModelModule(BaseModule):
         )
 
     def execute(self) -> ModuleResult:
+        """
+        Train a model based on the selected template and persist artifacts.
+
+        Returns:
+            ModuleResult containing leaderboard path, submission path, and CV metrics.
+
+        Raises:
+            FileNotFoundError: When preprocessing artifacts are missing.
+            RuntimeError: When template resolution fails.
+        """
         import pandas as pd
         from rich.table import Table
 

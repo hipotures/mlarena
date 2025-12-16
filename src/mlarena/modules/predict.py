@@ -1,4 +1,7 @@
-"""Prediction module."""
+"""Prediction module.
+
+Loads a trained model, generates predictions, and prepares submission files.
+"""
 
 from __future__ import annotations
 
@@ -22,15 +25,29 @@ def _load_predictor(model_artifact: Path):
 
 @ModuleRegistry.register
 class PredictModule(BaseModule):
+    """Generate predictions for test data and write a submission CSV."""
+
     name = "predict"
     description = "Generate predictions"
     dependencies = {"model"}
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
+        """
+        Register CLI arguments for prediction.
+
+        Args:
+            parser: Argparse parser for the ``predict`` subcommand.
+        """
         parser.add_argument("--predict-suffix", type=str, default="", help="Optional suffix for submission filename.")
 
     def execute(self) -> ModuleResult:
+        """
+        Load the model artifact and run inference on (optionally) preprocessed test data.
+
+        Returns:
+            ModuleResult containing submission file path and feature count metadata.
+        """
         import pandas as pd
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)

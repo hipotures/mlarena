@@ -17,7 +17,18 @@ except Exception:  # pragma: no cover - optional dependency
 
 def load_pipeline_def(name: str, project_root: Optional[Path] = None) -> Tuple[Dict[str, Any], List[str]]:
     """
-    Load pipeline definition; returns default when not present.
+    Load a pipeline definition JSON for a given project.
+
+    Args:
+        name: Pipeline name suffix (``pipeline_<name>.json``).
+        project_root: Project root directory.
+
+    Returns:
+        Tuple of (pipeline_definition, warnings).
+
+    Examples:
+        >>> load_pipeline_def("default", Path("."))[0]
+        {'name': 'default', 'modules': []}
     """
     project_root = Path(project_root) if project_root else Path(".")
     path = project_root / "config" / f"pipeline_{name}.json"
@@ -29,15 +40,29 @@ def load_pipeline_def(name: str, project_root: Optional[Path] = None) -> Tuple[D
 
 
 class TemplateLoader:
+    """Utility class that resolves model and preprocess templates."""
+
     def __init__(self, project_root: Path, template_type: str = "model"):
+        """
+        Initialize loader.
+
+        Args:
+            project_root: Project root directory.
+            template_type: ``"model"`` or ``"preprocess"``.
+        """
         self.project_root = Path(project_root)
         self.template_type = template_type
         self._validated = False
 
     def _scan_directory(self, directory: Path) -> Dict[str, Path]:
         """
-        Scan directory for *.yaml files, return {name: path}.
-        Template name is derived from filename (without .yaml extension).
+        Scan a directory for ``*.yaml`` templates.
+
+        Args:
+            directory: Directory to scan.
+
+        Returns:
+            Mapping of template name to file path.
         """
         if not directory.exists():
             return {}
@@ -49,7 +74,16 @@ class TemplateLoader:
         return templates
 
     def _validate_case_insensitive(self, templates: Dict[str, Path], source: str) -> None:
-        """Validate no case-insensitive duplicates in template names."""
+        """
+        Ensure template names are unique in a case-insensitive comparison.
+
+        Args:
+            templates: Mapping of template names to file paths.
+            source: Human-readable source label for error reporting.
+
+        Raises:
+            ValueError: When duplicates are detected.
+        """
         seen = {}
         for name, path in templates.items():
             name_lower = name.lower()
@@ -62,16 +96,18 @@ class TemplateLoader:
             seen[name_lower] = path
 
     def _validate_global_uniqueness(self) -> None:
-        """
-        Validate global name uniqueness across model and preprocess types.
-        Note: This is now a no-op - we allow same names in different types.
-        """
+        """Validate name uniqueness across template types (currently a no-op)."""
         # Allow same template names in model/ and preprocess/
         # They are distinguished by context (type)
         self._validated = True
 
     def list_available(self) -> List[str]:
-        """List available templates from global and project-local directories."""
+        """
+        List available templates from global and project-local directories.
+
+        Returns:
+            Sorted list of template names (project overrides included).
+        """
         if yaml is None:
             return []
 
@@ -113,10 +149,11 @@ class TemplateLoader:
         return sorted(templates.keys())
 
     def list_available_with_source(self) -> List[Dict[str, str]]:
-        """List templates with source information (global/local/conflict).
+        """
+        List templates along with their source.
 
         Returns:
-            List of dicts with keys: name, source ('global', 'local', 'conflict')
+            List of dictionaries with keys: ``name`` and ``source`` (``global``, ``local``, or ``conflict``).
         """
         if yaml is None:
             return []
@@ -167,9 +204,13 @@ class TemplateLoader:
 
     def load(self, template_name: str) -> Dict[str, Any]:
         """
-        Load template from global or project-local directory.
-        Project-local templates override global ones.
-        Returns empty dict when not found to allow graceful defaults.
+        Load a template file, preferring project-local overrides.
+
+        Args:
+            template_name: Name of the template (filename without ``.yaml``).
+
+        Returns:
+            Parsed template dictionary (config and metadata), or empty dict if not found.
         """
         if yaml is None:
             return {}
@@ -216,6 +257,19 @@ class TemplateLoader:
 
 
 def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:
+    """
+    Validate the shape and contents of a pipeline definition.
+
+    Args:
+        data: Pipeline dictionary loaded from disk.
+        name: Pipeline name (for error context).
+
+    Returns:
+        List of warning strings (non-fatal issues).
+
+    Raises:
+        ValueError: When the pipeline structure is invalid.
+    """
     if not isinstance(data, dict):
         raise ValueError(f"Pipeline '{name}' must be a dict.")
     modules = data.get("modules", [])
@@ -255,5 +309,15 @@ def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:
 
 
 def _validate_template(data: Dict[str, Any], name: str) -> None:
+    """
+    Validate that a template structure is a dictionary.
+
+    Args:
+        data: Template payload.
+        name: Template name for error context.
+
+    Raises:
+        ValueError: When the template is not a dictionary.
+    """
     if not isinstance(data, dict):
         raise ValueError(f"Template '{name}' must be a dict.")

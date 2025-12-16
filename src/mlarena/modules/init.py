@@ -1,4 +1,7 @@
-"""Initialization module."""
+"""Initialization module.
+
+Creates Kaggle project structure, downloads data, and records experiment metadata.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +14,20 @@ from mlarena.utils.init import init_project
 
 @ModuleRegistry.register
 class InitModule(BaseModule):
+    """Initialize a Kaggle competition project directory."""
+
     name = "init"
     description = "Initialize Kaggle project"
     dependencies = set()
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
+        """
+        Register CLI arguments for project initialization.
+
+        Args:
+            parser: Argparse parser for the ``init`` subcommand.
+        """
         parser.add_argument("--competition", "-c", help="Kaggle competition slug (defaults to --project)")
         parser.add_argument("--skip-download", action="store_true", help="Skip Kaggle data download")
         parser.add_argument("--target-column", help="Target column override")
@@ -30,7 +41,15 @@ class InitModule(BaseModule):
         parser.add_argument("--cdp-url", help="CDP endpoint for Kaggle page scrape (optional)")
 
     def execute(self) -> ModuleResult:
-        """Execute init using utils.init.init_project()."""
+        """
+        Provision project files and download Kaggle data.
+
+        Returns:
+            ModuleResult with initialization statistics and artifacts.
+
+        Raises:
+            RuntimeError: When the project cannot be initialized.
+        """
         competition = self.invocation_params.get("competition") or self.context.project_name
 
         # Call init_project directly

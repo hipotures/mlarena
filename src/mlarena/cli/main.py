@@ -34,22 +34,27 @@ COMMON_FLAGS = [
 
 def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[List[str], str, bool]:
     """
-    Parse preprocess template argument into list of templates to execute.
-
-    Supports:
-    - Single template: "baseline" -> ["baseline"]
-    - Comma-separated list: "pre1,pre2,pre3" -> ["pre1", "pre2", "pre3"]
-    - Meta-template: "full-pipeline" -> expands to chain defined in YAML
+    Resolve a preprocess template argument into an execution chain.
 
     Args:
-        template_arg: Template argument from CLI
-        project_root: Project root path
+        template_arg: Raw CLI value (single name, comma-separated list, or meta-template).
+        project_root: Root of the target Kaggle project.
 
     Returns:
-        Tuple of:
-        - List of template names in execution order
-        - Chain experiment ID (e.g., "pre-full-pipeline" or "pre-chain-a1b2c3d4")
-        - Is meta-template (True if single meta-template, False if CLI chain)
+        Tuple where:
+            templates: Ordered list of template names to execute.
+            chain_exp_id: Experiment identifier for the chain (e.g., ``pre-full-pipeline``).
+            is_meta: Whether the argument resolved to a meta-template chain.
+
+    Raises:
+        ValueError: If a meta-template declares a non-list ``chain`` field.
+
+    Examples:
+        >>> _parse_preprocess_templates("baseline", Path("."))[0]
+        ['baseline']
+        >>> chain = _parse_preprocess_templates("noop,encoder", Path("."))  # doctest: +ELLIPSIS
+        >>> chain[0]
+        ['noop', 'encoder']
     """
     if template_arg is None:
         template_arg = "baseline"
@@ -93,6 +98,15 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
 
 
 def _add_common(subparser: argparse.ArgumentParser) -> List[str]:
+    """
+    Attach shared CLI flags to a module subparser.
+
+    Args:
+        subparser: The argparse subparser for a specific module.
+
+    Returns:
+        List of destination names for the added arguments.
+    """
     dests: List[str] = []
     for long, short, kwargs in COMMON_FLAGS:
         opts = [long] + ([short] if short else [])
@@ -102,6 +116,15 @@ def _add_common(subparser: argparse.ArgumentParser) -> List[str]:
 
 
 def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentParser:
+    """
+    Build the top-level CLI parser and all module subcommands.
+
+    Args:
+        module_arg_map: Mutable mapping to record module-specific argument dest names.
+
+    Returns:
+        Configured argparse parser ready for CLI parsing.
+    """
     parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner")
     parser.add_argument("--show-payload", action="store_true", help="Print raw module payloads (debug)")
 
@@ -136,7 +159,15 @@ def _build_parser(module_arg_map: Dict[str, List[str]]) -> argparse.ArgumentPars
 
 
 def _validate_convenience_flags(args: argparse.Namespace) -> None:
-    """Validate that --dev/--smoke aren't used with conflicting flags."""
+    """
+    Validate --dev/--smoke usage and raise on conflicts.
+
+    Args:
+        args: Parsed argparse namespace.
+
+    Raises:
+        ValueError: When mutually exclusive flags are combined or overridden explicitly.
+    """
     # Check mutual exclusivity
     if getattr(args, "dev", False) and getattr(args, "smoke", False):
         raise ValueError(
@@ -169,6 +200,16 @@ def _validate_convenience_flags(args: argparse.Namespace) -> None:
 
 
 def _extract_module_params(args: argparse.Namespace, module_arg_map: Dict[str, List[str]]) -> Dict[str, object]:
+    """
+    Collect invocation parameters for a module from parsed CLI args.
+
+    Args:
+        args: Parsed argparse namespace.
+        module_arg_map: Mapping of module name to its dedicated argument dests.
+
+    Returns:
+        Dictionary of parameters to persist in state and pass to the module.
+    """
     params: Dict[str, object] = {}
 
     # Apply convenience flags FIRST (before extracting CLI args)
@@ -208,9 +249,22 @@ def _build_module_context(
     argv: Optional[List[str]] = None,
 ) -> ModuleContext:
     """
-    Build context for a single module with its own experiment state.
+    Build an isolated execution context for a module.
 
-    For auto-flow, each setup module (init/eda/preprocess) gets its own experiment_id.
+    For auto-flow, each setup module (init/eda/preprocess) gets its own experiment
+    identifier to preserve caching semantics.
+
+    Args:
+        project_root: Root directory of the Kaggle project.
+        project: Project slug (used for state metadata).
+        module_name: Name of the module being executed.
+        experiment_id: Optional explicit experiment identifier.
+        config_module: Loaded project config module, if available.
+        pipeline_def: Pipeline definition snapshot for state recording.
+        argv: Raw argv list for invocation tracking.
+
+    Returns:
+        Fully populated ModuleContext instance.
     """
     # Determine experiment_id if not provided
     if experiment_id is None:
@@ -254,6 +308,18 @@ def _build_module_context(
 
 
 def _build_contexts(project_root: Path, project: str, state: ExperimentState, config_module) -> Dict[str, ModuleContext]:
+    """
+    Build contexts for all registered modules sharing a single experiment.
+
+    Args:
+        project_root: Root directory of the Kaggle project.
+        project: Project slug.
+        state: Loaded ExperimentState object.
+        config_module: Project config module.
+
+    Returns:
+        Mapping of module name to its ModuleContext.
+    """
     contexts: Dict[str, ModuleContext] = {}
     for name in ModuleRegistry.available():
         artifact_dir = state.experiment_dir / "artifacts" / name
@@ -284,10 +350,30 @@ def run_auto_flow(
     smoke: bool = False,
 ) -> int:
     """
-    Run full auto-flow: init → eda → preprocess → model → predict → submit → fetch-score.
+    Execute the full MLArena pipeline end-to-end.
+
+    The auto-flow runs ``init → eda → preprocess (chains supported) → model → predict → submit → fetch-score``
+    with smart skipping for already-completed setup modules unless ``force`` is provided.
+
+    Args:
+        project_root: Root directory of the Kaggle project.
+        project_name: Project slug (used for state and commits).
+        model_template: Model template name to train.
+        preprocess_template: Optional preprocessing template or chain override.
+        force: Re-run modules even if previously completed.
+        skip_submit: Skip Kaggle submission while still producing prediction CSV.
+        skip_git: Disable automatic commit after successful flow.
+        wait_seconds: Delay before fetching the public score.
+        argv: Original argv for invocation tracking.
+        dev: Apply fast development overrides (preset=high, time_limit=300, use_gpu=0).
+        smoke: Apply ultra-fast smoke overrides (preset=medium, time_limit=60, use_gpu=0).
 
     Returns:
-        Exit code (0 = success, 1 = failure)
+        Integer exit code (``0`` on success, ``1`` on failure).
+
+    Examples:
+        >>> run_auto_flow(Path("/tmp/proj"), "demo", model_template="cpu-dev-5m", skip_submit=True)  # doctest: +SKIP
+        0
     """
     from rich.console import Console
     import time
@@ -621,7 +707,17 @@ def _create_auto_flow_commit(
     results: Dict[str, "ModuleResult"],
     console,
 ):
-    """Create git commit for auto-flow with scores."""
+    """
+    Create a git commit summarizing an auto-flow run.
+
+    Args:
+        project_name: Kaggle project slug.
+        results: Mapping of module names to their execution outcomes.
+        console: Rich console for user feedback.
+
+    Raises:
+        subprocess.CalledProcessError: If git add/commit fails unexpectedly.
+    """
     import subprocess
 
     # Extract scores from module payloads
@@ -689,6 +785,19 @@ def _create_auto_flow_commit(
 
 
 def main(argv: List[str] | None = None) -> int:
+    """
+    Parse CLI arguments, resolve module dispatch, and execute the requested pipeline.
+
+    Args:
+        argv: Optional argv override for programmatic execution.
+
+    Returns:
+        Integer exit code from the invoked module or auto-flow.
+
+    Examples:
+        >>> main(["modules"])  # doctest: +ELLIPSIS
+        0
+    """
     argv = argv or sys.argv[1:]
 
     # Discover modules only if registry is empty (first run or after clear in tests)

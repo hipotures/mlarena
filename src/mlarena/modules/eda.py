@@ -1,4 +1,7 @@
-"""Exploratory Data Analysis module."""
+"""Exploratory Data Analysis module.
+
+Generates profiling reports for train/test and captures lightweight summaries in state.
+"""
 
 from __future__ import annotations
 
@@ -91,14 +94,31 @@ def _safe_profile(df: "pd.DataFrame", title: str, output_html: Path, output_json
 
 @ModuleRegistry.register
 class EDAModule(BaseModule):
+    """Run exploratory data analysis for a project."""
+
     name = "eda"
     description = "Exploratory data analysis"
 
     @classmethod
     def register_cli_args(cls, parser) -> None:
+        """
+        Register CLI arguments for the EDA module.
+
+        Args:
+            parser: Argparse parser for the ``eda`` subcommand.
+        """
         parser.add_argument("--eda-notes", type=str, default="", help="Optional notes saved with the EDA artifact.")
 
     def execute(self) -> ModuleResult:
+        """
+        Profile train/test datasets and persist summary artifacts.
+
+        Returns:
+            ModuleResult containing profile paths and summary payload.
+
+        Raises:
+            RuntimeError: When profiling fails unexpectedly.
+        """
         import pandas as pd
 
         artifact_dir: Path = self.context.artifact_dir

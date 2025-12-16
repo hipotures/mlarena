@@ -15,9 +15,9 @@ Command-line toolkit for running reproducible Kaggle experiments with modular pr
    modules/predict
    modules/submit
    modules/fetch_score
-   modules/feat
-   modules/tune
-   modules/stack
+   feat.md
+   tune.md
+   stack.md
    modules/preprocessing
    modules/models
    model_templates.md

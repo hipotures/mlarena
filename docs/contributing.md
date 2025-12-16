@@ -21,7 +21,7 @@
 ## Documentation
 
 - Update Markdown docs in `docs/` and keep the `docs/index.rst` toctree in sync.
-- Build docs locally when possible: `make html` (or the project’s preferred Sphinx invocation).
+- Ensure all new modules are documented in both `.md` files and `.rst` reference docs.
 - Mark superseded docs with a `.DEPR` suffix rather than deleting them outright.
 
 ## Submitting changes

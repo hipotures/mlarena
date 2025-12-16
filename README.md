@@ -54,6 +54,8 @@ uv run python scripts/mla.py --project <competition-slug> --force
 ### Modules
 
 The pipeline consists of the following modules:
+
+**Core modules (part of auto-flow):**
 -   `init`: Initializes a new competition project structure.
 -   `eda`: Performs exploratory data analysis.
 -   `preprocess`: Applies data preprocessing steps.
@@ -61,8 +63,11 @@ The pipeline consists of the following modules:
 -   `predict`: Generates predictions from a trained model.
 -   `submit`: Submits predictions to Kaggle.
 -   `fetch-score`: Fetches the public score for a submission.
--   `tune`: (Coming soon) Advanced hyperparameter tuning with Optuna.
--   `stack`: (Coming soon) Stacking/ensembling models.
+
+**Optional modules (manual use only):**
+-   `feat`: Applies lightweight feature transformations (log1p, ratios, column drops) defined in feature templates.
+-   `tune`: Optuna-based hyperparameter search on a sampled training subset using AutoGluon.
+-   `stack`: Averages multiple prediction files to produce an ensemble submission.
 
 **Note**: AutoGluon native HPO is available through model templates with `hpo_preset`. See [HPO Guide](docs/MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 

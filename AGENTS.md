@@ -157,7 +157,7 @@ and (if present) `orig_processed.csv`.
 - `rare_category_handler` (rare category bucketing)
 - `encoder`, `categorical_encoder` (categorical encoding)
 - `feature_engineer` (feature creation)
-- `feature_selector`, `feature_selector_old` (feature selection)
+- `feature_selector` (feature selection)
 - `imbalance_handler` (class imbalance handling / weights)
 - `drift_detector`, `adversarial_validation` (drift/AV utilities + weights)
 - `datetime_handler` (datetime parsing/features)

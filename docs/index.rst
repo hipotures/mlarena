@@ -8,7 +8,9 @@ Command-line toolkit for running reproducible Kaggle experiments with modular pr
 
    quick_start.md
    architecture.md
+   modules/cli_modules
    modules/preprocessing
+   modules/models
    model_templates.md
    faq.md
    contributing.md

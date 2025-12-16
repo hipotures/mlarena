@@ -1,4 +1,3 @@
-import json
 import pytest
 import yaml
 
@@ -25,19 +24,18 @@ def test_pipeline_validation_errors(project_root):
 
 def test_template_loader_reads_yaml(project_root):
     """Test that TemplateLoader correctly reads YAML templates."""
-    tpl_dir = project_root / "templates"
+    tpl_dir = project_root / "templates" / "model"
     tpl_dir.mkdir(parents=True, exist_ok=True)
 
     # Write YAML template following the actual format
     tpl_data = {
-        "templates": {
-            "unit-test": {
-                "preset": "high",
-                "time_limit": 5
-            }
-        }
+        "model": "autogluon_baseline",
+        "config": {
+            "preset": "high",
+            "time_limit": 5,
+        },
     }
-    (tpl_dir / "model.yaml").write_text(yaml.dump(tpl_data))
+    (tpl_dir / "unit-test.yaml").write_text(yaml.dump(tpl_data))
 
     loader = TemplateLoader(project_root, template_type="model")
     loaded = loader.load("unit-test")

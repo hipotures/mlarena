@@ -65,6 +65,15 @@ def test_submit_calls_kaggle(monkeypatch, tmp_path):
     module.set_invocation_params({"auto_submit": True})
 
     called = {}
+    fake_stdin = type("FakeStdin", (), {"fileno": lambda self: 0, "read": lambda self, n=1: "y"})()
+    monkeypatch.setattr("sys.stdin", fake_stdin)
+    monkeypatch.setattr("termios.tcgetattr", lambda fd: ["raw"])
+    monkeypatch.setattr("termios.tcsetattr", lambda fd, when, settings: None)
+    monkeypatch.setattr("tty.setraw", lambda fd: None)
+    monkeypatch.setattr("select.select", lambda r, w, e, t=0: (r, [], []))
+    monkeypatch.setattr("time.time", lambda: 1000.0)
+    monkeypatch.setattr("time.sleep", lambda *a, **k: None)
+    monkeypatch.setattr("subprocess.run", lambda *a, **k: None)
     monkeypatch.setattr("subprocess.check_call", lambda args: called.setdefault("args", args))
 
     res = module.execute()

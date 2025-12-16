@@ -1,4 +1,4 @@
-import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
@@ -11,20 +11,19 @@ from mlarena.modules.model import ModelModule
 def test_model_respects_template(context_factory, sample_config_with_data, mock_autogluon):
     """Test that ModelModule correctly loads and applies YAML templates."""
     # Create templates directory and write YAML template
-    tpl_dir = sample_config_with_data.PROJECT_ROOT / "templates"
+    tpl_dir = sample_config_with_data.PROJECT_ROOT / "templates" / "model"
     tpl_dir.mkdir(parents=True, exist_ok=True)
 
     tpl_data = {
-        "templates": {
-            "unit-model": {
-                "preset": "high",
-                "time_limit": 5,
-                "use_gpu": 0,
-                "hyperparameters": {"GBM": {"max_depth": 2}}
-            }
-        }
+        "model": "autogluon_baseline",
+        "config": {
+            "preset": "high",
+            "time_limit": 5,
+            "use_gpu": 0,
+            "hyperparameters": {"GBM": {"max_depth": 2}},
+        },
     }
-    (tpl_dir / "model.yaml").write_text(yaml.dump(tpl_data))
+    (tpl_dir / "unit-model.yaml").write_text(yaml.dump(tpl_data))
 
     state = ExperimentState.load_or_create(sample_config_with_data.PROJECT_ROOT, "demo")
     ctx = context_factory("model", state=state, config_module=sample_config_with_data)
@@ -36,7 +35,9 @@ def test_model_respects_template(context_factory, sample_config_with_data, mock_
     assert result.payload["preset"] == "high"
     assert result.payload["time_limit"] == 5
     assert result.payload["use_gpu"] == 0
-    assert result.payload["hyperparameters"]["GBM"]["max_depth"] == 2
+    model_path = Path(result.payload["model_artifact"])
+    predictor = mock_autogluon.store[str(model_path)]
+    assert predictor.hyperparameters["GBM"]["max_depth"] == 2
 
 
 def test_model_fails_when_target_missing(context_factory, project_root, mock_autogluon):

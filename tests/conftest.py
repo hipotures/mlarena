@@ -67,14 +67,16 @@ class DummyPredictor:
         self.sample_weight = sample_weight
         self.extra_init_kwargs = kwargs
         self.path = Path(path) if path else Path(".")
+        self.model_best = "best"
         DummyPredictor.store[str(self.path)] = self
 
-    def fit(self, df, presets=None, time_limit=None, ag_args_fit=None, hyperparameters=None):
+    def fit(self, df, presets=None, time_limit=None, ag_args_fit=None, hyperparameters=None, **kwargs):
         self.df = df.copy()
         self.presets = presets
         self.time_limit = time_limit
         self.ag_args_fit = ag_args_fit
         self.hyperparameters = hyperparameters
+        self.extra_fit_kwargs = kwargs
         return self
 
     def leaderboard(self, silent=True):  # pragma: no cover - trivial
@@ -88,6 +90,9 @@ class DummyPredictor:
 
     def predict_proba(self, df, as_multiclass=False):  # pragma: no cover - trivial
         return pd.Series([0.5] * len(df))
+
+    def model_info(self, model):  # pragma: no cover - trivial
+        return {"val_score": 1.0, "name": model}
 
     @classmethod
     def load(cls, path):  # pragma: no cover - trivial

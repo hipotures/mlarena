@@ -7,7 +7,7 @@ import pandas as pd
 
 def _load_encoder_module():
     repo_root = Path(__file__).resolve().parents[2]
-    encoder_path = repo_root / "config" / "code" / "preprocessing" / "encoder.py"
+    encoder_path = repo_root / "src" / "mlarena" / "defaults" / "preprocessing" / "encoder.py"
     spec = importlib.util.spec_from_file_location("encoder", encoder_path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

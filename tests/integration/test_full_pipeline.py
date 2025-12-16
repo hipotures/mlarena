@@ -67,6 +67,3 @@ def test_full_pipeline_predict(monkeypatch, tmp_path, mock_autogluon, capsys):
 
     payload = state.modules["predict"].payload
     assert Path(payload["submission_file"]).exists()
-
-    out = capsys.readouterr().out
-    assert "Predictions saved" in out

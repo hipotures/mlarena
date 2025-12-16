@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -84,5 +85,7 @@ def test_cli_runs_eda(monkeypatch, tmp_path, capsys):
     state = ExperimentState.load_or_create(project_root, "demo", experiment_id="eda", setup_module_name="eda")
     assert state.modules["eda"].status == "completed"
 
-    out = capsys.readouterr().out
-    assert "EDA profiles generated" in out
+    summary_path = exp_dir / "artifacts" / "eda" / "eda_summary.json"
+    assert summary_path.exists()
+    summary = json.loads(summary_path.read_text())
+    assert summary.get("notes") == "hello"

@@ -149,7 +149,7 @@ The framework is designed with a four-layer architecture:
 ### Full Directory Layout
 
 ```
-kaggle/                          # Repository root
+mlarena/                         # Repository root
 ├── scripts/                     # Entry points and utilities
 │   ├── mla.py                  # ⭐ Main CLI entry point
 │   ├── submissions_tracker.py  # Submission tracking (CLI + library)

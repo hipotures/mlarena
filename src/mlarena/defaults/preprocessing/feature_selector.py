@@ -5,8 +5,12 @@ Purpose: Systematically reduce feature dimensionality using various selection me
 Libraries: sklearn.feature_selection, sklearn.ensemble, lightgbm, xgboost, scipy
 Parameters:
     - selection_method: variance|mi|correlation|model_importance|l1|rfe|none
-    - k_features: int or None (number of features to keep)
-    - keep_fraction: float (fraction of features to keep, 0.0-1.0)
+    - n_features: int|float|None (universal feature selector):
+        * 0: pass-through (no selection)
+        * 0 < n < 1: keep fraction (e.g., 0.3 = keep 30% best)
+        * n >= 1: keep exactly n best features
+        * n < 0: drop |n| worst features (e.g., -2 = drop 2 worst)
+        * None: threshold-only (use min_importance/min_variance)
     - min_variance: float (threshold for variance method)
     - min_importance: float (threshold for importance method)
     - importance_model_type: lgbm|xgb|rf
@@ -14,6 +18,7 @@ Parameters:
     - max_depth: int (for model-based methods)
     - random_state: int
     - max_drop_fraction: float (max fraction of features to drop in one step)
+    - protect_cb_features: bool (keep numeric features ending with "_cb" regardless of selection)
 """
 
 from pathlib import Path
@@ -59,8 +64,7 @@ def fit_transform(
             - _artifact_dir: Path to save artifacts
             - _dataset: {id_column, target, ignored_columns, problem_type}
             - selection_method: Method to use for feature selection
-            - k_features: Number of features to keep (or None)
-            - keep_fraction: Fraction of features to keep
+            - n_features: Universal feature selector (int|float|None)
             - min_variance: Minimum variance threshold
             - min_importance: Minimum importance threshold
             - importance_model_type: Model type for importance-based selection
@@ -68,6 +72,7 @@ def fit_transform(
             - max_depth: Max depth for model-based methods
             - random_state: Random seed
             - max_drop_fraction: Maximum fraction of features to drop
+            - protect_cb_features: Protect numeric columns ending with "_cb"
         orig_df: External dataset (can be None)
 
     Returns:
@@ -85,8 +90,7 @@ def fit_transform(
     required_params = []
     optional_params = {
         "selection_method": "variance",
-        "k_features": None,
-        "keep_fraction": 0.8,
+        "n_features": None,
         "min_variance": 0.01,
         "min_importance": 0.001,
         "importance_model_type": "lgbm",
@@ -94,6 +98,7 @@ def fit_transform(
         "max_depth": 5,
         "random_state": 42,
         "max_drop_fraction": 0.5,
+        "protect_cb_features": True,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -112,15 +117,13 @@ def fit_transform(
                 "importance_model_type"
             )
 
-        # Validate numeric ranges
-        if config["keep_fraction"] is not None:
-            validation.validate_numeric_range(
-                config["keep_fraction"],
-                min_value=0.0,
-                max_value=1.0,
-                param_name="keep_fraction"
-            )
+        # Validate n_features type
+        if config.get("n_features") is not None:
+            n_feat = config["n_features"]
+            if not isinstance(n_feat, (int, float)):
+                raise ValueError(f"n_features must be a number or None, got {type(n_feat).__name__}")
 
+        # Validate numeric ranges
         validation.validate_numeric_range(
             config["max_drop_fraction"],
             min_value=0.0,
@@ -193,8 +196,7 @@ def fit_transform(
         y_train=y_train,
         feature_names=numeric_cols,
         method=config["selection_method"],
-        k_features=config["k_features"],
-        keep_fraction=config["keep_fraction"],
+        select_features=config["n_features"],
         min_variance=config["min_variance"],
         min_importance=config["min_importance"],
         importance_model_type=config["importance_model_type"],
@@ -210,7 +212,7 @@ def fit_transform(
     base_keep = [col for col in train_df.columns if col not in numeric_cols]
 
     # Protect key numeric columns (encoded categoricals ending with "_cb")
-    protected_numeric = [col for col in numeric_cols if col.endswith("_cb")]
+    protected_numeric = [col for col in numeric_cols if col.endswith("_cb")] if config.get("protect_cb_features", True) else []
 
     # Keep non-feature columns + protected numeric + selected numeric features
     keep_cols = base_keep + protected_numeric + selected_features
@@ -280,8 +282,7 @@ def _select_features(
     y_train: np.ndarray,
     feature_names: List[str],
     method: str,
-    k_features: int,
-    keep_fraction: float,
+    select_features: int | float | None,
     min_variance: float,
     min_importance: float,
     importance_model_type: str,
@@ -297,33 +298,52 @@ def _select_features(
     Returns:
         Tuple of (selected_feature_names, feature_scores)
     """
-    n_features = X_train.shape[1]
+    total_features = X_train.shape[1]
 
-    # Determine target number of features
-    if k_features is not None:
-        n_features_to_select = min(k_features, n_features)
-    elif keep_fraction is not None:
-        n_features_to_select = max(1, int(n_features * keep_fraction))
+    # Interpret select_features parameter
+    if select_features is None:
+        # Threshold-only mode (use min_importance/min_variance)
+        n_features_to_select = total_features
+    elif select_features == 0:
+        # Pass-through (no selection)
+        n_features_to_select = total_features
+    elif 0 < select_features < 1:
+        # Keep fraction
+        n_features_to_select = max(1, int(total_features * select_features))
+    elif select_features >= 1:
+        # Keep exact count
+        n_features_to_select = min(int(select_features), total_features)
+    elif select_features < 0:
+        # Drop N worst
+        n_features_to_select = max(1, total_features - abs(int(select_features)))
     else:
-        n_features_to_select = n_features
+        # Should not reach here due to validation
+        n_features_to_select = total_features
 
     # Apply max_drop_fraction constraint
-    min_features_to_keep = max(1, int(n_features * (1 - max_drop_fraction)))
+    min_features_to_keep = max(1, int(total_features * (1 - max_drop_fraction)))
     n_features_to_select = max(n_features_to_select, min_features_to_keep)
 
     # Initialize scores array
-    feature_scores = np.zeros(n_features)
+    feature_scores = np.zeros(total_features)
 
     if method == "variance":
         # Variance threshold
         variances = np.var(X_train, axis=0)
         feature_scores = variances
         selected_mask = variances >= min_variance
-        # Ensure we select at least n_features_to_select features
-        if selected_mask.sum() < n_features_to_select:
-            top_indices = np.argsort(variances)[::-1][:n_features_to_select]
-            selected_mask = np.zeros(n_features, dtype=bool)
-            selected_mask[top_indices] = True
+
+        if selected_mask.sum() >= n_features_to_select:
+            # Too many (or exact) -> trim to top-K among those above threshold
+            candidate_idx = np.where(selected_mask)[0]
+            top_idx = candidate_idx[np.argsort(variances[candidate_idx])[::-1][:n_features_to_select]]
+            selected_mask = np.zeros(total_features, dtype=bool)
+            selected_mask[top_idx] = True
+        else:
+            # Too few above threshold -> backfill with top-K overall
+            top_idx = np.argsort(variances)[::-1][:n_features_to_select]
+            selected_mask = np.zeros(total_features, dtype=bool)
+            selected_mask[top_idx] = True
 
     elif method == "mi":
         # Mutual Information
@@ -393,7 +413,7 @@ def _select_features(
                 warnings.warn("LightGBM not available, falling back to RandomForest")
                 return _select_features(
                     X_train, y_train, feature_names, "model_importance",
-                    k_features, keep_fraction, min_variance, min_importance,
+                    select_features, min_variance, min_importance,
                     "rf", n_estimators, max_depth, random_state,
                     max_drop_fraction, problem_type
                 )
@@ -423,7 +443,7 @@ def _select_features(
                 warnings.warn("XGBoost not available, falling back to RandomForest")
                 return _select_features(
                     X_train, y_train, feature_names, "model_importance",
-                    k_features, keep_fraction, min_variance, min_importance,
+                    select_features, min_variance, min_importance,
                     "rf", n_estimators, max_depth, random_state,
                     max_drop_fraction, problem_type
                 )
@@ -431,12 +451,20 @@ def _select_features(
             raise ValueError(f"Unknown importance_model_type: {importance_model_type}")
 
         feature_scores = importances
-        # Select features above threshold or top K
+        # Select features using threshold + strict top-K cap
         selected_mask = importances >= min_importance
-        if selected_mask.sum() < n_features_to_select:
-            top_indices = np.argsort(importances)[::-1][:n_features_to_select]
-            selected_mask = np.zeros(n_features, dtype=bool)
-            selected_mask[top_indices] = True
+
+        if selected_mask.sum() >= n_features_to_select:
+            # Too many (or exact) -> trim to top-K among those above threshold
+            candidate_idx = np.where(selected_mask)[0]
+            top_idx = candidate_idx[np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]]
+            selected_mask = np.zeros(total_features, dtype=bool)
+            selected_mask[top_idx] = True
+        else:
+            # Too few above threshold -> backfill with top-K overall
+            top_idx = np.argsort(importances)[::-1][:n_features_to_select]
+            selected_mask = np.zeros(total_features, dtype=bool)
+            selected_mask[top_idx] = True
 
     elif method == "l1":
         # L1 regularization
@@ -494,6 +522,6 @@ def _select_features(
         raise ValueError(f"Unknown selection method: {method}")
 
     # Get selected feature names
-    selected_features = [feature_names[i] for i in range(n_features) if selected_mask[i]]
+    selected_features = [feature_names[i] for i in range(total_features) if selected_mask[i]]
 
     return selected_features, feature_scores

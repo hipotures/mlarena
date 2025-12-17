@@ -1,0 +1,12 @@
+module: feature_selector
+cache: true
+config:
+  selection_method: model_importance
+  importance_model_type: lgbm
+  n_features: -3  # drop 3 worst features
+  min_importance: 0.0
+  max_drop_fraction: 0.5
+  protect_cb_features: true
+  n_estimators: 300
+  max_depth: 8
+  random_state: 42

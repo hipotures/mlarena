@@ -19,9 +19,18 @@ The **feature_selector** sub-module systematically reduces feature dimensionalit
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `selection_method` | str | `"variance"` | Selection strategy: `variance`, `mi`, `correlation`, `model_importance`, `l1`, `rfe`, `none` |
-| `k_features` | int \| null | `null` | Absolute number of features to keep (caps at available) |
-| `keep_fraction` | float \| null | `0.8` | Fraction of features to keep (0-1). Ignored if `k_features` is set |
-| `max_drop_fraction` | float | `0.5` | Max fraction of features that can be removed in one run |
+| `n_features` | int \| float \| null | `null` | **Universal feature selector** (see modes below) |
+| `max_drop_fraction` | float | `0.5` | Max fraction of features that can be removed in one run (safety constraint) |
+| `protect_cb_features` | bool | `true` | Keep numeric columns ending with `_cb` regardless of selection |
+
+#### `n_features` Modes
+| Value | Behavior | Example |
+|-------|----------|---------|
+| `0` | **Pass-through** (no selection) | Keep all N features |
+| `0 < n < 1` | **Keep fraction** | `0.8` = keep 80% best features |
+| `n >= 1` | **Keep exact count** | `25` = keep exactly 25 best features |
+| `n < 0` | **Drop N worst** | `-1` = drop 1 worst feature, `-3` = drop 3 worst |
+| `null` | **Threshold-only** | Use `min_importance`/`min_variance`, no hard count limit |
 
 ### Thresholds / Filters
 | Parameter | Type | Default | Description |
@@ -38,17 +47,17 @@ The **feature_selector** sub-module systematically reduces feature dimensionalit
 | `random_state` | int | `42` | Random seed for reproducibility |
 
 ## Selection Methods (What They Do)
-- **`variance`**: Drop low-variance numeric features (`min_variance`); backfills to target `k_features`/`keep_fraction` if too many would be removed.
-- **`mi`**: Mutual information vs. target (`mutual_info_classif`/`regression`); keeps top `k_features`/fraction.
-- **`correlation`**: Absolute Pearson correlation with target (numeric only); keeps highest correlations.
-- **`model_importance`**: Train tree model (LGBM/XGB/RF) and keep features above `min_importance` or top-K/fraction.
-- **`l1`**: L1-regularized LogisticRegression (classification) or Lasso (regression); keeps features with non-zero coefficients (top-K/fraction if needed).
-- **`rfe`**: Recursive Feature Elimination with tree estimator; selects target number of features.
+- **`variance`**: Drop low-variance numeric features (`min_variance`); applies top-K cap based on `n_features`. **Bugfix**: Now correctly trims to exact count when threshold passes too many features.
+- **`mi`**: Mutual information vs. target (`mutual_info_classif`/`regression`); keeps top-K based on `n_features`.
+- **`correlation`**: Absolute Pearson correlation with target (numeric only); keeps highest correlations based on `n_features`.
+- **`model_importance`**: Train tree model (LGBM/XGB/RF) and select features. **Bugfix**: Now enforces exact `n_features` count regardless of `min_importance` threshold (uses hybrid threshold + top-K cap).
+- **`l1`**: L1-regularized LogisticRegression (classification) or Lasso (regression); keeps top-K features by coefficient magnitude.
+- **`rfe`**: Recursive Feature Elimination with tree estimator; selects exact number specified by `n_features`.
 - **`none`**: Skip selection (pass-through), still produces summary report.
 
 ## Examples
 
-### Variance Threshold (default)
+### Variance Threshold with Fraction
 ```yaml
 feature_selection_variance:
   module: feature_selector
@@ -56,21 +65,37 @@ feature_selection_variance:
   config:
     selection_method: "variance"
     min_variance: 0.01
-    keep_fraction: 0.8
+    n_features: 0.8  # Keep 80% best features by variance
 ```
 
-### Mutual Information Top-K
+### Mutual Information - Keep Exact Count
 ```yaml
 feature_selection_mi:
   module: feature_selector
   cache: true
   config:
     selection_method: "mi"
-    k_features: 100
+    n_features: 100  # Keep exactly 100 best features by MI
     random_state: 42
 ```
 
-### Model Importances (LightGBM) with Drop Cap
+### Model Importances - Drop N Worst
+```yaml
+feature_selection_drop_worst:
+  module: feature_selector
+  cache: true
+  config:
+    selection_method: "model_importance"
+    importance_model_type: "lgbm"
+    n_estimators: 300
+    max_depth: 8
+    n_features: -3  # Drop 3 worst features
+    max_drop_fraction: 0.5
+    min_importance: 0.0
+    protect_cb_features: true
+```
+
+### Model Importances - Keep Fraction
 ```yaml
 feature_selection_lgbm:
   module: feature_selector
@@ -80,9 +105,9 @@ feature_selection_lgbm:
     importance_model_type: "lgbm"
     n_estimators: 300
     max_depth: 8
-    min_importance: 0.0
-    keep_fraction: 0.5
+    n_features: 0.5  # Keep 50% best features
     max_drop_fraction: 0.4
+    min_importance: 0.0
 ```
 
 ### L1 Sparsity (Logistic Regression)
@@ -92,7 +117,7 @@ feature_selection_l1:
   cache: true
   config:
     selection_method: "l1"
-    keep_fraction: 0.6
+    n_features: 0.6  # Keep 60% best features
     random_state: 7
 ```
 
@@ -103,10 +128,33 @@ feature_selection_rfe:
   cache: true
   config:
     selection_method: "rfe"
-    k_features: 50
+    n_features: 50  # Keep exactly 50 features
     importance_model_type: "rf"
     n_estimators: 200
     max_depth: 6
+```
+
+### Threshold-Only Mode (No Hard Limit)
+```yaml
+feature_selection_threshold:
+  module: feature_selector
+  cache: true
+  config:
+    selection_method: "model_importance"
+    importance_model_type: "lgbm"
+    n_features: null  # No hard limit, use min_importance only
+    min_importance: 0.01  # Keep all features with importance >= 0.01
+    n_estimators: 200
+```
+
+### Pass-Through (No Selection)
+```yaml
+feature_selection_none:
+  module: feature_selector
+  cache: true
+  config:
+    selection_method: "model_importance"
+    n_features: 0  # Pass-through mode: keep all features
 ```
 
 ## Artifacts
@@ -135,6 +183,16 @@ feature_selection_rfe:
 ## Notes & Tips
 - Uses `_dataset.target` and `_dataset.problem_type` to choose correct scorers/models; ensure they are set.
 - Only numeric columns are considered; categorical encoders should run before this module if you need encoded features selected.
-- Guardrail: `max_drop_fraction` prevents over-pruning—keep it < 0.8 unless you are sure.
-- For tree-only models downstream, `selection_method: "none"` is often fine; use selection to speed training or remove noise.
+- **Protected columns**: By default, numeric columns ending with `_cb` are protected (set `protect_cb_features: false` to disable).
+- **Unified API**: Single `n_features` parameter replaces old `k_features` and `keep_fraction` - no more parameter conflicts!
+- **Bugfix applied**: `model_importance` and `variance` methods now enforce exact count even when `min_importance`/`min_variance` thresholds pass too many features.
+- Guardrail: `max_drop_fraction` prevents over-pruning—keep it < 0.8 unless you are sure. Acts as safety constraint that overrides `n_features` if needed.
+- For tree-only models downstream, `n_features: 0` (pass-through) or `selection_method: "none"` is often fine; use selection to speed training or remove noise.
 - If LightGBM/XGBoost are unavailable, the module falls back to RandomForest with a warning.
+
+## Migration from Old API
+If you have old templates using `k_features` or `keep_fraction`:
+- `k_features: 100` → `n_features: 100` (exact count)
+- `keep_fraction: 0.8` → `n_features: 0.8` (80% best)
+- Drop N worst (new): `n_features: -3` (drop 3 worst)
+- Pass-through (new): `n_features: 0` (keep all)

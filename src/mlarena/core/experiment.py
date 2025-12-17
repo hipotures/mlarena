@@ -8,12 +8,64 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from filelock import FileLock, Timeout
 
 from mlarena.utils.git import get_git_info
 from mlarena.utils.time import utc_now_iso
+
+# Repository root (resolve to absolute path)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+def _relativize_paths(data: Any, project_root: Path) -> Any:
+    """
+    Recursively convert absolute paths within a project to project-relative paths.
+    """
+    if isinstance(data, dict):
+        return {k: _relativize_paths(v, project_root) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [_relativize_paths(v, project_root) for v in data]
+    elif isinstance(data, (str, Path)) and data:
+        try:
+            p = Path(data)
+            if p.is_absolute() and project_root in p.parents or p == project_root:
+                return str(p.relative_to(project_root))
+            # Also try relative to REPO_ROOT for paths outside project but inside repo
+            if p.is_absolute() and REPO_ROOT in p.parents:
+                return str(p.relative_to(REPO_ROOT))
+        except (ValueError, TypeError):
+            pass
+    return data
+
+
+def _reconstruct_paths(data: Any, project_root: Path) -> Any:
+    """
+    Recursively convert project-relative paths back to absolute paths.
+    Only converts strings that look like relative paths and exist relative to project_root or REPO_ROOT.
+    """
+    if isinstance(data, dict):
+        return {k: _reconstruct_paths(v, project_root) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [_reconstruct_paths(v, project_root) for v in data]
+    elif isinstance(data, str) and data and not os.path.isabs(data):
+        # Safety check: if it contains newlines, is too long, or has null bytes, it is not a path
+        if "\n" in data or "\0" in data or len(data) > 1024:
+            return data
+            
+        try:
+            # Try relative to project_root
+            p_proj = project_root / data
+            if p_proj.exists():
+                return p_proj
+            # Try relative to REPO_ROOT
+            p_repo = REPO_ROOT / data
+            if p_repo.exists():
+                return p_repo
+        except (OSError, ValueError):
+            pass
+    return data
 
 
 def _generate_experiment_id() -> str:
@@ -248,24 +300,53 @@ class ExperimentState:
         entry.error = error
         self.modules[name] = entry
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize experiment state to a JSON-compatible dictionary."""
-        return {
+    def to_dict(self, relative: bool = False) -> Dict[str, Any]:
+        """
+        Serialize experiment state to a JSON-compatible dictionary.
+        
+        Args:
+            relative: If True, convert all paths to be relative to project_root or REPO_ROOT.
+        """
+        if relative:
+            # Format project_root: use "/slug" if under projects/kaggle, otherwise relative to REPO_ROOT
+            try:
+                rel_to_kaggle = self.project_root.relative_to(REPO_ROOT / "projects" / "kaggle")
+                project_root_str = "/" + rel_to_kaggle.parts[0]
+            except (ValueError, IndexError):
+                try:
+                    project_root_str = str(self.project_root.relative_to(REPO_ROOT))
+                except ValueError:
+                    project_root_str = str(self.project_root)
+
+            # Format experiment_dir: relative to project_root
+            try:
+                experiment_dir_str = str(self.experiment_dir.relative_to(self.project_root))
+            except ValueError:
+                experiment_dir_str = str(self.experiment_dir)
+        else:
+            project_root_str = str(self.project_root)
+            experiment_dir_str = str(self.experiment_dir)
+
+        data = {
             "experiment_id": self.experiment_id,
             "project": self.project,
-            "project_root": str(self.project_root),
-            "experiment_dir": str(self.experiment_dir),
+            "project_root": project_root_str,
+            "experiment_dir": experiment_dir_str,
             "created_at": self.created_at,
             "pipeline": self.pipeline,
             "modules": {k: v.to_dict() for k, v in self.modules.items()},
             "run": self.run,
             "git": self.git,
         }
+        
+        if relative:
+            return _relativize_paths(data, self.project_root)
+        return data
 
     @classmethod
     def _from_file(cls, path: Path) -> "ExperimentState":
         """
-        Load state from ``state.json``.
+        Load state from ``state.json``, reconstructing absolute paths.
 
         Args:
             path: Path to the state file.
@@ -274,44 +355,114 @@ class ExperimentState:
             ExperimentState loaded from disk.
         """
         data = json.loads(path.read_text())
-        modules = {k: ModuleEntry.from_dict(v) for k, v in data.get("modules", {}).items()}
+        
+        project_name = data["project"]
+        
+        # Reconstruct project_root
+        project_root_raw = data.get("project_root")
+        if project_root_raw:
+            if project_root_raw.startswith("/"):
+                # "/slug" -> REPO_ROOT/projects/kaggle/slug
+                project_root = REPO_ROOT / "projects" / "kaggle" / project_root_raw[1:]
+            else:
+                p = Path(project_root_raw)
+                if p.is_absolute():
+                    project_root = p
+                else:
+                    project_root = REPO_ROOT / p
+        else:
+            # Fallback based on file location
+            # projects/kaggle/P/experiments/E/state.json -> project_root is 3 levels up
+            # projects/kaggle/P/experiments/pre-T/S/state.json -> project_root is 4 levels up
+            # We use the project name to find it reliably if it's under our projects dir
+            project_root = REPO_ROOT / "projects" / "kaggle" / project_name
+            if not project_root.exists():
+                # Generic fallback: 3 levels up from state.json
+                project_root = path.parent.parent.parent
+
+        # Reconstruct experiment_dir
+        experiment_dir_raw = data.get("experiment_dir")
+        if experiment_dir_raw:
+            p = Path(experiment_dir_raw)
+            if p.is_absolute():
+                experiment_dir = p
+            else:
+                experiment_dir = project_root / p
+        else:
+            experiment_dir = path.parent
+
+        # Reconstruct absolute paths in modules and other data
+        reconstructed_data = _reconstruct_paths(data, project_root)
+        
+        modules = {
+            k: ModuleEntry.from_dict(v) 
+            for k, v in reconstructed_data.get("modules", {}).items()
+        }
+        
         return cls(
             experiment_id=data["experiment_id"],
-            project=data["project"],
-            project_root=Path(data.get("project_root", path.parent.parent)),
-            experiment_dir=Path(data.get("experiment_dir", path.parent)),
+            project=project_name,
+            project_root=project_root,
+            experiment_dir=experiment_dir,
             created_at=data.get("created_at", utc_now_iso()),
-            pipeline=data.get("pipeline", {}),
+            pipeline=reconstructed_data.get("pipeline", {}),
             modules=modules,
-            run=data.get("run", {}),
-            git=data.get("git", {}),
+            run=reconstructed_data.get("run", {}),
+            git=reconstructed_data.get("git", {}),
         )
 
     def save(self) -> None:
         """
-        Persist the current state to disk with file locking.
+        Persist the current state to disk with file locking, using relative paths for storage
+        but maintaining absolute paths in the in-memory state.
 
         Raises:
             RuntimeError: When the file lock cannot be acquired.
         """
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
-        payload = self.to_dict()
         lock_path = self.state_path.with_suffix(".lock")
 
         try:
             with FileLock(str(lock_path), timeout=10):
+                # Always work with absolute paths for merging
+                current_abs_payload = self.to_dict(relative=False)
+                
                 if self.state_path.exists():
                     try:
-                        existing = json.loads(self.state_path.read_text())
-                        existing_modules = existing.get("modules", {})
-                        payload["modules"] = {**existing_modules, **payload["modules"]}
-                        # Use dict key as name if not present in data
+                        # Load existing, and reconstruct to absolute for merging
+                        raw_existing = json.loads(self.state_path.read_text())
+                        existing_abs = _reconstruct_paths(raw_existing, self.project_root)
+                        
+                        existing_modules = existing_abs.get("modules", {})
+                        # Merge modules (absolute)
+                        current_abs_payload["modules"] = {**existing_modules, **current_abs_payload["modules"]}
+                        
+                        # Update in-memory modules with merged absolute data
                         self.modules = {
                             k: ModuleEntry.from_dict({**v, "name": v.get("name", k)})
-                            for k, v in payload["modules"].items()
+                            for k, v in current_abs_payload["modules"].items()
                         }
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, Exception):
                         pass
-                self.state_path.write_text(json.dumps(payload, indent=2))
+                
+                # Now relativize the entire payload for saving
+                relative_payload = _relativize_paths(current_abs_payload, self.project_root)
+                
+                # Special handling for project_root and experiment_dir in the final relative_payload
+                try:
+                    rel_to_kaggle = self.project_root.relative_to(REPO_ROOT / "projects" / "kaggle")
+                    relative_payload["project_root"] = "/" + rel_to_kaggle.parts[0]
+                except (ValueError, IndexError):
+                    try:
+                        relative_payload["project_root"] = str(self.project_root.relative_to(REPO_ROOT))
+                    except ValueError:
+                        relative_payload["project_root"] = str(self.project_root)
+
+                try:
+                    relative_payload["experiment_dir"] = str(self.experiment_dir.relative_to(self.project_root))
+                except ValueError:
+                    relative_payload["experiment_dir"] = str(self.experiment_dir)
+
+                self.state_path.write_text(json.dumps(relative_payload, indent=2))
         except Timeout:
             raise RuntimeError(f"Could not acquire lock for state file at {self.state_path}")

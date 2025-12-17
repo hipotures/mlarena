@@ -38,16 +38,16 @@ uv run python scripts/mla.py --project <competition-slug>
 
 Useful flags:
 
-- `--model-template <name>`: pick a model template (default: `baseline`).
-- `--preprocess-template <name>`: override preprocessing chain (defaults to the model template’s choice).
-- `--smoke` or `--dev`: fast presets for quick iterations.
-- `--skip-submit`: build the submission file without uploading to Kaggle.
+- `model_template=<name>`: pick a model template (default: `baseline`).
+- `preprocess_template=<name>`: override preprocessing chain.
+- `--profile smoke`: fast presets for quick iterations.
+- `skip_submit=true`: build the submission file without uploading to Kaggle.
 - `--force`: re-run completed modules.
 
 Example (Titanic baseline with cached setup):
 
 ```bash
-uv run python scripts/mla.py -p Titanic --model-template cpu-dev-5m --skip-submit
+uv run python scripts/mla.py -p Titanic model_template=cpu-dev-5m skip_submit=true
 ```
 
 Recommended end-to-end check on Titanic (no smoke mode needed):
@@ -59,8 +59,8 @@ uv run python scripts/mla.py -p Titanic
 ## Run individual modules
 
 ```bash
-uv run python scripts/mla.py preprocess --project <slug> --preprocess-template baseline
-uv run python scripts/mla.py model --project <slug> --model-template cpu-fast-1m --skip-submit
+uv run python scripts/mla.py preprocess --project <slug> preprocess_template=baseline
+uv run python scripts/mla.py model --project <slug> model_template=cpu-fast-1m skip_submit=true
 ```
 
 List available modules:

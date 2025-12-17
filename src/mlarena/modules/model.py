@@ -282,24 +282,6 @@ class ModelModule(BaseModule):
     description = "Train model"
     dependencies = set()  # No automatic dependencies - preprocessing is optional and loaded by name
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for model training.
-
-        Args:
-            parser: Argparse parser for the ``model`` subcommand.
-        """
-        parser.add_argument("--time-limit", type=int, default=None, help="Optional time limit override.")
-        parser.add_argument("--preset", type=str, default=None, help="AutoGluon preset override.")
-        parser.add_argument("--use-gpu", type=int, choices=[0, 1], default=None, help="Force GPU usage for AutoGluon.")
-        parser.add_argument("--model-template", default="gpu-dev-5m", help="Model template name (for hyperparameters).")
-        parser.add_argument("--preprocess-template", type=str, default=None, help="Preprocessing template to use (e.g., baseline, av_weights). If not specified, uses raw data.")
-        parser.add_argument("--dev", "-d", action="store_true",
-                           help="Development mode: preset=medium, time_limit=300s, use_gpu=0")
-        parser.add_argument("--smoke", "-s", action="store_true",
-                           help="Smoke test mode: preset=medium, time_limit=60s, use_gpu=0")
-
     def _build_model_config(self, template_cfg: Dict[str, Any], config_module, preset: str, time_limit: int, use_gpu_param: bool, artifact_dir: Path):
         """Build ModelConfig object for custom model interface."""
         from kaggle_tools.config_models import ModelConfig, Hyperparameters, DatasetConfig, SystemConfig

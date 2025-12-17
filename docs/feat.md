@@ -24,14 +24,14 @@ The `feat` module provides a simple way to apply common feature transformations 
 
 ```bash
 # Apply feature template to a project
-uv run python scripts/mla.py feat --project <competition-slug> --feat-template <template-name>
+uv run python scripts/mla.py feat --project <competition-slug> feat.feat_template=<template-name>
 ```
 
 ### With Specific Template
 
 ```bash
 # Use custom feature template
-uv run python scripts/mla.py feat --project titanic --feat-template log_ratios
+uv run python scripts/mla.py feat --project titanic feat.feat_template=log_ratios
 ```
 
 ## Template Configuration

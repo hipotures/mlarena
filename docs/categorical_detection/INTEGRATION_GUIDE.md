@@ -162,7 +162,7 @@ config = {
 # Test chain bez categorical (jak dotychczas):
 uv run python scripts/mla.py preprocess \
   --project playground-series-s5e12 \
-  --preprocess-template av_weights_best_boost \
+  preprocess_template=av_weights_best_boost \
   --force
 
 # Output: Moduł działa normalnie (brak categorical metadata)
@@ -170,7 +170,7 @@ uv run python scripts/mla.py preprocess \
 # Test chain Z categorical:
 uv run python scripts/mla.py preprocess \
   --project playground-series-s5e12 \
-  --preprocess-template categorical_boost,av_weights_best_boost \
+  preprocess_template=categorical_boost,av_weights_best_boost \
   --force
 
 # Output:

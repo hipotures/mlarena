@@ -33,17 +33,17 @@ Common keys:
 ## Listing templates
 
 ```bash
-uv run python scripts/mla.py model --model-template list --project <slug>
+uv run python scripts/mla.py model model_template=list --project <slug>
 ```
 
 The CLI shows whether templates come from global defaults or the project folder.
 
 ## Overriding configuration at runtime
 
-- `--preset`, `--time-limit`, `--use-gpu` override the template’s `config` fields.
-- Convenience flags apply presets without editing YAML:
-  - `--dev`: `preset=high`, `time_limit=300`, `use_gpu=0`
-  - `--smoke`: `preset=medium`, `time_limit=60`, `use_gpu=0`
+- Overrides like `model.preset=high`, `model.time_limit=600`, `common.use_gpu=true` override the template’s `config` fields.
+- Convenience profiles apply presets without editing YAML:
+  - `--profile dev`: `preset=high`, `time_limit=300`, `use_gpu=0`
+  - `--profile smoke`: `preset=medium`, `time_limit=60`, `use_gpu=0`
 - Additional template parameters (for example, `excluded_model_types`, `hyperparameters`) remain intact unless explicitly overridden.
 
 ## Custom models

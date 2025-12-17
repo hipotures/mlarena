@@ -280,6 +280,41 @@ uv run python scripts/mla.py model \
 
 ## Advanced Workflows
 
+### Hierarchical Configuration System
+
+MLArena now uses a unified configuration system based on **OmegaConf** and **Pydantic**. This allows for hierarchical merging and precise CLI overrides using dotted paths.
+
+**Merging Order (lowest to highest priority):**
+1. **Hardcoded Defaults**: Base values in `GlobalConfig`.
+2. **Profiles**: Sets of values (e.g., `--profile smoke` sets short time limits).
+3. **Project Config**: `projects/kaggle/<name>/config.yaml`.
+4. **CLI Overrides**: Any `key=value` pair provided in the command line.
+
+**Example with Dotted Overrides:**
+```bash
+uv run python scripts/mla.py model \
+  --project titanic \
+  model_template=cpu-dev-5m \
+  common.time_limit=120 \
+  model.hyperparameters.GBM.max_depth=5
+```
+
+**Common Global Overrides:**
+- `model_template=name`: Set model template (replaces `--model-template`)
+- `preprocess_template=name`: Set preprocessing template
+- `force=true`: Force re-run (same as `-f`)
+- `common.seed=123`: Set global random seed
+- `common.use_gpu=true`: Enable GPU globally
+
+**Using Profiles:**
+```bash
+# Run a quick smoke test
+uv run python scripts/mla.py model --project titanic --profile smoke
+
+# Use a development profile with custom overrides
+uv run python scripts/mla.py model --project titanic --profile dev model.time_limit=600
+```
+
 ### With Custom Preprocessing
 
 ```bash

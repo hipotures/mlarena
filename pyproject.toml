@@ -34,6 +34,7 @@ dependencies = [
     "category-encoders>=2.9.0",
     "sphinx<9",
     "myst-parser>=4.0.1",
+    "omegaconf>=2.3.0",
 ]
 
 [dependency-groups]

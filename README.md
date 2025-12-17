@@ -40,16 +40,28 @@ The recommended way to run a full experiment is using the auto-flow, which orche
 # This uses the "baseline" templates by default.
 uv run python scripts/mla.py --project <competition-slug>
 
-# Override the model template for a different experiment
-uv run python scripts/mla.py --project <competition-slug> --model-template gpu-dev-5m
+# Override the model template using dotted syntax
+uv run python scripts/mla.py --project <competition-slug> model_template=gpu-dev-5m
 
-# Force re-run all modules from scratch, ignoring cached results
-uv run python scripts/mla.py --project <competition-slug> --force
+# Run a quick smoke test using a profile
+uv run python scripts/mla.py --project <competition-slug> --profile smoke
 ```
 
 ## MLArena (`mla.py`) Workflow
 
-`mla.py` is the single entry point for the entire ML pipeline. You can run the full auto-flow or execute each module step-by-step.
+`mla.py` is the single entry point for the entire ML pipeline. You can use standard CLI flags for control and **dotted paths** for configuration data.
+
+### CLI Flags vs. Dotted Overrides
+
+MLArena uses a hybrid approach for maximum flexibility:
+
+1.  **CLI Flags** (`--project`, `--profile`, `--force`): Fundamental controls visible in `--help`.
+    - Example: `--profile smoke` is a shortcut for loading a set of fast defaults.
+2.  **Dotted Overrides** (`key=value`): Precise control over any configuration parameter.
+    - Example: `model.time_limit=100` targets a specific module's setting.
+    - Example: `profile=smoke` is functionally identical to the flag but uses the data engine.
+
+---
 
 ### Modules
 
@@ -88,31 +100,40 @@ uv run python scripts/mla.py eda --project <competition-slug>
 
 **3. Preprocess Data:**
 ```bash
-uv run python scripts/mla.py preprocess --project <competition-slug> --preprocess-template <template-name>
+uv run python scripts/mla.py preprocess --project <competition-slug> preprocess_template=<template-name>
 ```
 
 **4. Train a Model:**
 ```bash
-uv run python scripts/mla.py model --project <competition-slug> --model-template <template-name>
+uv run python scripts/mla.py model --project <competition-slug> model_template=<template-name>
 ```
 
 **5. Train with Hyperparameter Optimization (HPO):**
 ```bash
 # Quick HPO (50 trials, 1-2h)
-uv run python scripts/mla.py model --project <competition-slug> --model-template test_hpo_medium
+uv run python scripts/mla.py model --project <competition-slug> model_template=test_hpo_medium
 
 # Advanced HPO (100 trials, 4-6h)
-uv run python scripts/mla.py model --project <competition-slug> --model-template test_hpo_high
+uv run python scripts/mla.py model --project <competition-slug> model_template=test_hpo_high
 ```
 
 ### Common Flags
 
 -   `--project <name>` or `-p <name>`: Specifies the competition project.
 -   `--experiment-id <id>` or `-e <id>`: Resumes or targets an existing experiment.
+-   `--profile <name>` or `-s <name>`: Loads a config profile (e.g., `smoke`, `dev`).
 -   `--force` or `-f`: Forces re-execution of completed modules.
--   `--skip-deps`: Skips automatic execution of module dependencies.
--   `--skip-submit`: Prevents automatic submission to Kaggle (saves the CSV file only).
--   `--skip-git`: Prevents the automatic git commit after a successful auto-flow run.
+
+### Configuration Overrides
+
+You can override any configuration parameter using dotted paths:
+```bash
+# Set model time limit
+uv run python scripts/mla.py model -p titanic model.time_limit=600
+
+# Set global seed and preprocess option
+uv run python scripts/mla.py -p titanic common.seed=42 preprocess.cache=true
+```
 
 ## Architecture
 
@@ -123,20 +144,221 @@ The framework is designed with a four-layer architecture:
 3.  **Project Layer (`projects/kaggle/`):** Each competition has its own isolated directory containing its data, code, experiments, and submissions.
 4.  **Tracking Layer:** A system that automatically links experiments, submissions, and git commits for reproducibility.
 
-## Project Structure
+## Repository Structure
 
-A typical competition project initialized with `mla.py init` has the following structure:
+### Full Directory Layout
 
 ```
-projects/kaggle/<competition-slug>/
-├── README.md                # Competition-specific notes
-├── data/                    # Raw and processed data
+kaggle/                          # Repository root
+├── scripts/                     # Entry points and utilities
+│   ├── mla.py                  # ⭐ Main CLI entry point
+│   ├── submissions_tracker.py  # Submission tracking (CLI + library)
+│   ├── experiment_logger.py    # Experiment tracking (CLI + library)
+│   ├── template_loader.py      # YAML template loader (internal)
+│   ├── ai_helper.py            # AI code generation (internal)
+│   └── utils/                  # Standalone utilities
+│       ├── clean.py           # Artifact cleanup
+│       ├── sync.py            # Project synchronization
+│       └── av_weights_mix.py  # Adversarial validation
+│
+├── src/                        # Core framework code
+│   ├── mlarena/               # Main package
+│   │   ├── cli/              # CLI orchestration
+│   │   │   └── main.py       # Command parser + config builder
+│   │   ├── core/             # Core infrastructure
+│   │   │   ├── conf.py       # OmegaConf + Pydantic config system
+│   │   │   ├── registry.py   # Module discovery
+│   │   │   ├── pipeline.py   # Execution engine
+│   │   │   ├── experiment.py # State management
+│   │   │   └── module.py     # Base module class
+│   │   ├── modules/          # Pipeline modules
+│   │   │   ├── init.py
+│   │   │   ├── eda.py
+│   │   │   ├── preprocess.py
+│   │   │   ├── model.py
+│   │   │   ├── predict.py
+│   │   │   ├── submit.py
+│   │   │   └── fetch_score.py
+│   │   ├── defaults/         # Global implementations
+│   │   │   ├── models/       # Default model trainers
+│   │   │   └── preprocessing/ # Default preprocessing steps
+│   │   ├── templates/        # Global templates
+│   │   │   ├── profiles/     # Config profiles (smoke, dev)
+│   │   │   ├── model/        # Model templates (*.yaml)
+│   │   │   └── preprocess/   # Preprocessing templates (*.yaml)
+│   │   └── utils/            # Shared utilities
+│   └── kaggle_tools/         # Competition utilities
+│       └── submission.py     # Submission creation
+│
+└── projects/kaggle/           # Competition projects
+    └── <competition-slug>/    # Individual competition
+        ├── README.md          # Competition notes
+        ├── config.yaml        # Project-level config (optional)
+        ├── data/              # Raw competition data
+        │   ├── train.csv
+        │   ├── test.csv
+        │   └── sample_submission.csv
+        ├── code/              # Competition-specific code
+        │   ├── models/        # Custom model implementations
+        │   │   └── my_model.py
+        │   ├── preprocessing/ # Custom preprocessing modules
+        │   │   └── my_preprocess.py
+        │   └── utils/
+        │       └── config.py  # ⚙️ Competition constants (TARGET_COLUMN, etc.)
+        ├── templates/         # Project template overrides
+        │   ├── profiles/      # Custom profiles
+        │   ├── model/         # Model templates (override globals)
+        │   └── preprocess/    # Preprocess templates (override globals)
+        ├── experiments/       # Experiment history (see below)
+        └── submissions/       # Submission tracking
+            ├── submissions.json          # Submission history
+            └── submission-*.csv          # Generated submissions
+```
+
+### Experiments Directory Structure
+
+The `experiments/` folder contains all experiment artifacts, organized by type:
+
+#### **1. Fixed Experiments** (Setup modules, always overwrite)
+
+```
+experiments/
+├── init/                      # Project initialization
+│   ├── state.json            # Execution status
+│   └── artifacts/
+│       └── init/
+│           └── config_snapshot.json
+│
+└── eda/                       # Exploratory data analysis
+    ├── state.json
+    └── artifacts/
+        └── eda/
+            ├── train_profile.html
+            ├── test_profile.html
+            └── eda_summary.json
+```
+
+#### **2. Named Experiments** (Preprocessing, cached if input unchanged)
+
+```
+experiments/
+└── pre-{template}/            # Preprocessing chain experiment
+    └── {step_index}-{template_name}/    # Each step in chain
+        ├── state.json
+        └── artifacts/
+            └── preprocess/
+                ├── train_processed.csv    # Transformed training data
+                ├── test_processed.csv     # Transformed test data
+                ├── orig_processed.csv     # External dataset (optional)
+                └── preprocess_state.pkl   # Preprocessing artifacts
+
+Example:
+  pre-baseline/
+    └── 0-baseline/           # Single-step preprocessing
+
+  pre-full-pipeline/          # Multi-step chain
+    ├── 0-imputer/           # Step 1
+    ├── 1-encoder/           # Step 2
+    └── 2-feature_selector/  # Step 3
+```
+
+#### **3. Timestamped Experiments** (Pipeline runs, one per model training)
+
+```
+experiments/
+└── exp-YYYYMMDD-HHMMSS/      # Full pipeline experiment
+    ├── state.json             # Execution state for all modules
+    └── artifacts/
+        ├── model/
+        │   ├── model/         # AutoGluon model directory
+        │   │   ├── models/
+        │   │   ├── predictor.pkl
+        │   │   └── learner.pkl
+        │   └── leaderboard.csv    # Model performance
+        ├── predict/
+        │   └── submission-*.csv   # Raw predictions
+        ├── submit/
+        │   └── submit_success.txt # Submission confirmation
+        └── fetch-score/
+            └── fetch_score.txt    # Public score from Kaggle
+
+Example experiments:
+  exp-20251217-152730/        # Latest experiment
+  exp-20251216-144148/        # Previous experiment
+  exp-20251215-143822/        # Older experiment
+```
+
+### Example: Full Titanic Project
+
+```
+projects/kaggle/Titanic/
+├── README.md
+├── data/
+│   ├── train.csv              (891 rows)
+│   ├── test.csv               (418 rows)
+│   └── sample_submission.csv  (418 rows)
 ├── code/
-│   ├── models/              # Model implementation files
 │   └── utils/
-│       └── config.py        # Project-specific configuration
-├── experiments/             # Experiment logs, artifacts, and state
-└── submissions/             # Generated submission CSV files
+│       └── config.py          # TARGET_COLUMN = "Survived"
+├── experiments/
+│   ├── init/                  # Setup
+│   ├── eda/                   # Data profiling
+│   ├── pre-baseline/          # Preprocessing
+│   │   └── 0-baseline/
+│   │       ├── state.json
+│   │       └── artifacts/preprocess/
+│   │           ├── train_processed.csv
+│   │           └── test_processed.csv
+│   ├── exp-20251217-152730/   # Latest model run
+│   │   ├── state.json
+│   │   └── artifacts/
+│   │       ├── model/
+│   │       │   ├── model/     # AutoGluon models (~200MB)
+│   │       │   └── leaderboard.csv
+│   │       ├── predict/
+│   │       │   └── submission-20251217152745.csv
+│   │       ├── submit/
+│   │       │   └── submit_success.txt
+│   │       └── fetch-score/
+│   │           └── fetch_score.txt  # "0.7987"
+│   └── exp-20251216-144148/   # Previous run
+└── submissions/
+    ├── submissions.json       # Full history
+    └── submission-*.csv       # Archived submissions
+```
+
+### State File Format
+
+Each experiment's `state.json` tracks module execution:
+
+```json
+{
+  "experiment_id": "exp-20251217-152730",
+  "modules": {
+    "model": {
+      "status": "completed",
+      "payload": {
+        "local_cv": 0.8234,
+        "model_path": "artifacts/model/model"
+      },
+      "invocation": {
+        "model_template": "cpu-dev-5m",
+        "time_limit": 300
+      },
+      "error": null
+    },
+    "predict": {
+      "status": "completed",
+      "payload": {
+        "submission_file": "artifacts/predict/submission-20251217152745.csv"
+      }
+    }
+  },
+  "git": {
+    "hash": "a475f26",
+    "dirty": false
+  }
+}
 ```
 
 ### Project Configuration

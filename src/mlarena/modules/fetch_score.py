@@ -23,16 +23,6 @@ class FetchScoreModule(BaseModule):
     description = "Fetch public leaderboard score"
     dependencies = {"submit"}
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for score fetching.
-
-        Args:
-            parser: Argparse parser for the ``fetch-score`` subcommand.
-        """
-        parser.add_argument("--score-placeholder", type=float, default=None, help="Optional score value to store.")
-
     def _fetch_latest_submission(self, competition: str) -> Optional[dict]:
         try:
             out = subprocess.check_output(

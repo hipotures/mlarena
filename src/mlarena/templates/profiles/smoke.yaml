@@ -1,0 +1,5 @@
+common:
+  time_limit: 60
+  preset: medium
+  use_gpu: false
+profile: smoke

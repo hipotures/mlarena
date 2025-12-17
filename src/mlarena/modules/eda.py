@@ -99,16 +99,6 @@ class EDAModule(BaseModule):
     name = "eda"
     description = "Exploratory data analysis"
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for the EDA module.
-
-        Args:
-            parser: Argparse parser for the ``eda`` subcommand.
-        """
-        parser.add_argument("--eda-notes", type=str, default="", help="Optional notes saved with the EDA artifact.")
-
     def execute(self) -> ModuleResult:
         """
         Profile train/test datasets and persist summary artifacts.

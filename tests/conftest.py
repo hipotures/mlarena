@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
 
 from mlarena.core.experiment import ExperimentState
 from mlarena.core.module import ModuleContext
+from mlarena.core.conf import GlobalConfig
 
 
 @pytest.fixture(autouse=True)
@@ -135,10 +136,11 @@ def experiment_state(project_root):
 
 @pytest.fixture()
 def context_factory(project_root):
-    def _factory(module_name: str = "module", state: ExperimentState | None = None, config_module=None):
+    def _factory(module_name: str = "module", state: ExperimentState | None = None, config_module=None, config=None):
         st = state or ExperimentState.load_or_create(project_root, "demo")
         artifact_dir = st.experiment_dir / "artifacts" / module_name
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        conf = config or GlobalConfig(project="demo")
         return ModuleContext(
             project_name="demo",
             project_root=project_root,
@@ -148,6 +150,7 @@ def context_factory(project_root):
             cli_args={},
             state=st,
             config_module=config_module,
+            config=conf,
         )
 
     return _factory

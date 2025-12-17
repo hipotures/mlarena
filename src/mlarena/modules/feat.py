@@ -26,16 +26,6 @@ class FeatureModule(BaseModule):
     name = "feat"
     description = "Feature engineering"
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for the feature module.
-
-        Args:
-            parser: Argparse parser for the ``feat`` subcommand.
-        """
-        parser.add_argument("--feat-template", type=str, default="identity", help="Feature template name.")
-
     def _apply_ops(self, df: pd.DataFrame, template: Dict[str, Any]) -> pd.DataFrame:
         """
         Apply template-defined transformations to a dataframe.

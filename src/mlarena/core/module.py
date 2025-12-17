@@ -8,10 +8,11 @@ containers shared across all pipeline modules.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from rich.console import Console
+    from mlarena.core.conf import GlobalConfig
 
 
 @dataclass
@@ -46,6 +47,7 @@ class ModuleContext:
         cli_args: Parsed CLI arguments for the module.
         state: ``ExperimentState`` object associated with this run.
         config_module: Loaded project configuration module.
+        config: Unified GlobalConfig object.
     """
 
     project_name: str
@@ -56,6 +58,7 @@ class ModuleContext:
     cli_args: Dict[str, Any]
     state: Any
     config_module: Any
+    config: "GlobalConfig" = None
 
 
 class BaseModule(ABC):
@@ -68,15 +71,6 @@ class BaseModule(ABC):
     def __init__(self, context: ModuleContext) -> None:
         self.context = context
         self.invocation_params: Dict[str, Any] = {}
-
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Optional hook for argparse argument registration.
-
-        Args:
-            parser: Argparse parser for the module subcommand.
-        """
 
     def set_invocation_params(self, params: Dict[str, Any]) -> None:
         """

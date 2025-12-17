@@ -263,7 +263,7 @@ projects/kaggle/[competition]/
 
 **Quick model-only test:**
 ```bash
-uv run python scripts/mla.py model --project <proj> --smoke --skip-submit
+uv run python scripts/mla.py model --project <proj> --profile smoke skip_submit=true
 ```
 
 **Full pipeline test (init → preprocess → model → predict):**
@@ -273,7 +273,7 @@ uv run python scripts/mla.py -p <project>
 - Example: `uv run python scripts/mla.py -p Titanic`
 - **Duration**: ~2-3 minutes for complete flow
 - Auto-runs: init (if needed) → eda → preprocess → model → predict → submit
-- Use `--smoke` for faster testing (60s time limit instead of default)
+- Use `--profile smoke` for faster testing (60s time limit instead of default)
 
 ### Commit Format
 - `feat:`, `fix:`, `experiment:`
@@ -294,4 +294,4 @@ uv run python scripts/mla.py -p <project>
 - `docs/MLA_WORKFLOW_GUIDE.md`
 - `docs/configs.md`
 - `README.md`
-- Poprawny test na projekcie Titanic to: uv run python scripts/mla.py -p Titanic (nie musi być --smoke /bo to mało danych/, bez --force, chyba, ze chce się przetestować działanie AI)
+- Poprawny test na projekcie Titanic to: uv run python scripts/mla.py -p Titanic (nie musi być --profile smoke /bo to mało danych/, bez --force, chyba, ze chce się przetestować działanie AI)

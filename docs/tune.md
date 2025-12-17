@@ -49,18 +49,18 @@ uv run python scripts/mla.py tune --project <competition-slug>
 # Custom trial count and time limit
 uv run python scripts/mla.py tune \
   --project titanic \
-  --n-trials 20 \
-  --time-limit 120 \
-  --tune-template custom_search_space
+  tune.n_trials=20 \
+  tune.time_limit=120 \
+  tune.tune_template=custom_search_space
 ```
 
-## CLI Arguments
+## CLI Overrides
 
-| Argument | Type | Default | Description |
+| Override | Type | Default | Description |
 |----------|------|---------|-------------|
-| `--n-trials` | int | 10 | Number of Optuna trials to run |
-| `--time-limit` | int | 60 | Time limit per trial in seconds |
-| `--tune-template` | str | tune | Template name defining search space |
+| `tune.n_trials` | int | 10 | Number of Optuna trials to run |
+| `tune.time_limit` | int | 60 | Time limit per trial in seconds |
+| `tune.tune_template` | str | tune | Template name defining search space |
 
 ## Template Configuration
 
@@ -180,8 +180,8 @@ The module creates the following artifacts in `experiments/<exp_id>/artifacts/tu
 # Fast exploration with 5 trials, 30s each
 uv run python scripts/mla.py tune \
   --project titanic \
-  --n-trials 5 \
-  --time-limit 30
+  tune.n_trials=5 \
+  tune.time_limit=30
 ```
 
 ### Example 2: Learning Rate Search
@@ -199,8 +199,8 @@ search_space:
 ```bash
 uv run python scripts/mla.py tune \
   --project titanic \
-  --tune-template lr_search \
-  --n-trials 15
+  tune.tune_template=lr_search \
+  tune.n_trials=15
 ```
 
 ### Example 3: Tree-Based Model HPO

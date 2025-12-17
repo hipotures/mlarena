@@ -1,0 +1,5 @@
+common:
+  time_limit: 300
+  preset: high
+  use_gpu: false
+profile: dev

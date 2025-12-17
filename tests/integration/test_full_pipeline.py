@@ -55,7 +55,7 @@ def test_full_pipeline_predict(monkeypatch, tmp_path, mock_autogluon, capsys):
     project_root = tmp_path / "projects" / "kaggle" / project
     _write_demo_project(project_root)
 
-    exit_code = main(["predict", "--project", project, "--predict-suffix", "it"])
+    exit_code = main(["predict", "--project", project, "predict.predict_suffix=it"])
     assert exit_code == 0
 
     exp_root = project_root / "experiments"

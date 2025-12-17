@@ -23,18 +23,6 @@ class StackModule(BaseModule):
     description = "Stacking/ensembling"
     dependencies = {"predict"}
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for stacking.
-
-        Args:
-            parser: Argparse parser for the ``stack`` subcommand.
-        """
-        parser.add_argument("--prediction-files", nargs="+", help="List of prediction CSVs to stack/average.")
-        parser.add_argument("--id-column", type=str, default=None, help="ID column (defaults to config ID or first col).")
-        parser.add_argument("--target-column", type=str, default=None, help="Target column (defaults to config TARGET).")
-
     def execute(self) -> ModuleResult:
         """
         Average multiple prediction CSVs into a single submission.

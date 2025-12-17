@@ -20,26 +20,6 @@ class InitModule(BaseModule):
     description = "Initialize Kaggle project"
     dependencies = set()
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for project initialization.
-
-        Args:
-            parser: Argparse parser for the ``init`` subcommand.
-        """
-        parser.add_argument("--competition", "-c", help="Kaggle competition slug (defaults to --project)")
-        parser.add_argument("--skip-download", action="store_true", help="Skip Kaggle data download")
-        parser.add_argument("--target-column", help="Target column override")
-        parser.add_argument("--problem-type", choices=["binary", "regression", "multiclass"], help="Problem type override")
-        parser.add_argument("--metric", help="Evaluation metric override")
-        parser.add_argument("--id-column", help="ID column override")
-        parser.add_argument("--ignore-columns", nargs="*", help="Columns to ignore during training")
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("--submit-probas", action="store_true", help="Force probability submissions")
-        group.add_argument("--submit-labels", action="store_true", help="Force label submissions")
-        parser.add_argument("--cdp-url", help="CDP endpoint for Kaggle page scrape (optional)")
-
     def execute(self) -> ModuleResult:
         """
         Provision project files and download Kaggle data.

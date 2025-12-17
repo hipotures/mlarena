@@ -5,23 +5,45 @@ This module is shared across all competition projects. Individual projects
 use wrappers in their code/utils/submission.py that import from here.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import inspect
 import sys
 
 import pandas as pd
 import numpy as np
 
-# Import tools from scripts/ (experiment_logger, submissions_tracker, submission_workflow)
+# Import tools from scripts/ (experiment_logger, submissions_tracker)
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from experiment_logger import ExperimentLogger  # noqa: E402
-from submission_workflow import SubmissionArtifact  # noqa: E402
 from submissions_tracker import SubmissionsTracker  # noqa: E402
+
+
+@dataclass
+class SubmissionArtifact:
+    """Container returned by `create_submission` with tracking metadata."""
+
+    path: Path
+    filename: str
+    project_root: Path
+    competition: str
+    tracker_entry: Optional[Dict[str, Any]] = None
+    experiment: Optional[Dict[str, Any]] = None
+    model_name: Optional[str] = None
+    local_cv_score: Optional[float] = None
+    notes: str = ""
+    config: Optional[Dict[str, Any]] = None
+    feature_count: Optional[int] = None
+
+    def tracker_id(self) -> Optional[int]:
+        if self.tracker_entry:
+            return self.tracker_entry.get("id")
+        return None
 
 
 def _safe_relative_code_path(path: Path, project_root: Path) -> Optional[str]:

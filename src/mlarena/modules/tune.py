@@ -23,18 +23,6 @@ class TuneModule(BaseModule):
     description = "Hyperparameter tuning"
     dependencies = {"model"}  # Tune requires trained model
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for tuning.
-
-        Args:
-            parser: Argparse parser for the ``tune`` subcommand.
-        """
-        parser.add_argument("--n-trials", type=int, default=10, help="Number of tuning trials.")
-        parser.add_argument("--time-limit", type=int, default=60, help="Per-trial time limit (seconds).")
-        parser.add_argument("--tune-template", type=str, default="tune", help="Template name with search space.")
-
     def execute(self) -> ModuleResult:
         """
         Run a simple Optuna study over the configured search space.

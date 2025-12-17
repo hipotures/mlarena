@@ -26,7 +26,7 @@ The `stack` module enables you to:
 # Stack multiple prediction files
 uv run python scripts/mla.py stack \
   --project <competition-slug> \
-  --prediction-files submission1.csv submission2.csv submission3.csv
+  stack.prediction_files=[submission1.csv,submission2.csv,submission3.csv]
 ```
 
 ### With Explicit Columns
@@ -35,9 +35,9 @@ uv run python scripts/mla.py stack \
 # Specify ID and target columns explicitly
 uv run python scripts/mla.py stack \
   --project titanic \
-  --prediction-files pred1.csv pred2.csv pred3.csv \
-  --id-column PassengerId \
-  --target-column Survived
+  stack.prediction_files=[pred1.csv,pred2.csv,pred3.csv] \
+  stack.id_column=PassengerId \
+  stack.target_column=Survived
 ```
 
 ### Stacking Previous Experiment
@@ -49,13 +49,13 @@ uv run python scripts/mla.py stack \
   --experiment-id exp-20251216-123045
 ```
 
-## CLI Arguments
+## CLI Overrides
 
-| Argument | Type | Default | Description |
+| Override | Type | Default | Description |
 |----------|------|---------|-------------|
-| `--prediction-files` | list | None | Paths to prediction CSV files to ensemble |
-| `--id-column` | str | None | ID column name (defaults to first column) |
-| `--target-column` | str | None | Target column name (defaults to last column) |
+| `stack.prediction_files` | list | None | Paths to prediction CSV files to ensemble |
+| `stack.id_column` | str | None | ID column name (defaults to first column) |
+| `stack.target_column` | str | None | Target column name (defaults to last column) |
 
 ## How It Works
 

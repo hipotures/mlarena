@@ -31,16 +31,6 @@ class PredictModule(BaseModule):
     description = "Generate predictions"
     dependencies = {"model"}
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for prediction.
-
-        Args:
-            parser: Argparse parser for the ``predict`` subcommand.
-        """
-        parser.add_argument("--predict-suffix", type=str, default="", help="Optional suffix for submission filename.")
-
     def execute(self) -> ModuleResult:
         """
         Load the model artifact and run inference on (optionally) preprocessed test data.

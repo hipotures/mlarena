@@ -77,7 +77,7 @@ def test_cli_runs_eda(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr("mlarena.modules.eda._safe_profile", _stub_profile)
 
-    exit_code = main(["eda", "--project", "demo", "--eda-notes", "hello"])
+    exit_code = main(["eda", "--project", "demo", "eda.eda_notes=hello"])
     assert exit_code == 0
 
     exp_dir = project_root / "experiments" / "eda"

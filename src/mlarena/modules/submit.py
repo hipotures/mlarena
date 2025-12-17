@@ -165,18 +165,6 @@ class SubmitModule(BaseModule):
     description = "Submit predictions to Kaggle"
     dependencies = {"predict"}
 
-    @classmethod
-    def register_cli_args(cls, parser) -> None:
-        """
-        Register CLI arguments for submission handling.
-
-        Args:
-            parser: Argparse parser for the ``submit`` subcommand.
-        """
-        parser.add_argument("--skip-submit", action="store_true", help="Skip Kaggle submission (placeholder).")
-        parser.add_argument("--message", type=str, default="MLArena submission", help="Submission message.")
-        parser.add_argument("--auto-submit", action="store_true", help="Skip confirmation prompt and submit immediately.")
-
     def execute(self) -> ModuleResult:
         """
         Validate and optionally upload a submission to Kaggle.

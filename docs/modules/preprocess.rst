@@ -4,7 +4,7 @@ preprocess Module
 Execute a preprocessing step or chain element defined by a template; writes processed train/test (and optional orig) datasets plus shape metadata.
 
 - **Depends on:** none
-- **Key flags:** ``--preprocess-template`` (required), ``--cache``
+- **Key overrides:** ``preprocess_template=<name>`` (required), ``preprocess.cache=true``
 - **Outputs:** ``train_processed.csv``, ``test_processed.csv``, optional ``orig_processed.csv`` under ``experiments/<id>/artifacts/preprocess/``; shapes and template info in ``state.json``
 
 Source: ``src/mlarena/modules/preprocess.py``  

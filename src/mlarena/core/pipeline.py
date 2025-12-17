@@ -499,10 +499,16 @@ class PipelineExecutor:
 
                     # Module-specific path extraction
                     if name == "preprocess":
-                        if "train_processed" in payload:
-                            output_paths["train"] = format_path_relative(payload["train_processed"], module.context.project_root)
-                        if "test_processed" in payload:
-                            output_paths["test"] = format_path_relative(payload["test_processed"], module.context.project_root)
+                        # For pass-through modules, don't show train/test outputs (they're unchanged copies)
+                        is_pass_through = shapes and shapes.get("pass_through", False)
+
+                        if not is_pass_through:
+                            if "train_processed" in payload:
+                                output_paths["train"] = format_path_relative(payload["train_processed"], module.context.project_root)
+                            if "test_processed" in payload:
+                                output_paths["test"] = format_path_relative(payload["test_processed"], module.context.project_root)
+
+                        # Always show auxiliary outputs (e.g., weights)
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
                             output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)
                         if "custom_module_state" in payload and "av_stats" in payload["custom_module_state"]:

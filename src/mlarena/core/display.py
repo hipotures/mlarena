@@ -500,23 +500,42 @@ def print_module_footer(
         # Dataset shapes (for preprocess)
         if shapes:
             lines.append("")
-            lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}]")
-            if "train_before" in shapes and "train_after" in shapes:
-                train_before = shapes["train_before"]
-                train_after = shapes["train_after"]
-                lines.append(
-                    f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] "
-                    f"{train_before[0]:,} × {train_before[1]} → "
-                    f"{train_after[0]:,} × {train_after[1]}"
-                )
-            if "test_before" in shapes and "test_after" in shapes:
-                test_before = shapes["test_before"]
-                test_after = shapes["test_after"]
-                lines.append(
-                    f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] "
-                    f"{test_before[0]:,} × {test_before[1]} → "
-                    f"{test_after[0]:,} × {test_after[1]}"
-                )
+            is_pass_through = shapes.get("pass_through", False)
+
+            if is_pass_through:
+                # Pass-through module: show unchanged data with note
+                lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}] [dim](pass-through, unchanged)[/dim]")
+                if "train_before" in shapes:
+                    train_shape = shapes["train_before"]
+                    lines.append(
+                        f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] "
+                        f"{train_shape[0]:,} × {train_shape[1]}"
+                    )
+                if "test_before" in shapes:
+                    test_shape = shapes["test_before"]
+                    lines.append(
+                        f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] "
+                        f"{test_shape[0]:,} × {test_shape[1]}"
+                    )
+            else:
+                # Normal module: show before → after
+                lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}]")
+                if "train_before" in shapes and "train_after" in shapes:
+                    train_before = shapes["train_before"]
+                    train_after = shapes["train_after"]
+                    lines.append(
+                        f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] "
+                        f"{train_before[0]:,} × {train_before[1]} → "
+                        f"{train_after[0]:,} × {train_after[1]}"
+                    )
+                if "test_before" in shapes and "test_after" in shapes:
+                    test_before = shapes["test_before"]
+                    test_after = shapes["test_after"]
+                    lines.append(
+                        f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] "
+                        f"{test_before[0]:,} × {test_before[1]} → "
+                        f"{test_after[0]:,} × {test_after[1]}"
+                    )
 
         # Module-specific metrics
         if metrics:

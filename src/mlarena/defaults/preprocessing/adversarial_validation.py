@@ -30,6 +30,10 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
+# Module behavior flag: this module does not modify train/test data
+# It only generates auxiliary outputs (weights CSV)
+PASS_THROUGH = True
+
 
 def _transform_weights(av_prob: pd.Series, method: str) -> pd.Series:
     """

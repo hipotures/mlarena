@@ -249,9 +249,13 @@ class PreprocessModule(BaseModule):
 
         # Use custom preprocessing module if specified (not None and not empty string)
         custom_preprocess_state = {}
+        is_pass_through = False
         if custom_module_name:
             try:
                 preprocess_module = self._load_preprocessing_module(custom_module_name)
+
+                # Check if module is pass-through (does not modify train/test)
+                is_pass_through = getattr(preprocess_module, "PASS_THROUGH", False)
 
                 # Prepare config with artifact_dir
                 preprocess_config = template_cfg.get("config", {}).copy()
@@ -332,6 +336,28 @@ class PreprocessModule(BaseModule):
             orig_df.to_csv(processed_orig, index=False)
 
         # Prepare payload with custom preprocessing state
+        # For pass-through modules, shapes before/after are the same (no modification)
+        if is_pass_through:
+            shapes_dict = {
+                "train_before": orig_train_shape,
+                "train_after": orig_train_shape,  # Same as input
+                "test_before": orig_test_shape,
+                "test_after": orig_test_shape,  # Same as input
+                "orig_before": orig_orig_shape,
+                "orig_after": orig_orig_shape,  # Same as input
+                "pass_through": True,  # Flag for display
+            }
+        else:
+            shapes_dict = {
+                "train_before": orig_train_shape,
+                "train_after": train_df.shape,
+                "test_before": orig_test_shape,
+                "test_after": test_df.shape,
+                "orig_before": orig_orig_shape,
+                "orig_after": orig_df.shape if orig_df is not None else None,
+                "pass_through": False,
+            }
+
         payload = {
             "train_processed": str(processed_train),
             "test_processed": str(processed_test),
@@ -340,14 +366,7 @@ class PreprocessModule(BaseModule):
             "template": template_name,
             "input_source": input_source,  # Track previous step in chain
             "cached": False,
-            "shapes": {
-                "train_before": orig_train_shape,
-                "train_after": train_df.shape,
-                "test_before": orig_test_shape,
-                "test_after": test_df.shape,
-                "orig_before": orig_orig_shape,
-                "orig_after": orig_df.shape if orig_df is not None else None,
-            }
+            "shapes": shapes_dict,
         }
 
         # Add custom module state (e.g., av_weights_path)

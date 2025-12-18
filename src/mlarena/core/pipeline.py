@@ -522,8 +522,8 @@ class PipelineExecutor:
                             output_paths["leaderboard"] = format_path_relative(payload.get("leaderboard"), module.context.project_root)
                         if "submission_file" in payload:
                             output_paths["submission"] = format_path_relative(payload.get("submission_file"), module.context.project_root)
-                        if "local_cv" in payload:
-                            metrics["local_cv"] = payload["local_cv"]
+                        if "local_cv_score" in payload:
+                            metrics["local_cv_score"] = payload["local_cv_score"]
                         if "best_model" in payload:
                             metrics["best_model"] = payload["best_model"]
                     elif name == "eda":
@@ -561,8 +561,8 @@ class PipelineExecutor:
                     elif name == "submit":
                         if "submission_file" in payload:
                             output_paths["submission"] = format_path_relative(payload["submission_file"], module.context.project_root)
-                        if "local_cv" in payload:
-                            metrics["local_cv"] = payload["local_cv"]
+                        if "local_cv_score" in payload:
+                            metrics["local_cv_score"] = payload["local_cv_score"]
                         if "public_score" in payload and payload["public_score"]:
                             metrics["public_score"] = payload["public_score"]
 

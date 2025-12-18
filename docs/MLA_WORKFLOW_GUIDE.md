@@ -53,8 +53,8 @@ uv run python scripts/mla.py init --project titanic
 # Run full pipeline (60s countdown before auto-submit)
 uv run python scripts/mla.py model \
   --project titanic \
-  --model-template cpu-fast-1m \
-  --wait-seconds 45
+  model_template=cpu-fast-1m \
+  wait_seconds=45
 
 # Check results
 uv run python scripts/submissions_tracker.py --project titanic list
@@ -129,8 +129,8 @@ Trains AutoGluon model with specified template.
 uv run python scripts/mla.py model \
   --project titanic \
   --experiment-id eda \
-  --model-template cpu-fast-1m \
-  --skip-submit
+  model_template=cpu-fast-1m \
+  skip_submit=true
 ```
 
 **Available templates:**
@@ -209,7 +209,7 @@ uv run python scripts/mla.py submit \
 uv run python scripts/mla.py submit \
   --project titanic \
   --experiment-id eda \
-  --skip-submit
+  skip_submit=true
 ```
 
 **What it does:**

@@ -170,7 +170,7 @@ class SubmissionsTracker:
         table.add_column("Notes", width=25)
 
         for sub in submissions_to_display:
-            local_cv = f"{sub['local_cv_score']:.5f}" if sub.get('local_cv_score') else "-"
+            local_cv_score = f"{sub['local_cv_score']:.5f}" if sub.get('local_cv_score') else "-"
             public = f"{sub['public_score']:.5f}" if sub.get('public_score') else "-"
             private = f"{sub['private_score']:.5f}" if sub.get('private_score') else "-"
             git_short = sub.get('git_hash', '')[:7] if sub.get('git_hash') else "-"
@@ -185,7 +185,7 @@ class SubmissionsTracker:
                 str(sub['id']),
                 sub['timestamp'],
                 sub['model_name'],
-                local_cv,
+                local_cv_score,
                 public,
                 private,
                 git_short,
@@ -314,7 +314,7 @@ if __name__ == "__main__":
         tracker.add_submission(
             filename=args.filename,
             model_name=args.model_name,
-            local_cv_score=args.local_cv,
+            local_cv_score=args.local_cv_score,
             cv_std=args.cv_std,
             public_score=args.public,
             private_score=args.private,

@@ -12,12 +12,12 @@ log_score() {
   local state_file="projects/kaggle/$PROJECT/experiments/$exp_id/state.json"
   if [ -f "$state_file" ]; then
     local score
-    score=$(jq -r '.modules.model.payload.local_cv // empty' "$state_file" 2>/dev/null)
+    score=$(jq -r '.modules.model.payload.local_cv_score // empty' "$state_file" 2>/dev/null)
     if [ -n "$score" ] && [ "$score" != "null" ]; then
-      echo "$exp_id local_cv=$score" >> /tmp/scores.log
+      echo "$exp_id local_cv_score=$score" >> /tmp/scores.log
       echo "Logged score for $exp_id -> $score"
     else
-      echo "No local_cv found in $state_file"
+      echo "No local_cv_score found in $state_file"
     fi
   else
     echo "State file not found: $state_file"

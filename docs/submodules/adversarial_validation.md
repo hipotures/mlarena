@@ -358,7 +358,7 @@ def train(train_df, val_df, config, artifacts):
         best_score = float(leaderboard["score_val"].max())
 
     return {
-        "local_cv": best_score,
+        "local_cv_score": best_score,
         "model_path": str(artifacts["model_dir"]),
         "used_sample_weights": sample_weight is not None,  # Track if weights were used
     }

@@ -495,12 +495,12 @@ def _create_auto_flow_commit(
     import subprocess
 
     # Extract scores from module payloads
-    local_cv = None
+    local_cv_score = None
     public_score = None
 
     model_result = results.get("model")
     if model_result and model_result.payload:
-        local_cv = model_result.payload.get("local_cv")
+        local_cv = model_result.payload.get("local_cv_score") or model_result.payload.get("local_cv")
 
     fetch_result = results.get("fetch-score")
     if fetch_result and fetch_result.payload:
@@ -511,8 +511,8 @@ def _create_auto_flow_commit(
     flow_desc = "→".join(executed_modules)
     parts = [f"auto-flow({project_name}): {flow_desc}"]
 
-    if local_cv is not None:
-        parts.append(f"local {local_cv:.3f}")
+    if local_cv_score is not None:
+        parts.append(f"local {local_cv_score:.3f}")
 
     if public_score is not None:
         parts.append(f"public {public_score:.3f}")

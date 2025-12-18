@@ -277,7 +277,7 @@ def train(
 
     # Build training summary
     training_summary = {
-        "local_cv": float(best_score) if best_score is not None else None,
+        "local_cv_score": float(best_score) if best_score is not None else None,
         "best_model": best_model_name,
         "leaderboard": leaderboard,
         "model_path": str(config.system.model_path),

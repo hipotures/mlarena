@@ -112,18 +112,18 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
 
 
 def _build_kaggle_message(context, submission_file: Path, model_payload, feature_count: Optional[int]) -> str:
-    """Build submission message: local_cv | features | exp | model_template | preprocess_template | filename."""
+    """Build submission message: local_cv_score | features | exp | model_template | preprocess_template | filename."""
     parts = []
     exp_id = context.experiment_id
 
-    local_cv = None
+    local_cv_score = None
     model_template = None
     preprocess_template = None
 
     if model_payload:
-        # Get local_cv from payload
+        # Get local_cv_score from payload
         if getattr(model_payload, "payload", None):
-            local_cv = model_payload.payload.get("local_cv")
+            local_cv_score = model_payload.payload.get("local_cv_score")
 
         # Get templates from invocation (actual parameters used)
         if getattr(model_payload, "invocation", None):
@@ -141,8 +141,8 @@ def _build_kaggle_message(context, submission_file: Path, model_payload, feature
                 if exp_dir_path.name.startswith("pre-"):
                     preprocess_template = exp_dir_path.name[4:]  # Remove "pre-" prefix
 
-    if local_cv is not None:
-        parts.append(f"{float(local_cv):.5f}")
+    if local_cv_score is not None:
+        parts.append(f"{float(local_cv_score):.5f}")
     if feature_count is not None:
         parts.append(f"feat: {feature_count}")
     if exp_id:

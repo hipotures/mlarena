@@ -240,7 +240,7 @@ def _print_training_summary(
     preset: str,
     time_limit: int,
     use_gpu: bool,
-    local_cv: float | None,
+    local_cv_score: float | None,
     best_model: str | None,
     preprocess_template: str | None,
     leaderboard_path: Path | None,
@@ -262,8 +262,8 @@ def _print_training_summary(
         config_table.add_row("Preprocessing", preprocess_template)
     if best_model:
         config_table.add_row("Best Model", best_model)
-    if local_cv is not None:
-        config_table.add_row("Local CV", f"{local_cv:.6f}")
+    if local_cv_score is not None:
+        config_table.add_row("Local CV", f"{local_cv_score:.6f}")
 
     console.print("\n")
     console.print(config_table)
@@ -581,7 +581,7 @@ class ModelModule(BaseModule):
         else:
             predictor, training_summary = train_result, {}
 
-        local_cv = training_summary.get("local_cv")
+        local_cv_score = training_summary.get("local_cv_score")
 
         # Save leaderboard if returned by train() (extract before JSON serialization)
         lb_path = None
@@ -602,7 +602,7 @@ class ModelModule(BaseModule):
             preset=preset,
             time_limit=time_limit,
             use_gpu=use_gpu_param,
-            local_cv=local_cv,
+            local_cv_score=local_cv_score,
             best_model=model_implementation,
             preprocess_template=preprocess_template,
             leaderboard_path=lb_path,
@@ -613,7 +613,7 @@ class ModelModule(BaseModule):
             payload={
                 "model_implementation": model_implementation,
                 "model_artifact": str(artifact_dir / "model"),  # Required by predict module
-                "local_cv": local_cv,
+                "local_cv_score": local_cv_score,
                 "training_summary": training_summary,
                 "preset": preset,
                 "time_limit": time_limit,

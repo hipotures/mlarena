@@ -174,13 +174,13 @@ def train(
     )
 
     leaderboard = predictor.leaderboard(train_data, silent=True)
-    local_cv = None
+    local_cv_score = None
     if not leaderboard.empty and "score_val" in leaderboard:
         scores = leaderboard["score_val"].dropna()
         if not scores.empty:
-            local_cv = float(scores.max())
+            local_cv_score = float(scores.max())
 
-    summary: Dict[str, Any] = {"local_cv": local_cv}
+    summary: Dict[str, Any] = {"local_cv_score": local_cv_score}
 
     model_cfg = _model_cfg(config)
     leader_rows = int(model_cfg.get("leaderboard_rows") or 0)

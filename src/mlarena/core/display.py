@@ -553,17 +553,17 @@ def print_module_footer(
                     lines.append(f"  Clipped: {metrics['clipped_rows']:,} rows")
 
             # Model metrics (local CV, best model, etc.)
-            if "local_cv" in metrics:
+            if "local_cv_score" in metrics:
                 lines.append("")
                 lines.append(f"[{COLOR_KEY}]Model Performance:[/{COLOR_KEY}]")
-                lines.append(f"  Local CV: [{COLOR_METRIC_KEY}]{metrics['local_cv']:.6f}[/{COLOR_METRIC_KEY}]")
+                lines.append(f"  Local CV: [{COLOR_METRIC_KEY}]{metrics['local_cv_score']:.6f}[/{COLOR_METRIC_KEY}]")
 
             if "best_model" in metrics:
                 lines.append(f"  Best Model: {metrics['best_model']}")
 
             # Other metrics
             for key, value in metrics.items():
-                if key not in ["av_stats", "clipped_rows", "local_cv", "best_model"]:
+                if key not in ["av_stats", "clipped_rows", "local_cv_score", "best_model"]:
                     label = key.replace('_', ' ').title()
                     lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {value}")
 

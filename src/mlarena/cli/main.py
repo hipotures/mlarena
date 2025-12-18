@@ -500,7 +500,7 @@ def _create_auto_flow_commit(
 
     model_result = results.get("model")
     if model_result and model_result.payload:
-        local_cv = model_result.payload.get("local_cv_score") or model_result.payload.get("local_cv")
+        local_cv_score = model_result.payload.get("local_cv_score") or model_result.payload.get("local_cv")
 
     fetch_result = results.get("fetch-score")
     if fetch_result and fetch_result.payload:

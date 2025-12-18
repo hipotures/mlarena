@@ -338,7 +338,7 @@ Each experiment's `state.json` tracks module execution:
     "model": {
       "status": "completed",
       "payload": {
-        "local_cv": 0.8234,
+        "local_cv_score": 0.8234,
         "model_path": "artifacts/model/model"
       },
       "invocation": {

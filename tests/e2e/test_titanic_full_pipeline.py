@@ -168,7 +168,7 @@ def test_titanic_reproducibility(monkeypatch, titanic_e2e_setup, mock_autogluon)
         lambda self, name: {"preset": "fast", "time_limit": 1, "use_gpu": 0},
     )
 
-    # Ensure leaderboard contains score_val so local_cv is set
+    # Ensure leaderboard contains score_val so local_cv_score is set
     def _leaderboard_with_score(self, silent=True):
         return pd.DataFrame([{"model": "best", "score_val": 0.5}])
 
@@ -184,8 +184,8 @@ def test_titanic_reproducibility(monkeypatch, titanic_e2e_setup, mock_autogluon)
 
     import json
 
-    cv1 = json.loads(state1.read_text())["modules"]["model"]["payload"]["local_cv"]
-    cv2 = json.loads(state2.read_text())["modules"]["model"]["payload"]["local_cv"]
+    cv1 = json.loads(state1.read_text())["modules"]["model"]["payload"]["local_cv_score"]
+    cv2 = json.loads(state2.read_text())["modules"]["model"]["payload"]["local_cv_score"]
     assert cv1 == cv2 == 0.5
 
 

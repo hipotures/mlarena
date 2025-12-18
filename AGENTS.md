@@ -62,7 +62,7 @@ State structure:
     "modules": {
         "model": {
             "status": "completed",  # pending|running|completed|failed
-            "payload": {"local_cv": 0.923},
+            "payload": {"local_cv_score": 0.923},
             "invocation": {...},
             "error": null
         }

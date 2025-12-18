@@ -68,6 +68,7 @@ class SubmissionsTracker:
                     'timestamp': state_sub.get('timestamp') or legacy_sub.get('timestamp'),
                     'filename': state_sub.get('filename') or legacy_sub.get('filename'),
                     'model_name': state_sub.get('model_name') or legacy_sub.get('model_name'),
+                    'preprocess_name': state_sub.get('preprocess_name') or legacy_sub.get('preprocess_name'),
                     'local_cv_score': state_sub.get('local_cv_score') or legacy_sub.get('local_cv_score'),
                     'cv_std': legacy_sub.get('cv_std'),
                     # Manual public_score wins if present in submissions.json
@@ -152,6 +153,14 @@ class SubmissionsTracker:
                     "unknown"
                 )
 
+                # Extract preprocessing name
+                preprocess_name = (
+                    model_payload.get("preprocess_template") or
+                    model_module.get("invocation", {}).get("preprocess_template") or
+                    predict_module.get("invocation", {}).get("preprocess_template") or
+                    "unknown"
+                )
+
                 # Extract local CV (try new then legacy)
                 local_cv = (
                     model_payload.get("local_cv") or
@@ -178,6 +187,7 @@ class SubmissionsTracker:
                     "timestamp": timestamp,
                     "filename": Path(submission_file).name,
                     "model_name": model_name,
+                    "preprocess_name": preprocess_name,
                     "local_cv_score": local_cv,
                     "cv_std": None,
                     "public_score": public_score,
@@ -231,23 +241,6 @@ class SubmissionsTracker:
     ) -> Dict:
         """
         Add a new submission to tracking
-
-        Args:
-            filename: Name of the submission file
-            model_name: Model identifier (e.g., 'autogluon-medium', 'lgbm-v1')
-            local_cv_score: Local cross-validation score
-            cv_std: Standard deviation of CV score
-            public_score: Public leaderboard score
-            private_score: Private leaderboard score (available after competition ends)
-            notes: Additional notes about the submission
-            config: Model configuration dictionary
-            experiment_id: Experiment ID from experiment logger
-            git_hash: Git commit hash
-            code_path: Path to code file used
-            feature_count: Number of features used for training (after drops)
-
-        Returns:
-            Dictionary with submission details
         """
         submission = {
             "id": len(self.submissions) + 1,
@@ -280,11 +273,6 @@ class SubmissionsTracker:
     ):
         """
         Update leaderboard scores for a submission
-
-        Args:
-            submission_id: ID of the submission to update
-            public_score: New public leaderboard score
-            private_score: New private leaderboard score
         """
         for sub in self.submissions:
             if sub['id'] == submission_id:
@@ -301,13 +289,6 @@ class SubmissionsTracker:
     def get_best_submissions(self, metric: str = "public_score", top_n: int = 5) -> List[Dict]:
         """
         Get top N submissions by specified metric
-
-        Args:
-            metric: Metric to sort by ('local_cv_score', 'public_score', 'private_score')
-            top_n: Number of top submissions to return
-
-        Returns:
-            List of top submissions
         """
         scored_submissions = [s for s in self.submissions if s.get(metric) is not None]
         sorted_submissions = sorted(scored_submissions, key=lambda x: x[metric], reverse=True)
@@ -316,10 +297,6 @@ class SubmissionsTracker:
     def display_submissions(self, limit: Optional[int] = None, sort_by: str = "id"):
         """
         Display submissions in a formatted table
-
-        Args:
-            limit: Limit number of submissions to display
-            sort_by: Field to sort by ('id', 'local_cv_score', 'public_score', 'private_score', 'timestamp')
         """
         if not self.submissions:
             console.print("[yellow]No submissions tracked yet[/yellow]")
@@ -347,20 +324,22 @@ class SubmissionsTracker:
         table = Table(title="Submissions Tracking", show_header=True, header_style="bold magenta")
         table.add_column("ID", style="cyan", width=4)
         table.add_column("Timestamp", style="dim", width=16)
-        table.add_column("Model", style="green", width=20)
+        table.add_column("Model", style="green", width=15)
+        table.add_column("Preproc", style="blue", width=12)
         table.add_column("Local CV", justify="right", width=10)
-        table.add_column("Public", justify="right", width=10)
-        table.add_column("Private", justify="right", width=10)
+        table.add_column("Public", justify="right", width=8)
+        table.add_column("Filename", style="dim", width=25)
         table.add_column("Git", width=8)
-        table.add_column("Exp ID", style="dim", width=15)
-        table.add_column("Notes", width=25)
+        table.add_column("Exp ID", style="dim", width=12)
 
         for sub in submissions_to_display:
             local_cv_score = f"{sub['local_cv_score']:.5f}" if sub.get('local_cv_score') else "-"
             public = f"{sub['public_score']:.5f}" if sub.get('public_score') else "-"
             private = f"{sub['private_score']:.5f}" if sub.get('private_score') else "-"
             git_short = sub.get('git_hash', '')[:7] if sub.get('git_hash') else "-"
-            exp_id_short = sub.get('experiment_id', '')[-15:] if sub.get('experiment_id') else "-"
+            exp_id_short = sub.get('experiment_id', '')[-12:] if sub.get('experiment_id') else "-"
+            preproc = sub.get('preprocess_name', '-')
+            filename = sub.get('filename', '-')
 
             # Highlight best scores
             style = ""
@@ -371,12 +350,12 @@ class SubmissionsTracker:
                 str(sub['id']),
                 sub['timestamp'],
                 sub['model_name'],
+                preproc,
                 local_cv_score,
                 public,
-                private,
+                filename,
                 git_short,
                 exp_id_short,
-                sub.get('notes', '')[:25],
                 style=style
             )
 
@@ -500,7 +479,7 @@ if __name__ == "__main__":
         tracker.add_submission(
             filename=args.filename,
             model_name=args.model_name,
-            local_cv_score=args.local_cv_score,
+            local_cv_score=args.local_cv,
             cv_std=args.cv_std,
             public_score=args.public,
             private_score=args.private,

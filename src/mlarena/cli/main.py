@@ -558,6 +558,67 @@ def _create_auto_flow_commit(
         console.print("[dim]You can commit manually if needed[/dim]")
 
 
+def _convert_dash_args_to_overrides(args_list: List[str]) -> List[str]:
+    """
+    Convert --flag value arguments to key=value format for OmegaConf.
+    Maps common parameters to their config sections.
+    """
+    # Map common flags to their config paths
+    COMMON_PARAMS = {"time_limit", "use_gpu", "preset", "seed"}
+
+    result = []
+    i = 0
+    while i < len(args_list):
+        arg = args_list[i]
+
+        # Already in key=value format (with or without --)
+        if "=" in arg:
+            if arg.startswith("--"):
+                key_val = arg.lstrip("-")
+                key, val = key_val.split("=", 1)
+                key = key.replace("-", "_")
+            else:
+                key, val = arg.split("=", 1)
+                key = key.replace("-", "_")
+
+            # Prefix with common. if needed
+            if key in COMMON_PARAMS and not key.startswith("common."):
+                key = f"common.{key}"
+
+            result.append(f"{key}={val}")
+            i += 1
+            continue
+
+        # --flag value format
+        if arg.startswith("--"):
+            key = arg.lstrip("-").replace("-", "_")
+
+            # Check if next item is the value
+            if i + 1 < len(args_list) and not args_list[i + 1].startswith("-"):
+                value = args_list[i + 1]
+
+                # Prefix with common. if needed
+                if key in COMMON_PARAMS:
+                    key = f"common.{key}"
+
+                result.append(f"{key}={value}")
+                i += 2
+                continue
+            else:
+                # Boolean flag
+                if key in COMMON_PARAMS:
+                    key = f"common.{key}"
+                result.append(f"{key}=true")
+                i += 1
+                continue
+
+        # Plain value without flag
+        result.append(arg)
+        i += 1
+
+    return result
+
+
 def main(argv: List[str] | None = None) -> int:
     """
     Main CLI entry point using GlobalConfig.
@@ -570,6 +631,9 @@ def main(argv: List[str] | None = None) -> int:
 
     parser = _build_parser()
     args, overrides = parser.parse_known_args(argv)
+
+    # Convert --flag value to key=value for OmegaConf
+    overrides = _convert_dash_args_to_overrides(overrides)
 
     command = args.command
     # If command looks like an override (key=value), it's not a command
@@ -684,9 +748,9 @@ def main(argv: List[str] | None = None) -> int:
                 if hasattr(config, field):
                     params[field] = getattr(config, field)
             
-            # Also inject common fields as fallback
+            # Also inject common fields (these override template defaults if explicitly set via CLI)
             for field, value in config.common.model_dump().items():
-                if field not in params or params[field] is None:
+                if value is not None:
                     params[field] = value
                     
             module.set_invocation_params(params)

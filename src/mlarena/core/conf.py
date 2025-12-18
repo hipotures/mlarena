@@ -16,8 +16,8 @@ class CommonConfig(BaseModel):
     """Shared parameters used as fallbacks by modules."""
     seed: int = 42
     time_limit: Optional[int] = None
-    use_gpu: bool = False
-    preset: Optional[str] = "medium"
+    use_gpu: Optional[bool] = None
+    preset: Optional[str] = None
 
 class GlobalConfig(BaseModel):
     """The root configuration tree."""

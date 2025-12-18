@@ -31,11 +31,11 @@ IGNORED_COLUMNS = ['PassengerId']
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
 AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
 AUTOGLUON_PROBLEM_TYPE = "binary"  # binary, regression, multiclass
-AUTOGLUON_EVAL_METRIC = "roc_auc"  # AutoGluon metric (approximates Kaggle metric if different)
+AUTOGLUON_EVAL_METRIC = "accuracy"  # AutoGluon metric (approximates Kaggle metric if different)
 
 # Competition details
 COMPETITION_NAME = "Titanic"
-METRIC = "roc_auc"  # Kaggle evaluation metric
+METRIC = "accuracy"  # Kaggle evaluation metric
 
 # Submission format
-SUBMISSION_PROBAS = True
+SUBMISSION_PROBAS = False

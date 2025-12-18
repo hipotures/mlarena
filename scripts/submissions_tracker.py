@@ -23,11 +23,190 @@ class SubmissionsTracker:
         self.submissions = self._load_submissions()
 
     def _load_submissions(self) -> List[Dict]:
-        """Load submissions from JSON file"""
+        """
+        Load submissions from JSON file and merge with scanned experiments
+        
+        Merge strategy:
+        1. Load legacy submissions from submissions.json (preserves manual entries + old tracked data)
+        2. Scan experiments/ folder for state.json files
+        3. Merge entries:
+           - Matches by experiment_id are merged (manual data wins)
+           - New experiments are added with new IDs
+           - Manual entries (no experiment_id) are preserved with original IDs
+        """
+        # 1. Load legacy submissions
+        legacy_subs = []
         if self.tracker_file.exists():
             with open(self.tracker_file, 'r') as f:
-                return json.load(f)
-        return []
+                legacy_subs = json.load(f)
+        
+        # Index legacy submissions
+        legacy_by_id = {}      # For preserving IDs
+        legacy_by_exp_id = {}  # For experiment_id lookup
+        
+        for sub in legacy_subs:
+            legacy_by_id[sub['id']] = sub
+            exp_id = sub.get('experiment_id')
+            if exp_id:
+                legacy_by_exp_id[exp_id] = sub
+
+        # 2. Scan state.json files
+        state_entries = {sub['experiment_id']: sub for sub in self._scan_experiments()}
+
+        # 3. Merge
+        result_dict = {}  # Keyed by ID
+
+        # Add all legacy entries first (preserves IDs)
+        for legacy_sub in legacy_subs:
+            exp_id = legacy_sub.get('experiment_id')
+            if exp_id and exp_id in state_entries:
+                # Merge: combine data from both sources
+                state_sub = state_entries[exp_id]
+                merged = {
+                    'id': legacy_sub['id'],  # KEEP original ID
+                    'experiment_id': exp_id,
+                    'timestamp': state_sub.get('timestamp') or legacy_sub.get('timestamp'),
+                    'filename': state_sub.get('filename') or legacy_sub.get('filename'),
+                    'model_name': state_sub.get('model_name') or legacy_sub.get('model_name'),
+                    'local_cv_score': state_sub.get('local_cv_score') or legacy_sub.get('local_cv_score'),
+                    'cv_std': legacy_sub.get('cv_std'),
+                    # Manual public_score wins if present in submissions.json
+                    'public_score': legacy_sub.get('public_score') or state_sub.get('public_score'),
+                    'private_score': legacy_sub.get('private_score'),
+                    # Concatenate notes if both have them
+                    'notes': ' | '.join(filter(None, [legacy_sub.get('notes'), state_sub.get('notes')])),
+                    'config': legacy_sub.get('config', {}),
+                    'git_hash': state_sub.get('git_hash') or legacy_sub.get('git_hash'),
+                    'code_path': legacy_sub.get('code_path'),
+                    'feature_count': state_sub.get('feature_count') or legacy_sub.get('feature_count'),
+                    '_source': 'merged'
+                }
+                result_dict[legacy_sub['id']] = merged
+                # Mark as processed
+                state_entries.pop(exp_id, None)
+            else:
+                # Keep legacy entry as-is (no state.json match)
+                result_dict[legacy_sub['id']] = legacy_sub
+
+        # 4. Add new state.json entries (not in submissions.json)
+        max_existing_id = max(legacy_by_id.keys(), default=0)
+        next_id = max_existing_id + 1
+        
+        # Sort remaining new entries by timestamp to assign stable-ish IDs
+        sorted_new_entries = sorted(state_entries.values(), key=lambda x: x.get('timestamp', ''))
+        
+        for state_sub in sorted_new_entries:
+            state_sub['id'] = next_id
+            result_dict[next_id] = state_sub
+            next_id += 1
+
+        # 5. Convert to list and sort by timestamp for display
+        result = list(result_dict.values())
+        # Sort desc by timestamp (newest first) or ID
+        result.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+        return result
+
+    def _scan_experiments(self) -> List[Dict]:
+        """Scan experiments directory for state.json files"""
+        submissions = []
+        experiments_dir = self.project_root / "experiments"
+        
+        if not experiments_dir.exists():
+            return []
+
+        for state_file in experiments_dir.glob("*/state.json"):
+            try:
+                # Skip preprocessing and setup experiments
+                if state_file.parent.name.startswith(('pre-', 'av.', 'solo.', 'init', 'eda', 'data')):
+                    continue
+
+                state_data = json.loads(state_file.read_text())
+                modules = state_data.get("modules", {})
+
+                # Extract submission file (REQUIRED - skip if missing)
+                submission_file = None
+                predict_module = modules.get("predict", {})
+                model_module = modules.get("model", {})
+                submit_module = modules.get("submit", {})
+
+                # Try new schema first
+                if predict_module.get("payload", {}).get("submission_file"):
+                    submission_file = predict_module["payload"]["submission_file"]
+                # Try legacy schema
+                elif model_module.get("submission_file"):
+                    submission_file = model_module["submission_file"]
+                elif submit_module.get("submission_file"):
+                    submission_file = submit_module["submission_file"]
+
+                if not submission_file:
+                    continue  # SKIP if no submission file
+
+                # Extract model name (try new then legacy)
+                model_payload = model_module.get("payload", {})
+                model_name = (
+                    model_payload.get("model_implementation") or
+                    model_module.get("invocation", {}).get("model_template") or
+                    model_module.get("template") or
+                    model_module.get("compute", {}).get("template") or
+                    "unknown"
+                )
+
+                # Extract local CV (try new then legacy)
+                local_cv = (
+                    model_payload.get("local_cv") or
+                    model_payload.get("local_cv_score") or
+                    model_module.get("local_cv")
+                )
+
+                # Extract git hash (try new then legacy)
+                git_info = state_data.get("git", {})
+                git_hash = git_info.get("commit") or git_info.get("hash") or ""
+
+                # Extract public score
+                fetch_score_module = modules.get("fetch-score", {})
+                public_score = None
+                if fetch_score_module.get("status") == "completed":
+                    public_score = fetch_score_module.get("payload", {}).get("score")
+
+                # Parse timestamp
+                timestamp = self._parse_timestamp(state_data.get("created_at", ""))
+
+                # Build submission entry
+                submission = {
+                    "experiment_id": state_data.get("experiment_id"),
+                    "timestamp": timestamp,
+                    "filename": Path(submission_file).name,
+                    "model_name": model_name,
+                    "local_cv_score": local_cv,
+                    "cv_std": None,
+                    "public_score": public_score,
+                    "private_score": None,
+                    "notes": "",
+                    "config": {},
+                    "git_hash": git_hash,
+                    "code_path": None,
+                    "feature_count": predict_module.get("payload", {}).get("feature_count"),
+                    "_source": "state.json"
+                }
+
+                submissions.append(submission)
+
+            except Exception as e:
+                # console.print(f"[dim]Warning: Could not parse {state_file}: {e}[/dim]")
+                continue
+
+        return submissions
+
+    def _parse_timestamp(self, timestamp_str: str) -> str:
+        """Parse ISO timestamp to display format, handling both ...Z and +00:00"""
+        try:
+            # Replace Z with +00:00 for compatibility
+            dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            # Fallback: return as-is or empty
+            return timestamp_str if timestamp_str else ""
 
     def _save_submissions(self):
         """Save submissions to JSON file"""
@@ -148,9 +327,16 @@ class SubmissionsTracker:
 
         # Sort submissions
         reverse = sort_by != "id"  # Most metrics should be sorted descending
+        
+        def get_sort_key(item):
+            if sort_by == "id":
+                return item["id"]
+            val = item.get(sort_by)
+            return val if val is not None else -float('inf')
+
         submissions_to_display = sorted(
             self.submissions,
-            key=lambda x: x.get(sort_by, -float('inf')) if sort_by != "id" else x["id"],
+            key=get_sort_key,
             reverse=reverse
         )
 

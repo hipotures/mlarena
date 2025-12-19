@@ -140,6 +140,7 @@ def test_cli_auto_flow_respects_time_limit(monkeypatch, tmp_path, mock_autogluon
     _mark_setup_completed(project_root)
 
     def _fake_fetch_score(self):
+        self.context.artifact_dir.mkdir(parents=True, exist_ok=True)
         marker = self.context.artifact_dir / "fetch_score.txt"
         marker.write_text("skipped in test")
         return ModuleResult(success=True, payload={"score": 0.0}, artifacts=[marker])

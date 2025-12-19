@@ -1,0 +1,7 @@
+module: drift_detector
+cache: true
+config:
+  drift_metric: model_auc
+  min_auc: 0.70
+  action: drop
+  max_drop_fraction: 0.1

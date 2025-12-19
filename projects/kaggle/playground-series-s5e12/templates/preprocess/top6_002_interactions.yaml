@@ -1,0 +1,7 @@
+module: feature_engineer
+cache: true
+config:
+  interaction_types: ["mul", "div"]
+  auto_pair_numeric: true
+  max_auto_pairs: 10
+  max_generated_features: 20

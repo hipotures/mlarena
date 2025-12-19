@@ -143,11 +143,12 @@ class SubmissionsTracker:
                 if not submission_file:
                     continue  # SKIP if no submission file
 
-                # Extract model name (try new then legacy)
+                # Extract model name (try template name first for readability)
                 model_payload = model_module.get("payload", {})
                 model_name = (
-                    model_payload.get("model_implementation") or
                     model_module.get("invocation", {}).get("model_template") or
+                    model_payload.get("template") or
+                    model_payload.get("model_implementation") or
                     model_module.get("template") or
                     model_module.get("compute", {}).get("template") or
                     "unknown"
@@ -213,7 +214,7 @@ class SubmissionsTracker:
         try:
             # Replace Z with +00:00 for compatibility
             dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
+            return dt.strftime("%Y%m%d %H%M%S")
         except:
             # Fallback: return as-is or empty
             return timestamp_str if timestamp_str else ""
@@ -244,7 +245,7 @@ class SubmissionsTracker:
         """
         submission = {
             "id": len(self.submissions) + 1,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": datetime.now().strftime("%Y%m%d %H%M%S"),
             "filename": filename,
             "model_name": model_name,
             "local_cv_score": local_cv_score,

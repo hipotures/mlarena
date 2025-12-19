@@ -6,6 +6,7 @@ Executes a single preprocessing step defined by a template, supports chains, cac
 from __future__ import annotations
 
 import importlib.util
+import json
 import pickle
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -184,6 +185,7 @@ class PreprocessModule(BaseModule):
             )
 
         # Load input data (from previous preprocessing step or raw data)
+        prev_custom_state = {}
         if input_source:
             # Load from previous preprocessing step (within same chain)
             # input_source already contains index (e.g., "0-noop")
@@ -198,6 +200,19 @@ class PreprocessModule(BaseModule):
                     f"Chain broken: {input_source} must complete before {template_name}\n"
                     f"Chain experiment: {chain_exp_id}"
                 )
+            
+            # Load previous state to propagate custom_module_state (e.g., weights_path)
+            prev_state_path = prev_exp_dir / "state.json"
+            if prev_state_path.exists():
+                try:
+                    with open(prev_state_path) as f:
+                        prev_state = json.load(f)
+                    
+                    # Modules in chain steps are always named "preprocess"
+                    prev_payload = prev_state.get("modules", {}).get("preprocess", {}).get("payload", {})
+                    prev_custom_state = prev_payload.get("custom_module_state", {})
+                except Exception:
+                    pass
         else:
             # First step: load raw data
             train_path, test_path = data_paths(config)
@@ -354,8 +369,13 @@ class PreprocessModule(BaseModule):
         }
 
         # Add custom module state (e.g., av_weights_path)
+        # Merge previous custom state with current (current takes precedence)
+        final_custom_state = prev_custom_state.copy()
         if custom_preprocess_state:
-            payload["custom_module_state"] = custom_preprocess_state
+            final_custom_state.update(custom_preprocess_state)
+
+        if final_custom_state:
+            payload["custom_module_state"] = final_custom_state
 
         # Next steps will be printed by pipeline after footer (only for last in chain)
 

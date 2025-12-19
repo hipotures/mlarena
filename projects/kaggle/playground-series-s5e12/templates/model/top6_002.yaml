@@ -1,0 +1,7 @@
+preprocess_template: top6_002
+included_model_types: ["GBM", "XGB", "CAT"]
+config:
+  preset: best
+  time_limit: 10800  # 6h model budget
+  use_gpu: false
+  weight_evaluation: true

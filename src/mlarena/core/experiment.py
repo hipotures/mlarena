@@ -361,7 +361,7 @@ class ExperimentState:
         # Reconstruct project_root
         project_root_raw = data.get("project_root")
         if project_root_raw:
-            if project_root_raw.startswith("/"):
+            if project_root_raw.startswith("/") and project_root_raw.count("/") == 1:
                 # "/slug" -> REPO_ROOT/projects/kaggle/slug
                 project_root = REPO_ROOT / "projects" / "kaggle" / project_root_raw[1:]
             else:

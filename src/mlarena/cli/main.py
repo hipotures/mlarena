@@ -409,7 +409,9 @@ def run_auto_flow(
     }
     # Backward compat for some model modules that still use dict
     model_params.update(config.model) 
-    # Use common values as fallback if needed? Modules should handle it.
+    for field, value in config.common.model_dump().items():
+        if value is not None:
+            model_params[field] = value
     
     model_module.set_invocation_params(model_params)
 

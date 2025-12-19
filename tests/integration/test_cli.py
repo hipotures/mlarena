@@ -5,6 +5,7 @@ import pandas as pd
 
 from mlarena.cli.main import main
 from mlarena.core.experiment import ExperimentState
+from mlarena.core.module import ModuleResult
 from mlarena.core.registry import ModuleRegistry
 
 
@@ -115,6 +116,57 @@ def test_cli_preprocess_chain_unpacking(monkeypatch, tmp_path):
         / "train_processed.csv"
     )
     assert output_path.exists()
+
+
+def _mark_setup_completed(project_root: Path) -> None:
+    for module_name in ("init", "eda"):
+        state = ExperimentState.load_or_create(
+            project_root=project_root,
+            project_name="demo",
+            experiment_id=module_name,
+            setup_module_name=module_name,
+        )
+        state.complete_module(module_name, payload={"status": "completed"})
+        state.save()
+
+
+def test_cli_auto_flow_respects_time_limit(monkeypatch, tmp_path, mock_autogluon):
+    _ensure_registry()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mlarena.cli.main.REPO_ROOT", tmp_path)
+    project_root = tmp_path / "projects" / "kaggle" / "demo"
+    _write_minimal_project(project_root)
+    _write_minimal_preprocess(project_root)
+    _mark_setup_completed(project_root)
+
+    def _fake_fetch_score(self):
+        marker = self.context.artifact_dir / "fetch_score.txt"
+        marker.write_text("skipped in test")
+        return ModuleResult(success=True, payload={"score": 0.0}, artifacts=[marker])
+
+    monkeypatch.setattr("mlarena.modules.fetch_score.FetchScoreModule.execute", _fake_fetch_score)
+
+    exit_code = main(
+        [
+            "--project",
+            "demo",
+            "--model-template",
+            "baseline",
+            "--preprocess-template",
+            "cli_minimal",
+            "--time-limit",
+            "36000",
+            "--skip-submit",
+            "--wait-seconds",
+            "0",
+        ]
+    )
+    assert exit_code == 0
+
+    exp_dirs = list((project_root / "experiments").glob("exp-*"))
+    assert exp_dirs
+    state = ExperimentState.load_or_create(project_root, "demo", experiment_id=exp_dirs[0].name)
+    assert state.modules["model"].payload["time_limit"] == 36000
 
 
 def test_cli_runs_eda(monkeypatch, tmp_path, capsys):

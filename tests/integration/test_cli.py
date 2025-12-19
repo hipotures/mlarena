@@ -47,6 +47,29 @@ def _write_minimal_project(root: Path):
     (root / "templates").mkdir(parents=True, exist_ok=True)
 
 
+def _write_minimal_preprocess(root: Path):
+    """Add a minimal preprocessing template + module for CLI tests."""
+    templates_dir = root / "templates" / "preprocess"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    (templates_dir / "cli_minimal.yaml").write_text("module: minimal_preprocess\nconfig: {}\n")
+
+    preprocess_dir = root / "code" / "preprocessing"
+    preprocess_dir.mkdir(parents=True, exist_ok=True)
+    (preprocess_dir / "minimal_preprocess.py").write_text(
+        "\n".join(
+            [
+                "PASS_THROUGH = True",
+                "",
+                "def fit_transform(train_df, val_df, test_df, config, orig_df=None):",
+                "    state = {\"note\": \"pass_through\"}",
+                "    if orig_df is not None:",
+                "        return train_df, val_df, test_df, orig_df, state",
+                "    return train_df, val_df, test_df, state",
+            ]
+        )
+    )
+
+
 def _ensure_registry():
     """Reset and repopulate module registry to include all built-ins."""
     ModuleRegistry.clear()
@@ -60,6 +83,38 @@ def test_cli_lists_modules(monkeypatch, tmp_path, capsys):
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "eda" in out and "model" in out
+
+
+def test_cli_rejects_unknown_command(monkeypatch, tmp_path, capsys):
+    _ensure_registry()
+    monkeypatch.chdir(tmp_path)
+    exit_code = main(["preproc", "--project", "demo"])
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "Unknown command: preproc" in out
+
+
+def test_cli_preprocess_chain_unpacking(monkeypatch, tmp_path):
+    _ensure_registry()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mlarena.cli.main.REPO_ROOT", tmp_path)
+    project_root = tmp_path / "projects" / "kaggle" / "demo"
+    _write_minimal_project(project_root)
+    _write_minimal_preprocess(project_root)
+
+    exit_code = main(["preprocess", "--project", "demo", "preprocess_template=cli_minimal"])
+    assert exit_code == 0
+
+    output_path = (
+        project_root
+        / "experiments"
+        / "pre-cli_minimal"
+        / "0-cli_minimal"
+        / "artifacts"
+        / "preprocess"
+        / "train_processed.csv"
+    )
+    assert output_path.exists()
 
 
 def test_cli_runs_eda(monkeypatch, tmp_path, capsys):

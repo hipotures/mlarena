@@ -643,6 +643,12 @@ def main(argv: List[str] | None = None) -> int:
         # Check if it's a valid module or 'modules' command
         if potential_command == "modules" or potential_command in ModuleRegistry.available():
             command = overrides.pop(0)
+        else:
+            available = ", ".join(sorted(ModuleRegistry.available()))
+            print(f"[error] Unknown command: {potential_command}")
+            if available:
+                print(f"[error] Available modules: {available}")
+            return 1
 
     # Detect project
     project = args.project
@@ -717,7 +723,7 @@ def main(argv: List[str] | None = None) -> int:
             print(f"[error] Project '{project}' not initialized. Run: mla init --project {project}")
             return 1
             
-        exit_code, _, _ = run_preprocess_chain(
+        exit_code, _, _, _ = run_preprocess_chain(
             project_root, project, config, config_module, pipeline_def, argv, console
         )
         return exit_code

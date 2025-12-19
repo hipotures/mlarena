@@ -95,7 +95,7 @@ def _build_parser() -> argparse.ArgumentParser:
     Build a simplified top-level CLI parser.
     """
     parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner")
-    parser.add_argument("command", nargs="?", help="Module to run (e.g., model, preprocess) or 'modules' to list.")
+    # Command is handled manually to avoid greedy consumption of flag values
     parser.add_argument("--project", "-p", help="Project name (e.g., Titanic)")
     parser.add_argument("--experiment-id", "-e", help="Experiment ID to resume")
     parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
@@ -635,11 +635,14 @@ def main(argv: List[str] | None = None) -> int:
     # Convert --flag value to key=value for OmegaConf
     overrides = _convert_dash_args_to_overrides(overrides)
 
-    command = args.command
-    # If command looks like an override (key=value), it's not a command
-    if command and "=" in command:
-        overrides.insert(0, command)
-        command = None
+    # Detect command from overrides (first non-override argument)
+    command = None
+    if overrides and not overrides[0].startswith("-") and "=" not in overrides[0]:
+        # First override is a plain value (potential command)
+        potential_command = overrides[0]
+        # Check if it's a valid module or 'modules' command
+        if potential_command == "modules" or potential_command in ModuleRegistry.available():
+            command = overrides.pop(0)
 
     # Detect project
     project = args.project

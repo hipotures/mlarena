@@ -1,6 +1,11 @@
 # Data and outputs
 data/
 experiments/
+!experiments/
+!experiments/*/
+!experiments/*/state.json
+experiments/eda/artifacts/eda/*.json
+experiments/eda/artifacts/eda/*.html
 submissions/
 logs/
 __pycache__/

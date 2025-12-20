@@ -83,6 +83,31 @@ The pipeline consists of the following modules:
 
 **Note**: AutoGluon native HPO is available through model templates with `hpo_preset`. See [HPO Guide](docs/MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 
+### Weighted Submission Blending (Utility Script)
+
+For weighted blends based on Kaggle public scores, use `scripts/blend_submissions.py`. It parses a Kaggle CLI output file, selects top-N submissions by public score, maps them to local submission CSVs, and writes a blended submission plus a manifest.
+
+```bash
+# Export Kaggle submissions list
+kaggle competitions submissions -c <competition-slug> > /tmp/sub.txt
+
+# Blend top 5 by public score (default weighting)
+python scripts/blend_submissions.py \
+  --project <competition-slug> \
+  --kaggle-output /tmp/sub.txt \
+  --top-n 5 \
+  --weighting public \
+  --output-name submission-blend-top5-public.csv
+```
+
+Override the submissions directory if needed:
+```bash
+python scripts/blend_submissions.py \
+  --project <competition-slug> \
+  --kaggle-output /tmp/sub.txt \
+  --submissions-dir /path/to/submissions
+```
+
 ### Manual Workflow Example
 
 If you prefer more granular control, you can run each module individually.

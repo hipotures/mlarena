@@ -19,11 +19,26 @@ Parameters:
     - random_state: int
     - max_drop_fraction: float (max fraction of features to drop in one step)
     - protect_cb_features: bool (keep numeric features ending with "_cb" regardless of selection)
+    - optuna_trials: int (LightGBM only; >1 enables Optuna CV tuning)
+    - optuna_timeout: float|None (Optuna time budget in seconds; if set, stops study on timeout)
+      * If both optuna_trials and optuna_timeout are set, the first limit reached stops the study.
+    - optuna_cv_folds: int (CV folds for Optuna tuning)
+    - optuna_early_stopping_rounds: int (early stopping rounds during CV)
+    - optuna_num_boost_round: int|None (override num_boost_round for tuning)
+    - optuna_pruner: str ("median" | "none")
+    - use_gpu: bool (LightGBM only)
+    - importance_cumulative: float|None (keep top features covering cumulative importance)
+    - optuna_export_trials: bool (export Optuna trials JSON when tuning)
+    - optuna_save_storage: bool (save Optuna sqlite storage when tuning)
+    - optuna_storage_path: str|None (override sqlite path)
+    - optuna_study_name: str (Optuna study name)
+    - optuna_load_if_exists: bool (resume existing sqlite study)
 """
 
 from pathlib import Path
 from typing import Any, Dict, Tuple, List
 import warnings
+import json
 
 import pandas as pd
 import numpy as np
@@ -73,6 +88,20 @@ def fit_transform(
             - random_state: Random seed
             - max_drop_fraction: Maximum fraction of features to drop
             - protect_cb_features: Protect numeric columns ending with "_cb"
+            - optuna_trials: LightGBM-only Optuna trials (>1 enables tuning)
+            - optuna_timeout: Optuna time budget (seconds; if set, stops study on timeout)
+              * If both optuna_trials and optuna_timeout are set, the first limit reached stops the study.
+            - optuna_cv_folds: CV folds for Optuna tuning
+            - optuna_early_stopping_rounds: Early stopping rounds during tuning
+            - optuna_num_boost_round: Override num_boost_round for tuning
+            - optuna_pruner: "median" | "none"
+            - use_gpu: Use GPU for LightGBM (if available)
+            - importance_cumulative: Cumulative importance threshold (0-1); mutually exclusive with n_features
+            - optuna_export_trials: Export Optuna trials JSON to artifacts
+            - optuna_save_storage: Save Optuna sqlite storage to artifacts
+            - optuna_storage_path: Custom sqlite path (optional)
+            - optuna_study_name: Optuna study name
+            - optuna_load_if_exists: Resume study if sqlite exists
         orig_df: External dataset (can be None)
 
     Returns:
@@ -99,6 +128,19 @@ def fit_transform(
         "random_state": 42,
         "max_drop_fraction": 0.5,
         "protect_cb_features": True,
+        "optuna_trials": 1,
+        "optuna_timeout": None,
+        "optuna_cv_folds": 3,
+        "optuna_early_stopping_rounds": 200,
+        "optuna_num_boost_round": None,
+        "optuna_pruner": "median",
+        "use_gpu": False,
+        "importance_cumulative": None,
+        "optuna_export_trials": True,
+        "optuna_save_storage": True,
+        "optuna_storage_path": None,
+        "optuna_study_name": "feature_selector_lgbm",
+        "optuna_load_if_exists": True,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -123,6 +165,21 @@ def fit_transform(
             if not isinstance(n_feat, (int, float)):
                 raise ValueError(f"n_features must be a number or None, got {type(n_feat).__name__}")
 
+        if config.get("importance_cumulative") is not None:
+            validation.validate_numeric_range(
+                config["importance_cumulative"],
+                min_value=0.0,
+                max_value=1.0,
+                param_name="importance_cumulative"
+            )
+            if config.get("n_features") is not None:
+                raise ValueError(
+                    "n_features and importance_cumulative are mutually exclusive. "
+                    "Use only one selection option."
+                )
+            if config["selection_method"] == "rfe":
+                raise ValueError("importance_cumulative is not supported for selection_method=rfe.")
+
         # Validate numeric ranges
         validation.validate_numeric_range(
             config["max_drop_fraction"],
@@ -130,6 +187,51 @@ def fit_transform(
             max_value=1.0,
             param_name="max_drop_fraction"
         )
+
+        validation.validate_numeric_range(
+            config["optuna_cv_folds"],
+            min_value=2,
+            max_value=20,
+            param_name="optuna_cv_folds"
+        )
+
+        validation.validate_numeric_range(
+            config["optuna_trials"],
+            min_value=1,
+            max_value=1000,
+            param_name="optuna_trials"
+        )
+
+        if config.get("optuna_timeout") is not None:
+            validation.validate_numeric_range(
+                config["optuna_timeout"],
+                min_value=1,
+                max_value=None,
+                param_name="optuna_timeout"
+            )
+
+        if config["optuna_num_boost_round"] is not None:
+            validation.validate_numeric_range(
+                config["optuna_num_boost_round"],
+                min_value=1,
+                max_value=100000,
+                param_name="optuna_num_boost_round"
+            )
+
+        if config["optuna_pruner"] not in ["median", "none"]:
+            raise ValueError(
+                "optuna_pruner must be 'median' or 'none'"
+            )
+
+        for bool_key in ["optuna_export_trials", "optuna_save_storage", "optuna_load_if_exists", "use_gpu"]:
+            if not isinstance(config.get(bool_key), bool):
+                raise ValueError(f"{bool_key} must be a boolean")
+
+        if config.get("optuna_storage_path") is not None and not isinstance(config["optuna_storage_path"], str):
+            raise ValueError("optuna_storage_path must be a string or null")
+
+        if not isinstance(config.get("optuna_study_name"), str) or not config["optuna_study_name"].strip():
+            raise ValueError("optuna_study_name must be a non-empty string")
 
     # 3. Create sub-module artifact directory
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_selector")
@@ -191,7 +293,10 @@ def fit_transform(
         raise ValueError(f"Target column '{target_column}' not found in training data")
 
     # 8. Perform feature selection
-    selected_features, feature_scores = _select_features(
+    optuna_trials_limit = config["optuna_trials"] if config["optuna_trials"] > 1 else None
+    optuna_timeout_limit = config["optuna_timeout"] if config.get("optuna_timeout") is not None else None
+
+    selected_features, feature_scores, selection_meta = _select_features(
         X_train=X_train,
         y_train=y_train,
         feature_names=numeric_cols,
@@ -205,6 +310,20 @@ def fit_transform(
         random_state=config["random_state"],
         max_drop_fraction=config["max_drop_fraction"],
         problem_type=problem_type,
+        optuna_trials=optuna_trials_limit,
+        optuna_timeout=optuna_timeout_limit,
+        optuna_cv_folds=config["optuna_cv_folds"],
+        optuna_early_stopping_rounds=config["optuna_early_stopping_rounds"],
+        optuna_num_boost_round=config["optuna_num_boost_round"],
+        optuna_pruner=config["optuna_pruner"],
+        use_gpu=config["use_gpu"],
+        importance_cumulative=config["importance_cumulative"],
+        optuna_export_trials=config["optuna_export_trials"],
+        optuna_save_storage=config["optuna_save_storage"],
+        optuna_storage_path=config["optuna_storage_path"],
+        optuna_study_name=config["optuna_study_name"],
+        optuna_load_if_exists=config["optuna_load_if_exists"],
+        optuna_artifact_dir=submodule_dir,
     )
 
     # 9. Apply selection to DataFrames
@@ -232,7 +351,21 @@ def fit_transform(
     if orig_df is not None:
         orig_df = orig_df[[col for col in keep_cols if col in orig_df.columns]]
 
-    # 10. Save feature importance/scores report
+    # 10. Save feature importance/scores report (sorted by score desc)
+    def _normalize_score(score: float) -> float | None:
+        if isinstance(score, (float, np.floating)) and np.isnan(score):
+            return None
+        return float(score)
+
+    score_items = [
+        (feature, _normalize_score(score))
+        for feature, score in zip(numeric_cols, feature_scores)
+    ]
+    score_items_sorted = sorted(
+        score_items,
+        key=lambda item: (item[1] is None, -(item[1] if item[1] is not None else 0.0)),
+    )
+
     feature_report = {
         "method": config["selection_method"],
         "total_features_before": len(numeric_cols),
@@ -241,9 +374,9 @@ def fit_transform(
         "drop_fraction": (len(numeric_cols) - len(selected_features)) / len(numeric_cols) if numeric_cols else 0,
         "selected_features": selected_features,
         "dropped_features": [col for col in numeric_cols if col not in selected_features],
+        "selection_meta": selection_meta,
         "feature_scores": {
-            feature: float(score) if not np.isnan(score) else None
-            for feature, score in zip(numeric_cols, feature_scores)
+            feature: score for feature, score in score_items_sorted
         },
     }
     artifacts.save_report(feature_report, submodule_dir, "feature_selection_report.json")
@@ -266,6 +399,7 @@ def fit_transform(
         "features_before": len(numeric_cols),
         "features_after": len(selected_features),
         "selected_features": selected_features,
+        "selection_meta": selection_meta,
         "feature_scores_summary": {
             "mean": float(np.nanmean(feature_scores)),
             "std": float(np.nanstd(feature_scores)),
@@ -291,14 +425,43 @@ def _select_features(
     random_state: int,
     max_drop_fraction: float,
     problem_type: str,
-) -> Tuple[List[str], np.ndarray]:
+    optuna_trials: int | None,
+    optuna_timeout: float | None,
+    optuna_cv_folds: int,
+    optuna_early_stopping_rounds: int,
+    optuna_num_boost_round: int | None,
+    optuna_pruner: str,
+    use_gpu: bool,
+    importance_cumulative: float | None,
+    optuna_export_trials: bool,
+    optuna_save_storage: bool,
+    optuna_storage_path: str | None,
+    optuna_study_name: str,
+    optuna_load_if_exists: bool,
+    optuna_artifact_dir: Path | None,
+) -> Tuple[List[str], np.ndarray, Dict[str, Any]]:
     """
     Select features using specified method.
 
     Returns:
-        Tuple of (selected_feature_names, feature_scores)
+        Tuple of (selected_feature_names, feature_scores, selection_meta)
     """
     total_features = X_train.shape[1]
+    selection_meta: Dict[str, Any] = {}
+
+    optuna_enabled = (optuna_trials is not None and optuna_trials > 1) or optuna_timeout is not None
+    if optuna_enabled and (method != "model_importance" or importance_model_type != "lgbm"):
+        warnings.warn(
+            "Optuna tuning is only supported for selection_method=model_importance with "
+            "importance_model_type=lgbm; ignoring optuna settings."
+        )
+        optuna_enabled = False
+
+    if optuna_enabled:
+        selection_meta["optuna_limits"] = {
+            "trials": optuna_trials,
+            "timeout_seconds": optuna_timeout,
+        }
 
     # Interpret select_features parameter
     if select_features is None:
@@ -324,6 +487,32 @@ def _select_features(
     min_features_to_keep = max(1, int(total_features * (1 - max_drop_fraction)))
     n_features_to_select = max(n_features_to_select, min_features_to_keep)
 
+    def _apply_cumulative_cutoff(feature_scores: np.ndarray) -> None:
+        nonlocal n_features_to_select
+        if importance_cumulative is None:
+            return
+        scores = np.array(feature_scores, dtype=float)
+        scores = np.nan_to_num(scores, nan=0.0)
+        total = float(scores.sum())
+        if total <= 0:
+            warnings.warn(
+                "importance_cumulative requested but total feature importance is 0. "
+                "Falling back to max_drop_fraction guard."
+            )
+            n_features_to_select = max(min_features_to_keep, 1)
+        else:
+            order = np.argsort(scores)[::-1]
+            cumulative = np.cumsum(scores[order]) / total
+            cutoff_idx = int(np.searchsorted(cumulative, importance_cumulative, side="left")) + 1
+            cutoff_idx = min(cutoff_idx, total_features)
+            n_features_to_select = max(cutoff_idx, min_features_to_keep)
+
+        selection_meta["importance_cumulative"] = {
+            "target": float(importance_cumulative),
+            "selected_features": int(n_features_to_select),
+            "min_features_to_keep": int(min_features_to_keep),
+        }
+
     # Initialize scores array
     feature_scores = np.zeros(total_features)
 
@@ -331,6 +520,7 @@ def _select_features(
         # Variance threshold
         variances = np.var(X_train, axis=0)
         feature_scores = variances
+        _apply_cumulative_cutoff(variances)
         selected_mask = variances >= min_variance
 
         if selected_mask.sum() >= n_features_to_select:
@@ -353,6 +543,7 @@ def _select_features(
             mi_scores = mutual_info_regression(X_train, y_train, random_state=random_state)
 
         feature_scores = mi_scores
+        _apply_cumulative_cutoff(mi_scores)
         selector = SelectKBest(k=n_features_to_select)
         selector.fit(X_train, y_train)
         selected_mask = selector.get_support()
@@ -364,6 +555,7 @@ def _select_features(
             for i in range(n_features)
         ])
         feature_scores = correlations
+        _apply_cumulative_cutoff(correlations)
         top_indices = np.argsort(correlations)[::-1][:n_features_to_select]
         selected_mask = np.zeros(n_features, dtype=bool)
         selected_mask[top_indices] = True
@@ -389,34 +581,71 @@ def _select_features(
             importances = model.feature_importances_
 
         elif importance_model_type == "lgbm":
-            try:
-                import lightgbm as lgb
-                if problem_type in ["binary", "multiclass"]:
-                    model = lgb.LGBMClassifier(
-                        n_estimators=n_estimators,
-                        max_depth=max_depth,
-                        random_state=random_state,
-                        n_jobs=-1,
-                        verbosity=-1,
-                    )
-                else:
-                    model = lgb.LGBMRegressor(
-                        n_estimators=n_estimators,
-                        max_depth=max_depth,
-                        random_state=random_state,
-                        n_jobs=-1,
-                        verbosity=-1,
-                    )
-                model.fit(X_train, y_train)
-                importances = model.feature_importances_
-            except ImportError:
-                warnings.warn("LightGBM not available, falling back to RandomForest")
-                return _select_features(
-                    X_train, y_train, feature_names, "model_importance",
-                    select_features, min_variance, min_importance,
-                    "rf", n_estimators, max_depth, random_state,
-                    max_drop_fraction, problem_type
+            if optuna_enabled:
+                importances, optuna_summary = _run_optuna_lgbm_importance(
+                    X_train=X_train,
+                    y_train=y_train,
+                    feature_names=feature_names,
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    problem_type=problem_type,
+                    optuna_trials=optuna_trials,
+                    optuna_timeout=optuna_timeout,
+                    optuna_cv_folds=optuna_cv_folds,
+                    optuna_early_stopping_rounds=optuna_early_stopping_rounds,
+                    optuna_num_boost_round=optuna_num_boost_round,
+                    optuna_pruner=optuna_pruner,
+                    use_gpu=use_gpu,
+                    optuna_export_trials=optuna_export_trials,
+                    optuna_save_storage=optuna_save_storage,
+                    optuna_storage_path=optuna_storage_path,
+                    optuna_study_name=optuna_study_name,
+                    optuna_load_if_exists=optuna_load_if_exists,
+                    optuna_artifact_dir=optuna_artifact_dir,
                 )
+                selection_meta.update(optuna_summary)
+            else:
+                try:
+                    import lightgbm as lgb
+                    if problem_type in ["binary", "multiclass"]:
+                        model = lgb.LGBMClassifier(
+                            n_estimators=n_estimators,
+                            max_depth=max_depth,
+                            random_state=random_state,
+                            n_jobs=-1,
+                            verbosity=-1,
+                            device_type="gpu" if use_gpu else "cpu",
+                        )
+                    else:
+                        model = lgb.LGBMRegressor(
+                            n_estimators=n_estimators,
+                            max_depth=max_depth,
+                            random_state=random_state,
+                            n_jobs=-1,
+                            verbosity=-1,
+                            device_type="gpu" if use_gpu else "cpu",
+                        )
+                    model.fit(X_train, y_train)
+                    importances = model.feature_importances_
+                except ImportError:
+                    warnings.warn("LightGBM not available, falling back to RandomForest")
+                    return _select_features(
+                        X_train, y_train, feature_names, "model_importance",
+                        select_features, min_variance, min_importance,
+                        "rf", n_estimators, max_depth, random_state,
+                        max_drop_fraction, problem_type,
+                        optuna_trials, optuna_timeout, optuna_cv_folds,
+                        optuna_early_stopping_rounds, optuna_num_boost_round,
+                        optuna_pruner, use_gpu,
+                        importance_cumulative,
+                        optuna_export_trials,
+                        optuna_save_storage,
+                        optuna_storage_path,
+                        optuna_study_name,
+                        optuna_load_if_exists,
+                        optuna_artifact_dir
+                    )
 
         elif importance_model_type == "xgb":
             try:
@@ -445,12 +674,23 @@ def _select_features(
                     X_train, y_train, feature_names, "model_importance",
                     select_features, min_variance, min_importance,
                     "rf", n_estimators, max_depth, random_state,
-                    max_drop_fraction, problem_type
+                    max_drop_fraction, problem_type,
+                    optuna_trials, optuna_timeout, optuna_cv_folds,
+                    optuna_early_stopping_rounds, optuna_num_boost_round,
+                    optuna_pruner, use_gpu,
+                    importance_cumulative,
+                    optuna_export_trials,
+                    optuna_save_storage,
+                    optuna_storage_path,
+                    optuna_study_name,
+                    optuna_load_if_exists,
+                    optuna_artifact_dir
                 )
         else:
             raise ValueError(f"Unknown importance_model_type: {importance_model_type}")
 
         feature_scores = importances
+        _apply_cumulative_cutoff(importances)
         # Select features using threshold + strict top-K cap
         selected_mask = importances >= min_importance
 
@@ -492,6 +732,7 @@ def _select_features(
             importances = np.abs(model.coef_[0])
 
         feature_scores = importances
+        _apply_cumulative_cutoff(importances)
         top_indices = np.argsort(importances)[::-1][:n_features_to_select]
         selected_mask = np.zeros(n_features, dtype=bool)
         selected_mask[top_indices] = True
@@ -524,4 +765,233 @@ def _select_features(
     # Get selected feature names
     selected_features = [feature_names[i] for i in range(total_features) if selected_mask[i]]
 
-    return selected_features, feature_scores
+    return selected_features, feature_scores, selection_meta
+
+
+def _run_optuna_lgbm_importance(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    feature_names: List[str],
+    n_estimators: int,
+    max_depth: int,
+    random_state: int,
+    problem_type: str,
+    optuna_trials: int | None,
+    optuna_timeout: float | None,
+    optuna_cv_folds: int,
+    optuna_early_stopping_rounds: int,
+    optuna_num_boost_round: int | None,
+    optuna_pruner: str,
+    use_gpu: bool,
+    optuna_export_trials: bool,
+    optuna_save_storage: bool,
+    optuna_storage_path: str | None,
+    optuna_study_name: str,
+    optuna_load_if_exists: bool,
+    optuna_artifact_dir: Path | None,
+) -> Tuple[np.ndarray, Dict[str, Any]]:
+    try:
+        import lightgbm as lgb
+    except ImportError as exc:
+        raise ImportError("LightGBM is required for optuna tuning.") from exc
+
+    try:
+        from optuna_integration import LightGBMPruningCallback
+    except ImportError:
+        try:
+            from optuna.integration import LightGBMPruningCallback  # type: ignore
+        except ImportError as exc:
+            raise ImportError(
+                "optuna-integration[lightgbm] is required for pruning. "
+                "Install optuna-integration==4.6.0."
+            ) from exc
+
+    try:
+        import optuna
+    except ImportError as exc:
+        raise ImportError("Optuna is required for tuning. Install optuna==4.6.0.") from exc
+
+    if problem_type == "binary":
+        objective = "binary"
+        metric = "binary_logloss"
+        direction = "minimize"
+        stratified = True
+        num_class = None
+    elif problem_type == "multiclass":
+        objective = "multiclass"
+        metric = "multi_logloss"
+        direction = "minimize"
+        stratified = True
+        num_class = int(np.unique(y_train).shape[0])
+    else:
+        objective = "regression"
+        metric = "rmse"
+        direction = "minimize"
+        stratified = False
+        num_class = None
+
+    base_params = {
+        "objective": objective,
+        "metric": metric,
+        "verbosity": -1,
+        "max_depth": max_depth,
+        "num_threads": -1,
+        "seed": random_state,
+        "feature_fraction_seed": random_state,
+        "bagging_seed": random_state,
+        "device_type": "gpu" if use_gpu else "cpu",
+        "feature_pre_filter": False,
+    }
+    if num_class:
+        base_params["num_class"] = num_class
+
+    num_boost_round = optuna_num_boost_round or n_estimators
+    if optuna_pruner == "median":
+        pruner = optuna.pruners.MedianPruner()
+    else:
+        pruner = optuna.pruners.NopPruner()
+
+    dtrain = lgb.Dataset(X_train, label=y_train, feature_name=feature_names)
+
+    def objective_fn(trial: optuna.Trial) -> float:
+        params = dict(base_params)
+        params.update({
+            "boosting_type": trial.suggest_categorical("boosting_type", ["gbdt", "dart"]),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.2, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 16, 512, log=True),
+            "min_child_samples": trial.suggest_int("min_child_samples", 5, 200),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.5, 1.0),
+            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 1.0),
+            "bagging_freq": trial.suggest_int("bagging_freq", 0, 10),
+            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
+            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 12),
+        })
+
+        callbacks = [LightGBMPruningCallback(trial, metric=metric)]
+        if optuna_early_stopping_rounds and optuna_early_stopping_rounds > 0:
+            callbacks.insert(0, lgb.early_stopping(optuna_early_stopping_rounds))
+
+        cv_results = lgb.cv(
+            params,
+            dtrain,
+            nfold=optuna_cv_folds,
+            stratified=stratified,
+            shuffle=True,
+            seed=random_state,
+            num_boost_round=num_boost_round,
+            callbacks=callbacks,
+        )
+
+        metric_key = f"{metric}-mean"
+        if metric_key not in cv_results:
+            # Fallback to any matching mean key from LightGBM
+            mean_keys = [k for k in cv_results if k.endswith("-mean")]
+            metric_match = next((k for k in mean_keys if metric in k), None)
+            if metric_match:
+                metric_key = metric_match
+            elif mean_keys:
+                metric_key = mean_keys[0]
+            else:
+                raise ValueError(f"Missing metric '{metric_key}' in LightGBM CV results.")
+        if not cv_results.get(metric_key):
+            raise ValueError(f"Missing metric '{metric_key}' in LightGBM CV results.")
+        best_score = cv_results[metric_key][-1]
+        trial.set_user_attr("best_iteration", len(cv_results[metric_key]))
+        return best_score
+
+    storage_uri = None
+    storage_path = None
+    if optuna_save_storage:
+        if optuna_storage_path:
+            storage_path = Path(optuna_storage_path)
+        elif optuna_artifact_dir is not None:
+            storage_path = optuna_artifact_dir / "optuna_study.db"
+        else:
+            storage_path = Path("optuna_study.db")
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        storage_uri = f"sqlite:///{storage_path}"
+
+    study = optuna.create_study(
+        direction=direction,
+        pruner=pruner,
+        storage=storage_uri,
+        study_name=optuna_study_name,
+        load_if_exists=optuna_load_if_exists if storage_uri else False,
+    )
+    study.enqueue_trial({
+        "boosting_type": "gbdt",
+        "learning_rate": 0.1,
+        "num_leaves": 31,
+        "min_child_samples": 20,
+        "feature_fraction": 1.0,
+        "bagging_fraction": 1.0,
+        "bagging_freq": 0,
+        "lambda_l1": 1e-8,
+        "lambda_l2": 1e-8,
+        "max_depth": max_depth,
+    })
+    study.optimize(
+        objective_fn,
+        n_trials=optuna_trials,
+        timeout=optuna_timeout,
+    )
+
+    best_params = dict(base_params)
+    best_params.update(study.best_trial.params)
+    best_iteration = study.best_trial.user_attrs.get("best_iteration", num_boost_round)
+
+    booster = lgb.train(
+        best_params,
+        dtrain,
+        num_boost_round=best_iteration,
+    )
+
+    importances = booster.feature_importance(importance_type="split")
+    optuna_summary = {
+        "optuna": {
+            "trials": optuna_trials,
+            "timeout_seconds": optuna_timeout,
+            "best_score": float(study.best_value),
+            "best_params": study.best_trial.params,
+            "best_iteration": int(best_iteration),
+            "metric": metric,
+            "direction": direction,
+        }
+    }
+
+    if storage_path is not None:
+        optuna_summary["optuna"]["storage_path"] = str(storage_path)
+
+    if optuna_export_trials and optuna_artifact_dir is not None:
+        optuna_artifact_dir.mkdir(parents=True, exist_ok=True)
+        trials_path = optuna_artifact_dir / "optuna_trials.json"
+
+        def _serialize_trial(trial: optuna.Trial) -> Dict[str, Any]:
+            return {
+                "number": trial.number,
+                "state": trial.state.name,
+                "value": trial.value,
+                "values": trial.values,
+                "params": trial.params,
+                "distributions": {k: str(v) for k, v in trial.distributions.items()},
+                "user_attrs": trial.user_attrs,
+                "system_attrs": trial.system_attrs,
+                "intermediate_values": {str(k): v for k, v in trial.intermediate_values.items()},
+                "datetime_start": trial.datetime_start.isoformat() if trial.datetime_start else None,
+                "datetime_complete": trial.datetime_complete.isoformat() if trial.datetime_complete else None,
+            }
+
+        trials_payload = {
+            "study": {
+                "study_name": study.study_name,
+                "direction": direction,
+                "best_value": float(study.best_value),
+                "best_params": study.best_trial.params,
+            },
+            "trials": [_serialize_trial(t) for t in study.trials],
+        }
+        trials_path.write_text(json.dumps(trials_payload, indent=2))
+        optuna_summary["optuna"]["trials_export"] = str(trials_path)
+
+    return importances, optuna_summary

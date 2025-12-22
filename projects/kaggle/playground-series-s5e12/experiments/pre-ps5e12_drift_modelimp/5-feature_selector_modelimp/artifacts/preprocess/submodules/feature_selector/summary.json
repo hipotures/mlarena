@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "train": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      700000,
+      26
+    ],
+    "shape_after": [
+      700000,
+      26
+    ],
+    "rows_before": 700000,
+    "rows_after": 700000,
+    "cols_before": 26,
+    "cols_after": 26,
+    "added_columns": [],
+    "removed_columns": [],
+    "kept_columns_count": 26,
+    "rows_changed": 0,
+    "cols_changed": 0
+  },
+  "test": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      300000,
+      25
+    ],
+    "shape_after": [
+      300000,
+      25
+    ],
+    "rows_before": 300000,
+    "rows_after": 300000,
+    "cols_before": 25,
+    "cols_after": 25,
+    "added_columns": [],
+    "removed_columns": [],
+    "kept_columns_count": 25,
+    "rows_changed": 0,
+    "cols_changed": 0
+  },
+  "config": {
+    "selection_method": "model_importance",
+    "importance_model_type": "rf",
+    "keep_fraction": 0.7,
+    "min_importance": 0.0,
+    "max_drop_fraction": 0.4,
+    "n_estimators": 200,
+    "max_depth": 10,
+    "k_features": null,
+    "min_variance": 0.01,
+    "random_state": 42
+  },
+  "metadata": {
+    "train_test_cols_match": false,
+    "train_test_rows_ratio": 0.42857142857142855
+  }
+}

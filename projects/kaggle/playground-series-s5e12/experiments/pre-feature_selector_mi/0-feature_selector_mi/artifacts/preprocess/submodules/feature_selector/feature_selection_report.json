@@ -1,0 +1,49 @@
+{
+  "method": "mi",
+  "total_features_before": 18,
+  "total_features_after": 14,
+  "features_dropped": 4,
+  "drop_fraction": 0.2222222222222222,
+  "selected_features": [
+    "age",
+    "physical_activity_minutes_per_week",
+    "diet_score",
+    "bmi",
+    "waist_to_hip_ratio",
+    "systolic_bp",
+    "diastolic_bp",
+    "cholesterol_total",
+    "hdl_cholesterol",
+    "ldl_cholesterol",
+    "triglycerides",
+    "family_history_diabetes",
+    "hypertension_history",
+    "cardiovascular_history"
+  ],
+  "dropped_features": [
+    "alcohol_consumption_per_week",
+    "sleep_hours_per_day",
+    "screen_time_hours_per_day",
+    "heart_rate"
+  ],
+  "feature_scores": {
+    "age": 0.01628269615807776,
+    "alcohol_consumption_per_week": 0.016296124194278283,
+    "physical_activity_minutes_per_week": 0.03462934914592042,
+    "diet_score": 0.003777335521156111,
+    "sleep_hours_per_day": 0.0028352640128894713,
+    "screen_time_hours_per_day": 0.001651436083244473,
+    "bmi": 0.006493581199622955,
+    "waist_to_hip_ratio": 0.010281015040148445,
+    "systolic_bp": 0.008557942480170944,
+    "diastolic_bp": 0.005430739478150093,
+    "heart_rate": 0.003742909766959235,
+    "cholesterol_total": 0.006676798554976271,
+    "hdl_cholesterol": 0.004300721810478247,
+    "ldl_cholesterol": 0.008155207369950013,
+    "triglycerides": 0.009258917577080972,
+    "family_history_diabetes": 0.03319338412729533,
+    "hypertension_history": 0.010038356178076357,
+    "cardiovascular_history": 0.0012702100081061207
+  }
+}

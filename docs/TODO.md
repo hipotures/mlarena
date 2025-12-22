@@ -38,6 +38,10 @@
 
 - [ ] Add explicit `aborted` status to ExperimentManager modules (separate from `failed`) to mark user-interrupted runs without implying an error. Update state handling, list views, and restart logic accordingly.
 
+## Feature Selection Reporting
+
+- [ ] Add `score_direction` metadata to `feature_selection_report.json` and sort `feature_scores` according to method (e.g., `rfe` ascending, others descending).
+
 ## CLI meta-commands (non-flow)
 
 - [ ] Dodać tryb pipeline bez podawania modułu: `mla --project X` uruchamia domyślny pipeline, `--from preprocess` startuje od preprocess, `--from model` od model itd.

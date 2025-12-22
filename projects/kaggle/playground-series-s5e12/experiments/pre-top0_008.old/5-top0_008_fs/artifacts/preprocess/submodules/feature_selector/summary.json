@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "train": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      700000,
+      32
+    ],
+    "shape_after": [
+      700000,
+      29
+    ],
+    "rows_before": 700000,
+    "rows_after": 700000,
+    "cols_before": 32,
+    "cols_after": 29,
+    "added_columns": [],
+    "removed_columns": [
+      "gender",
+      "hypertension_history",
+      "cardiovascular_history"
+    ],
+    "kept_columns_count": 29,
+    "rows_changed": 0,
+    "cols_changed": -3
+  },
+  "test": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      300000,
+      31
+    ],
+    "shape_after": [
+      300000,
+      28
+    ],
+    "rows_before": 300000,
+    "rows_after": 300000,
+    "cols_before": 31,
+    "cols_after": 28,
+    "added_columns": [],
+    "removed_columns": [
+      "gender",
+      "hypertension_history",
+      "cardiovascular_history"
+    ],
+    "kept_columns_count": 28,
+    "rows_changed": 0,
+    "cols_changed": -3
+  },
+  "config": {
+    "selection_method": "model_importance",
+    "importance_model_type": "lgbm",
+    "n_features": -3,
+    "min_importance": 0.0,
+    "max_drop_fraction": 0.5,
+    "protect_cb_features": true,
+    "n_estimators": 300,
+    "max_depth": 8,
+    "random_state": 42,
+    "min_variance": 0.01
+  },
+  "metadata": {
+    "train_test_cols_match": false,
+    "train_test_rows_ratio": 0.42857142857142855
+  }
+}

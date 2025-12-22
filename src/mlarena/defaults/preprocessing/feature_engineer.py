@@ -46,6 +46,13 @@ def _unique_name(base: str, existing: set) -> str:
     return candidate
 
 
+def _append_new_columns(df: pd.DataFrame, new_cols: Dict[str, Any]) -> pd.DataFrame:
+    if not new_cols:
+        return df
+    new_df = pd.DataFrame(new_cols, index=df.index)
+    return pd.concat([df, new_df], axis=1)
+
+
 def _prepare_interaction_pairs(
     numeric_pairs: List[List[str]],
     numeric_cols: List[str],
@@ -92,6 +99,11 @@ def _apply_interactions(
     new_cols: List[str] = []
     details: List[Dict[str, Any]] = []
     allowed_ops = {"add", "sub", "mul", "div"}
+    train_new_cols: Dict[str, Any] = {}
+    test_new_cols: Dict[str, Any] = {}
+    val_new_cols: Dict[str, Any] = {}
+    orig_new_cols: Dict[str, Any] = {}
+    limit_reached = False
 
     for col_a, col_b in pairs:
         if col_a not in train_df.columns or col_b not in train_df.columns:
@@ -109,7 +121,8 @@ def _apply_interactions(
                 warnings.warn(f"Unsupported interaction '{op}' - skipping")
                 continue
             if len(new_cols) >= max_new_features:
-                return train_df, val_df, test_df, orig_df, new_cols, details
+                limit_reached = True
+                break
 
             base_name = f"{col_a}_{op}_{col_b}"
             new_name = _unique_name(base_name, existing_cols.union(new_cols))
@@ -135,20 +148,24 @@ def _apply_interactions(
                         if val_df is not None else None
                     )
 
-            train_df[new_name] = train_series
-            test_df[new_name] = test_series
+            train_new_cols[new_name] = train_series
+            test_new_cols[new_name] = test_series
             if val_df is not None and val_series is not None:
-                val_df[new_name] = val_series
+                val_new_cols[new_name] = val_series
             if orig_df is not None and col_a in orig_df.columns and col_b in orig_df.columns:
                 if op == "add":
-                    orig_df[new_name] = orig_df[col_a] + orig_df[col_b]
+                    orig_new_cols[new_name] = orig_df[col_a] + orig_df[col_b]
                 elif op == "sub":
-                    orig_df[new_name] = orig_df[col_a] - orig_df[col_b]
+                    orig_new_cols[new_name] = orig_df[col_a] - orig_df[col_b]
                 elif op == "mul":
-                    orig_df[new_name] = orig_df[col_a] * orig_df[col_b]
+                    orig_new_cols[new_name] = orig_df[col_a] * orig_df[col_b]
                 elif op == "div":
                     with np.errstate(divide="ignore", invalid="ignore"):
-                        orig_df[new_name] = np.where(orig_df[col_b] != 0, orig_df[col_a] / orig_df[col_b], np.nan)
+                        orig_new_cols[new_name] = np.where(
+                            orig_df[col_b] != 0,
+                            orig_df[col_a] / orig_df[col_b],
+                            np.nan,
+                        )
 
             new_cols.append(new_name)
             details.append({
@@ -159,7 +176,17 @@ def _apply_interactions(
             })
 
             if len(new_cols) >= max_new_features:
-                return train_df, val_df, test_df, orig_df, new_cols, details
+                limit_reached = True
+                break
+        if limit_reached:
+            break
+
+    train_df = _append_new_columns(train_df, train_new_cols)
+    test_df = _append_new_columns(test_df, test_new_cols)
+    if val_df is not None:
+        val_df = _append_new_columns(val_df, val_new_cols)
+    if orig_df is not None:
+        orig_df = _append_new_columns(orig_df, orig_new_cols)
 
     return train_df, val_df, test_df, orig_df, new_cols, details
 
@@ -221,13 +248,23 @@ def _apply_polynomial_features(
     created_names: List[str] = []
     for name in new_feature_names:
         unique_name = _unique_name(name, existing_cols.union(created_names))
-        train_df[unique_name] = poly_train_df[name]
-        test_df[unique_name] = poly_test_df[name]
-        if val_df is not None and poly_val_df is not None:
-            val_df[unique_name] = poly_val_df[name]
-        if orig_df is not None and poly_orig_df is not None:
-            orig_df[unique_name] = poly_orig_df[name]
         created_names.append(unique_name)
+
+    if created_names:
+        poly_train_sel = poly_train_df[new_feature_names].copy()
+        poly_test_sel = poly_test_df[new_feature_names].copy()
+        poly_train_sel.columns = created_names
+        poly_test_sel.columns = created_names
+        train_df = pd.concat([train_df, poly_train_sel], axis=1)
+        test_df = pd.concat([test_df, poly_test_sel], axis=1)
+        if val_df is not None and poly_val_df is not None:
+            poly_val_sel = poly_val_df[new_feature_names].copy()
+            poly_val_sel.columns = created_names
+            val_df = pd.concat([val_df, poly_val_sel], axis=1)
+        if orig_df is not None and poly_orig_df is not None:
+            poly_orig_sel = poly_orig_df[new_feature_names].copy()
+            poly_orig_sel.columns = created_names
+            orig_df = pd.concat([orig_df, poly_orig_sel], axis=1)
 
     details = {
         "type": "polynomial",

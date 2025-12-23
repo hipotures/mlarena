@@ -1,0 +1,27 @@
+# CatBoost Full Strategy + Cleanup + RFE
+# Complete pipeline with feature cleaning before RFE
+#
+# Pipeline:
+# 1. Load external diabetes dataset
+# 2. Apply statistical + AI binning
+# 3. Map original dataset statistics (mean/count)
+# 4. Apply tail weighting
+# 5. Remove perfect constants (variance ≈ 0)
+# 6. Remove correlated features (pearson > 0.95)
+# 7. RFE feature selection with LightGBM (predictive power)
+#
+# Expected: ~127 → ~96 (constants) → ~70 (correlated) → 50-70 (RFE)
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full-clean-rfe \
+#     model_template=catboost-binned-hpo \
+#     common.use_gpu=true
+
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights
+  - cleanup-no-variance   # Remove ONLY perfect constants (variance=0)
+  - remove-correlated     # Remove inter-feature correlation (pearson>0.95)

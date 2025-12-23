@@ -1,0 +1,9 @@
+# Tail weighting for distribution shift (fixed cutoff)
+module: diabetes_weights
+cache: true
+config:
+  weighting_strategy: tail
+  cutoff_id: 679000  # ~97th percentile of train id (0..699999)
+  weight_multiplier: 5.0
+  weights_output_name: sample_weights.csv
+  weight_column_name: sample_weight

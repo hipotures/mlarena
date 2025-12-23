@@ -1,0 +1,88 @@
+# All Boosting Models HPO - AGGRESSIVE
+# Maximum trials for final submission push
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full \
+#     model_template=boost-all-hpo-aggressive \
+#     common.use_gpu=true \
+#     common.time_limit=28800
+
+model: autogluon_baseline
+
+config:
+  preset: best_quality
+  time_limit: 28800  # 8 hours
+  use_gpu: true
+  included_model_types:
+    - CAT
+    - GBM
+    - XGB
+
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 300  # 300 trials total (~100 per model)
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      # CatBoost - Extended search
+      CAT:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        task_type: GPU
+        devices: '0'
+        learning_rate: [0.001, 0.3, log]
+        depth: [3, 12, int]
+        l2_leaf_reg: [0.1, 50.0]
+        bagging_temperature: [0.0, 2.0]
+        random_strength: [0.0001, 15.0, log]
+        border_count: [32, 512, int]
+        iterations: [500, 5000, int]
+        min_data_in_leaf: [1, 100, int]
+
+      # LightGBM - Extended search
+      GBM:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        device: gpu
+        gpu_use_dp: false
+        gpu_platform_id: 0
+        gpu_device_id: 0
+        learning_rate: [0.001, 0.5, log]
+        num_leaves: [10, 512, int]
+        min_data_in_leaf: [1, 200, int]
+        feature_fraction: [0.4, 1.0]
+        bagging_fraction: [0.4, 1.0]
+        bagging_freq: [1, 15, int]
+        lambda_l1: [1e-10, 1000.0, log]
+        lambda_l2: [1e-10, 1000.0, log]
+        min_gain_to_split: [0.0, 10.0]
+        max_depth: [3, 15, int]
+        num_boost_round: [500, 5000, int]
+
+      # XGBoost - Extended search
+      XGB:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        device: cuda:0
+        tree_method: hist
+        learning_rate: [0.001, 0.5, log]
+        max_depth: [2, 12, int]
+        min_child_weight: [1, 15, int]
+        subsample: [0.4, 1.0]
+        colsample_bytree: [0.4, 1.0]
+        colsample_bylevel: [0.4, 1.0]
+        colsample_bynode: [0.4, 1.0]
+        gamma: [0.0, 10.0]
+        reg_alpha: [1e-10, 1000.0, log]
+        reg_lambda: [1e-10, 1000.0, log]
+        max_delta_step: [0, 10, int]
+        scale_pos_weight: [0.5, 2.0]
+        n_estimators: [500, 5000, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

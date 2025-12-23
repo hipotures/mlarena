@@ -31,6 +31,7 @@ config:
       CAT:
         ag_args_fit:
           num_gpus: 1
+          num_cpus: 4
         # Static params (non-list = pass through)
         task_type: GPU
         devices: '0'

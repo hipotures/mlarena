@@ -1,0 +1,81 @@
+# All Boosting Models HPO (CatBoost + LightGBM + XGBoost)
+# GPU-accelerated hyperparameter optimization
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full \
+#     model_template=boost-all-hpo \
+#     common.use_gpu=true \
+#     common.time_limit=7200
+
+model: autogluon_baseline
+
+config:
+  preset: best
+  time_limit: 7200  # 2 hours
+  use_gpu: true
+  included_model_types:
+    - CAT
+    - GBM
+    - XGB
+
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 50 
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      # CatBoost
+      CAT:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 16
+        task_type: GPU
+        devices: '0'
+        learning_rate: [0.01, 0.3, log]
+        depth: [4, 10, int]
+        l2_leaf_reg: [1.0, 30.0]
+        bagging_temperature: [0.0, 1.5]
+        random_strength: [0.0001, 10.0, log]
+        border_count: [32, 255, int]
+        iterations: [500, 3000, int]
+
+      # LightGBM
+      GBM:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 16
+        device: gpu
+        gpu_use_dp: false  # Use single precision for speed
+        gpu_platform_id: 0
+        gpu_device_id: 0
+        learning_rate: [0.01, 0.3, log]
+        num_leaves: [20, 150, int]
+        min_data_in_leaf: [10, 50, int]
+        feature_fraction: [0.6, 1.0]
+        bagging_fraction: [0.6, 1.0]
+        bagging_freq: [1, 7, int]
+        lambda_l1: [1e-5, 10.0, log]
+        lambda_l2: [1e-5, 10.0, log]
+        num_boost_round: [500, 3000, int]
+
+      # XGBoost
+      XGB:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 16
+        device: cuda:0  # Explicit GPU 0
+        tree_method: hist
+        learning_rate: [0.01, 0.3, log]
+        max_depth: [3, 8, int]
+        min_child_weight: [1, 7, int]
+        subsample: [0.6, 1.0]
+        colsample_bytree: [0.6, 1.0]
+        gamma: [0.0, 2.0]
+        reg_alpha: [1e-5, 10.0, log]
+        reg_lambda: [1e-5, 10.0, log]
+        n_estimators: [500, 3000, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

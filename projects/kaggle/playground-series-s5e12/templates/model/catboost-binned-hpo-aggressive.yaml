@@ -26,6 +26,7 @@ config:
       CAT:
         ag_args_fit:
           num_gpus: 1
+          num_cpus: 4
         task_type: GPU
         devices: '0'
         learning_rate: [0.001, 0.3, log]

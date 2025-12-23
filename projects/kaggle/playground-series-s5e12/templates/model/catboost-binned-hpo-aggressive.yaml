@@ -11,7 +11,7 @@ model: autogluon_baseline
 
 config:
   preset: best_quality
-  time_limit: 14400
+  time_limit: 36000
   use_gpu: true
   included_model_types:
     - CAT
@@ -24,6 +24,8 @@ config:
 
     search_space:
       CAT:
+        ag_args_fit:
+          num_gpus: 1
         task_type: GPU
         devices: '0'
         learning_rate: [0.001, 0.3, log]

@@ -11,8 +11,8 @@
 model: autogluon_baseline
 
 config:
-  preset: medium_quality
-  time_limit: 3600
+  preset: best
+  time_limit: 36000
   use_gpu: true
   included_model_types:
     - CAT
@@ -21,7 +21,7 @@ config:
   hyperparameters:
     # HPO Configuration
     hyperparameter_tune_kwargs:
-      num_trials: 50
+      num_trials: 200
       scheduler: local
       searcher: auto
 

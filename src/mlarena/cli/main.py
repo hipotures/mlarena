@@ -495,7 +495,9 @@ def run_auto_flow(
     if not result or not result.success:
         return 1
 
-    remaining_modules = ["predict", "submit", "fetch-score"]
+    remaining_modules = ["predict"]
+    if not skip_submit:
+        remaining_modules.extend(["submit", "fetch-score"])
     all_modules = {"model": model_module}
 
     for module_name in remaining_modules:

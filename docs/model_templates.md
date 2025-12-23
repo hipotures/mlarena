@@ -30,6 +30,39 @@ Common keys:
 - `preprocess_template`: Name of the preprocessing template to pair with this model (optional).
 - `config`: Passed through to the model implementation; typically includes `preset`, `time_limit`, `use_gpu`, `hyperparameters`, and optional HPO fields such as `hpo_preset`, `search_space`, and `hyperparameter_tune_kwargs`.
 
+## AutoGluon HPO layout
+
+When using AutoGluon native HPO in templates:
+
+- Put **tunable ranges** under `search_space` (lists/ranges only).
+- Put **static model params** under `hyperparameters.<MODEL>` (for example `ag_args_fit`, `task_type`, `devices`).
+- `hpo_preset` can live at top-level or inside `config` (the loader flattens `config` keys).
+
+Example:
+
+```yaml
+model: autogluon_baseline
+hpo_preset: hpo_boost_medium
+config:
+  preset: high_quality
+  use_gpu: true
+  included_model_types: [CAT]
+
+  hyperparameters:
+    CAT:
+      task_type: GPU
+      devices: "0"
+      ag_args_fit:
+        num_gpus: 1
+
+  search_space:
+    CAT:
+      depth: [4, 10, int]
+      learning_rate: [0.01, 0.3, log]
+```
+
+Note: `search_space` is parsed by `mlarena.utils.hpo_space` and non-list values are passed through, but keeping static params under `hyperparameters` is clearer.
+
 ## Listing templates
 
 ```bash

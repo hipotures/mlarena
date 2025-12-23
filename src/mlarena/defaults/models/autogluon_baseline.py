@@ -209,6 +209,11 @@ def train(
     if included_models:
         fit_kwargs["included_model_types"] = included_models
 
+    hyper_dict = config.hyperparameters.model_dump(exclude_none=True)
+    if use_gpu and not hyper_dict.get("ag_args_fit"):
+        # Reserve GPU per model to avoid Ray launching multiple GPU tasks on one card.
+        fit_kwargs["ag_args_fit"] = {"num_gpus": 1}
+
     # NEW: Add HPO support
     hpo_tune_kwargs = getattr(config.hyperparameters, "hyperparameter_tune_kwargs", None)
     search_space_dict = getattr(config.hyperparameters, "search_space", None)
@@ -240,7 +245,6 @@ def train(
             print(f"[AutoGluon HPO]   {model_type}: {len(converted_space[model_type])} parameters")
 
     # Forward any model-specific hyperparameters (e.g., NN_TORCH, FASTAI) to AutoGluon.
-    hyper_dict = config.hyperparameters.model_dump(exclude_none=True)
     known_keys = {
         "presets",
         "time_limit",

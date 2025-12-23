@@ -173,6 +173,7 @@ chain:
 ## Model Integration
 
 Models receive `orig_df` via the `artifacts` parameter.
+For the default AutoGluon model, merging can be toggled in the model template with `merge_orig` (default: `true`).
 
 ### Example Model: Merge Train + Orig
 
@@ -203,6 +204,15 @@ def train(train_df, val_df, config, artifacts=None):
 
     # artifacts['orig_df'] exists but is ignored
     return av_classifier, {"used_orig": False}
+
+### Example: Disable orig merge in template (AutoGluon)
+
+```yaml
+# templates/model/my-model.yaml
+model: autogluon_baseline
+config:
+  merge_orig: false
+```
 ```
 
 ## Comparison: align vs union Mode

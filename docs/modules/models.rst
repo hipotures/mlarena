@@ -24,7 +24,7 @@ Available defaults
      - Description
    * - autogluon_baseline
      - ``src/mlarena/defaults/models/autogluon_baseline.py``
-     - AutoGluon Tabular baseline with template-driven presets, time limits, GPU flags, and optional sample weights from preprocessing artifacts.
+     - AutoGluon Tabular baseline with template-driven presets, time limits, GPU flags, optional sample weights, and optional external/orig merge (``merge_orig`` in model template config).
    * - av_classifier
      - ``src/mlarena/defaults/models/av_classifier.py``
      - Lightweight AutoGluon classifier used by adversarial validation preprocessing to score covariate shift between train and test.
@@ -33,5 +33,5 @@ Tips for custom models
 ----------------------
 
 - Place your module in ``projects/kaggle/<slug>/code/models/<name>.py`` and reference it from a model template via ``model: <name>``.
-- Consume preprocessing artifacts through the ``artifacts`` dict (for example, sample weights or external/orig datasets) when relevant.
+- Consume preprocessing artifacts through the ``artifacts`` dict (for example, sample weights or external/orig datasets) when relevant. For the default AutoGluon model you can disable orig merging by setting ``merge_orig: false`` in the model template.
 - Keep dependencies local to the model file to avoid global import overhead; heavy imports should live inside ``train``/``predict`` functions.

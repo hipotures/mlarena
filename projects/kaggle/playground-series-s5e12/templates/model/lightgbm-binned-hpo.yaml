@@ -1,0 +1,48 @@
+# LightGBM Model with HPO (Hyperparameter Optimization)
+# Based on: S5E12 Single CatBoost notebook strategy
+#
+# Usage:
+#   GPU (1h, 50 trials):
+#     uv run python scripts/mla.py -p playground-series-s5e12 \
+#       preprocess_template=binned-full \
+#       model_template=lightgbm-binned-hpo \
+#       common.use_gpu=true \
+#       common.time_limit=3600
+
+model: autogluon_baseline
+
+config:
+  preset: best
+  time_limit: 3600  # 1 hour
+  use_gpu: true
+  included_model_types:
+    - GBM
+
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 50
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      GBM:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        device: gpu
+        gpu_use_dp: false
+        gpu_platform_id: 0
+        gpu_device_id: 0
+        learning_rate: [0.01, 0.3, log]
+        num_leaves: [20, 150, int]
+        min_data_in_leaf: [10, 50, int]
+        feature_fraction: [0.6, 1.0]
+        bagging_fraction: [0.6, 1.0]
+        bagging_freq: [1, 7, int]
+        lambda_l1: [1e-5, 10.0, log]
+        lambda_l2: [1e-5, 10.0, log]
+        max_depth: [3, 10, int]
+        num_boost_round: [500, 3000, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

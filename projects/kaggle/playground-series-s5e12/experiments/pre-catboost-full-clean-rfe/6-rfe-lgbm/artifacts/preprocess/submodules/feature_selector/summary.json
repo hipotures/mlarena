@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "train": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      700000,
+      86
+    ],
+    "shape_after": [
+      700000,
+      86
+    ],
+    "rows_before": 700000,
+    "rows_after": 700000,
+    "cols_before": 86,
+    "cols_after": 86,
+    "added_columns": [],
+    "removed_columns": [],
+    "kept_columns_count": 86,
+    "rows_changed": 0,
+    "cols_changed": 0
+  },
+  "test": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      300000,
+      85
+    ],
+    "shape_after": [
+      300000,
+      85
+    ],
+    "rows_before": 300000,
+    "rows_after": 300000,
+    "cols_before": 85,
+    "cols_after": 85,
+    "added_columns": [],
+    "removed_columns": [],
+    "kept_columns_count": 85,
+    "rows_changed": 0,
+    "cols_changed": 0
+  },
+  "config": {
+    "selection_method": "rfe",
+    "importance_model_type": "lgbm",
+    "n_features_to_select": 50,
+    "n_estimators": 100,
+    "max_depth": 6,
+    "use_gpu": true,
+    "random_state": 42,
+    "n_features": null,
+    "min_variance": 0.01,
+    "min_unique_per_million": 5.0,
+    "min_importance": 0.001,
+    "max_drop_fraction": 0.5,
+    "protect_cb_features": true,
+    "optuna_trials": 1,
+    "optuna_timeout": null,
+    "optuna_cv_folds": 3,
+    "optuna_early_stopping_rounds": 200,
+    "optuna_num_boost_round": null,
+    "optuna_pruner": "median",
+    "importance_cumulative": null,
+    "optuna_export_trials": true,
+    "optuna_save_storage": true,
+    "optuna_storage_path": null,
+    "optuna_study_name": "feature_selector_lgbm",
+    "optuna_load_if_exists": true
+  },
+  "metadata": {
+    "train_test_cols_match": false,
+    "train_test_rows_ratio": 0.42857142857142855
+  }
+}

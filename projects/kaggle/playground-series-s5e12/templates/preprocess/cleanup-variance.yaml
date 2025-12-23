@@ -1,0 +1,14 @@
+# Remove ONLY perfect constants (variance = 0)
+# Does NOT remove features with weak signal - RFE will handle that based on correlation with target
+#
+# Why not use variance for feature quality?
+# - Feature with 10 ones and 699,990 zeros has tiny variance but might be highly predictive
+# - Variance measures diversity, not predictive power
+# - Use RFE/feature_importance for actual signal detection
+module: feature_selector
+cache: true
+config:
+  selection_method: variance
+  min_variance: 1.0e-15  # Drop ONLY perfect constants (floating point precision)
+  n_features: null  # Use threshold only (not top-N)
+  random_state: 42

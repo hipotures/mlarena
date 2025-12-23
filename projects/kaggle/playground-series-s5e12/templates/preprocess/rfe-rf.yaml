@@ -1,0 +1,12 @@
+# RFE Feature Selection with RandomForest
+# Recursive Feature Elimination using RandomForest (CPU)
+module: feature_selector
+cache: true
+config:
+  selection_method: rfe
+  importance_model_type: rf  # Use RandomForest for RFE
+  n_features_to_select: 50  # Keep top 50 features
+  n_estimators: 100
+  max_depth: 6
+  use_gpu: false  # RandomForest on CPU
+  random_state: 42

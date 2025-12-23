@@ -1,0 +1,11 @@
+# Test RFE with XGBoost on Titanic
+module: feature_selector
+cache: true
+config:
+  selection_method: rfe
+  importance_model_type: xgb
+  n_features_to_select: 5
+  n_estimators: 50
+  max_depth: 4
+  use_gpu: true
+  random_state: 42

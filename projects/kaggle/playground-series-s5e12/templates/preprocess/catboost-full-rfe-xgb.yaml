@@ -1,0 +1,14 @@
+# CatBoost Full Strategy + RFE with XGBoost
+# Same as catboost-full-rfe but uses XGBoost for feature selection
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full-rfe-xgb \
+#     model_template=catboost-binned-hpo
+
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights
+  - rfe-xgb  # RFE with XGBoost

@@ -1,0 +1,9 @@
+# Remove highly correlated features
+# Keeps one feature from each correlated group
+module: feature_selector
+cache: true
+config:
+  selection_method: correlation
+  correlation_threshold: 0.95  # Drop if |correlation| > 0.95
+  n_features: null  # Use threshold only
+  random_state: 42

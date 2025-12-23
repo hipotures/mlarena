@@ -1,0 +1,12 @@
+# RFE Feature Selection with XGBoost
+# Recursive Feature Elimination using XGBoost on GPU
+module: feature_selector
+cache: true
+config:
+  selection_method: rfe
+  importance_model_type: xgb  # Use XGBoost for RFE
+  n_features_to_select: 50  # Keep top 50 features
+  n_estimators: 100
+  max_depth: 6
+  use_gpu: true  # GPU-accelerated XGBoost
+  random_state: 42

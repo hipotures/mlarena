@@ -1,0 +1,7 @@
+# Remove Highly Correlated Features
+# Removes redundant features (inter-feature correlation > 0.95)
+module: remove_correlated
+cache: true
+config:
+  correlation_threshold: 0.99
+  method: pearson  # pearson | spearman

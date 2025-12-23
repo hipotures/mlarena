@@ -35,7 +35,7 @@ cd /home/xai/ml/kaggle
 
 # Pełny run (10 min)
 uv run python scripts/mla.py -p playground-series-s5e12 \
-  preprocess_template=catboost-full \
+  preprocess_template=binned-full \
   model_template=catboost-binned
 ```
 
@@ -44,7 +44,7 @@ uv run python scripts/mla.py -p playground-series-s5e12 \
 ```bash
 # Test preprocessing chain (bez modelu)
 uv run python scripts/mla.py -p playground-series-s5e12 \
-  preprocess preprocess_template=catboost-full
+  preprocess preprocess_template=binned-full
 ```
 
 ### 3. Tylko model (jeśli preprocessing już jest)
@@ -53,7 +53,7 @@ uv run python scripts/mla.py -p playground-series-s5e12 \
 # Użyj istniejącego preprocessingu
 uv run python scripts/mla.py -p playground-series-s5e12 \
   model model_template=catboost-binned \
-  preprocess_template=catboost-full
+  preprocess_template=binned-full
 ```
 
 ### 4. Force re-run (jeśli coś się zmieniło)
@@ -61,7 +61,7 @@ uv run python scripts/mla.py -p playground-series-s5e12 \
 ```bash
 # Wymuś ponowne uruchomienie wszystkich kroków
 uv run python scripts/mla.py -p playground-series-s5e12 \
-  preprocess_template=catboost-full \
+  preprocess_template=binned-full \
   model_template=catboost-binned \
   --force
 ```
@@ -72,7 +72,7 @@ uv run python scripts/mla.py -p playground-series-s5e12 \
 
 Preprocessing chain tworzy:
 ```
-experiments/pre-catboost-full/
+experiments/pre-binned-full/
 ├── 0-external_dataset/
 │   ├── artifacts/
 │   │   └── orig_processed.csv         # External dataset (aligned)
@@ -171,7 +171,7 @@ projects/kaggle/playground-series-s5e12/code/preprocessing/
 ```
 projects/kaggle/playground-series-s5e12/templates/
 ├── preprocess/
-│   └── catboost-full.yaml    # 4-step preprocessing chain
+│   └── binned-full.yaml    # 4-step preprocessing chain
 └── model/
     └── catboost-binned.yaml  # CatBoost model config
 ```
@@ -180,7 +180,7 @@ projects/kaggle/playground-series-s5e12/templates/
 
 ### Zmiana tail weighting
 
-Edytuj `templates/preprocess/catboost-full.yaml`:
+Edytuj `templates/preprocess/binned-full.yaml`:
 
 ```yaml
 - module: diabetes_weights
@@ -192,7 +192,7 @@ Edytuj `templates/preprocess/catboost-full.yaml`:
 
 ### Zmiana liczby binsów
 
-Edytuj `templates/preprocess/catboost-full.yaml`:
+Edytuj `templates/preprocess/binned-full.yaml`:
 
 ```yaml
 - module: diabetes_binning
@@ -203,7 +203,7 @@ Edytuj `templates/preprocess/catboost-full.yaml`:
 
 ### Dodanie innych kolumn do binningu
 
-Edytuj `templates/preprocess/catboost-full.yaml`:
+Edytuj `templates/preprocess/binned-full.yaml`:
 
 ```yaml
 - module: diabetes_binning

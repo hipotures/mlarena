@@ -10,7 +10,8 @@
 #
 # Usage:
 #   uv run python scripts/mla.py -p playground-series-s5e12 \
-#     --preprocess catboost-full --model catboost-binned
+#     preprocess_template=binned-full \
+#     model_template=catboost-binned
 
 model: autogluon_baseline
 

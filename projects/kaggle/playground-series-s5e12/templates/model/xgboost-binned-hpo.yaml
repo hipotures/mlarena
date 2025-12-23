@@ -1,0 +1,46 @@
+# XGBoost Model with HPO (Hyperparameter Optimization)
+# Based on: S5E12 Single CatBoost notebook strategy
+#
+# Usage:
+#   GPU (1h, 50 trials):
+#     uv run python scripts/mla.py -p playground-series-s5e12 \
+#       preprocess_template=binned-full \
+#       model_template=xgboost-binned-hpo \
+#       common.use_gpu=true \
+#       common.time_limit=3600
+
+model: autogluon_baseline
+
+config:
+  preset: best
+  time_limit: 3600  # 1 hour
+  use_gpu: true
+  included_model_types:
+    - XGB
+
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 50
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      XGB:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        device: cuda:0
+        tree_method: hist
+        learning_rate: [0.01, 0.3, log]
+        max_depth: [3, 10, int]
+        min_child_weight: [1, 7, int]
+        subsample: [0.6, 1.0]
+        colsample_bytree: [0.6, 1.0]
+        colsample_bylevel: [0.6, 1.0]
+        gamma: [0.0, 2.0]
+        reg_alpha: [1e-5, 10.0, log]
+        reg_lambda: [1e-5, 10.0, log]
+        n_estimators: [500, 3000, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

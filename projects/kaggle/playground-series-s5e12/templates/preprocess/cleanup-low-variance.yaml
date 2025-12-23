@@ -1,0 +1,22 @@
+# Remove features with extremely low cardinality (weak signal)
+# Removes features where <5 unique values per 1M records
+#
+# Example (700k records, threshold = 5 per 1M):
+#   Min unique values = 700k/1M * 5 = 3.5 ≈ 4
+#   feature with 3 unique values → REMOVED (too few unique values)
+#   feature with 10 unique values → KEPT
+#
+# Use case:
+#   Binary feature: [1, 1, 0, 0, ..., 0] with only 2 ones out of 700k
+#   → Only 2 unique values, might be noise, not signal
+#
+# WARNING: Can remove highly predictive rare events!
+#   If those 2 cases are the only positive targets, this removes a perfect predictor!
+#   Use with caution - better let RFE decide based on target correlation.
+module: feature_selector
+cache: true
+config:
+  selection_method: cardinality  # Count unique values
+  min_unique_per_million: 5.0  # Minimum unique values per 1M records
+  n_features: null  # Threshold-only mode
+  random_state: 42

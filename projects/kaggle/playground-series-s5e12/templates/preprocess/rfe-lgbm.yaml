@@ -1,0 +1,12 @@
+# RFE Feature Selection with LightGBM
+# Recursive Feature Elimination using LightGBM on GPU
+module: feature_selector
+cache: true
+config:
+  selection_method: rfe
+  importance_model_type: lgbm  # Use LightGBM for RFE
+  n_features_to_select: 50  # Keep top 50 features (from ~127)
+  n_estimators: 100  # LightGBM trees for evaluation
+  max_depth: 6
+  use_gpu: true  # GPU-accelerated LightGBM
+  random_state: 42

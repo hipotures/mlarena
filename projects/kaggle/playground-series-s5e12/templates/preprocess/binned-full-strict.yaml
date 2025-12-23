@@ -1,0 +1,18 @@
+# Full Binning Strategy - STRICT NOTEBOOK VERSION
+# Exact replication of S5E12 notebook strategy
+# Compatible with: CatBoost, LightGBM, XGBoost, any boosting model
+#
+# Differences from binned-full:
+# - orig_stats only on raw numeric (NOT binned features)
+# - Expected: ~78-82 total features (like notebook)
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=binned-full-strict \
+#     model_template=<any-model>
+
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats-strict  # ← Uses strict version (no binned)
+  - diabetes-tail-weights

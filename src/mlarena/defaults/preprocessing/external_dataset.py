@@ -46,9 +46,9 @@ def fit_transform(
 
     # Get artifact directory and project root
     artifact_dir = Path(config.get("_artifact_dir", ".")).resolve()
-    # For preprocessing chains: artifacts/preprocess → artifacts → step → chain → experiments → project_root
-    # artifact_dir: {project}/experiments/{chain}/{step}/artifacts/preprocess/
-    project_root = artifact_dir.parent.parent.parent.parent.parent
+    # For preprocessing chains: artifacts/preprocess → artifacts → step → HASH → chain → experiments → project_root
+    # artifact_dir: {project}/experiments/{chain}/{HASH}/{step}/artifacts/preprocess/
+    project_root = artifact_dir.parent.parent.parent.parent.parent.parent
 
     # 1. Load external dataset
     orig_path_str = config.get("orig_path")

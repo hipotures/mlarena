@@ -1,0 +1,8 @@
+# Tail weighting for distribution shift (linear ramp, low strength)
+module: diabetes_weights
+cache: true
+config:
+  weighting_strategy: linear
+  weight_multiplier: 3.0
+  weights_output_name: sample_weights.csv
+  weight_column_name: sample_weight

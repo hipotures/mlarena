@@ -1,0 +1,14 @@
+# CatBoost Full Strategy + Cleanup (linear weights v2)
+# Pipeline:
+# 1. Load external diabetes dataset
+# 2. Apply statistical + AI binning
+# 3. Map original dataset statistics (mean/count)
+# 4. Apply tail weighting (linear v2)
+# 5. Remove perfect constants (variance ~ 0)
+
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v2
+  - cleanup-no-variance

@@ -1,0 +1,45 @@
+# CatBoost Model with HPO (no orig merge)
+# Same as catboost-binned-hpo but disables external dataset merge
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full-clean-rfe-linear-v1 \
+#     model_template=catboost-binned-hpo-noorig \
+#     common.use_gpu=true
+
+model: autogluon_baseline
+
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: true
+  included_model_types:
+    - CAT
+
+  # Disable merging external/orig dataset rows
+  merge_orig: false
+
+  # HPO Configuration
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 20
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      CAT:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        task_type: GPU
+        devices: '0'
+        learning_rate: [0.01, 0.3, log]
+        depth: [4, 10, int]
+        l2_leaf_reg: [1.0, 30.0]
+        bagging_temperature: [0.0, 1.5]
+        random_strength: [0.0001, 10.0, log]
+        border_count: [32, 255, int]
+        iterations: [500, 3000, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

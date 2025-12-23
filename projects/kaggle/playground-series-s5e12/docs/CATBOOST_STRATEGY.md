@@ -24,7 +24,7 @@ Implementacja strategii z notebooka "S5E12 | Single CatBoost: Train-Bin, Tail We
 4. **CatBoost Model** (`catboost-binned.yaml`)
    - AutoGluon z CatBoost-only
    - Tuned hyperparameters z notebooka
-   - Automatyczne użycie sample weights + orig_df
+   - Użycie sample weights + opcjonalny merge orig_df (sterowane w template przez `merge_orig`)
 
 ## Uruchomienie
 
@@ -136,12 +136,10 @@ submissions/
 
 ### Model
 
-```
-[AutoGluon with Orig] Merging external dataset:
-  Kaggle train rows: 700,000
-  External rows:     253,680
-  Merged total:      953,680
+> Uwaga: merge orig_df jest opcjonalny (flaga `merge_orig` w template).
+> Jeśli `merge_orig: false`, logi o "Merging external dataset" nie pojawiaja sie.
 
+```
 [AutoGluon Sample Weights] Using sample weights from artifacts
 [AutoGluon Sample Weights] weight_evaluation=True
 
@@ -173,7 +171,8 @@ projects/kaggle/playground-series-s5e12/templates/
 ├── preprocess/
 │   └── binned-full.yaml    # 4-step preprocessing chain
 └── model/
-    └── catboost-binned.yaml  # CatBoost model config
+    ├── catboost-binned.yaml           # CatBoost model config
+    └── catboost-binned-hpo-noorig.yaml  # CatBoost HPO without orig merge
 ```
 
 ## Customizacja
@@ -225,6 +224,17 @@ CAT:
   iterations: 5000               # Więcej iteracji
 ```
 
+### Wylaczenie merge orig_df (zgodnie z notebookiem)
+
+W template modelu ustaw:
+
+```yaml
+merge_orig: false
+```
+
+Przykladowy template:
+- `templates/model/catboost-binned-hpo-noorig.yaml`
+
 ## Troubleshooting
 
 ### Problem: "Column 'diagnosed_diabetes' not found in orig_df"
@@ -249,7 +259,7 @@ Wymuś ponowne uruchomienie z `--force`.
 ### Problem: Niska CV score
 
 **Możliwe przyczyny**:
-1. Brak orig_df merge → sprawdź logi "Merging external dataset"
+1. Brak orig_df merge → sprawdz `merge_orig` w template (jesli `false`, to jest oczekiwane)
 2. Brak sample weights → sprawdź logi "Sample Weights"
 3. Słabe hyperparametry → dostosuj template model
 

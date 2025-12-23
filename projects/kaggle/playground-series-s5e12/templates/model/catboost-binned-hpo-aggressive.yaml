@@ -1,0 +1,39 @@
+# CatBoost HPO - AGGRESSIVE (200 trials, best quality)
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full \
+#     model_template=catboost-binned-hpo-aggressive \
+#     common.use_gpu=true \
+#     common.time_limit=14400
+
+model: autogluon_baseline
+
+config:
+  preset: best_quality
+  time_limit: 14400
+  use_gpu: true
+  included_model_types:
+    - CAT
+
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 200
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      CAT:
+        task_type: GPU
+        devices: '0'
+        learning_rate: [0.001, 0.3, log]
+        depth: [3, 12, int]
+        l2_leaf_reg: [0.1, 50.0]
+        bagging_temperature: [0.0, 2.0]
+        random_strength: [0.0001, 15.0, log]
+        border_count: [32, 512, int]
+        iterations: [500, 5000, int]
+        min_data_in_leaf: [1, 100, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

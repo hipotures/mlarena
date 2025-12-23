@@ -1,0 +1,19 @@
+# CatBoost Full Strategy Preprocessing Chain
+# Based on: S5E12 Single CatBoost notebook (v3)
+#
+# Pipeline:
+# 1. Load external diabetes dataset (external-diabetes)
+# 2. Apply statistical + AI binning (diabetes-binning)
+# 3. Map original dataset statistics (diabetes-orig-stats)
+# 4. Apply tail weighting (diabetes-tail-weights)
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full \
+#     model_template=catboost-binned
+
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights

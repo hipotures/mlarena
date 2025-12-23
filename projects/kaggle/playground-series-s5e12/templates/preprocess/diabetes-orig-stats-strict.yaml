@@ -1,0 +1,11 @@
+# Map original dataset statistics (mean/count) - STRICT NOTEBOOK VERSION
+# Only raw numeric features (NO binned features)
+module: diabetes_orig_stats
+cache: true
+config:
+  stat_columns: null  # Auto-detect (all numeric)
+  include_binned: false  # ← STRICT: Only raw numeric, no bin_* features
+  include_categorical: false
+  stat_types:
+    - mean
+    - count

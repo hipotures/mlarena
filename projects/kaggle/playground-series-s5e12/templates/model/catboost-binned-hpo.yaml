@@ -1,0 +1,47 @@
+# CatBoost Model with HPO (Hyperparameter Optimization)
+# Based on: S5E12 Single CatBoost notebook + HPO tuning
+#
+# Usage:
+#   uv run python scripts/mla.py -p playground-series-s5e12 \
+#     preprocess_template=catboost-full \
+#     model_template=catboost-binned-hpo \
+#     common.use_gpu=true \
+#     common.time_limit=3600
+
+model: autogluon_baseline
+
+config:
+  preset: medium_quality
+  time_limit: 3600
+  use_gpu: true
+  included_model_types:
+    - CAT
+
+  # MOVED inside hyperparameters!
+  hyperparameters:
+    # HPO Configuration
+    hyperparameter_tune_kwargs:
+      num_trials: 50
+      scheduler: local
+      searcher: auto
+
+
+    # Search space (static + HPO params)
+    search_space:
+      CAT:
+        ag_args_fit:
+          num_gpus: 1
+        # Static params (non-list = pass through)
+        task_type: GPU
+        devices: '0'
+        # HPO params (list = search)
+        learning_rate: [0.01, 0.3, log]
+        depth: [4, 10, int]
+        l2_leaf_reg: [1.0, 30.0]
+        bagging_temperature: [0.0, 1.5]
+        random_strength: [0.0001, 10.0, log]
+        border_count: [32, 255, int]
+        iterations: [500, 3000, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

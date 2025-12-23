@@ -1,0 +1,10 @@
+# Map original dataset statistics (mean/count)
+module: diabetes_orig_stats
+cache: true
+config:
+  stat_columns: null  # Auto-detect (all numeric + binned)
+  include_binned: true
+  include_categorical: false
+  stat_types:
+    - mean
+    - count

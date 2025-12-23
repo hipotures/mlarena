@@ -1,0 +1,9 @@
+# CatBoost Full Strategy + Cleanup + RFE (linear v1, RFE keep 50)
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1
+  - cleanup-no-variance
+  - remove-correlated
+  - rfe-lgbm-50

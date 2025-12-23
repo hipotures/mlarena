@@ -1,0 +1,8 @@
+# CatBoost Full Strategy + Cleanup (linear v1, MI keep 90%)
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1
+  - cleanup-no-variance
+  - feature_selector_mi_90

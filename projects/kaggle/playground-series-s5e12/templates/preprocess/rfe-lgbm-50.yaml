@@ -1,0 +1,11 @@
+# RFE Feature Selection with LightGBM (keep 50)
+module: feature_selector
+cache: true
+config:
+  selection_method: rfe
+  importance_model_type: lgbm
+  n_features: 50
+  n_estimators: 100
+  max_depth: 6
+  use_gpu: true
+  random_state: 42

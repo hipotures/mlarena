@@ -1,0 +1,7 @@
+# MI feature selection (keep 90% features)
+module: feature_selector
+cache: true
+config:
+  selection_method: mi
+  n_features: 0.9
+  max_drop_fraction: 0.4

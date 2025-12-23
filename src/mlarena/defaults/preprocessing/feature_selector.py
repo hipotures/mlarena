@@ -4,14 +4,15 @@ Feature Selection Sub-Module
 Purpose: Systematically reduce feature dimensionality using various selection methods
 Libraries: sklearn.feature_selection, sklearn.ensemble, lightgbm, xgboost, scipy
 Parameters:
-    - selection_method: variance|mi|correlation|model_importance|l1|rfe|none
+    - selection_method: variance|cardinality|mi|correlation|model_importance|l1|rfe|none
     - n_features: int|float|None (universal feature selector):
         * 0: pass-through (no selection)
         * 0 < n < 1: keep fraction (e.g., 0.3 = keep 30% best)
         * n >= 1: keep exactly n best features
         * n < 0: drop |n| worst features (e.g., -2 = drop 2 worst)
-        * None: threshold-only (use min_importance/min_variance)
+        * None: threshold-only (use min_importance/min_variance/min_unique_per_million)
     - min_variance: float (threshold for variance method)
+    - min_unique_per_million: float (threshold for cardinality method; min unique values per 1M records)
     - min_importance: float (threshold for importance method)
     - importance_model_type: lgbm|xgb|rf
     - n_estimators: int (for model-based methods)
@@ -121,6 +122,7 @@ def fit_transform(
         "selection_method": "variance",
         "n_features": None,
         "min_variance": 0.01,
+        "min_unique_per_million": 5.0,
         "min_importance": 0.001,
         "importance_model_type": "lgbm",
         "n_estimators": 100,
@@ -147,7 +149,7 @@ def fit_transform(
     # Validate choice parameters
     validation.validate_choice(
         config["selection_method"],
-        ["variance", "mi", "correlation", "model_importance", "l1", "rfe", "none"],
+        ["variance", "cardinality", "mi", "correlation", "model_importance", "l1", "rfe", "none"],
         "selection_method"
     )
 
@@ -303,6 +305,7 @@ def fit_transform(
         method=config["selection_method"],
         select_features=config["n_features"],
         min_variance=config["min_variance"],
+        min_unique_per_million=config["min_unique_per_million"],
         min_importance=config["min_importance"],
         importance_model_type=config["importance_model_type"],
         n_estimators=config["n_estimators"],
@@ -418,6 +421,7 @@ def _select_features(
     method: str,
     select_features: int | float | None,
     min_variance: float,
+    min_unique_per_million: float,
     min_importance: float,
     importance_model_type: str,
     n_estimators: int,
@@ -530,10 +534,49 @@ def _select_features(
             selected_mask = np.zeros(total_features, dtype=bool)
             selected_mask[top_idx] = True
         else:
-            # Too few above threshold -> backfill with top-K overall
-            top_idx = np.argsort(variances)[::-1][:n_features_to_select]
+            # Too few above threshold
+            # In threshold-only mode (select_features=None), respect the threshold strictly
+            # Otherwise backfill with top-K overall to reach requested count
+            if select_features is None:
+                # Threshold-only mode: don't backfill, just use what passes threshold
+                pass  # selected_mask already set correctly at line 528
+            else:
+                # Top-K mode: backfill to reach requested count
+                top_idx = np.argsort(variances)[::-1][:n_features_to_select]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+
+    elif method == "cardinality":
+        # Cardinality threshold (min unique values per 1M records)
+        # Count unique values for each feature
+        n_rows = X_train.shape[0]
+        n_unique = np.array([len(np.unique(X_train[:, i])) for i in range(total_features)])
+
+        # Normalize to per-million scale
+        unique_per_million = (n_unique / n_rows) * 1_000_000
+        feature_scores = unique_per_million
+
+        _apply_cumulative_cutoff(unique_per_million)
+        selected_mask = unique_per_million >= min_unique_per_million
+
+        if selected_mask.sum() >= n_features_to_select:
+            # Too many (or exact) -> trim to top-K among those above threshold
+            candidate_idx = np.where(selected_mask)[0]
+            top_idx = candidate_idx[np.argsort(unique_per_million[candidate_idx])[::-1][:n_features_to_select]]
             selected_mask = np.zeros(total_features, dtype=bool)
             selected_mask[top_idx] = True
+        else:
+            # Too few above threshold
+            # In threshold-only mode (select_features=None), respect the threshold strictly
+            # Otherwise backfill with top-K overall to reach requested count
+            if select_features is None:
+                # Threshold-only mode: don't backfill, just use what passes threshold
+                pass  # selected_mask already set correctly above
+            else:
+                # Top-K mode: backfill to reach requested count
+                top_idx = np.argsort(unique_per_million)[::-1][:n_features_to_select]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
 
     elif method == "mi":
         # Mutual Information
@@ -738,26 +781,77 @@ def _select_features(
         selected_mask[top_indices] = True
 
     elif method == "rfe":
-        # Recursive Feature Elimination
-        if problem_type in ["binary", "multiclass"]:
-            estimator = RandomForestClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                random_state=random_state,
-                n_jobs=-1,
-            )
-        else:
-            estimator = RandomForestRegressor(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                random_state=random_state,
-                n_jobs=-1,
-            )
+        # Recursive Feature Elimination (supports RF, LightGBM, XGBoost)
+        if importance_model_type == "lgbm":
+            try:
+                import lightgbm as lgb
+                if problem_type in ["binary", "multiclass"]:
+                    estimator = lgb.LGBMClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        device="gpu" if use_gpu else "cpu",
+                        verbosity=-1,
+                    )
+                else:
+                    estimator = lgb.LGBMRegressor(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        device="gpu" if use_gpu else "cpu",
+                        verbosity=-1,
+                    )
+            except ImportError:
+                warnings.warn("LightGBM not available, falling back to RandomForest for RFE")
+                importance_model_type = "rf"
+
+        if importance_model_type == "xgb":
+            try:
+                import xgboost as xgb
+                if problem_type in ["binary", "multiclass"]:
+                    estimator = xgb.XGBClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        tree_method="hist",
+                        device="cuda" if use_gpu else "cpu",
+                        verbosity=0,
+                    )
+                else:
+                    estimator = xgb.XGBRegressor(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        tree_method="hist",
+                        device="cuda" if use_gpu else "cpu",
+                        verbosity=0,
+                    )
+            except ImportError:
+                warnings.warn("XGBoost not available, falling back to RandomForest for RFE")
+                importance_model_type = "rf"
+
+        if importance_model_type == "rf":
+            # RandomForest (default fallback)
+            if problem_type in ["binary", "multiclass"]:
+                estimator = RandomForestClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                )
+            else:
+                estimator = RandomForestRegressor(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                )
 
         rfe = RFE(estimator=estimator, n_features_to_select=n_features_to_select)
         rfe.fit(X_train, y_train)
         selected_mask = rfe.support_
         feature_scores = rfe.ranking_  # Lower is better
+        selection_meta["rfe_estimator"] = importance_model_type
 
     else:
         raise ValueError(f"Unknown selection method: {method}")

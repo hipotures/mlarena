@@ -10,12 +10,20 @@ to learn from both Kaggle competition data and external/original datasets.
 
 from __future__ import annotations
 
+import os
+import warnings
 from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 from autogluon.tabular import TabularPredictor
 
 from kaggle_tools.config_models import ModelConfig
+
+# Suppress C++ compiler warnings and Python warnings
+os.environ['PYTHONWARNINGS'] = 'ignore'
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 def train(
@@ -188,6 +196,9 @@ def train(
             print(f"[AutoGluon Sample Weights] WARNING: weight_evaluation=True with {sample_weight_param} is not recommended by AutoGluon docs")
 
     # Train model
+    # Get verbosity from config or default to 2 (standard logging)
+    verbosity = getattr(config.hyperparameters, 'verbosity', 2)
+
     predictor = TabularPredictor(
         label=target_column,
         path=str(config.system.model_path),
@@ -195,7 +206,7 @@ def train(
         problem_type=config.dataset.problem_type,
         sample_weight=sample_weight_param,
         weight_evaluation=weight_evaluation_param,
-        verbosity=2,
+        verbosity=verbosity,
     )
 
     fit_kwargs = {

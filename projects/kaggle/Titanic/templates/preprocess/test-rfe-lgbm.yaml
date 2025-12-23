@@ -8,5 +8,5 @@ config:
   n_features_to_select: 5  # Keep top 5 features (Titanic has ~10 features)
   n_estimators: 50  # Fast test
   max_depth: 4
-  use_gpu: true
+  use_gpu: false  # CPU for Titanic test
   random_state: 42

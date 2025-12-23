@@ -1,0 +1,7 @@
+# This is a NEW comment (should be ignored by hash)
+# Another comment line
+config:  # Reordered: config before module
+  check_duplicates: false  # Comment here too
+  check_missing: true
+module: sanity_check  # Module moved to end
+cache: true  # This should be excluded from hash anyway

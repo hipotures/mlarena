@@ -465,6 +465,8 @@ class PipelineExecutor:
                         error=error_msg,
                         project_root=module.context.project_root,
                         project_name=module.context.project_name,
+                        experiment_id=module.context.experiment_id,
+                        cli_invocation=getattr(module, "invocation_params", {}),
                         console=console
                     )
                 except:
@@ -581,6 +583,8 @@ class PipelineExecutor:
                         shapes=shapes,
                         project_root=module.context.project_root,
                         project_name=module.context.project_name,
+                        experiment_id=module.context.experiment_id,
+                        cli_invocation=getattr(module, "invocation_params", {}),
                         console=console
                     )
 
@@ -617,6 +621,8 @@ class PipelineExecutor:
                         error=outcome.error or "unknown error",
                         project_root=module.context.project_root,
                         project_name=module.context.project_name,
+                        experiment_id=module.context.experiment_id,
+                        cli_invocation=getattr(module, "invocation_params", {}),
                         console=console
                     )
                 except:

@@ -1,0 +1,18 @@
+# CatBoost Full Strategy + Cleanup + RFE (linear weights v1)
+# Pipeline:
+# 1. Load external diabetes dataset
+# 2. Apply statistical + AI binning
+# 3. Map original dataset statistics (mean/count)
+# 4. Apply tail weighting (linear v1)
+# 5. Remove perfect constants (variance ~ 0)
+# 6. Remove correlated features (pearson > 0.95)
+# 7. RFE feature selection with LightGBM
+
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1
+  - cleanup-no-variance
+  - remove-correlated
+  - rfe-lgbm

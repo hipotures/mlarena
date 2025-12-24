@@ -205,6 +205,12 @@ uv run python scripts/mla.py submit \
   --project titanic \
   --experiment-id eda
 
+# Disable confirmation (submit immediately)
+uv run python scripts/mla.py submit \
+  --project titanic \
+  --experiment-id eda \
+  submit.confirm_timeout=0
+
 # Skip submission (save CSV only)
 uv run python scripts/mla.py submit \
   --project titanic \

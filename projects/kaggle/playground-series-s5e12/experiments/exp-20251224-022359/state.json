@@ -2029,6 +2029,26 @@
         "feature_count": 126
       },
       "error": null
+    },
+    "submit": {
+      "name": "submit",
+      "status": "completed",
+      "started_at": "2025-12-24T11:34:54.280767+00:00",
+      "finished_at": "2025-12-24T11:34:59.178982+00:00",
+      "pid": 3197540,
+      "invocation": {
+        "model_template": "baseline",
+        "preprocess_template": null,
+        "force": false,
+        "skip_submit": false,
+        "seed": 42
+      },
+      "payload": {
+        "submitted": true,
+        "competition": "playground-series-s5e12",
+        "submission_file": "experiments/exp-20251224-022359/artifacts/predict/submission-20251224070344.csv"
+      },
+      "error": null
     }
   },
   "run": {

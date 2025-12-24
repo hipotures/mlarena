@@ -14,6 +14,7 @@ import csv
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -95,6 +96,7 @@ def main() -> int:
 
     missing = []
     processed = 0
+    first_run = True
 
     for target in _iter_targets(rows):
         exp_id = target["exp_id"]
@@ -125,8 +127,11 @@ def main() -> int:
         if args.dry_run:
             print(" ".join(cmd))
         else:
+            if not first_run:
+                time.sleep(1)
             print(f"[info] {exp_id} -> {file_name}")
             subprocess.run(cmd, check=False)
+            first_run = False
 
     print(f"\nDone. Processed: {processed}")
     if missing:

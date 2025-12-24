@@ -293,6 +293,9 @@ class ModelModule(BaseModule):
         if isinstance(model_cfg, str):
             # "model" is a filename reference, not config - use empty dict
             model_cfg = {}
+        # Allow lightweight model-specific overrides from templates
+        if "merge_orig" in template_cfg:
+            model_cfg["merge_orig"] = template_cfg.get("merge_orig")
 
         # Build Hyperparameters with top-level fit args + model-specific hyperparams
         hyperparams_dict = {

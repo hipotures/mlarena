@@ -74,6 +74,14 @@ def train(
     base_train_rows = len(train_df)
 
     # Merge train + orig if available
+    merge_orig = True
+    if getattr(config, "model", None) and isinstance(config.model, dict):
+        merge_orig = config.model.get("merge_orig", True)
+
+    if not merge_orig:
+        print("[AutoGluon with Orig] merge_orig disabled; skipping external dataset merge")
+        orig_df = None
+
     if orig_df is not None:
         if target_column not in orig_df.columns:
             print(

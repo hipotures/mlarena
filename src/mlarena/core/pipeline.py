@@ -571,8 +571,11 @@ class PipelineExecutor:
                     elif name == "fetch-score":
                         if "score" in payload and payload["score"]:
                             metrics["public_score"] = payload["score"]
-                        if "latest_submission" in payload:
-                            metrics["submission_id"] = payload["latest_submission"]
+                        submission_info = payload.get("matched_submission") or payload.get("latest_submission")
+                        if submission_info:
+                            metrics["submission_id"] = submission_info
+                        if payload.get("target_submission"):
+                            metrics["submission_target"] = payload["target_submission"]
 
                     print_module_footer(
                         module_name=name,

@@ -56,9 +56,13 @@ def _apply_stat_binning(series: pd.Series, bins: np.ndarray) -> pd.Series:
     Returns:
         Binned series as strings (categorical)
     """
+    # Extend bins to -inf/+inf to handle out-of-bounds values
+    # This prevents NaN when applying to datasets with values outside train range
+    extended_bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
+
     return pd.cut(
         series,
-        bins=bins,
+        bins=extended_bins,
         labels=False,
         include_lowest=True
     ).astype(str)

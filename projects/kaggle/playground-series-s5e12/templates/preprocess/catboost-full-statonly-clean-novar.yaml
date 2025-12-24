@@ -1,0 +1,7 @@
+# CatBoost Full Strategy (stat-only binning + remove zero-variance)
+chain:
+  - external-diabetes
+  - diabetes-binning-statonly
+  - diabetes-orig-stats
+  - cleanup-no-variance
+  - diabetes-tail-weights

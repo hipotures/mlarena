@@ -1,0 +1,7 @@
+# CatBoost Full Strategy (stat-only binning + remove correlated)
+chain:
+  - external-diabetes
+  - diabetes-binning-statonly
+  - diabetes-orig-stats
+  - remove-correlated
+  - diabetes-tail-weights

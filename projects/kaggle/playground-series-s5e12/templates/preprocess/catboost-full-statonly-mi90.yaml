@@ -1,0 +1,7 @@
+# CatBoost Full Strategy (stat-only binning + MI selection 90%)
+chain:
+  - external-diabetes
+  - diabetes-binning-statonly
+  - diabetes-orig-stats
+  - feature_selector_mi_90
+  - diabetes-tail-weights

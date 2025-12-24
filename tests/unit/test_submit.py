@@ -62,17 +62,11 @@ def test_submit_calls_kaggle(monkeypatch, tmp_path):
 
     ctx = _ctx(project_root, state)
     module = SubmitModule(ctx)
-    module.set_invocation_params({"auto_submit": True})
+    module.set_invocation_params({"confirm_timeout": 0})
 
     called = {}
-    fake_stdin = type("FakeStdin", (), {"fileno": lambda self: 0, "read": lambda self, n=1: "y"})()
+    fake_stdin = type("FakeStdin", (), {"isatty": lambda self: False})()
     monkeypatch.setattr("sys.stdin", fake_stdin)
-    monkeypatch.setattr("termios.tcgetattr", lambda fd: ["raw"])
-    monkeypatch.setattr("termios.tcsetattr", lambda fd, when, settings: None)
-    monkeypatch.setattr("tty.setraw", lambda fd: None)
-    monkeypatch.setattr("select.select", lambda r, w, e, t=0: (r, [], []))
-    monkeypatch.setattr("time.time", lambda: 1000.0)
-    monkeypatch.setattr("time.sleep", lambda *a, **k: None)
     monkeypatch.setattr("subprocess.run", lambda *a, **k: None)
     monkeypatch.setattr("subprocess.check_call", lambda args: called.setdefault("args", args))
 
@@ -80,6 +74,28 @@ def test_submit_calls_kaggle(monkeypatch, tmp_path):
     assert res.success is True
     assert called["args"][0:4] == ["kaggle", "competitions", "submit", "-c"]
 
+
+def test_submit_requires_tty_when_confirm_timeout(tmp_path, monkeypatch):
+    project_root = tmp_path / "projects" / "kaggle" / "demo"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_config(project_root)
+
+    submission_file = project_root / "sub.csv"
+    pd.DataFrame({"id": [1], "y": [0.5]}).to_csv(submission_file, index=False)
+
+    state = ExperimentState.load_or_create(project_root, "demo")
+    state.modules["predict"] = ModuleEntry(name="predict", status="completed", payload={"submission_file": str(submission_file)})
+
+    ctx = _ctx(project_root, state)
+    module = SubmitModule(ctx)
+    module.set_invocation_params({"confirm_timeout": 5})
+
+    fake_stdin = type("FakeStdin", (), {"isatty": lambda self: False})()
+    monkeypatch.setattr("sys.stdin", fake_stdin)
+
+    res = module.execute()
+    assert res.success is False
+    assert res.error == "non-interactive; set submit.confirm_timeout=0"
 
 def test_submit_skips_when_flag(monkeypatch, tmp_path):
     project_root = tmp_path / "projects" / "kaggle" / "demo"

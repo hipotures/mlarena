@@ -1,0 +1,6 @@
+# CatBoost Full Strategy (linear v1 weights)
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1

@@ -1,0 +1,42 @@
+# CatBoost HPO - AGGRESSIVE (4h, no orig merge)
+# Based on catboost-binned-hpo-aggressive but:
+# - time_limit 4h
+# - preset best
+# - merge_orig false
+
+model: autogluon_baseline
+
+config:
+  preset: best
+  time_limit: 14400
+  use_gpu: true
+  included_model_types:
+    - CAT
+
+  # Disable merging external/orig dataset rows
+  merge_orig: false
+
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 50
+      scheduler: local
+      searcher: auto
+
+    search_space:
+      CAT:
+        ag_args_fit:
+          num_gpus: 1
+          num_cpus: 4
+        task_type: GPU
+        devices: '0'
+        learning_rate: [0.001, 0.3, log]
+        depth: [3, 12, int]
+        l2_leaf_reg: [0.1, 50.0]
+        bagging_temperature: [0.0, 2.0]
+        random_strength: [0.0001, 15.0, log]
+        border_count: [32, 512, int]
+        iterations: [500, 5000, int]
+        min_data_in_leaf: [1, 100, int]
+
+  sample_weight_strategy: null
+  weight_evaluation: true

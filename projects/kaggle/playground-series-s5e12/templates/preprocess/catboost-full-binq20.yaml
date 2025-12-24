@@ -1,0 +1,6 @@
+# CatBoost Full Strategy (binning q20)
+chain:
+  - external-diabetes
+  - diabetes-binning-q20
+  - diabetes-orig-stats
+  - diabetes-tail-weights

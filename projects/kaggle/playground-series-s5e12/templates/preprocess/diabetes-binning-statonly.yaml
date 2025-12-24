@@ -1,0 +1,21 @@
+# Statistical binning only (no AI binning)
+module: diabetes_binning
+cache: true
+config:
+  binning_columns:
+    - age
+    - bmi
+    - triglycerides
+    - physical_activity_minutes_per_week
+    - cholesterol_total
+    - ldl_cholesterol
+    - hdl_cholesterol
+    - systolic_bp
+    - diastolic_bp
+    - sleep_hours_per_day
+    - diet_score
+  stat_quantiles: 10
+  ai_max_depth: 3
+  random_state: 42
+  enable_stat_binning: true
+  enable_ai_binning: false

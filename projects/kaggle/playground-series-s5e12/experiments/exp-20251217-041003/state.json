@@ -1,8 +1,8 @@
 {
   "experiment_id": "exp-20251217-041003",
   "project": "playground-series-s5e12",
-  "project_root": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12",
-  "experiment_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003",
+  "project_root": "/playground-series-s5e12",
+  "experiment_dir": "experiments/exp-20251217-041003",
   "created_at": "2025-12-17T04:10:03.926510+00:00",
   "pipeline": {
     "name": "default",
@@ -40,7 +40,7 @@
         "eda_notes": ""
       },
       "payload": {
-        "summary_file": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/eda_summary.json",
+        "summary_file": "experiments/eda/artifacts/eda/eda_summary.json",
         "train_profile": {
           "summary": {
             "table": {
@@ -1008,8 +1008,8 @@
               "[id] has unique values"
             ]
           },
-          "html": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/train_profile.html",
-          "json": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/train_profile.json"
+          "html": "experiments/eda/artifacts/eda/train_profile.html",
+          "json": "experiments/eda/artifacts/eda/train_profile.json"
         },
         "test_profile": {
           "summary": {
@@ -1954,11 +1954,11 @@
               "[id] has unique values"
             ]
           },
-          "html": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/test_profile.html",
-          "json": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/test_profile.json"
+          "html": "experiments/eda/artifacts/eda/test_profile.html",
+          "json": "experiments/eda/artifacts/eda/test_profile.json"
         },
-        "train_profile_path": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/train_profile.html",
-        "test_profile_path": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/eda/artifacts/eda/test_profile.html",
+        "train_profile_path": "experiments/eda/artifacts/eda/train_profile.html",
+        "test_profile_path": "experiments/eda/artifacts/eda/test_profile.html",
         "target": {
           "unique": 2,
           "nulls": 0,
@@ -1982,17 +1982,17 @@
       "invocation": {
         "model_template": "top0_006",
         "preprocess_template": "top0_av_weights_3h",
-        "preprocess_exp_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-top0_006/6-top0_av_weights_3h",
+        "preprocess_exp_dir": "experiments/pre-top0_006/6-top0_av_weights_3h",
         "force": false
       },
       "payload": {
         "model_implementation": "autogluon_baseline",
-        "model_artifact": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003/artifacts/model/model",
+        "model_artifact": "experiments/exp-20251217-041003/artifacts/model/model",
         "local_cv": 0.729617500004775,
         "training_summary": {
           "local_cv": 0.729617500004775,
           "best_model": "WeightedEnsemble_L3",
-          "model_path": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003/artifacts/model/model",
+          "model_path": "experiments/exp-20251217-041003/artifacts/model/model",
           "used_orig": true,
           "orig_rows": 100000,
           "total_train_rows": 800000,
@@ -2005,7 +2005,7 @@
         "use_gpu": false,
         "template": "top0_006",
         "preprocess_template": "top0_av_weights_3h",
-        "leaderboard": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003/artifacts/model/leaderboard.csv"
+        "leaderboard": "experiments/exp-20251217-041003/artifacts/model/leaderboard.csv"
       },
       "error": null
     },
@@ -2017,11 +2017,11 @@
       "pid": 452956,
       "invocation": {
         "preprocess_template": "top0_av_weights_3h",
-        "preprocess_exp_dir": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/pre-top0_006/6-top0_av_weights_3h"
+        "preprocess_exp_dir": "experiments/pre-top0_006/6-top0_av_weights_3h"
       },
       "payload": {
-        "predictions": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv",
-        "submission_file": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv",
+        "predictions": "experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv",
+        "submission_file": "experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv",
         "feature_count": 29
       },
       "error": null
@@ -2038,27 +2038,42 @@
       "payload": {
         "submitted": true,
         "competition": "playground-series-s5e12",
-        "submission_file": "/home/xai/ml/kaggle/projects/kaggle/playground-series-s5e12/experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv"
+        "submission_file": "experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv"
       },
       "error": null
     },
     "fetch-score": {
       "name": "fetch-score",
       "status": "completed",
-      "started_at": "2025-12-17T10:16:28.877903+00:00",
-      "finished_at": "2025-12-17T10:16:29.357728+00:00",
-      "pid": 452956,
-      "invocation": {},
+      "started_at": "2025-12-24T14:30:21.659751+00:00",
+      "finished_at": "2025-12-24T14:30:22.126531+00:00",
+      "pid": 3545109,
+      "invocation": {
+        "model_template": "baseline",
+        "preprocess_template": null,
+        "force": true,
+        "skip_submit": false,
+        "seed": 42
+      },
       "payload": {
         "score": 0.70021,
         "latest_submission": {
+          "fileName": "submission-20251224145212.csv",
+          "date": "2025-12-24 13:56:51.263000",
+          "description": "0.72597 | feat: 93 | exp-20251224-095945 | catboost-binned-hpo-aggressive-4h-noorig | catboost-full-statonly | submission-20251224145212.csv",
+          "status": "SubmissionStatus.COMPLETE",
+          "publicScore": "0.70310",
+          "privateScore": ""
+        },
+        "matched_submission": {
           "fileName": "submission-20251217111551.csv",
           "date": "2025-12-17 10:15:57.553000",
           "description": "0.72962 | feat: 29 | exp-20251217-041003 | top0_006 | top0_006 | submission-20251217111551.csv",
           "status": "SubmissionStatus.COMPLETE",
           "publicScore": "0.70021",
           "privateScore": ""
-        }
+        },
+        "target_submission": "experiments/exp-20251217-041003/artifacts/predict/submission-20251217111551.csv"
       },
       "error": null
     }

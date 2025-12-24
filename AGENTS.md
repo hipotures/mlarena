@@ -258,6 +258,7 @@ projects/kaggle/[competition]/
 - `snake_case` for functions/modules
 - `CamelCase` for classes
 - Constants in `code/utils/config.py`
+- Documentation should be written in English
 
 ### Smoke Test
 
@@ -282,16 +283,17 @@ uv run python scripts/mla.py -p <project>
 ### Never Commit
 - Data files (`data/*.csv`, `*.zip`)
 - Model outputs (`AutogluonModels/`, `*.pkl`)
-- Experiment artifacts
+- Experiment artifacts (e.g., model files, predictions, large intermediates) **excluding** `experiments/**/state.json`
 
 ### Always Commit
 - Code changes
 - Config updates
 - Documentation
+- Experiment state tracking (`experiments/**/state.json`)
 
 ## See Also
 
 - `docs/MLA_WORKFLOW_GUIDE.md`
 - `docs/configs.md`
 - `README.md`
-- Poprawny test na projekcie Titanic to: uv run python scripts/mla.py -p Titanic (nie musi być --profile smoke /bo to mało danych/, bez --force, chyba, ze chce się przetestować działanie AI)
+- Correct test for the Titanic project: `uv run python scripts/mla.py -p Titanic` (no need for `--profile smoke` since the dataset is small; use `--force` only if you want to test AI behavior)

@@ -1,0 +1,9 @@
+# Tail weighting for distribution shift (percentile 0.99)
+module: diabetes_weights
+cache: true
+config:
+  weighting_strategy: percentile
+  tail_percentile: 0.99
+  weight_multiplier: 5.0
+  weights_output_name: sample_weights.csv
+  weight_column_name: sample_weight

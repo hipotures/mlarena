@@ -1,0 +1,15 @@
+# Remove perfect constants (all values identical)
+# Technical cleanup - removes features with zero variance
+#
+# Example:
+#   feature = [0, 0, 0, ..., 0]  → REMOVED (no information)
+#
+# Does NOT remove:
+#   feature = [1, 0, 0, ..., 0]  → KEPT (has variance, RFE will decide if useful)
+module: feature_selector
+cache: true
+config:
+  selection_method: variance
+  min_variance: 1.0e-15  # Only perfect constants (floating point precision)
+  n_features: null  # Threshold-only mode
+  random_state: 42

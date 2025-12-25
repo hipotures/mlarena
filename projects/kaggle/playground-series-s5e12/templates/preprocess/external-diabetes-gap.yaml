@@ -1,0 +1,8 @@
+# Load external diabetes dataset
+module: external_dataset
+cache: true
+config:
+  orig_path: data/diabetes_dataset.csv
+  mode: align
+  source_flag: null
+  column_mapping: {}

@@ -1,0 +1,11 @@
+# CatBoost Full Strategy + Cleanup + RFE (GAP, tail_percentile 0.95)
+# 1:1 with catboost-full-clean-rfe-gap, different tail percentile (0.95)
+
+chain:
+  - external-diabetes-gap
+  - diabetes-binning-gap
+  - diabetes-orig-stats-gap
+  - diabetes-tail-weights-gap-p95
+  - cleanup-no-variance-gap
+  - remove-correlated-gap
+  - rfe-lgbm-gap

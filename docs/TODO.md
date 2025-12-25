@@ -42,6 +42,10 @@
 
 - [ ] Add `score_direction` metadata to `feature_selection_report.json` and sort `feature_scores` according to method (e.g., `rfe` ascending, others descending).
 
+## Preprocess Template Overrides
+
+- [ ] Allow CLI overrides of preprocess template config, including chain steps (e.g., `diabetes-tail-weights.config.tail_percentile=0.95` or `step:diabetes-tail-weights config.tail_percentile=0.95`), and propagate overrides into `template_cfg["config"]` for the specific step.
+
 ## CLI meta-commands (non-flow)
 
 - [ ] Dodać tryb pipeline bez podawania modułu: `mla --project X` uruchamia domyślny pipeline, `--from preprocess` startuje od preprocess, `--from model` od model itd.

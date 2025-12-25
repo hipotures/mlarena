@@ -1,0 +1,187 @@
+{
+  "competition": "playground-series-s5e12",
+  "timestamp": "2025-12-25T22:34:29.994150",
+  "total": 10,
+  "reproducible_count": 8,
+  "skipped_count": 2,
+  "reproducible": [
+    {
+      "rank": 1,
+      "title": "S5E12 | EDA+XGB - Competition Starter",
+      "author": "Masaya Kawamata",
+      "ref": "masayakawamata/s5e12-eda-xgb-competition-starter",
+      "slug": "s5e12-eda-xgb-competition-starter",
+      "votes": 175,
+      "last_updated": "2025-12-01 08:30:50.347000",
+      "url": "https://www.kaggle.com/code/masayakawamata/s5e12-eda-xgb-competition-starter",
+      "ipynb_path": "/tmp/kaggle_notebooks/01-s5e12-eda-xgb-competition-starter/s5e12-eda-xgb-competition-starter.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "18 code cells, 14 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 3,
+      "title": "PGS512: XGB+LGB+YDF+TABM+AG: FE, CV & OPTUNA",
+      "author": "Konstantin Dmitriev",
+      "ref": "kdmitrie/pgs512-xgb-lgb-ydf-tabm-ag-fe-cv-optuna",
+      "slug": "pgs512-xgb-lgb-ydf-tabm-ag-fe-cv-optuna",
+      "votes": 82,
+      "last_updated": "2025-12-16 19:04:58.460000",
+      "url": "https://www.kaggle.com/code/kdmitrie/pgs512-xgb-lgb-ydf-tabm-ag-fe-cv-optuna",
+      "ipynb_path": "/tmp/kaggle_notebooks/03-pgs512-xgb-lgb-ydf-tabm-ag-fe-cv-optuna/pgs512-xgb-lgb-ydf-tabm-ag-fe-cv-optuna.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "36 code cells, 29 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 4,
+      "title": "Diabetes Diagnostics: End-to-End|EDA \ud83d\udcca",
+      "author": "Vishwa",
+      "ref": "rv1922/diabetes-diagnostics-end-to-end-eda",
+      "slug": "diabetes-diagnostics-end-to-end-eda",
+      "votes": 73,
+      "last_updated": "2025-12-22 08:26:18.483000",
+      "url": "https://www.kaggle.com/code/rv1922/diabetes-diagnostics-end-to-end-eda",
+      "ipynb_path": "/tmp/kaggle_notebooks/04-diabetes-diagnostics-end-to-end-eda/diabetes-diagnostics-end-to-end-eda.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "37 code cells, 17 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 5,
+      "title": "Diabetes | XGB/HGB/LGBM/CatB Ensemble | K-Fold",
+      "author": "\u00c1kos Pint\u00e9r",
+      "ref": "kospintr/diabetes-xgb-hgb-lgbm-catb-ensemble-k-fold",
+      "slug": "diabetes-xgb-hgb-lgbm-catb-ensemble-k-fold",
+      "votes": 67,
+      "last_updated": "2025-12-25 15:26:48.653000",
+      "url": "https://www.kaggle.com/code/kospintr/diabetes-xgb-hgb-lgbm-catb-ensemble-k-fold",
+      "ipynb_path": "/tmp/kaggle_notebooks/05-diabetes-xgb-hgb-lgbm-catb-ensemble-k-fold/diabetes-xgb-hgb-lgbm-catb-ensemble-k-fold.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "13 code cells, 8 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 6,
+      "title": "Diabetes EDA|Training Pipeline",
+      "author": "Nikitas Rafael Nikitas",
+      "ref": "rafanikitas/diabetes-eda-training-pipeline",
+      "slug": "diabetes-eda-training-pipeline",
+      "votes": 59,
+      "last_updated": "2025-12-24 11:20:32.193000",
+      "url": "https://www.kaggle.com/code/rafanikitas/diabetes-eda-training-pipeline",
+      "ipynb_path": "/tmp/kaggle_notebooks/06-diabetes-eda-training-pipeline/diabetes-eda-training-pipeline.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "20 code cells, 12 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 7,
+      "title": "LGBM Predicts Diabetes ",
+      "author": "Marius",
+      "ref": "mariusborel/lgbm-predicts-diabetes",
+      "slug": "lgbm-predicts-diabetes",
+      "votes": 57,
+      "last_updated": "2025-12-21 10:33:44.217000",
+      "url": "https://www.kaggle.com/code/mariusborel/lgbm-predicts-diabetes",
+      "ipynb_path": "/tmp/kaggle_notebooks/07-lgbm-predicts-diabetes/lgbm-predicts-diabetes.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "32 code cells, 12 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 9,
+      "title": "S5E12 | \ud83d\udd25 Exploring FE + Optuna Ensemble",
+      "author": "Oleksii Zhukov",
+      "ref": "zhukovoleksiy/s5e12-exploring-fe-optuna-ensemble",
+      "slug": "s5e12-exploring-fe-optuna-ensemble",
+      "votes": 51,
+      "last_updated": "2025-12-13 19:49:34.347000",
+      "url": "https://www.kaggle.com/code/zhukovoleksiy/s5e12-exploring-fe-optuna-ensemble",
+      "ipynb_path": "/tmp/kaggle_notebooks/09-s5e12-exploring-fe-optuna-ensemble/s5e12-exploring-fe-optuna-ensemble.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "38 code cells, 10 markdown cells",
+        "warnings": []
+      }
+    },
+    {
+      "rank": 10,
+      "title": "Diabetes_Prediction_Challenge",
+      "author": "Uday Prattap",
+      "ref": "udayprattap/diabetes-prediction-challenge",
+      "slug": "diabetes-prediction-challenge",
+      "votes": 50,
+      "last_updated": "2025-12-19 09:28:22.990000",
+      "url": "https://www.kaggle.com/code/udayprattap/diabetes-prediction-challenge",
+      "ipynb_path": "/tmp/kaggle_notebooks/10-diabetes-prediction-challenge/diabetes-prediction-challenge.ipynb",
+      "reproducibility": {
+        "reproducible": true,
+        "score": "HIGH",
+        "reason": "33 code cells, 17 markdown cells",
+        "warnings": []
+      }
+    }
+  ],
+  "skipped": [
+    {
+      "rank": 2,
+      "title": "PS-s5e12 | Blend",
+      "author": "AnthonyTherrien",
+      "ref": "anthonytherrien/ps-s5e12-blend",
+      "slug": "ps-s5e12-blend",
+      "votes": 105,
+      "last_updated": "2025-12-23 00:02:39.723000",
+      "url": "https://www.kaggle.com/code/anthonytherrien/ps-s5e12-blend",
+      "ipynb_path": "/tmp/kaggle_notebooks/02-ps-s5e12-blend/ps-s5e12-blend.ipynb",
+      "reproducibility": {
+        "reproducible": false,
+        "score": "SKIP",
+        "reason": "CSV blending without training code - cannot reproduce",
+        "warnings": [
+          "Loads external submission CSVs",
+          "No training code found"
+        ]
+      }
+    },
+    {
+      "rank": 8,
+      "title": "Diabetes Prediction - Blend",
+      "author": "Ian Teigen",
+      "ref": "ianteigen/diabetes-prediction-blend",
+      "slug": "diabetes-prediction-blend",
+      "votes": 51,
+      "last_updated": "2025-12-16 07:52:08.947000",
+      "url": "https://www.kaggle.com/code/ianteigen/diabetes-prediction-blend",
+      "ipynb_path": "/tmp/kaggle_notebooks/08-diabetes-prediction-blend/diabetes-prediction-blend.ipynb",
+      "reproducibility": {
+        "reproducible": false,
+        "score": "SKIP",
+        "reason": "CSV blending without training code - cannot reproduce",
+        "warnings": [
+          "Loads external submission CSVs",
+          "No training code found"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Ratio-Based Physiological Features
+# Source: Analysis of mariusborel notebook (57 votes)
+# Expected impact: +1-2% local CV
+# Creates lifestyle balance and efficiency ratio features
+
+module: diabetes_ratios
+config:
+  # Safe division epsilon (prevent division by zero)
+  epsilon: 1e-9

@@ -1,0 +1,21 @@
+# Medical Domain Feature Engineering
+# Source: Analysis of 6/8 top notebooks (rafanikitas, udayprattap, zhukovoleksiy, etc.)
+# Expected impact: +2-3% local CV
+# Creates cardiovascular markers, lipid profiles, and clinical threshold categories
+
+module: diabetes_medical_domain
+config:
+  # Cardiovascular features (pulse pressure, MAP, rate-pressure product)
+  create_cardiovascular: true
+
+  # Lipid profile ratios (LDL/HDL, TG/HDL, etc.)
+  create_lipid_ratios: true
+
+  # Clinical threshold categories (BMI, BP)
+  create_clinical_categories: true
+
+  # Medical risk composite score
+  create_medical_risk: true
+
+  # Safe division epsilon (prevent division by zero)
+  epsilon: 1e-9

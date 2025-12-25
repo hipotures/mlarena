@@ -1,0 +1,11 @@
+# CatBoost Full Strategy + Cleanup + RFE (GAP, p99, weight_multiplier 2)
+# 1:1 with catboost-full-clean-rfe-gap, different tail weight multiplier
+
+chain:
+  - external-diabetes-gap
+  - diabetes-binning-gap
+  - diabetes-orig-stats-gap
+  - diabetes-tail-weights-gap-p99-wm02
+  - cleanup-no-variance-gap
+  - remove-correlated-gap
+  - rfe-lgbm-gap

@@ -49,7 +49,7 @@ class StackModule(BaseModule):
             path = Path(f)
             if not path.exists():
                 continue
-            dfs.append(pd.read_csv(path))
+            dfs.append(pd.read_csv(path, compression='infer'))
         if not dfs:
             marker = artifact_dir / "stack_failed.txt"
             marker.write_text("Provided prediction files missing.")
@@ -67,7 +67,7 @@ class StackModule(BaseModule):
         base[target_col] = sum(preds) / len(preds)
 
         out_path = artifact_dir / "stacked_submission.csv"
-        base.to_csv(out_path, index=False)
+        base.to_csv(out_path, index=False, compression='infer')
 
         return ModuleResult(
             success=True,

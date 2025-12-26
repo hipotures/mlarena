@@ -115,7 +115,7 @@ def init_project(
     sample_columns = []
     if sample_path:
         try:
-            sample_preview = pd.read_csv(sample_path, nrows=1)
+            sample_preview = pd.read_csv(sample_path, nrows=1, compression='infer')
             sample_columns = sample_preview.columns.tolist()
         except Exception:
             pass

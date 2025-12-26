@@ -257,7 +257,7 @@ def create_submission(
         SubmissionArtifact with path and metadata
     """
     if sample_submission_path.exists():
-        sample_df = pd.read_csv(sample_submission_path)
+        sample_df = pd.read_csv(sample_submission_path, compression='infer')
     else:
         sample_df = None
         if test_ids is None and not isinstance(predictions, pd.DataFrame):
@@ -306,7 +306,7 @@ def create_submission(
     submissions_dir.mkdir(parents=True, exist_ok=True)
 
     # Save submission
-    submission.to_csv(filepath, index=False)
+    submission.to_csv(filepath, index=False, compression='infer')
 
     print(f"✓ Submission saved: {filepath}")
     print(f"  Shape: {submission.shape}")
@@ -381,8 +381,8 @@ def validate_submission(
         print("Warning: sample_submission.csv not found, skipping validation")
         return True
 
-    sample = pd.read_csv(sample_submission_path)
-    submission = pd.read_csv(submission_path)
+    sample = pd.read_csv(sample_submission_path, compression='infer')
+    submission = pd.read_csv(submission_path, compression='infer')
 
     # Check shape
     assert submission.shape == sample.shape, \

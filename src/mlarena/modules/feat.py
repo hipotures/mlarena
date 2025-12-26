@@ -78,15 +78,15 @@ class FeatureModule(BaseModule):
             marker.write_text("Missing train/test; feat skipped.")
             return ModuleResult(success=True, payload={"skipped": True}, artifacts=[marker])
 
-        train_df = pd.read_csv(train_path)
-        test_df = pd.read_csv(test_path)
+        train_df = pd.read_csv(train_path, compression='infer')
+        test_df = pd.read_csv(test_path, compression='infer')
         train_df = self._apply_ops(train_df, template_cfg)
         test_df = self._apply_ops(test_df, template_cfg)
 
         train_out = artifact_dir / "train_features.csv"
         test_out = artifact_dir / "test_features.csv"
-        train_df.to_csv(train_out, index=False)
-        test_df.to_csv(test_out, index=False)
+        train_df.to_csv(train_out, index=False, compression='infer')
+        test_df.to_csv(test_out, index=False, compression='infer')
 
         meta = {
             "template": template_name,

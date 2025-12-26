@@ -129,8 +129,8 @@ class EDAModule(BaseModule):
             placeholder.write_text(json.dumps(payload, indent=2))
             return ModuleResult(success=True, payload=payload, artifacts=[placeholder])
 
-        train_df = pd.read_csv(train_path)
-        test_df = pd.read_csv(test_path)
+        train_df = pd.read_csv(train_path, compression='infer')
+        test_df = pd.read_csv(test_path, compression='infer')
 
         train_html = artifact_dir / "train_profile.html"
         train_json = artifact_dir / "train_profile.json"

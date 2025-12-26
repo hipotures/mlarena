@@ -240,8 +240,8 @@ class FeaturePipeline:
             train_df.to_parquet(path / "train_feat.parquet", compression=compression, index=False)
             test_df.to_parquet(path / "test_feat.parquet", compression=compression, index=False)
         else:  # csv fallback
-            train_df.to_csv(path / "train_feat.csv", index=False)
-            test_df.to_csv(path / "test_feat.csv", index=False)
+            train_df.to_csv(path / "train_feat.csv", index=False, compression='infer')
+            test_df.to_csv(path / "test_feat.csv", index=False, compression='infer')
 
         # Save feature metadata (USER DECISION)
         metadata = {

@@ -66,7 +66,7 @@ def fit_transform(
         )
 
     console.print(f"[cyan]Loading external dataset:[/cyan] {orig_path.relative_to(project_root)}")
-    orig_df_loaded = pd.read_csv(orig_path)
+    orig_df_loaded = pd.read_csv(orig_path, compression='infer')
     console.print(f"  External rows: {len(orig_df_loaded):,}, columns: {len(orig_df_loaded.columns)}")
 
     # 1b. Apply column mapping (if provided)

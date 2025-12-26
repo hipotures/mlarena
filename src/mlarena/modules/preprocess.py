@@ -223,9 +223,9 @@ class PreprocessModule(BaseModule):
                 marker.write_text("Missing train/test; preprocess skipped.")
                 return ModuleResult(success=True, payload={"skipped": True, "input_source": input_source}, artifacts=[marker])
 
-        train_df = pd.read_csv(train_path)
-        test_df = pd.read_csv(test_path)
-        orig_df = pd.read_csv(orig_path) if orig_path and orig_path.exists() else None
+        train_df = pd.read_csv(train_path, compression='infer')
+        test_df = pd.read_csv(test_path, compression='infer')
+        orig_df = pd.read_csv(orig_path, compression='infer') if orig_path and orig_path.exists() else None
 
         # Store original shapes
         orig_train_shape = train_df.shape
@@ -325,14 +325,14 @@ class PreprocessModule(BaseModule):
                 train_df = self._apply_template(train_df, template_cfg)
                 test_df = self._apply_template(test_df, template_cfg)
 
-        train_df.to_csv(processed_train, index=False)
-        test_df.to_csv(processed_test, index=False)
+        train_df.to_csv(processed_train, index=False, compression='infer')
+        test_df.to_csv(processed_test, index=False, compression='infer')
 
         # Save orig if present
         processed_orig = None
         if orig_df is not None:
             processed_orig = artifact_dir / "orig_processed.csv"
-            orig_df.to_csv(processed_orig, index=False)
+            orig_df.to_csv(processed_orig, index=False, compression='infer')
 
         # Prepare payload with custom preprocessing state
         # For pass-through modules, shapes before/after are the same (no modification)

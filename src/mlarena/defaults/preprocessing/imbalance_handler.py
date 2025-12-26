@@ -235,7 +235,7 @@ def fit_transform(
     weights_path = None
     if sample_weight_col and sample_weight_col in train_df_resampled.columns:
         weights_path = submodule_dir / "sample_weights.csv"
-        train_df_resampled[[sample_weight_col]].to_csv(weights_path, index=False)
+        train_df_resampled[[sample_weight_col]].to_csv(weights_path, index=False, compression='infer')
         train_df_resampled = train_df_resampled.drop(columns=[sample_weight_col])
         if val_df is not None and sample_weight_col in val_df.columns:
             val_df = val_df.drop(columns=[sample_weight_col])

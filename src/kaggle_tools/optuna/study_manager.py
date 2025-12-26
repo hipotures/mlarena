@@ -190,7 +190,7 @@ class StudyManager:
 
         df = self.study.trials_dataframe()
         path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(path, index=False)
+        df.to_csv(path, index=False, compression='infer')
 
     def print_study_statistics(self):
         """

@@ -68,9 +68,9 @@ def main() -> None:
     print(f"[info] Test:  {test_path}")
     print(f"[info] Orig:  {orig_path}")
 
-    train_df = pd.read_csv(train_path)
-    test_df = pd.read_csv(test_path)
-    orig_df = pd.read_csv(orig_path)
+    train_df = pd.read_csv(train_path, compression='infer')
+    test_df = pd.read_csv(test_path, compression='infer')
+    orig_df = pd.read_csv(orig_path, compression='infer')
 
     id_col = args.id_column
     target_col = args.target_column
@@ -121,7 +121,7 @@ def main() -> None:
     if not args.keep_extra_weights:
         av_df = av_df.iloc[:train_len].reset_index(drop=True)
 
-    av_df.to_csv(output_path, index=False)
+    av_df.to_csv(output_path, index=False, compression='infer')
     print(f"[done] Saved AV weights to {output_path}")
     print(f"[info] Rows: {len(av_df)}, Columns: {list(av_df.columns)}")
 

@@ -12,9 +12,9 @@ SUBMISSIONS_DIR = PROJECT_ROOT / "submissions"
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
 # Data paths
-TRAIN_PATH = DATA_DIR / "train.csv"
-TEST_PATH = DATA_DIR / "test.csv"
-SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv"
+TRAIN_PATH = DATA_DIR / "train.csv.gz"
+TEST_PATH = DATA_DIR / "test.csv.gz"
+SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv.gz"
 
 # Model settings
 RANDOM_SEED = 42

@@ -422,7 +422,7 @@ class SubmissionsTracker:
         if output_path is None:
             output_path = self.project_root / "submissions" / "submissions_tracking.csv"
 
-        df.to_csv(output_path, index=False)
+        df.to_csv(output_path, index=False, compression='infer')
         console.print(f"[green]✓[/green] Exported to {output_path}")
 
 

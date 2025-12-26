@@ -51,7 +51,7 @@ class TuneModule(BaseModule):
             marker.write_text("train.csv missing")
             return ModuleResult(success=False, error="train missing", artifacts=[marker])
 
-        train_df = pd.read_csv(train_path)
+        train_df = pd.read_csv(train_path, compression='infer')
         target = getattr(config, "TARGET_COLUMN", None)
         if target not in train_df.columns:
             marker = artifact_dir / "tune_failed.txt"

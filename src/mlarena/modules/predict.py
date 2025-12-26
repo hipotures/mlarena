@@ -56,7 +56,7 @@ class PredictModule(BaseModule):
         # Try to use preprocessed test set from the same chain as training
         # Load ID column BEFORE preprocessing (preprocessing may drop it)
         _, test_path_raw = data_paths(config)
-        test_df_raw = pd.read_csv(test_path_raw)
+        test_df_raw = pd.read_csv(test_path_raw, compression='infer')
         id_col = getattr(config, "ID_COLUMN", None)
         id_series = test_df_raw[id_col].copy() if id_col and id_col in test_df_raw.columns else None
 
@@ -113,7 +113,7 @@ class PredictModule(BaseModule):
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             fname = f"submission-{timestamp}.csv"
         submission_path = artifact_dir / fname
-        submission_df.to_csv(submission_path, index=False)
+        submission_df.to_csv(submission_path, index=False, compression='infer')
 
         # Create submission entry via helper (tracks experiment if available)
         try:

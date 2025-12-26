@@ -50,9 +50,9 @@ def _load_processed_or_raw(
         if not train_path.exists():
             return None, None, None, None
 
-        train_df_local = pd.read_csv(train_path)
-        test_df_local = pd.read_csv(test_path) if test_path.exists() else None
-        orig_df_local = pd.read_csv(orig_path) if orig_path.exists() else None
+        train_df_local = pd.read_csv(train_path, compression='infer')
+        test_df_local = pd.read_csv(test_path, compression='infer') if test_path.exists() else None
+        orig_df_local = pd.read_csv(orig_path, compression='infer') if orig_path.exists() else None
 
         sample_weight_local = None
         state_path = exp_dir / "state.json"
@@ -85,7 +85,7 @@ def _load_processed_or_raw(
                 print(f"[DEBUG] Final path: {weights_path}")
                 print(f"[DEBUG] Exists: {weights_path.exists()}")
                 if weights_path.exists():
-                    sample_weight_local = pd.read_csv(weights_path)
+                    sample_weight_local = pd.read_csv(weights_path, compression='infer')
                     print(f"[DEBUG] Loaded! shape: {sample_weight_local.shape}")
                 else:
                     print(f"[DEBUG] ERROR: File not found!")
@@ -147,8 +147,8 @@ def _load_processed_or_raw(
     else:
         # Use raw data (no orig in raw data)
         train_path, test_path = data_paths(config)
-        train_df = pd.read_csv(train_path)
-        test_df = pd.read_csv(test_path) if test_path.exists() else None
+        train_df = pd.read_csv(train_path, compression='infer')
+        test_df = pd.read_csv(test_path, compression='infer') if test_path.exists() else None
         orig_df = None
 
     return train_df, test_df, sample_weight, orig_df
@@ -592,7 +592,7 @@ class ModelModule(BaseModule):
         if leaderboard is not None:
             try:
                 lb_path = artifact_dir / "leaderboard.csv"
-                leaderboard.to_csv(lb_path, index=False)
+                leaderboard.to_csv(lb_path, index=False, compression='infer')
             except Exception:
                 pass
 

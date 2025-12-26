@@ -32,7 +32,7 @@ def _compute_feature_count(config) -> Optional[int]:
         if not path.exists():
             return None
 
-        df = pd.read_csv(path, nrows=0)
+        df = pd.read_csv(path, nrows=0, compression='infer')
         cols = list(df.columns)
 
         target = getattr(config, "TARGET_COLUMN", None)
@@ -56,7 +56,7 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
         import pandas as pd
 
         # Load submission
-        sub_df = pd.read_csv(submission_file)
+        sub_df = pd.read_csv(submission_file, compression='infer')
 
         # Load sample submission for format reference
         sample_sub_path = getattr(config, "SAMPLE_SUBMISSION_PATH", None)
@@ -72,7 +72,7 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
         if not sample_sub_path or not Path(sample_sub_path).exists():
             return True, None  # Can't validate without sample
 
-        sample_df = pd.read_csv(sample_sub_path)
+        sample_df = pd.read_csv(sample_sub_path, compression='infer')
 
         # Check column names match
         if list(sub_df.columns) != list(sample_df.columns):

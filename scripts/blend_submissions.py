@@ -221,14 +221,14 @@ def blend_predictions(
     id_column: str | None,
     target_column: str | None,
 ) -> pd.DataFrame:
-    first_df = pd.read_csv(model_files[0])
+    first_df = pd.read_csv(model_files[0], compression='infer')
     id_col = id_column or first_df.columns[0]
     target_col = target_column or first_df.columns[-1]
     base_ids = first_df[id_col]
 
     preds = []
     for path in model_files:
-        df = pd.read_csv(path)
+        df = pd.read_csv(path, compression='infer')
         if id_col not in df.columns or target_col not in df.columns:
             raise ValueError(f"Missing columns in {path.name}: expected {id_col}, {target_col}")
         if df[id_col].equals(base_ids):
@@ -628,7 +628,7 @@ Ensembles: {ensemble_info}"""
 
             # Save
             output_path = self.submissions_dir / output_name
-            submission.to_csv(output_path, index=False)
+            submission.to_csv(output_path, index=False, compression='infer')
 
             # Save manifest
             manifest = {
@@ -730,7 +730,7 @@ Description:
 
             # Save
             output_path = self.submissions_dir / output_name
-            submission.to_csv(output_path, index=False)
+            submission.to_csv(output_path, index=False, compression='infer')
 
             # Submit to Kaggle
             with self.console.status("[bold blue]Submitting to Kaggle..."):
@@ -1078,7 +1078,7 @@ def main_non_interactive(args: argparse.Namespace) -> None:
     # Fetch or load submissions
     if args.kaggle_csv:
         print(f"Loading submissions from {args.kaggle_csv}")
-        df = pd.read_csv(args.kaggle_csv)
+        df = pd.read_csv(args.kaggle_csv, compression='infer')
     else:
         print(f"Fetching submissions from Kaggle API for {args.project}...")
         df = fetch_kaggle_submissions(args.project)
@@ -1098,7 +1098,7 @@ def main_non_interactive(args: argparse.Namespace) -> None:
     output_path = submissions_dir / output_name
 
     submission = blend_predictions(model_files, weights, args.id_column, args.target_column)
-    submission.to_csv(output_path, index=False)
+    submission.to_csv(output_path, index=False, compression='infer')
 
     manifest = {
         "project": args.project,

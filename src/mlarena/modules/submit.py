@@ -232,7 +232,7 @@ class SubmitModule(BaseModule):
         # Preview + countdown with interactive confirmation (unless disabled)
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")
 
-        if skip_submit:
+        if skip:
             console.print("\n[yellow]⊘ Skipping submission (--skip-submit)[/yellow]")
             marker = artifact_dir / "submit_skipped.txt"
             marker.write_text("Submission skipped by user flag.")

@@ -1,0 +1,9 @@
+# Test medical domain + ratio features combined
+# Based on best pipeline (#97) + both feature sets
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-medical-domain
+  - diabetes-ratios
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1

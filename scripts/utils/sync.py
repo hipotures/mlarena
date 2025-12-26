@@ -2,7 +2,7 @@
 """
 Skrypt do synchronizacji projektów Kaggle między lokalizacjami.
 
-Kopiuje kod, dane i state.json pomijając artefakty AutoGluon i cache.
+    Kopiuje kod, dane i state.json pomijając artefakty AutoGluon, cache i pliki *.pkl.
 """
 
 import argparse
@@ -91,19 +91,8 @@ def build_rsync_command(source: Path, dest: Path, dry_run: bool = False, project
     if dry_run:
         cmd.append("--dry-run")
 
-    # Jeśli podano listę projektów, ustaw include/exclude dla projektów NAJPIERW
-    # (rsync przetwarza reguły w kolejności, więc include musi być przed exclude)
-    if projects:
-        # Include katalogów nadrzędnych
-        cmd.extend(["--include", "projects/"])
-        cmd.extend(["--include", "projects/kaggle/"])
-        # Include wybranych projektów
-        for project in projects:
-            cmd.extend(["--include", f"projects/kaggle/{project}/"])
-            cmd.extend(["--include", f"projects/kaggle/{project}/**"])
-        # Wyklucz wszystkie pozostałe projekty
-        cmd.extend(["--exclude", "projects/kaggle/*"])
-
+    # Wykluczenia dodajemy przed regułami --projects, żeby działały także przy include.
+    # (rsync przetwarza reguły w kolejności)
     # WYKLUCZENIA ARTEFAKTÓW
     # Strategia: wyklucz katalogi AutoGluon tylko wewnątrz artifacts/
 
@@ -130,7 +119,7 @@ def build_rsync_command(source: Path, dest: Path, dry_run: bool = False, project
         "venv/",
         "__pycache__/",
         "*.pyc",
-        "**/*.pkl",  # Wszystkie pliki .pkl
+        "*.pkl",  # Wszystkie pliki .pkl
         "**/*.lock",
         "**/state.lock",
         "*.egg-info/",
@@ -142,6 +131,19 @@ def build_rsync_command(source: Path, dest: Path, dry_run: bool = False, project
 
     for exclude in excludes:
         cmd.extend(["--exclude", exclude])
+
+    # Jeśli podano listę projektów, ustaw include/exclude dla projektów
+    # (rsync przetwarza reguły w kolejności, więc include musi być przed exclude)
+    if projects:
+        # Include katalogów nadrzędnych
+        cmd.extend(["--include", "projects/"])
+        cmd.extend(["--include", "projects/kaggle/"])
+        # Include wybranych projektów
+        for project in projects:
+            cmd.extend(["--include", f"projects/kaggle/{project}/"])
+            cmd.extend(["--include", f"projects/kaggle/{project}/**"])
+        # Wyklucz wszystkie pozostałe projekty
+        cmd.extend(["--exclude", "projects/kaggle/*"])
 
     # Ścieżki (z trailing slash dla source)
     cmd.append(f"{source}/")
@@ -213,7 +215,7 @@ def display_sync_summary(source: Path, dest: Path, dry_run: bool = False, projec
     excludes_display = [
         ".git/, .venv/",
         "AutogluonModels/",
-        "__pycache__/, *.lock",
+        "__pycache__/, *.lock, *.pkl",
         "*.egg-info/, cache/",
     ]
     for excl in excludes_display:
@@ -322,6 +324,7 @@ Co jest POMIJANE:
   - .git/, .venv/ (repozytorium i virtual env)
   - **/AutogluonModels/ (artefakty modelowania)
   - **/__pycache__/, *.lock (cache i temp)
+  - **/*.pkl (artefakty pickle)
   - *.egg-info/ (package metadata)
         """
     )

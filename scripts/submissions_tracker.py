@@ -303,9 +303,9 @@ class SubmissionsTracker:
             console.print("[yellow]No submissions tracked yet[/yellow]")
             return
 
-        # Sort submissions
-        reverse = sort_by != "id"  # Most metrics should be sorted descending
-        
+        # Sort submissions (always descending - newest/best first)
+        reverse = True
+
         def get_sort_key(item):
             if sort_by == "id":
                 return item["id"]
@@ -322,16 +322,16 @@ class SubmissionsTracker:
             submissions_to_display = submissions_to_display[:limit]
 
         # Create table
-        table = Table(title="Submissions Tracking", show_header=True, header_style="bold magenta")
-        table.add_column("ID", style="cyan", width=4)
-        table.add_column("Timestamp", style="dim", width=16)
-        table.add_column("Model", style="green", width=15)
-        table.add_column("Preproc", style="blue", width=12)
-        table.add_column("Local CV", justify="right", width=10)
-        table.add_column("Public", justify="right", width=8)
-        table.add_column("Filename", style="dim", width=25)
-        table.add_column("Git", width=8)
-        table.add_column("Exp ID", style="dim", width=12)
+        table = Table(title="Submissions Tracking", show_header=True, header_style="bold magenta", expand=True)
+        table.add_column("ID", style="cyan")
+        table.add_column("Timestamp", style="dim")
+        table.add_column("Model", style="green")
+        table.add_column("Preproc", style="blue")
+        table.add_column("Local CV", justify="right")
+        table.add_column("Public", justify="right")
+        table.add_column("Filename", style="dim")
+        table.add_column("Git")
+        table.add_column("Exp ID", style="dim")
 
         for sub in submissions_to_display:
             local_cv_score = f"{sub['local_cv_score']:.5f}" if sub.get('local_cv_score') else "-"

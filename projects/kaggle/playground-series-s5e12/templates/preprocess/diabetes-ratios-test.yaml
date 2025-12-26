@@ -1,0 +1,8 @@
+# Test diabetes ratio features from top Kaggle notebooks analysis
+# Based on best pipeline (#97) + ratio features
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-ratios
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1

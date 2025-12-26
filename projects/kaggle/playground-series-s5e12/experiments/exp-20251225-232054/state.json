@@ -1,9 +1,9 @@
 {
-  "experiment_id": "exp-20251225-155517",
+  "experiment_id": "exp-20251225-232054",
   "project": "playground-series-s5e12",
   "project_root": "/playground-series-s5e12",
-  "experiment_dir": "experiments/exp-20251225-155517",
-  "created_at": "2025-12-25T15:55:17.687726+00:00",
+  "experiment_dir": "experiments/exp-20251225-232054",
+  "created_at": "2025-12-25T23:20:54.478805+00:00",
   "pipeline": {
     "name": "default",
     "modules": []
@@ -1975,114 +1975,18 @@
     },
     "model": {
       "name": "model",
-      "status": "completed",
-      "started_at": "2025-12-25T15:55:17.727450+00:00",
-      "finished_at": "2025-12-25T16:50:19.922722+00:00",
-      "pid": 2423095,
+      "status": "running",
+      "started_at": "2025-12-25T23:20:54.522633+00:00",
+      "finished_at": null,
+      "pid": 3916975,
       "invocation": {
-        "model_template": "catboost-binned-hpo-gap",
-        "preprocess_template": "rfe-lgbm-gap",
-        "preprocess_exp_dir": "experiments/pre-catboost-full-clean-rfe-gap-p99-wm02/78a77b483a09/6-rfe-lgbm-gap",
+        "model_template": "suggested-catboost-1h",
+        "preprocess_template": "diabetes-ratios",
+        "preprocess_exp_dir": "experiments/pre-diabetes-ratios/0ed290ed2512/0-diabetes-ratios",
         "force": false,
-        "seed": 42,
-        "time_limit": 3600,
-        "use_gpu": true,
-        "preset": "best"
-      },
-      "payload": {
-        "model_implementation": "autogluon_baseline",
-        "model_artifact": "experiments/exp-20251225-155517/artifacts/model/model",
-        "local_cv_score": 0.7169976170290006,
-        "training_summary": {
-          "local_cv_score": 0.7169976170290006,
-          "best_model": "WeightedEnsemble_L3",
-          "model_path": "experiments/exp-20251225-155517/artifacts/model/model",
-          "used_orig": true,
-          "orig_rows": 100000,
-          "total_train_rows": 800000,
-          "preset": "best",
-          "time_limit": 3600,
-          "use_gpu": true
-        },
-        "preset": "best",
-        "time_limit": 3600,
-        "use_gpu": true,
-        "template": "catboost-binned-hpo-gap",
-        "preprocess_template": "rfe-lgbm-gap",
-        "leaderboard": "experiments/exp-20251225-155517/artifacts/model/leaderboard.csv"
-      },
-      "error": null
-    },
-    "predict": {
-      "name": "predict",
-      "status": "completed",
-      "started_at": "2025-12-25T16:50:19.941438+00:00",
-      "finished_at": "2025-12-25T16:50:33.397208+00:00",
-      "pid": 2423095,
-      "invocation": {
-        "preprocess_template": "rfe-lgbm-gap",
-        "preprocess_exp_dir": "experiments/pre-catboost-full-clean-rfe-gap-p99-wm02/78a77b483a09/6-rfe-lgbm-gap"
-      },
-      "payload": {
-        "predictions": "experiments/exp-20251225-155517/artifacts/predict/submission-20251225175032.csv",
-        "submission_file": "experiments/exp-20251225-155517/artifacts/predict/submission-20251225175032.csv",
-        "feature_count": 84
-      },
-      "error": null
-    },
-    "submit": {
-      "name": "submit",
-      "status": "completed",
-      "started_at": "2025-12-26T01:24:58.338534+00:00",
-      "finished_at": "2025-12-26T01:25:04.312612+00:00",
-      "pid": 4090043,
-      "invocation": {
-        "model_template": "baseline",
-        "preprocess_template": null,
-        "force": false,
-        "skip_submit": false,
         "seed": 42
       },
-      "payload": {
-        "submitted": true,
-        "competition": "playground-series-s5e12",
-        "submission_file": "experiments/exp-20251225-155517/artifacts/predict/submission-20251225175032.csv"
-      },
-      "error": null
-    },
-    "fetch-score": {
-      "name": "fetch-score",
-      "status": "completed",
-      "started_at": "2025-12-26T01:25:30.753271+00:00",
-      "finished_at": "2025-12-26T01:25:31.249407+00:00",
-      "pid": 4090832,
-      "invocation": {
-        "model_template": "baseline",
-        "preprocess_template": null,
-        "force": false,
-        "skip_submit": false,
-        "seed": 42
-      },
-      "payload": {
-        "score": 0.70091,
-        "latest_submission": {
-          "fileName": "submission-20251225175032.csv",
-          "date": "2025-12-26 01:25:03.033000",
-          "description": "0.71700 | feat: 84 | exp-20251225-155517 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99-wm02 | submission-20251225175032.csv",
-          "status": "SubmissionStatus.COMPLETE",
-          "publicScore": "0.70091",
-          "privateScore": ""
-        },
-        "matched_submission": {
-          "fileName": "submission-20251225175032.csv",
-          "date": "2025-12-26 01:25:03.033000",
-          "description": "0.71700 | feat: 84 | exp-20251225-155517 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99-wm02 | submission-20251225175032.csv",
-          "status": "SubmissionStatus.COMPLETE",
-          "publicScore": "0.70091",
-          "privateScore": ""
-        },
-        "target_submission": "experiments/exp-20251225-155517/artifacts/predict/submission-20251225175032.csv"
-      },
+      "payload": {},
       "error": null
     }
   },
@@ -2090,42 +1994,42 @@
     "argv": [
       "-p",
       "playground-series-s5e12",
-      "preprocess_template=catboost-full-clean-rfe-gap-p99-wm02",
-      "model_template=catboost-binned-hpo-gap",
-      "common.use_gpu=true",
-      "common.time_limit=3600",
-      "common.preset=best",
-      "skip_submit=true"
+      "preprocess_template=diabetes-ratios",
+      "model_template=suggested-catboost-1h"
     ],
     "module": "model"
   },
   "git": {
-    "commit": "2a2a883b19db1dd767465d63cadc298f8da8d1e6",
+    "commit": "8eab640cac0167469977d3b193d0fa8a33b50b0f",
     "branch": "main",
     "is_dirty": true,
     "dirty_files": [
-      "M ../../../scripts/submissions_tracker.py",
+      "M code/preprocessing/diabetes_medical_domain.py",
+      " M code/preprocessing/diabetes_ratios.py",
+      " M ../../../scripts/submissions_tracker.py",
+      " M ../../../scripts/utils/sync.py",
       " M ../../../src/mlarena/modules/submit.py",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm02.yaml",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm03.yaml",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm04.yaml",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm05.yaml",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm06.yaml",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm08.yaml",
-      "?? templates/preprocess/catboost-full-clean-rfe-gap-p99-wm10.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm02.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm03.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm04.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm05.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm06.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm08.yaml",
-      "?? templates/preprocess/diabetes-tail-weights-gap-p99-wm10.yaml",
+      "?? experiments/exp-20251225-221844/",
+      "?? experiments/exp-20251225-221939/",
+      "?? experiments/exp-20251225-221941/",
+      "?? experiments/exp-20251225-222221/",
+      "?? experiments/exp-20251225-230717/",
+      "?? experiments/exp-20251225-230719/",
+      "?? experiments/exp-20251225-231322/",
+      "?? experiments/exp-20251225-231324/",
+      "?? experiments/exp-20251225-231733/",
+      "?? experiments/exp-20251225-231749/",
+      "?? experiments/exp-20251225-231752/",
+      "?? experiments/exp-20251225-231754/",
+      "?? experiments/exp-20251225-232050/",
+      "?? templates/model/suggested-catboost-1h.yaml",
       "?? ../../../scripts/compare_ps5e12_gap_p99_weight_multipliers.sh",
       "?? ../../../scripts/compare_ps5e12_gap_tail_percentiles.sh",
       "?? ../../../scripts/run_ps5e12_catboost_statonly_1h_noorig.sh",
       "?? ../../../scripts/run_ps5e12_catboost_statonly_1h_noorig_submit.sh",
       "?? ../../../scripts/run_ps5e12_gap_p99_weight_multipliers_1h.sh",
-      "?? ../../../scripts/run_ps5e12_gap_tail_percentiles_1h.sh"
+      "?? ../../../scripts/run_ps5e12_gap_tail_percentiles_1h.sh",
+      "?? ../../../scripts/run_ps5e12_suggested_experiments.sh"
     ]
   }
 }

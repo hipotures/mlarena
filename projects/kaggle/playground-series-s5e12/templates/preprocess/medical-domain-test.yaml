@@ -1,0 +1,8 @@
+# Test medical domain features from top Kaggle notebooks analysis
+# Based on best pipeline (#97) + medical-domain features
+chain:
+  - external-diabetes
+  - diabetes-binning
+  - diabetes-medical-domain
+  - diabetes-orig-stats
+  - diabetes-tail-weights-linear-v1

@@ -26,12 +26,25 @@ def fit_transform(train_df, val_df, test_df, config, orig_df=None):
     Returns:
         Tuple of (train_df, val_df, test_df, orig_df, state_dict)
     """
-    epsilon = config.get('epsilon', 1e-9)
+    # CRITICAL: Convert epsilon to float (framework passes YAML values as strings)
+    epsilon = float(config.get('epsilon', 1e-9))
+
+    # Columns we'll be using - ensure they're all numeric
+    required_numeric_cols = [
+        'physical_activity_minutes_per_week', 'sleep_hours_per_day',
+        'screen_time_hours_per_day', 'bmi', 'diet_score',
+        'diastolic_bp', 'systolic_bp'
+    ]
 
     # Apply features to all datasets
     for df in [train_df, val_df, test_df] + ([orig_df] if orig_df is not None else []):
         if df is None:
             continue
+
+        # CRITICAL: Convert all required columns to numeric first
+        for col in required_numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
         # Activity/Sleep Balance
         df['activity_per_sleep_hour'] = (

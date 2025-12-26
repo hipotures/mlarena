@@ -66,7 +66,7 @@ class StackModule(BaseModule):
         preds = [df[target_col] for df in dfs]
         base[target_col] = sum(preds) / len(preds)
 
-        out_path = artifact_dir / "stacked_submission.csv"
+        out_path = artifact_dir / "stacked_submission.csv.gz"
         base.to_csv(out_path, index=False, compression='infer')
 
         return ModuleResult(

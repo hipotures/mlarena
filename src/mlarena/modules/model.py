@@ -591,7 +591,7 @@ class ModelModule(BaseModule):
         leaderboard = training_summary.pop("leaderboard", None)  # Remove from dict to avoid JSON error
         if leaderboard is not None:
             try:
-                lb_path = artifact_dir / "leaderboard.csv"
+                lb_path = artifact_dir / "leaderboard.csv.gz"
                 leaderboard.to_csv(lb_path, index=False, compression='infer')
             except Exception:
                 pass

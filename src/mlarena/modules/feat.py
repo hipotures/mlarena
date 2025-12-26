@@ -83,8 +83,8 @@ class FeatureModule(BaseModule):
         train_df = self._apply_ops(train_df, template_cfg)
         test_df = self._apply_ops(test_df, template_cfg)
 
-        train_out = artifact_dir / "train_features.csv"
-        test_out = artifact_dir / "test_features.csv"
+        train_out = artifact_dir / "train_features.csv.gz"
+        test_out = artifact_dir / "test_features.csv.gz"
         train_df.to_csv(train_out, index=False, compression='infer')
         test_df.to_csv(test_out, index=False, compression='infer')
 

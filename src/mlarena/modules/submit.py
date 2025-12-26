@@ -61,9 +61,13 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
         # Load sample submission for format reference
         sample_sub_path = getattr(config, "SAMPLE_SUBMISSION_PATH", None)
         if not sample_sub_path or not Path(sample_sub_path).exists():
-            # Try common names
+            # Try common names (prioritize .csv.gz, fallback to .csv)
             data_dir = Path(getattr(config, "DATA_DIR", submission_file.parent.parent.parent / "data"))
-            for name in ["sample_submission.csv", "gender_submission.csv", "sample_solution.csv"]:
+            for name in [
+                "sample_submission.csv.gz", "sample_submission.csv",
+                "gender_submission.csv.gz", "gender_submission.csv",
+                "sample_solution.csv.gz", "sample_solution.csv"
+            ]:
                 candidate = data_dir / name
                 if candidate.exists():
                     sample_sub_path = candidate

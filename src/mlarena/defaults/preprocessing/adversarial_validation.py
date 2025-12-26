@@ -252,7 +252,7 @@ def fit_transform(
         )
 
     # 10. Save weights CSV (single column, no index)
-    weights_filename = config.get("weights_output_name", "sample_weights.csv")
+    weights_filename = config.get("weights_output_name", "sample_weights.csv.gz")
     weights_path = artifact_dir / weights_filename
     weights_df.to_csv(weights_path, index=False, compression='infer')
 
@@ -260,7 +260,7 @@ def fit_transform(
     av_prob_df = pd.DataFrame({
         "av_prob": av_prob.values
     })
-    av_prob_path = artifact_dir / "av_predictions.csv"
+    av_prob_path = artifact_dir / "av_predictions.csv.gz"
     av_prob_df.to_csv(av_prob_path, index=False, compression='infer')
 
     # 12. Build state_dict

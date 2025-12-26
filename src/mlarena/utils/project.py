@@ -26,8 +26,8 @@ def load_project_config(project_root: Path):
         return SimpleNamespace(
             PROJECT_ROOT=project_root,
             DATA_DIR=data_dir,
-            TRAIN_PATH=data_dir / "train.csv",
-            TEST_PATH=data_dir / "test.csv",
+            TRAIN_PATH=data_dir / "train.csv.gz",
+            TEST_PATH=data_dir / "test.csv.gz",
             TARGET_COLUMN="target",
             ID_COLUMN="id",
             AUTOGLUON_PROBLEM_TYPE=None,
@@ -62,6 +62,20 @@ def data_paths(config_module) -> Tuple[Path, Path]:
     test = getattr(config_module, "TEST_PATH", None)
     if train is None or test is None:
         data_dir = getattr(config_module, "DATA_DIR", Path("."))  # type: ignore
-        train = data_dir / "train.csv"
-        test = data_dir / "test.csv"
+
+        # Priorytet: .csv.gz (compressed)
+        train = data_dir / "train.csv.gz"
+        test = data_dir / "test.csv.gz"
+
+        # Fallback do .csv jeśli .gz nie istnieje (kompatybilność wsteczna)
+        if not train.exists():
+            train_csv = data_dir / "train.csv"
+            if train_csv.exists():
+                train = train_csv
+
+        if not test.exists():
+            test_csv = data_dir / "test.csv"
+            if test_csv.exists():
+                test = test_csv
+
     return Path(train), Path(test)

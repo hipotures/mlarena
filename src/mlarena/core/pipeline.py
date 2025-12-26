@@ -113,12 +113,12 @@ class PipelineExecutor:
                 # input_source now contains index (e.g., "0-noop")
                 input_paths["from"] = input_source
                 if chain_exp_id:
-                    input_paths["train"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/train_processed.csv"
-                    input_paths["test"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/test_processed.csv"
+                    input_paths["train"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/train_processed.csv.gz"
+                    input_paths["test"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/test_processed.csv.gz"
                 else:
                     # Legacy fallback (shouldn't happen)
-                    input_paths["train"] = f"experiments/pre-{input_source}/artifacts/preprocess/train_processed.csv"
-                    input_paths["test"] = f"experiments/pre-{input_source}/artifacts/preprocess/test_processed.csv"
+                    input_paths["train"] = f"experiments/pre-{input_source}/artifacts/preprocess/train_processed.csv.gz"
+                    input_paths["test"] = f"experiments/pre-{input_source}/artifacts/preprocess/test_processed.csv.gz"
             else:
                 # First step: show raw data
                 try:
@@ -138,8 +138,8 @@ class PipelineExecutor:
 
             # Output paths for preprocessing (always to current experiment)
             experiment_id = module.context.experiment_id
-            output_paths["train"] = f"experiments/{experiment_id}/artifacts/preprocess/train_processed.csv"
-            output_paths["test"] = f"experiments/{experiment_id}/artifacts/preprocess/test_processed.csv"
+            output_paths["train"] = f"experiments/{experiment_id}/artifacts/preprocess/train_processed.csv.gz"
+            output_paths["test"] = f"experiments/{experiment_id}/artifacts/preprocess/test_processed.csv.gz"
 
         elif module_name == "model":
             # Input paths for model
@@ -208,8 +208,8 @@ class PipelineExecutor:
 
             pp_dir = _resolve_preprocess_dir()
             if pp_dir:
-                train_pp = pp_dir / "artifacts" / "preprocess" / "train_processed.csv"
-                test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv"
+                train_pp = pp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
+                test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
                 input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
                 input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
                 # Try state.json in this dir; if not found, try chain root / latest step
@@ -217,8 +217,8 @@ class PipelineExecutor:
                 if shapes_meta:
                     input_paths["__shapes__"] = shapes_meta
             else:
-                input_paths["train"] = "data/train.csv"
-                input_paths["test"] = "data/test.csv"
+                input_paths["train"] = "data/train.csv.gz"
+                input_paths["test"] = "data/test.csv.gz"
                 shapes_meta = None
 
             # Output paths for model
@@ -228,8 +228,8 @@ class PipelineExecutor:
 
         elif module_name == "eda":
             # Input paths for EDA
-            input_paths["train"] = "data/train.csv"
-            input_paths["test"] = "data/test.csv"
+            input_paths["train"] = "data/train.csv.gz"
+            input_paths["test"] = "data/test.csv.gz"
 
             # Output paths for EDA
             experiment_id = module.context.experiment_id
@@ -240,7 +240,7 @@ class PipelineExecutor:
             experiment_id = invocation.get("experiment_id")
             if experiment_id:
                 input_paths["model"] = f"experiments/{experiment_id}/artifacts/"
-                input_paths["test"] = "data/test.csv"
+                input_paths["test"] = "data/test.csv.gz"
                 output_paths["predictions"] = f"experiments/{experiment_id}/predictions.csv"
 
         elif module_name == "submit":

@@ -43,9 +43,9 @@ def _load_processed_or_raw(
     sample_weight = None
 
     def _load_from_exp_dir(exp_dir: Path):
-        train_path = exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
-        test_path = exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
-        orig_path = exp_dir / "artifacts" / "preprocess" / "orig_processed.csv"
+        train_path = exp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
+        test_path = exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
+        orig_path = exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
 
         if not train_path.exists():
             return None, None, None, None

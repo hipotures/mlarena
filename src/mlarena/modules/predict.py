@@ -79,7 +79,7 @@ class PredictModule(BaseModule):
                 pp_template,
                 preprocess_exp_dir=pp_exp_dir,
             )
-            processed_test = Path(pp_exp_dir) / "artifacts" / "preprocess" / "test_processed.csv" if pp_exp_dir else None
+            processed_test = Path(pp_exp_dir) / "artifacts" / "preprocess" / "test_processed.csv.gz" if pp_exp_dir else None
             test_df = test_df_pp if test_df_pp is not None else test_df_raw
         else:
             test_df = test_df_raw
@@ -108,10 +108,10 @@ class PredictModule(BaseModule):
         from datetime import datetime
         suffix = self.invocation_params.get("predict_suffix")
         if suffix:
-            fname = f"submission-{suffix}.csv"
+            fname = f"submission-{suffix}.csv.gz"
         else:
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            fname = f"submission-{timestamp}.csv"
+            fname = f"submission-{timestamp}.csv.gz"
         submission_path = artifact_dir / fname
         submission_df.to_csv(submission_path, index=False, compression='infer')
 

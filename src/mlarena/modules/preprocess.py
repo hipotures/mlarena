@@ -164,8 +164,8 @@ class PreprocessModule(BaseModule):
         input_source = self.invocation_params.get("input_source", None)
         chain_exp_id = self.invocation_params.get("chain_exp_id", f"pre-{template_name}")
 
-        processed_train = artifact_dir / "train_processed.csv"
-        processed_test = artifact_dir / "test_processed.csv"
+        processed_train = artifact_dir / "train_processed.csv.gz"
+        processed_test = artifact_dir / "test_processed.csv.gz"
 
         console = Console(force_terminal=True)
 
@@ -190,9 +190,9 @@ class PreprocessModule(BaseModule):
             # Load from previous preprocessing step (within same chain)
             # input_source already contains index (e.g., "0-noop")
             prev_exp_dir = self.context.project_root / "experiments" / chain_exp_id / input_source
-            train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv"
-            test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv"
-            orig_path = prev_exp_dir / "artifacts" / "preprocess" / "orig_processed.csv"
+            train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
+            test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
+            orig_path = prev_exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
 
             if not train_path.exists():
                 raise FileNotFoundError(
@@ -331,7 +331,7 @@ class PreprocessModule(BaseModule):
         # Save orig if present
         processed_orig = None
         if orig_df is not None:
-            processed_orig = artifact_dir / "orig_processed.csv"
+            processed_orig = artifact_dir / "orig_processed.csv.gz"
             orig_df.to_csv(processed_orig, index=False, compression='infer')
 
         # Prepare payload with custom preprocessing state

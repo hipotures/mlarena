@@ -108,6 +108,44 @@ python scripts/blend_submissions.py \
   --submissions-dir /path/to/submissions
 ```
 
+### Submission Queue (Batch Processing)
+
+For managing multiple submissions efficiently, use the submission queue system. Queue submissions for later batch upload with automatic duplicate detection.
+
+**Add to queue:**
+```bash
+uv run python scripts/mla.py submit \
+  --project <competition-slug> \
+  --experiment-id <exp-id> \
+  submit.queue_submit=true
+```
+
+**Manage queue:**
+```bash
+# List queued submissions
+python scripts/submission_queue.py --project <competition-slug> list
+
+# Submit from queue (by queue number, experiment-id, or filename)
+python scripts/submission_queue.py --project <competition-slug> submit 1
+python scripts/submission_queue.py --project <competition-slug> submit exp-20251226-103504
+python scripts/submission_queue.py --project <competition-slug> submit submission.csv
+
+# Submit with auto fetch-score (waits 30s, fetches score, removes on success)
+python scripts/submission_queue.py --project <competition-slug> submit 1 --continue-flow
+
+# Remove from queue
+python scripts/submission_queue.py --project <competition-slug> remove 1
+```
+
+**Features:**
+- **Duplicate detection**: Checks Kaggle API before upload to prevent re-submission
+- **Error tracking**: Logs all submission attempts with timestamps
+- **Status tracking**: pending → submitted → completed (or failed)
+- **Auto-cleanup**: Removes from queue on successful fetch-score (with `--continue-flow`)
+- **Thread-safe**: Uses file locking for concurrent access
+
+Queue file location: `projects/kaggle/<competition-slug>/submissions/queue.json`
+
 ### Manual Workflow Example
 
 If you prefer more granular control, you can run each module individually.

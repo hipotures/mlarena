@@ -216,6 +216,12 @@ uv run python scripts/mla.py submit \
   --project titanic \
   --experiment-id eda \
   skip_submit=true
+
+# Add to submission queue (for batch processing later)
+uv run python scripts/mla.py submit \
+  --project titanic \
+  --experiment-id eda \
+  submit.queue_submit=true
 ```
 
 **What it does:**
@@ -232,6 +238,44 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq '.[-1]'
 # Manual verification on Kaggle
 open https://www.kaggle.com/competitions/titanic/submissions
 ```
+
+#### Submission Queue (Batch Processing)
+
+Queue submissions for later batch upload with duplicate detection.
+
+**Add to queue:**
+```bash
+uv run python scripts/mla.py submit \
+  --project titanic \
+  --experiment-id exp-20251226-103504 \
+  submit.queue_submit=true
+```
+
+**Manage queue:**
+```bash
+# List queued submissions
+python scripts/submission_queue.py --project titanic list
+
+# Submit from queue (by queue number, experiment-id, or filename)
+python scripts/submission_queue.py --project titanic submit 1
+python scripts/submission_queue.py --project titanic submit exp-20251226-103504
+python scripts/submission_queue.py --project titanic submit submission.csv
+
+# Submit with auto fetch-score (waits 30s, then fetches score, removes on success)
+python scripts/submission_queue.py --project titanic submit 1 --continue-flow
+
+# Remove from queue
+python scripts/submission_queue.py --project titanic remove 1
+```
+
+**Features:**
+- **Duplicate detection**: Checks Kaggle API before upload to prevent re-submission
+- **Error tracking**: Logs all submission attempts with timestamps
+- **Status tracking**: pending → submitted → completed (or failed)
+- **Auto-cleanup**: Removes from queue on successful fetch-score (with --continue-flow)
+- **Thread-safe**: Uses file locking for concurrent access
+
+**Queue file location:** `projects/kaggle/{project}/submissions/queue.json`
 
 ---
 

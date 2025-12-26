@@ -198,6 +198,54 @@ Automatically:
 - Logs experiment (git hash + code snapshot)
 - Tracks submission (links to experiment)
 
+### 5. Submission Queue
+
+**Script**: `scripts/submission_queue.py`
+**Queue file**: `projects/kaggle/{project}/submissions/queue.json`
+**Utilities**: `src/mlarena/utils/kaggle_api.py` (Kaggle API utilities)
+
+**Submit module parameter**: `submit.queue_submit=true`
+
+**Features**:
+- Queue submissions for later batch processing
+- Duplicate detection via Kaggle API (prevents re-submission)
+- Error tracking with timestamps
+- Thread-safe operations (FileLock)
+- Auto-cleanup on successful fetch-score (with --continue-flow)
+
+**Queue commands**:
+```bash
+# List queue
+python scripts/submission_queue.py --project {project} list
+
+# Submit by queue #, experiment-id, or CSV filename
+python scripts/submission_queue.py --project {project} submit 1
+python scripts/submission_queue.py --project {project} submit exp-20251226-103504
+python scripts/submission_queue.py --project {project} submit submission.csv
+
+# Submit with auto fetch-score (waits 30s, fetches score, removes on success)
+python scripts/submission_queue.py --project {project} submit 1 --continue-flow
+
+# Remove from queue
+python scripts/submission_queue.py --project {project} remove 1
+```
+
+**Queue entry structure**:
+```json
+{
+  "id": 1,
+  "experiment_id": "exp-20251226-103504",
+  "submission_file": "experiments/exp-20251226-103504/artifacts/predict/submission.csv",
+  "kaggle_message": "0.71234 | feat: 42 | exp-20251226-103504 | model | preprocess | submission.csv",
+  "project": "project-name",
+  "competition": "competition-slug",
+  "added_timestamp": "20251226 143022",
+  "submission_attempts": [{"timestamp": "...", "success": true/false, "error": "..."}],
+  "last_error": null,
+  "status": "pending|submitted|completed|failed"
+}
+```
+
 ## Auto-Flow Logic
 
 **File**: `src/mlarena/cli/main.py`
@@ -239,6 +287,7 @@ projects/kaggle/[competition]/
     exp-YYYYMMDD-HHMMSS/  # Timestamped: pipeline
   submissions/
     submissions.json      # Leaderboard tracking
+    queue.json            # Submission queue (batch processing)
 ```
 
 ## Critical Pitfalls

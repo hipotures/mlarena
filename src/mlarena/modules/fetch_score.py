@@ -5,15 +5,14 @@ Uses Kaggle CLI to retrieve the latest public leaderboard score.
 
 from __future__ import annotations
 
-import csv
 import json
-import subprocess
 from pathlib import Path
 from typing import Optional
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import load_project_config
+from mlarena.utils.kaggle_api import fetch_submissions
 
 
 @ModuleRegistry.register
@@ -23,18 +22,6 @@ class FetchScoreModule(BaseModule):
     name = "fetch-score"
     description = "Fetch public leaderboard score"
     dependencies = {"submit"}
-
-    def _fetch_submissions(self, competition: str) -> list[dict]:
-        try:
-            out = subprocess.check_output(
-                ["kaggle", "competitions", "submissions", "-c", competition, "--csv"],
-                text=True,
-            )
-        except Exception:
-            return []
-
-        reader = csv.DictReader(out.splitlines())
-        return list(reader)
 
     def _extract_submission_id(self, row: dict) -> Optional[str]:
         for key in ("id", "submissionId", "submission_id", "ref"):
@@ -101,7 +88,7 @@ class FetchScoreModule(BaseModule):
         submission_id = self.invocation_params.get("submission_id")
         submission_file = self._resolve_submission_file()
 
-        rows = self._fetch_submissions(competition)
+        rows = fetch_submissions(competition)
         latest = rows[0] if rows else None
         matched = self._match_submission(rows, submission_id, submission_file)
 

@@ -79,6 +79,35 @@ tracker.add_submission(
 tracker.display_submissions()
 ```
 
+### `submission_queue.py`
+Manage submission queue for batch processing with duplicate detection.
+
+**CLI Usage:**
+```bash
+# List queued submissions
+python scripts/submission_queue.py --project Titanic list
+
+# Submit from queue (by queue number, experiment-id, or filename)
+python scripts/submission_queue.py --project Titanic submit 1
+python scripts/submission_queue.py --project Titanic submit exp-20251226-103504
+python scripts/submission_queue.py --project Titanic submit submission.csv
+
+# Submit with auto fetch-score (waits 30s, fetches score, removes on success)
+python scripts/submission_queue.py --project Titanic submit 1 --continue-flow
+
+# Remove from queue
+python scripts/submission_queue.py --project Titanic remove 1
+```
+
+**Features:**
+- Duplicate detection via Kaggle API (prevents re-submission)
+- Error tracking with timestamps
+- Status tracking: pending → submitted → completed (or failed)
+- Auto-cleanup on successful fetch-score (with `--continue-flow`)
+- Thread-safe operations using file locking
+
+**Queue file:** `projects/kaggle/{project}/submissions/queue.json`
+
 ### `experiment_logger.py`
 Git-based experiment tracking with code snapshots for reproducibility.
 
@@ -120,6 +149,7 @@ AI-powered code generation for config.py and project setup.
 scripts/
 ├── mla.py                      # Main CLI entry point ⭐
 ├── submissions_tracker.py      # Submission tracking (CLI + library)
+├── submission_queue.py         # Submission queue management (CLI)
 ├── experiment_logger.py        # Experiment tracking (CLI + library)
 ├── template_loader.py          # YAML template loader (internal)
 ├── ai_helper.py                # AI code generation (internal)

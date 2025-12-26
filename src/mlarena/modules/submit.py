@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import select
 import subprocess
 import sys
 import termios
 import time
 import tty
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from filelock import FileLock
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -157,6 +160,66 @@ def _build_kaggle_message(context, submission_file: Path, model_payload, feature
     return " | ".join(parts) if parts else "MLArena submission"
 
 
+def _add_to_queue(context, submission_file: Path, kaggle_message: str, config) -> None:
+    """
+    Add submission to queue file with FileLock.
+
+    Args:
+        context: Module execution context
+        submission_file: Path to submission CSV (absolute)
+        kaggle_message: Formatted Kaggle message
+        config: Project configuration
+    """
+    console = Console()
+
+    queue_file = context.project_root / "submissions" / "queue.json"
+    lock_file = queue_file.with_suffix(".lock")
+    queue_file.parent.mkdir(parents=True, exist_ok=True)
+
+    competition = getattr(config, "COMPETITION_NAME", context.project_name)
+
+    with FileLock(str(lock_file), timeout=10):
+        # Load existing queue
+        if queue_file.exists():
+            queue_data = json.loads(queue_file.read_text())
+        else:
+            queue_data = {"queue": []}
+
+        # Check for duplicate experiment_id
+        existing = None
+        for entry in queue_data["queue"]:
+            if entry.get("experiment_id") == context.experiment_id:
+                existing = entry
+                break
+
+        if existing:
+            # Update existing entry
+            existing["submission_file"] = str(submission_file.relative_to(context.project_root))
+            existing["kaggle_message"] = kaggle_message
+            existing["added_timestamp"] = datetime.now().strftime("%Y%m%d %H%M%S")
+            console.print(f"[yellow]Updated existing queue entry for {context.experiment_id}[/yellow]")
+        else:
+            # Create new entry
+            max_id = max([e["id"] for e in queue_data["queue"]], default=0)
+            entry = {
+                "id": max_id + 1,
+                "experiment_id": context.experiment_id,
+                "submission_file": str(submission_file.relative_to(context.project_root)),
+                "kaggle_message": kaggle_message,
+                "project": context.project_name,
+                "competition": competition,
+                "added_timestamp": datetime.now().strftime("%Y%m%d %H%M%S"),
+                "submission_attempts": [],
+                "last_error": None,
+                "status": "pending"
+            }
+            queue_data["queue"].append(entry)
+            console.print(f"[green]✓ Added to submission queue (ID: {entry['id']})[/green]")
+
+        # Save queue
+        queue_file.write_text(json.dumps(queue_data, indent=2))
+
+
 @ModuleRegistry.register
 class SubmitModule(BaseModule):
     """Upload predictions to Kaggle with optional validation and prompts."""
@@ -178,6 +241,7 @@ class SubmitModule(BaseModule):
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         skip = bool(self.invocation_params.get("skip_submit", False))
+        queue_submit = bool(self.invocation_params.get("queue_submit", False))
         try:
             confirm_timeout = int(self.invocation_params.get("confirm_timeout", 60))
         except Exception:
@@ -231,6 +295,22 @@ class SubmitModule(BaseModule):
 
         # Preview + countdown with interactive confirmation (unless disabled)
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")
+
+        # Queue submission instead of uploading
+        if queue_submit:
+            _add_to_queue(self.context, submission_file, message, config)
+            marker = artifact_dir / "submit_queued.txt"
+            marker.write_text(f"Queued {submission_file.name} for submission")
+            return ModuleResult(
+                success=True,
+                payload={
+                    "submitted": False,
+                    "queued": True,
+                    "competition": competition,
+                    "submission_file": str(submission_file)
+                },
+                artifacts=[marker]
+            )
 
         if skip:
             console.print("\n[yellow]⊘ Skipping submission (--skip-submit)[/yellow]")

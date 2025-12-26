@@ -221,7 +221,7 @@ python scripts/submission_queue.py --project {project} list
 # Submit by queue #, experiment-id, or CSV filename
 python scripts/submission_queue.py --project {project} submit 1
 python scripts/submission_queue.py --project {project} submit exp-20251226-103504
-python scripts/submission_queue.py --project {project} submit submission.csv
+python scripts/submission_queue.py --project {project} submit submission.csv.gz
 
 # Submit with auto fetch-score (waits 30s, fetches score, removes on success)
 python scripts/submission_queue.py --project {project} submit 1 --continue-flow
@@ -235,8 +235,8 @@ python scripts/submission_queue.py --project {project} remove 1
 {
   "id": 1,
   "experiment_id": "exp-20251226-103504",
-  "submission_file": "experiments/exp-20251226-103504/artifacts/predict/submission.csv",
-  "kaggle_message": "0.71234 | feat: 42 | exp-20251226-103504 | model | preprocess | submission.csv",
+  "submission_file": "experiments/exp-20251226-103504/artifacts/predict/submission.csv.gz",
+  "kaggle_message": "0.71234 | feat: 42 | exp-20251226-103504 | model | preprocess | submission.csv.gz",
   "project": "project-name",
   "competition": "competition-slug",
   "added_timestamp": "20251226 143022",
@@ -279,15 +279,62 @@ projects/kaggle/[competition]/
     preprocess/           # Override globals (individual files)
       custom-preprocess.yaml
   data/
-    train.csv, test.csv, sample_submission.csv
+    train.csv.gz, test.csv.gz, sample_submission.csv.gz  # Compressed CSV files
   experiments/
     init/state.json       # Fixed: setup
     eda/state.json        # Fixed: setup
     pre-{template}/       # Named: preprocessing (single step or chain)
+      artifacts/preprocess/
+        train_processed.csv.gz, test_processed.csv.gz
+        orig_processed.csv.gz  # If external dataset used
+        sample_weights.csv.gz  # If AV/imbalance handling used
     exp-YYYYMMDD-HHMMSS/  # Timestamped: pipeline
+      artifacts/
+        model/leaderboard.csv.gz
+        predict/submission-TIMESTAMP.csv.gz
   submissions/
     submissions.json      # Leaderboard tracking
     queue.json            # Submission queue (batch processing)
+```
+
+## CSV Compression
+
+All CSV files in the framework use gzip compression (`.csv.gz`) for efficient storage and I/O.
+
+**Benefits:**
+- **Space savings**: 60-90% reduction in file size
+- **Faster I/O**: Less data to read from disk
+- **Automatic handling**: Pandas `compression='infer'` detects format from file extension
+- **Kaggle compatible**: Kaggle API accepts `.csv.gz` submissions
+
+**Backward Compatibility:**
+- Code automatically handles both `.csv` and `.csv.gz` files
+- Fallback logic in `src/mlarena/utils/project.py` prioritizes `.csv.gz`, falls back to `.csv`
+- All modules use `compression='infer'` for seamless read/write
+
+**Migration:**
+To compress existing CSV files in a project:
+```bash
+# Dry-run (preview only)
+python scripts/migrate_csv_to_gz.py --project PROJECT_NAME --dry-run
+
+# Compress data/ and submissions/
+python scripts/migrate_csv_to_gz.py --project PROJECT_NAME
+
+# Include experiments/ directory
+python scripts/migrate_csv_to_gz.py --project PROJECT_NAME --include-experiments
+
+# All projects at once
+python scripts/migrate_csv_to_gz.py --all-projects --include-experiments
+```
+
+**Manual compression/decompression:**
+```bash
+# Compress
+gzip data/train.csv  # Creates train.csv.gz, removes train.csv
+
+# Decompress
+gunzip data/train.csv.gz  # Creates train.csv, removes train.csv.gz
 ```
 
 ## Critical Pitfalls

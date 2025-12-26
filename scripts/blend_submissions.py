@@ -167,7 +167,8 @@ def resolve_local_file(submissions_dir: Path, kaggle_filename: str) -> Path:
     if direct.exists():
         return direct
     stem = Path(kaggle_filename).stem
-    matches = sorted(submissions_dir.glob(f"{stem}-*.csv"))
+    # Support both .csv and .csv.gz files
+    matches = sorted(submissions_dir.glob(f"{stem}-*.csv*"))
     if not matches:
         raise FileNotFoundError(f"No local submission found for {kaggle_filename}")
     if len(matches) > 1:
@@ -602,9 +603,9 @@ Ensembles: {ensemble_info}"""
             color = "green" if weight == max_weight else "yellow" if weight > sum(weights) / len(weights) else "red"
             self.console.print(f"[{color}]{bar}[/{color}] {weight:.5f} ({weight * 100:.1f}%) {sub['filename']}")
 
-        # Output name with timestamp: submission-YYYYMMDDHHMMSS-topN-ensemble_method-strategy.csv
+        # Output name with timestamp: submission-YYYYMMDDHHMMSS-topN-ensemble_method-strategy.csv.gz
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        output_name = f"submission-{timestamp}-top{len(selected)}-blend-{self.strategy}.csv"
+        output_name = f"submission-{timestamp}-top{len(selected)}-blend-{self.strategy}.csv.gz"
         self.console.print(f"\n[bold]Output:[/bold] {output_name}\n")
 
         return (selected, weights, output_name)
@@ -838,7 +839,7 @@ Description:
 
                 # Generate output name
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                output_name = f"submission-{timestamp}-top{len(selected)}-blend-{strat_name}.csv"
+                output_name = f"submission-{timestamp}-top{len(selected)}-blend-{strat_name}.csv.gz"
 
                 # Resolve local files and blend
                 model_files = [resolve_local_file(self.submissions_dir, r["filename"]) for r in selected]
@@ -1094,7 +1095,7 @@ def main_non_interactive(args: argparse.Namespace) -> None:
     scores = [r["public_score"] for r in selected]
     weights = compute_weights(scores, args.weighting, args.power, args.temp, args.eps, args.weights)
 
-    output_name = args.output_name or f"submission-blend-top{len(model_files)}-{args.weighting}.csv"
+    output_name = args.output_name or f"submission-blend-top{len(model_files)}-{args.weighting}.csv.gz"
     output_path = submissions_dir / output_name
 
     submission = blend_predictions(model_files, weights, args.id_column, args.target_column)

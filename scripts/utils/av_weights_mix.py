@@ -44,6 +44,18 @@ def resolve_path(p: str | Path, base: Path) -> Path:
     return p if p.is_absolute() else (base / p)
 
 
+def resolve_data_file(data_dir: Path, filename: str) -> Path:
+    """Resolve data file with .csv.gz fallback for backward compatibility."""
+    gz_path = data_dir / f"{filename}.gz"
+    if gz_path.exists():
+        return gz_path
+    csv_path = data_dir / filename
+    if csv_path.exists():
+        return csv_path
+    # Return .csv.gz as default (will be created if needed)
+    return gz_path
+
+
 def main() -> None:
     args = parse_args()
 
@@ -51,9 +63,9 @@ def main() -> None:
     project_root = repo_root / "projects" / "kaggle" / args.project
     data_dir = project_root / "data"
 
-    # Paths
-    train_path = data_dir / "train.csv"
-    test_path = data_dir / "test.csv"
+    # Paths with .csv.gz fallback support
+    train_path = resolve_data_file(data_dir, "train.csv")
+    test_path = resolve_data_file(data_dir, "test.csv")
     orig_path = resolve_path(args.orig_path, project_root)
     output_path = resolve_path(args.output, project_root)
     model_dir = resolve_path(args.model_dir, project_root)

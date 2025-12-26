@@ -41,9 +41,9 @@ CODE_DIR = PROJECT_ROOT / "code"
 SUBMISSIONS_DIR = PROJECT_ROOT / "submissions"
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
-# Data paths
-TRAIN_PATH = DATA_DIR / "train.csv"
-TEST_PATH = DATA_DIR / "test.csv"
+# Data paths (framework supports both .csv and .csv.gz with automatic fallback)
+TRAIN_PATH = DATA_DIR / "train.csv.gz"
+TEST_PATH = DATA_DIR / "test.csv.gz"
 SAMPLE_SUBMISSION_PATH = DATA_DIR / "{sample_submission_name}"
 
 # Model settings

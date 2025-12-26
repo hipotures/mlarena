@@ -61,8 +61,8 @@ class SubmissionQueue:
                 for entry in queue_data["queue"]:
                     if entry["experiment_id"] == identifier:
                         return entry
-            elif identifier.endswith(".csv"):
-                # Filename
+            elif identifier.endswith((".csv", ".csv.gz")):
+                # Filename (supports both .csv and .csv.gz)
                 for entry in queue_data["queue"]:
                     if Path(entry["submission_file"]).name == identifier:
                         return entry

@@ -5,6 +5,10 @@ Migrate CSV files to compressed .csv.gz format.
 This script compresses all .csv files in a project to .csv.gz format, enabling
 automatic compression/decompression via pandas compression='infer'.
 
+Compression method:
+    - pigz (parallel gzip): Multi-threaded, 10-15x faster than gzip
+    - gzip (fallback): Single-threaded, used if pigz is not installed
+
 Usage:
     # Dry run (preview without changes)
     python scripts/migrate_csv_to_gz.py --project Titanic --dry-run
@@ -15,6 +19,9 @@ Usage:
     # Include experiments directory
     python scripts/migrate_csv_to_gz.py --project Titanic --include-experiments
 
+    # Control number of threads (pigz only)
+    python scripts/migrate_csv_to_gz.py --project Titanic --threads 8
+
     # All projects at once
     python scripts/migrate_csv_to_gz.py --all-projects
 """
@@ -22,9 +29,10 @@ Usage:
 import argparse
 import gzip
 import shutil
+import subprocess
 import sys
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 import pandas as pd
 from rich.console import Console
@@ -35,14 +43,27 @@ from rich.panel import Panel
 console = Console()
 
 
-def compress_csv(csv_path: Path, remove_original: bool = True, dry_run: bool = False) -> Dict:
+def check_pigz_available() -> bool:
+    """Check if pigz is available on the system."""
+    try:
+        subprocess.run(['pigz', '--version'], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+USE_PIGZ = check_pigz_available()
+
+
+def compress_csv(csv_path: Path, remove_original: bool = True, dry_run: bool = False, threads: Optional[int] = None) -> Dict:
     """
-    Compress a single CSV file to .csv.gz format.
+    Compress a single CSV file to .csv.gz format using pigz (parallel) or gzip (fallback).
 
     Args:
         csv_path: Path to the CSV file
         remove_original: Whether to remove the original .csv after compression
         dry_run: If True, only simulate (don't actually compress)
+        threads: Number of threads for pigz (None = auto-detect)
 
     Returns:
         dict with compression results: {
@@ -78,10 +99,18 @@ def compress_csv(csv_path: Path, remove_original: bool = True, dry_run: bool = F
         }
 
     try:
-        # Compress file
-        with open(csv_path, 'rb') as f_in:
-            with gzip.open(gz_path, 'wb', compresslevel=9) as f_out:
-                shutil.copyfileobj(f_in, f_out)
+        # Compress file using pigz (multi-threaded) or gzip (fallback)
+        if USE_PIGZ:
+            # Use pigz for faster multi-threaded compression
+            cmd = ['pigz', '-9', '-k', str(csv_path)]
+            if threads is not None:
+                cmd.extend(['-p', str(threads)])
+            subprocess.run(cmd, check=True, capture_output=True)
+        else:
+            # Fallback to standard gzip
+            with open(csv_path, 'rb') as f_in:
+                with gzip.open(gz_path, 'wb', compresslevel=9) as f_out:
+                    shutil.copyfileobj(f_in, f_out)
 
         compressed_size = gz_path.stat().st_size
 
@@ -156,10 +185,14 @@ def migrate_project(
     project_root: Path,
     include_experiments: bool = False,
     dry_run: bool = False,
-    remove_original: bool = True
+    remove_original: bool = True,
+    threads: Optional[int] = None
 ) -> Tuple[int, int, int, int, int]:
     """
     Migrate all CSV files in a project to .csv.gz.
+
+    Args:
+        threads: Number of threads for pigz compression (None = auto-detect)
 
     Returns:
         (compressed_count, skipped_count, error_count, total_saved_bytes, total_original_bytes)
@@ -192,7 +225,7 @@ def migrate_project(
             rel_path = csv_file.relative_to(project_root)
             progress.update(task, description=f"[cyan]Processing {rel_path}...")
 
-            result = compress_csv(csv_file, remove_original, dry_run)
+            result = compress_csv(csv_file, remove_original, dry_run, threads)
 
             total_original_bytes += result.get("original_size", 0)
 
@@ -252,6 +285,12 @@ def main():
         action="store_true",
         help="Keep original .csv files after compression (default: remove)"
     )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=None,
+        help="Number of threads for pigz compression (default: auto-detect all cores)"
+    )
 
     args = parser.parse_args()
 
@@ -278,6 +317,9 @@ def main():
         projects = [project_root]
 
     # Print header
+    compression_method = "pigz (multi-threaded)" if USE_PIGZ else "gzip (single-threaded)"
+    threads_info = f"Threads: {args.threads or 'auto-detect'}" if USE_PIGZ else ""
+
     if args.dry_run:
         console.print(Panel(
             "[bold yellow]DRY RUN MODE[/bold yellow]\n"
@@ -285,13 +327,18 @@ def main():
             title="Migration Preview"
         ))
     else:
-        console.print(Panel(
-            "[bold cyan]CSV Compression Migration[/bold cyan]\n"
+        settings_text = (
+            f"[bold cyan]CSV Compression Migration[/bold cyan]\n"
             f"Projects: {len(projects)}\n"
+            f"Compression: {compression_method}\n"
+        )
+        if threads_info:
+            settings_text += f"{threads_info}\n"
+        settings_text += (
             f"Include experiments: {args.include_experiments}\n"
-            f"Keep originals: {args.keep_original}",
-            title="Migration Settings"
-        ))
+            f"Keep originals: {args.keep_original}"
+        )
+        console.print(Panel(settings_text, title="Migration Settings"))
 
     # Migrate each project
     total_compressed = 0
@@ -308,7 +355,8 @@ def main():
             project_root,
             args.include_experiments,
             args.dry_run,
-            not args.keep_original
+            not args.keep_original,
+            args.threads
         )
 
         total_compressed += compressed

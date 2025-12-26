@@ -108,7 +108,7 @@ def init_project(
 
     # Detect from sample_submission
     sample_path = None
-    submission_files = list((project_root / "data").glob("*submission*.csv"))
+    submission_files = list((project_root / "data").glob("*submission*.csv*"))
     if submission_files:
         sample_path = submission_files[0]
 

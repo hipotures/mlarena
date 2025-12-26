@@ -420,7 +420,7 @@ class SubmissionsTracker:
         df = pd.DataFrame(self.submissions)
 
         if output_path is None:
-            output_path = self.project_root / "submissions" / "submissions_tracking.csv"
+            output_path = self.project_root / "submissions" / "submissions_tracking.csv.gz"
 
         df.to_csv(output_path, index=False, compression='infer')
         console.print(f"[green]✓[/green] Exported to {output_path}")

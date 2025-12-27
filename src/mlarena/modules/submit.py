@@ -261,6 +261,19 @@ class SubmitModule(BaseModule):
 
         submission_file = Path(predict_payload.payload["submission_file"])  # type: ignore
 
+        # Fallback logic: support both .csv and .csv.gz files
+        if not submission_file.exists():
+            # Try .csv.gz if original path was .csv
+            if submission_file.suffix == '.csv':
+                gz_path = submission_file.with_suffix('.csv.gz')
+                if gz_path.exists():
+                    submission_file = gz_path
+            # Try .csv if original path was .csv.gz
+            elif str(submission_file).endswith('.csv.gz'):
+                csv_path = Path(str(submission_file)[:-3])  # Remove .gz
+                if csv_path.exists():
+                    submission_file = csv_path
+
         if skip:
             marker = artifact_dir / "submit_skipped.txt"
             marker.write_text("Skipped Kaggle submission.")

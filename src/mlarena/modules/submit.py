@@ -435,6 +435,21 @@ class SubmitModule(BaseModule):
 
         console.print()  # Empty line before upload progress
 
+        # Decompress .csv.gz to .csv for Kaggle submission
+        # Kaggle API requires uncompressed .csv files
+        submission_file_for_upload = submission_file
+        if str(submission_file).endswith('.csv.gz'):
+            import gzip
+            import shutil
+
+            csv_path = Path(str(submission_file)[:-3])  # Remove .gz extension
+            if not csv_path.exists():
+                console.print(f"[dim]Decompressing {submission_file.name} for Kaggle upload...[/dim]")
+                with gzip.open(submission_file, 'rb') as f_in:
+                    with open(csv_path, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+            submission_file_for_upload = csv_path
+
         try:
             subprocess.check_call(
                 [
@@ -444,7 +459,7 @@ class SubmitModule(BaseModule):
                     "-c",
                     competition,
                     "-f",
-                    str(submission_file),
+                    str(submission_file_for_upload),
                     "-m",
                     message,
                 ]

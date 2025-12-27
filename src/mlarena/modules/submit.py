@@ -261,6 +261,10 @@ class SubmitModule(BaseModule):
 
         submission_file = Path(predict_payload.payload["submission_file"])  # type: ignore
 
+        # Make path absolute for reliable existence checks
+        if not submission_file.is_absolute():
+            submission_file = self.context.project_root / submission_file
+
         # Fallback logic: support both .csv and .csv.gz files
         if not submission_file.exists():
             # Try .csv.gz if original path was .csv

@@ -465,13 +465,17 @@ class SubmitModule(BaseModule):
                 ]
             )
             marker = artifact_dir / "submit_success.txt"
-            marker.write_text(f"Submitted {submission_file} to {competition}")
+            marker.write_text(f"Submitted {submission_file_for_upload.name} to {competition}")
 
             console.print(f"\n[bold green]✓[/bold green] Submitted to Kaggle: [cyan]{competition}[/cyan]")
 
             return ModuleResult(
                 success=True,
-                payload={"submitted": True, "competition": competition, "submission_file": str(submission_file)},
+                payload={
+                    "submitted": True,
+                    "competition": competition,
+                    "submission_file": str(submission_file_for_upload)  # Use actual uploaded file for fetch-score matching
+                },
                 artifacts=[marker],
             )
         except Exception as exc:

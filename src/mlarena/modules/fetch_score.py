@@ -65,8 +65,18 @@ class FetchScoreModule(BaseModule):
 
         if submission_file:
             target_name = Path(submission_file).name
+
+            # Generate both .csv and .csv.gz variants for matching
+            # (handles backward compatibility with old state.json entries)
+            variants = [target_name]
+            if target_name.endswith('.csv.gz'):
+                variants.append(target_name[:-3])  # Add .csv version
+            elif target_name.endswith('.csv'):
+                variants.append(target_name + '.gz')  # Add .csv.gz version
+
             for row in rows:
-                if row.get("fileName") == target_name or row.get("file_name") == target_name:
+                file_name = row.get("fileName") or row.get("file_name")
+                if file_name in variants:
                     return row
 
         return None

@@ -474,32 +474,9 @@ class InteractiveBlender:
         """Render the main interactive screen with submissions table and panels."""
         self.console.clear()
 
-        # Calculate dynamic column widths based on console width
-        console_width = self.console.width
-        # Fixed-width columns: ID(4) + Public(8) + Local(8) + Date(12) + Check(3) + ID(4) + padding/borders(~15)
-        fixed_width = 4 + 8 + 8 + 12 + 3 + 4 + 15
-        # Remaining space for Filename, Model Tpl, Prep Tpl
-        remaining = max(console_width - fixed_width, 60)  # Minimum 60 for variable columns
-
-        # Distribute remaining space: Filename(40%), Model(30%), Prep(30%)
-        filename_width = max(int(remaining * 0.40), 25)
-        model_width = max(int(remaining * 0.30), 15)
-        prep_width = max(int(remaining * 0.30), 15)
-
-        # Build submissions table
-        table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True, expand=True)
-        table.add_column("#", justify="right", style="cyan", width=4)
-        table.add_column("Filename", style="white", width=filename_width)
-        table.add_column("Model Tpl", style="cyan", width=model_width)
-        table.add_column("Prep Tpl", style="green", width=prep_width)
-        table.add_column("Public", justify="right", style="yellow", width=8)
-        table.add_column("Local", justify="right", style="magenta", width=8)
-        table.add_column("Date", style="blue", width=12)
-        table.add_column("✓", justify="center", style="green", width=3)
-        table.add_column("#", justify="right", style="cyan", width=4)
-
-        # Show display_count or selected count, whichever is larger
+        # Build display rows first to size columns to content
         display_count = max(self.display_count, self.selected_count)
+        rows = []
         for idx, sub in enumerate(self.current_view[:display_count], start=1):
             if idx in self.excluded_indices:
                 continue  # Skip excluded
@@ -509,28 +486,87 @@ class InteractiveBlender:
             local_score = f"{self.local_scores.get(filename, 0.0):.5f}" if filename in self.local_scores else "-"
             date_str = sub["date"].strftime("%Y-%m-%d") if sub["date"] else "-"
 
-            # NEW: Get template info
             metadata = self.submission_metadata.get(filename, {})
-            model_tpl = self._truncate(metadata.get("model_template", "-"), model_width)
-            prep_tpl = self._truncate(metadata.get("preprocess_template", "-"), prep_width)
-
-            # Check if selected
+            model_tpl = metadata.get("model_template", "-")
+            prep_tpl = metadata.get("preprocess_template", "-")
             selected = "✓" if self._is_selected(idx) else ""
 
-            # Truncate filename to fit dynamic width
-            filename_display = self._truncate(filename, filename_width)
+            rows.append({
+                "idx": str(idx),
+                "filename": filename,
+                "model_tpl": model_tpl,
+                "prep_tpl": prep_tpl,
+                "public": public_score,
+                "local": local_score,
+                "date": date_str,
+                "selected": selected,
+                "idx_end": str(idx),
+            })
 
-            row_style = "on grey15" if idx % 2 == 0 else None
+        headers = {
+            "idx": "#",
+            "filename": "Filename",
+            "model_tpl": "Model Tpl",
+            "prep_tpl": "Prep Tpl",
+            "public": "Public",
+            "local": "Local",
+            "date": "Date",
+            "selected": "✓",
+            "idx_end": "#",
+        }
+
+        def _max_len(key: str) -> int:
+            values = [row[key] for row in rows]
+            return max([len(headers[key])] + [len(str(v)) for v in values]) if values else len(headers[key])
+
+        widths = {key: _max_len(key) for key in headers}
+
+        # If the table is wider than the console, shrink flexible columns first.
+        console_width = self.console.width
+        column_keys = ["idx", "filename", "model_tpl", "prep_tpl", "public", "local", "date", "selected", "idx_end"]
+        content_width = sum(widths[k] for k in column_keys)
+        column_count = len(column_keys)
+        overhead = (column_count * 2) + (column_count + 1)
+        max_content_width = max(console_width - overhead, 0)
+
+        if max_content_width and content_width > max_content_width:
+            flex_cols = ["filename", "model_tpl", "prep_tpl"]
+            min_widths = {k: len(headers[k]) for k in flex_cols}
+            excess = content_width - max_content_width
+            while excess > 0:
+                shrunk = False
+                for key in flex_cols:
+                    if widths[key] > min_widths[key] and excess > 0:
+                        widths[key] -= 1
+                        excess -= 1
+                        shrunk = True
+                if not shrunk:
+                    break
+
+        # Build submissions table
+        table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True, expand=True)
+        table.add_column(headers["idx"], justify="right", style="cyan", width=widths["idx"])
+        table.add_column(headers["filename"], style="white", width=widths["filename"])
+        table.add_column(headers["model_tpl"], style="cyan", width=widths["model_tpl"])
+        table.add_column(headers["prep_tpl"], style="green", width=widths["prep_tpl"])
+        table.add_column(headers["public"], justify="right", style="yellow", width=widths["public"])
+        table.add_column(headers["local"], justify="right", style="magenta", width=widths["local"])
+        table.add_column(headers["date"], style="blue", width=widths["date"])
+        table.add_column(headers["selected"], justify="center", style="green", width=widths["selected"])
+        table.add_column(headers["idx_end"], justify="right", style="cyan", width=widths["idx_end"])
+
+        for row in rows:
+            row_style = "on grey15" if int(row["idx"]) % 2 == 0 else None
             table.add_row(
-                str(idx),
-                filename_display,
-                model_tpl,
-                prep_tpl,
-                public_score,
-                local_score,
-                date_str,
-                selected,
-                str(idx),
+                row["idx"],
+                self._truncate(row["filename"], widths["filename"]),
+                self._truncate(row["model_tpl"], widths["model_tpl"]),
+                self._truncate(row["prep_tpl"], widths["prep_tpl"]),
+                row["public"],
+                row["local"],
+                row["date"],
+                row["selected"],
+                row["idx_end"],
                 style=row_style,
             )
 

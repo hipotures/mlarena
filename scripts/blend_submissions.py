@@ -269,11 +269,14 @@ class InteractiveBlender:
         self.filtered_submissions: List[Dict] = []
         self.current_view: List[Dict] = []
         self.local_scores: Dict[str, float] = {}
+        self.submission_metadata: Dict[str, Dict[str, str]] = {}  # Template info
 
         # Selection state
         self.selected_count: int = 0
+        self.selected_indices: Set[int] | None = None  # None = top-N mode, Set = specific mode
         self.show_all: bool = False
         self.excluded_indices: Set[int] = set()
+        self.display_count: int = 10  # Configurable display count
 
         # Strategy state
         self.strategy: str = "public"
@@ -288,6 +291,13 @@ class InteractiveBlender:
         df = fetch_kaggle_submissions(self.project)
         self.all_submissions = parse_kaggle_csv(df)
 
+        # Sort by public score (descending), then by date (newer first)
+        self.all_submissions = sorted(
+            self.all_submissions,
+            key=lambda r: (r["public_score"], r["date"] or datetime.min),
+            reverse=True,
+        )
+
         # Filter ensembles
         self.filtered_submissions = [
             s for s in self.all_submissions
@@ -300,7 +310,7 @@ class InteractiveBlender:
         self._load_history()
 
     def _load_local_scores(self) -> None:
-        """Load local CV scores from submissions.json if available."""
+        """Load local CV scores and template info from submissions.json."""
         submissions_json = self.submissions_dir / "submissions.json"
         if not submissions_json.exists():
             return
@@ -315,8 +325,27 @@ class InteractiveBlender:
                     continue
                 filename = entry.get("submission_file", "")
                 local_score = entry.get("local_cv_score")
+
+                # Existing: Store CV score
                 if filename and local_score is not None:
                     self.local_scores[filename] = float(local_score)
+
+                # NEW: Extract and store template info
+                if filename:
+                    model_tpl = entry.get("config", {}).get("system", {}).get("template")
+                    notes = entry.get("notes", "")
+
+                    # Parse preprocessing template from notes
+                    prep_tpl = self._parse_preprocess_template(notes)
+
+                    # Fallback: extract model template from notes if config missing
+                    if not model_tpl and notes:
+                        model_tpl = self._parse_model_template(notes)
+
+                    self.submission_metadata[filename] = {
+                        "model_template": model_tpl or "-",
+                        "preprocess_template": prep_tpl or "-"
+                    }
         except (json.JSONDecodeError, KeyError, ValueError, TypeError):
             pass  # Silently ignore malformed submissions.json
 
@@ -355,6 +384,52 @@ class InteractiveBlender:
 
         history_json.write_text(json.dumps(serializable, indent=2))
 
+    def _parse_preprocess_template(self, notes: str) -> str | None:
+        """Extract preprocessing template from notes field.
+
+        Expected format: "preprocess=template_name" or "template=X; preprocess=Y"
+        Returns template name or None if not found.
+        """
+        if not notes or not isinstance(notes, str):
+            return None
+
+        # Look for "preprocess=XXX" pattern
+        import re
+        match = re.search(r'preprocess=([^\s;]+)', notes)
+        if match:
+            return match.group(1)
+        return None
+
+    def _parse_model_template(self, notes: str) -> str | None:
+        """Extract model template from notes field as fallback.
+
+        Expected format: "template=template_name"
+        Returns template name or None if not found.
+        """
+        if not notes or not isinstance(notes, str):
+            return None
+
+        import re
+        match = re.search(r'template=([^\s;]+)', notes)
+        if match:
+            return match.group(1)
+        return None
+
+    def _truncate(self, text: str, max_len: int) -> str:
+        """Truncate text to max length with ellipsis."""
+        if len(text) <= max_len:
+            return text
+        return text[:max_len-1] + "…"
+
+    def _is_selected(self, idx: int) -> bool:
+        """Check if index is selected (handles both top-N and specific modes)."""
+        if self.selected_indices is not None:
+            # Specific ID mode
+            return idx in self.selected_indices
+        else:
+            # Top-N mode
+            return idx <= self.selected_count
+
     def render_main_screen(self) -> None:
         """Render the main interactive screen with submissions table and panels."""
         self.console.clear()
@@ -363,13 +438,15 @@ class InteractiveBlender:
         table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True)
         table.add_column("#", justify="right", style="cyan", width=4)
         table.add_column("Filename", style="white", width=30)
+        table.add_column("Model Tpl", style="cyan", width=20)
+        table.add_column("Prep Tpl", style="green", width=18)
         table.add_column("Public", justify="right", style="yellow", width=8)
         table.add_column("Local", justify="right", style="magenta", width=8)
         table.add_column("Date", style="blue", width=12)
         table.add_column("✓", justify="center", style="green", width=3)
 
-        # Show top 10 or selected count, whichever is larger
-        display_count = max(10, self.selected_count)
+        # Show display_count or selected count, whichever is larger
+        display_count = max(self.display_count, self.selected_count)
         for idx, sub in enumerate(self.current_view[:display_count], start=1):
             if idx in self.excluded_indices:
                 continue  # Skip excluded
@@ -378,19 +455,25 @@ class InteractiveBlender:
             public_score = f"{sub['public_score']:.5f}"
             local_score = f"{self.local_scores.get(filename, 0.0):.5f}" if filename in self.local_scores else "-"
             date_str = sub["date"].strftime("%Y-%m-%d") if sub["date"] else "-"
-            selected = "✓" if idx <= self.selected_count else ""
 
-            table.add_row(str(idx), filename, public_score, local_score, date_str, selected)
+            # NEW: Get template info
+            metadata = self.submission_metadata.get(filename, {})
+            model_tpl = self._truncate(metadata.get("model_template", "-"), 20)
+            prep_tpl = self._truncate(metadata.get("preprocess_template", "-"), 18)
+
+            # Check if selected
+            selected = "✓" if self._is_selected(idx) else ""
+
+            table.add_row(str(idx), filename, model_tpl, prep_tpl, public_score, local_score, date_str, selected)
 
         self.console.print(table)
 
         # Commands panel
-        commands_text = """[1-9,0] Select top N submissions    [A] Toggle show all
-[W] Choose weighting strategy       [E] Exclude specific
-[C] Create CSV                      [S] Create and submit
-[M] Multi-strategy batch (generate N, submit max 5)
-[F] Fetch scores from Kaggle (update history)
-[Q] Quit"""
+        commands_text = """[1-9,0] Select top N  [1,3,5] Select IDs  [A] Toggle show all
+[W] Choose weighting strategy       [D] Set display count
+[E] Exclude specific                [C] Create CSV
+[S] Create and submit               [M] Multi-strategy batch
+[F] Fetch scores from Kaggle        [Q] Quit"""
         commands_panel = Panel(commands_text, title="Commands", box=box.ROUNDED)
         self.console.print(commands_panel)
 
@@ -403,13 +486,18 @@ class InteractiveBlender:
         elif self.strategy == "offset":
             strategy_display += f" (eps={self.strategy_params['eps']:.1e})"
 
-        if self.selected_count > 0:
-            selected_subs = [s for idx, s in enumerate(self.current_view[:self.selected_count], 1) if idx not in self.excluded_indices]
-            scores = [s["public_score"] for s in selected_subs]
-            avg_score = sum(scores) / len(scores) if scores else 0.0
-            min_score = min(scores) if scores else 0.0
-            max_score = max(scores) if scores else 0.0
-            score_range_text = f"Score range: {min_score:.5f} - {max_score:.5f} (avg: {avg_score:.5f})"
+        # Current config panel
+        selection_mode = "specific IDs" if self.selected_indices else f"top {self.selected_count}"
+        if self.selected_count > 0 or self.selected_indices:
+            selected_subs = self._get_selected_submissions()
+            if selected_subs:
+                scores = [s["public_score"] for s in selected_subs]
+                avg_score = sum(scores) / len(scores) if scores else 0.0
+                min_score = min(scores) if scores else 0.0
+                max_score = max(scores) if scores else 0.0
+                score_range_text = f"Mode: {selection_mode} | Range: {min_score:.5f} - {max_score:.5f} (avg: {avg_score:.5f})"
+            else:
+                score_range_text = f"Mode: {selection_mode} | No selections"
         else:
             score_range_text = "No selections"
 
@@ -419,8 +507,8 @@ class InteractiveBlender:
             ensemble_info += f" ({filtered_count} filtered)"
 
         config_text = f"""Strategy: {strategy_display}
-Selected: {self.selected_count} submissions
 {score_range_text}
+Display: {self.display_count} rows
 Ensembles: {ensemble_info}"""
         config_panel = Panel(config_text, title="Current Config", box=box.ROUNDED)
         self.console.print(config_panel)
@@ -451,14 +539,41 @@ Ensembles: {ensemble_info}"""
             self.console.print(history_panel)
 
     def handle_number_key(self, n: int) -> None:
-        """Handle number key press (1-9,0) for selecting top N submissions."""
-        if n == self.selected_count:
-            # Pressing same number deselects all
+        """Handle number key press for top-N selection."""
+        if n == self.selected_count and self.selected_indices is None:
+            # Pressing same number in top-N mode deselects all
             self.selected_count = 0
         else:
-            # Pressing different number selects that many
-            max_available = len([s for idx, s in enumerate(self.current_view, 1) if idx not in self.excluded_indices])
+            # Switch to top-N mode and select N submissions
+            max_available = len([s for idx, s in enumerate(self.current_view, 1)
+                               if idx not in self.excluded_indices])
             self.selected_count = min(n, max_available)
+            self.selected_indices = None  # Clear specific mode
+            self.excluded_indices.clear()  # Clear exclusions
+
+    def handle_specific_selection(self, cmd: str) -> None:
+        """Handle comma-separated ID selection (e.g., '1,3,5')."""
+        try:
+            # Parse comma-separated indices
+            indices = set()
+            for part in cmd.split(','):
+                idx = int(part.strip())
+                if not (1 <= idx <= len(self.current_view)):
+                    self.console.print(f"[red]Invalid ID: {idx} (valid range: 1-{len(self.current_view)})[/red]")
+                    Prompt.ask("Press Enter to continue", console=self.console)
+                    return
+                indices.add(idx)
+
+            # Switch to specific selection mode
+            self.selected_indices = indices
+            self.excluded_indices.clear()  # Clear exclusions when switching modes
+
+            self.console.print(f"[green]Selected IDs: {sorted(indices)}[/green]")
+            Prompt.ask("Press Enter to continue", console=self.console)
+
+        except ValueError:
+            self.console.print("[red]Invalid format. Use comma-separated numbers (e.g., 1,3,5)[/red]")
+            Prompt.ask("Press Enter to continue", console=self.console)
 
     def toggle_show_all(self) -> None:
         """Toggle between showing all submissions and filtered (no ensembles)."""
@@ -541,12 +656,44 @@ Ensembles: {ensemble_info}"""
         except ValueError:
             self.console.print("[red]Error: Invalid format. Use comma-separated numbers like: 1,3,5[/red]")
 
+    def set_display_count(self) -> None:
+        """Prompt user to set display count (1-100)."""
+        self.console.print("\n")
+        current_str = str(self.display_count)
+
+        count_str = Prompt.ask(
+            f"Enter display count (1-100, current: {self.display_count})",
+            default=current_str,
+            console=self.console
+        )
+
+        try:
+            count = int(count_str)
+            if 1 <= count <= 100:
+                self.display_count = count
+                self.console.print(f"[green]Display count set to {count}[/green]")
+            else:
+                self.console.print("[red]Display count must be between 1 and 100[/red]")
+        except ValueError:
+            self.console.print("[red]Invalid number[/red]")
+
+        Prompt.ask("Press Enter to continue", console=self.console)
+
     def _get_selected_submissions(self) -> List[Dict]:
-        """Get the currently selected submissions (excluding manually excluded ones)."""
+        """Get the currently selected submissions."""
         selected = []
-        for idx, sub in enumerate(self.current_view[:self.selected_count], start=1):
-            if idx not in self.excluded_indices:
-                selected.append(sub)
+
+        if self.selected_indices is not None:
+            # Specific ID mode
+            for idx in sorted(self.selected_indices):
+                if idx <= len(self.current_view) and idx not in self.excluded_indices:
+                    selected.append(self.current_view[idx - 1])
+        else:
+            # Top-N mode
+            for idx, sub in enumerate(self.current_view[:self.selected_count], start=1):
+                if idx not in self.excluded_indices:
+                    selected.append(sub)
+
         return selected
 
     def _compute_weights_for_selected(self) -> List[float]:
@@ -733,10 +880,25 @@ Description:
             output_path = self.submissions_dir / output_name
             submission.to_csv(output_path, index=False, compression='infer')
 
+            # Decompress .csv.gz to .csv for Kaggle submission
+            # Kaggle API requires uncompressed .csv files
+            submission_file_for_upload = output_path
+            if str(output_path).endswith('.csv.gz'):
+                import gzip
+                import shutil
+
+                csv_path = Path(str(output_path)[:-3])  # Remove .gz extension
+                if not csv_path.exists():
+                    self.console.print(f"[dim]Decompressing {output_path.name} for Kaggle upload...[/dim]")
+                    with gzip.open(output_path, 'rb') as f_in:
+                        with open(csv_path, 'wb') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                submission_file_for_upload = csv_path
+
             # Submit to Kaggle
             with self.console.status("[bold blue]Submitting to Kaggle..."):
                 result = subprocess.run(
-                    ["kaggle", "competitions", "submit", "-c", self.project, "-f", str(output_path), "-m", description],
+                    ["kaggle", "competitions", "submit", "-c", self.project, "-f", str(submission_file_for_upload), "-m", description],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -847,7 +1009,7 @@ Description:
 
                 # Save
                 output_path = self.submissions_dir / output_name
-                submission.to_csv(output_path, index=False)
+                submission.to_csv(output_path, index=False, compression='infer')
 
                 generated.append({
                     "strategy": strat_name,
@@ -904,8 +1066,22 @@ Description:
 
                 self.console.print(f"\n[{i}/{len(to_submit)}] Submitting {gen['output_name']}...")
 
+                # Decompress .csv.gz to .csv for Kaggle submission
+                submission_file_for_upload = gen["output_path"]
+                if str(gen["output_path"]).endswith('.csv.gz'):
+                    import gzip
+                    import shutil
+
+                    csv_path = Path(str(gen["output_path"])[:-3])  # Remove .gz extension
+                    if not csv_path.exists():
+                        self.console.print(f"[dim]Decompressing {gen['output_name']} for Kaggle upload...[/dim]")
+                        with gzip.open(gen["output_path"], 'rb') as f_in:
+                            with open(csv_path, 'wb') as f_out:
+                                shutil.copyfileobj(f_in, f_out)
+                    submission_file_for_upload = csv_path
+
                 result = subprocess.run(
-                    ["kaggle", "competitions", "submit", "-c", self.project, "-f", str(gen["output_path"]), "-m", description],
+                    ["kaggle", "competitions", "submit", "-c", self.project, "-f", str(submission_file_for_upload), "-m", description],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -959,9 +1135,15 @@ Description:
             for h in self.history:
                 if h.get("submitted") and not h.get("public_score"):
                     filename = h.get("output_file")
+                    # Try exact match first, then without .gz extension
                     if filename in kaggle_scores:
                         h["public_score"] = kaggle_scores[filename]
                         updated_count += 1
+                    elif filename.endswith('.csv.gz'):
+                        filename_csv = filename[:-3]  # Remove .gz
+                        if filename_csv in kaggle_scores:
+                            h["public_score"] = kaggle_scores[filename_csv]
+                            updated_count += 1
 
             # Save updated history
             if updated_count > 0:
@@ -1039,30 +1221,40 @@ def main_interactive(args: argparse.Namespace) -> None:
     # Main loop
     while True:
         blender.render_main_screen()
-        cmd = Prompt.ask("\nCommand", console=console).strip().upper()
+        cmd = Prompt.ask("\nCommand", console=console).strip()
 
-        if cmd == 'Q':
+        # Check for comma-separated selection (e.g., "1,3,5") before upper()
+        if ',' in cmd:
+            blender.handle_specific_selection(cmd)
+        elif cmd.upper() == 'Q':
             console.print("[yellow]Goodbye![/yellow]")
             break
-        elif cmd in '1234567890':
+        elif cmd.upper() in '1234567890':
             blender.handle_number_key(int(cmd) if cmd != '0' else 10)
-        elif cmd == 'A':
+        elif cmd.upper() == 'A':
             blender.toggle_show_all()
-        elif cmd == 'W':
+        elif cmd.upper() == 'W':
             blender.choose_strategy_menu()
-        elif cmd == 'E':
+        elif cmd.upper() == 'D':
+            blender.set_display_count()
+        elif cmd.upper() == 'E':
             blender.exclude_submissions()
-        elif cmd == 'C':
+        elif cmd.upper() == 'C':
             blender.create_csv()
-        elif cmd == 'S':
+        elif cmd.upper() == 'S':
             blender.create_and_submit()
-        elif cmd == 'M':
+        elif cmd.upper() == 'M':
             blender.multi_strategy_batch()
-        elif cmd == 'F':
+        elif cmd.upper() == 'F':
             blender.fetch_and_update_scores()
         else:
-            console.print(f"[red]Unknown command: {cmd}[/red]")
-            Prompt.ask("Press Enter to continue", console=console)
+            # Try parsing as plain number (e.g., "15" for top 15)
+            try:
+                n = int(cmd)
+                blender.handle_number_key(n)
+            except ValueError:
+                console.print(f"[red]Unknown command: {cmd}[/red]")
+                Prompt.ask("Press Enter to continue", console=console)
 
 
 def main_non_interactive(args: argparse.Namespace) -> None:

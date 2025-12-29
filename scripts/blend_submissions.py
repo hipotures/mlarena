@@ -313,7 +313,7 @@ class InteractiveBlender:
         self._load_history()
 
     def _extract_templates_from_descriptions(self) -> None:
-        """Extract model and preprocessing templates from Kaggle submission descriptions.
+        """Extract local CV score and templates from Kaggle submission descriptions.
 
         Expected format: "CV_score | feat: N | exp-ID | model_template | preprocess_template | filename"
         Example: "0.71509 | feat: 84 | exp-20251225-202731 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99-wm08 | submission.csv.gz"
@@ -332,6 +332,14 @@ class InteractiveBlender:
             preprocess_tpl = "-"
 
             # Expected positions: [0]=score, [1]=feat, [2]=exp-ID, [3]=model_tpl, [4]=preprocess_tpl, [5]=filename
+            if len(parts) >= 1:
+                # Extract local CV score from position [0]
+                try:
+                    local_cv = float(parts[0])
+                    self.local_scores[filename] = local_cv
+                except (ValueError, IndexError):
+                    pass
+
             if len(parts) >= 5:
                 model_tpl = parts[3] if parts[3] else "-"
                 preprocess_tpl = parts[4] if parts[4] else "-"

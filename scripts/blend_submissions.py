@@ -542,6 +542,7 @@ class InteractiveBlender:
                         shrunk = True
                 if not shrunk:
                     break
+        table_width = min(console_width, content_width + overhead)
 
         # Build submissions table
         table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True, expand=False)
@@ -579,7 +580,7 @@ class InteractiveBlender:
 [C] Create CSV                      [S] Create and submit
 [M] Multi-strategy batch            [X] Clear selection
 [F] Fetch scores from Kaggle        [Q] Quit"""
-        commands_panel = Panel(commands_text, title="Commands", box=box.ROUNDED)
+        commands_panel = Panel(commands_text, title="Commands", box=box.ROUNDED, width=table_width)
         self.console.print(commands_panel)
 
         # Current config panel
@@ -615,7 +616,7 @@ class InteractiveBlender:
 {score_range_text}
 Display: {self.display_count} rows
 Ensembles: {ensemble_info}"""
-        config_panel = Panel(config_text, title="Current Config", box=box.ROUNDED)
+        config_panel = Panel(config_text, title="Current Config", box=box.ROUNDED, width=table_width)
         self.console.print(config_panel)
 
         # History panel
@@ -640,7 +641,7 @@ Ensembles: {ensemble_info}"""
                 submitted_str = "→K" if h.get("submitted", False) else ""  # →K = submitted to Kaggle
                 history_table.add_row(time_str, method_str, strat_str, n_str, public_str, file_str, submitted_str)
 
-            history_panel = Panel(history_table, title="Recent Ensembles", box=box.ROUNDED)
+            history_panel = Panel(history_table, title="Recent Ensembles", box=box.ROUNDED, width=table_width)
             self.console.print(history_panel)
 
     def handle_number_key(self, n: int) -> None:

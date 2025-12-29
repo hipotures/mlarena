@@ -2029,6 +2029,61 @@
         "feature_count": 84
       },
       "error": null
+    },
+    "submit": {
+      "name": "submit",
+      "status": "completed",
+      "started_at": "2025-12-27T22:37:45.679698+00:00",
+      "finished_at": "2025-12-27T22:37:50.865312+00:00",
+      "pid": 3500344,
+      "invocation": {
+        "model_template": "baseline",
+        "preprocess_template": null,
+        "force": false,
+        "skip_submit": false,
+        "seed": 42
+      },
+      "payload": {
+        "submitted": true,
+        "competition": "playground-series-s5e12",
+        "submission_file": "experiments/exp-20251225-132509/artifacts/predict/submission-20251225155801.csv"
+      },
+      "error": null
+    },
+    "fetch-score": {
+      "name": "fetch-score",
+      "status": "completed",
+      "started_at": "2025-12-27T22:38:15.005979+00:00",
+      "finished_at": "2025-12-27T22:38:15.517069+00:00",
+      "pid": 3501421,
+      "invocation": {
+        "model_template": "baseline",
+        "preprocess_template": null,
+        "force": false,
+        "skip_submit": false,
+        "seed": 42
+      },
+      "payload": {
+        "score": 0.70152,
+        "latest_submission": {
+          "fileName": "submission-20251225155801.csv",
+          "date": "2025-12-27 22:37:49.587000",
+          "description": "0.71640 | feat: 84 | exp-20251225-132509 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99 | submission-20251225155801.csv.gz",
+          "status": "SubmissionStatus.COMPLETE",
+          "publicScore": "0.70152",
+          "privateScore": ""
+        },
+        "matched_submission": {
+          "fileName": "submission-20251225155801.csv",
+          "date": "2025-12-27 22:37:49.587000",
+          "description": "0.71640 | feat: 84 | exp-20251225-132509 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99 | submission-20251225155801.csv.gz",
+          "status": "SubmissionStatus.COMPLETE",
+          "publicScore": "0.70152",
+          "privateScore": ""
+        },
+        "target_submission": "experiments/exp-20251225-132509/artifacts/predict/submission-20251225155801.csv"
+      },
+      "error": null
     }
   },
   "run": {

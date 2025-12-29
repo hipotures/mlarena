@@ -2049,9 +2049,9 @@
     "fetch-score": {
       "name": "fetch-score",
       "status": "completed",
-      "started_at": "2025-12-24T14:30:17.287682+00:00",
-      "finished_at": "2025-12-24T14:30:17.767497+00:00",
-      "pid": 3544890,
+      "started_at": "2025-12-27T22:33:15.047336+00:00",
+      "finished_at": "2025-12-27T22:33:15.540037+00:00",
+      "pid": 3490276,
       "invocation": {
         "model_template": "baseline",
         "preprocess_template": null,
@@ -2062,11 +2062,11 @@
       "payload": {
         "score": 0.70323,
         "latest_submission": {
-          "fileName": "submission-20251224145212.csv",
-          "date": "2025-12-24 13:56:51.263000",
-          "description": "0.72597 | feat: 93 | exp-20251224-095945 | catboost-binned-hpo-aggressive-4h-noorig | catboost-full-statonly | submission-20251224145212.csv",
+          "fileName": "submission-20251225221007.csv",
+          "date": "2025-12-27 22:27:01.060000",
+          "description": "0.71509 | feat: 84 | exp-20251225-202731 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99-wm08 | submission-20251225221007.csv.gz",
           "status": "SubmissionStatus.COMPLETE",
-          "publicScore": "0.70310",
+          "publicScore": "0.70191",
           "privateScore": ""
         },
         "matched_submission": {

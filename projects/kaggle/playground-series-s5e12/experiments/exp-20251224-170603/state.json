@@ -2029,6 +2029,61 @@
         "feature_count": 93
       },
       "error": null
+    },
+    "submit": {
+      "name": "submit",
+      "status": "completed",
+      "started_at": "2025-12-27T22:35:57.160084+00:00",
+      "finished_at": "2025-12-27T22:36:02.316564+00:00",
+      "pid": 3496611,
+      "invocation": {
+        "model_template": "baseline",
+        "preprocess_template": null,
+        "force": false,
+        "skip_submit": false,
+        "seed": 42
+      },
+      "payload": {
+        "submitted": true,
+        "competition": "playground-series-s5e12",
+        "submission_file": "experiments/exp-20251224-170603/artifacts/predict/submission-20251224190440.csv"
+      },
+      "error": null
+    },
+    "fetch-score": {
+      "name": "fetch-score",
+      "status": "completed",
+      "started_at": "2025-12-27T22:36:22.077334+00:00",
+      "finished_at": "2025-12-27T22:36:22.553761+00:00",
+      "pid": 3497793,
+      "invocation": {
+        "model_template": "baseline",
+        "preprocess_template": null,
+        "force": false,
+        "skip_submit": false,
+        "seed": 42
+      },
+      "payload": {
+        "score": 0.70294,
+        "latest_submission": {
+          "fileName": "submission-20251224190440.csv",
+          "date": "2025-12-27 22:36:01.047000",
+          "description": "0.72540 | feat: 93 | exp-20251224-170603 | catboost-binned-hpo-aggressive-4h-noorig | catboost-full-statonly-tail | submission-20251224190440.csv.gz",
+          "status": "SubmissionStatus.COMPLETE",
+          "publicScore": "0.70294",
+          "privateScore": ""
+        },
+        "matched_submission": {
+          "fileName": "submission-20251224190440.csv",
+          "date": "2025-12-27 22:36:01.047000",
+          "description": "0.72540 | feat: 93 | exp-20251224-170603 | catboost-binned-hpo-aggressive-4h-noorig | catboost-full-statonly-tail | submission-20251224190440.csv.gz",
+          "status": "SubmissionStatus.COMPLETE",
+          "publicScore": "0.70294",
+          "privateScore": ""
+        },
+        "target_submission": "experiments/exp-20251224-170603/artifacts/predict/submission-20251224190440.csv"
+      },
+      "error": null
     }
   },
   "run": {

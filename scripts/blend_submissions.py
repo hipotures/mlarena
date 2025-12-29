@@ -544,7 +544,7 @@ class InteractiveBlender:
                     break
 
         # Build submissions table
-        table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True, expand=True)
+        table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True, expand=False)
         table.add_column(headers["idx"], justify="right", style="cyan", width=widths["idx"])
         table.add_column(headers["filename"], style="white", width=widths["filename"])
         table.add_column(headers["model_tpl"], style="cyan", width=widths["model_tpl"])

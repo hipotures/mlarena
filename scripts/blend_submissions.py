@@ -681,12 +681,17 @@ Ensembles: {ensemble_info}"""
             eps = Prompt.ask("Enter epsilon", default="1e-6", console=self.console)
             self.strategy_params["eps"] = float(eps)
         elif self.strategy == "manual":
-            self.console.print(f"[yellow]Manual weights require {self.selected_count} values[/yellow]")
-            weights_str = Prompt.ask(f"Enter {self.selected_count} weights (space-separated)", console=self.console)
+            selected_count = len(self._get_selected_submissions())
+            if selected_count == 0:
+                self.console.print("[red]Error: No submissions selected[/red]")
+                self.strategy = "public"
+                return
+            self.console.print(f"[yellow]Manual weights require {selected_count} values[/yellow]")
+            weights_str = Prompt.ask(f"Enter {selected_count} weights (space-separated)", console=self.console)
             try:
                 weights = [float(w) for w in weights_str.split()]
-                if len(weights) != self.selected_count:
-                    self.console.print(f"[red]Error: Expected {self.selected_count} weights, got {len(weights)}[/red]")
+                if len(weights) != selected_count:
+                    self.console.print(f"[red]Error: Expected {selected_count} weights, got {len(weights)}[/red]")
                     self.strategy = "public"  # Fall back
                 else:
                     self.strategy_params["manual_weights"] = weights
@@ -770,11 +775,11 @@ Ensembles: {ensemble_info}"""
 
     def _preview_blend(self) -> Optional[tuple]:
         """Show preview of blend with weights. Returns (selected, weights, output_name) if confirmed."""
-        if self.selected_count == 0:
+        selected = self._get_selected_submissions()
+        if not selected:
             self.console.print("[red]Error: No submissions selected[/red]")
             return None
 
-        selected = self._get_selected_submissions()
         weights = self._compute_weights_for_selected()
 
         self.console.print("\n")
@@ -988,7 +993,7 @@ Description:
 
     def multi_strategy_batch(self) -> None:
         """Generate N CSVs with different strategies, submit max 5 to Kaggle."""
-        if self.selected_count == 0:
+        if not self._get_selected_submissions():
             self.console.print("[red]Error: No submissions selected[/red]")
             Prompt.ask("Press Enter to continue", console=self.console)
             return

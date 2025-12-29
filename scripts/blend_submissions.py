@@ -524,10 +524,11 @@ class InteractiveBlender:
         self.console.print(table)
 
         # Commands panel
-        commands_text = """[1-9,0] Select top N  [1,3,5] Select IDs  [A] Toggle show all
-[W] Choose weighting strategy       [D] Set display count
-[E] Exclude specific                [C] Create CSV
-[S] Create and submit               [M] Multi-strategy batch
+        commands_text = """[1-9] Select top N  [0] Top 10 (confirm)  [1,3,5] Select IDs
+[A] Toggle show all                 [W] Choose weighting strategy
+[D] Set display count               [E] Exclude specific
+[C] Create CSV                      [S] Create and submit
+[M] Multi-strategy batch            [X] Clear selection
 [F] Fetch scores from Kaggle        [Q] Quit"""
         commands_panel = Panel(commands_text, title="Commands", box=box.ROUNDED)
         self.console.print(commands_panel)
@@ -738,6 +739,12 @@ Ensembles: {ensemble_info}"""
             self.console.print("[red]Invalid number[/red]")
 
         Prompt.ask("Press Enter to continue", console=self.console)
+
+    def clear_selection(self) -> None:
+        """Clear all selection state."""
+        self.selected_count = 0
+        self.selected_indices = None
+        self.excluded_indices.clear()
 
     def _get_selected_submissions(self) -> List[Dict]:
         """Get the currently selected submissions."""
@@ -1289,8 +1296,11 @@ def main_interactive(args: argparse.Namespace) -> None:
         elif cmd.upper() == 'Q':
             console.print("[yellow]Goodbye![/yellow]")
             break
-        elif cmd.upper() in '1234567890':
-            blender.handle_number_key(int(cmd) if cmd != '0' else 10)
+        elif cmd == '0':
+            if Confirm.ask("0 selects top 10. Continue?", console=console):
+                blender.handle_number_key(10)
+        elif cmd.upper() in '123456789':
+            blender.handle_number_key(int(cmd))
         elif cmd.upper() == 'A':
             blender.toggle_show_all()
         elif cmd.upper() == 'W':
@@ -1299,6 +1309,8 @@ def main_interactive(args: argparse.Namespace) -> None:
             blender.set_display_count()
         elif cmd.upper() == 'E':
             blender.exclude_submissions()
+        elif cmd.upper() == 'X':
+            blender.clear_selection()
         elif cmd.upper() == 'C':
             blender.create_csv()
         elif cmd.upper() == 'S':
@@ -1311,7 +1323,11 @@ def main_interactive(args: argparse.Namespace) -> None:
             # Try parsing as plain number (e.g., "15" for top 15)
             try:
                 n = int(cmd)
-                blender.handle_number_key(n)
+                if n <= 0:
+                    console.print("[red]Invalid selection: use a positive number (e.g., 10) or X to clear.[/red]")
+                    Prompt.ask("Press Enter to continue", console=console)
+                else:
+                    blender.handle_number_key(n)
             except ValueError:
                 console.print(f"[red]Unknown command: {cmd}[/red]")
                 Prompt.ask("Press Enter to continue", console=console)

@@ -476,8 +476,8 @@ class InteractiveBlender:
 
         # Calculate dynamic column widths based on console width
         console_width = self.console.width
-        # Fixed-width columns: ID(4) + Public(8) + Local(8) + Date(12) + Check(3) + padding/borders(~15)
-        fixed_width = 4 + 8 + 8 + 12 + 3 + 15
+        # Fixed-width columns: ID(4) + Public(8) + Local(8) + Date(12) + Check(3) + ID(4) + padding/borders(~15)
+        fixed_width = 4 + 8 + 8 + 12 + 3 + 4 + 15
         # Remaining space for Filename, Model Tpl, Prep Tpl
         remaining = max(console_width - fixed_width, 60)  # Minimum 60 for variable columns
 
@@ -496,6 +496,7 @@ class InteractiveBlender:
         table.add_column("Local", justify="right", style="magenta", width=8)
         table.add_column("Date", style="blue", width=12)
         table.add_column("✓", justify="center", style="green", width=3)
+        table.add_column("#", justify="right", style="cyan", width=4)
 
         # Show display_count or selected count, whichever is larger
         display_count = max(self.display_count, self.selected_count)
@@ -519,7 +520,19 @@ class InteractiveBlender:
             # Truncate filename to fit dynamic width
             filename_display = self._truncate(filename, filename_width)
 
-            table.add_row(str(idx), filename_display, model_tpl, prep_tpl, public_score, local_score, date_str, selected)
+            row_style = "on grey15" if idx % 2 == 0 else None
+            table.add_row(
+                str(idx),
+                filename_display,
+                model_tpl,
+                prep_tpl,
+                public_score,
+                local_score,
+                date_str,
+                selected,
+                str(idx),
+                style=row_style,
+            )
 
         self.console.print(table)
 

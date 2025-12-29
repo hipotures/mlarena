@@ -305,12 +305,44 @@ class InteractiveBlender:
         ]
         self.current_view = self.filtered_submissions
 
+        # Extract template info from Kaggle descriptions
+        self._extract_templates_from_descriptions()
+
         # Load local scores and history if available
         self._load_local_scores()
         self._load_history()
 
+    def _extract_templates_from_descriptions(self) -> None:
+        """Extract model and preprocessing templates from Kaggle submission descriptions.
+
+        Expected format: "CV_score | feat: N | exp-ID | model_template | preprocess_template | filename"
+        Example: "0.71509 | feat: 84 | exp-20251225-202731 | catboost-binned-hpo-gap | catboost-full-clean-rfe-gap-p99-wm08 | submission.csv.gz"
+        """
+        for submission in self.all_submissions:
+            filename = submission.get("filename", "")
+            description = submission.get("description", "")
+
+            if not filename or not description:
+                continue
+
+            # Parse description format: "score | feat: N | exp-ID | model_tpl | preprocess_tpl | filename"
+            parts = [p.strip() for p in description.split("|")]
+
+            model_tpl = "-"
+            preprocess_tpl = "-"
+
+            # Expected positions: [0]=score, [1]=feat, [2]=exp-ID, [3]=model_tpl, [4]=preprocess_tpl, [5]=filename
+            if len(parts) >= 5:
+                model_tpl = parts[3] if parts[3] else "-"
+                preprocess_tpl = parts[4] if parts[4] else "-"
+
+            self.submission_metadata[filename] = {
+                "model_template": model_tpl,
+                "preprocess_template": preprocess_tpl
+            }
+
     def _load_local_scores(self) -> None:
-        """Load local CV scores and template info from submissions.json."""
+        """Load local CV scores from submissions.json (and template info as fallback)."""
         submissions_json = self.submissions_dir / "submissions.json"
         if not submissions_json.exists():
             return
@@ -326,12 +358,12 @@ class InteractiveBlender:
                 filename = entry.get("submission_file", "")
                 local_score = entry.get("local_cv_score")
 
-                # Existing: Store CV score
+                # Store CV score
                 if filename and local_score is not None:
                     self.local_scores[filename] = float(local_score)
 
-                # NEW: Extract and store template info
-                if filename:
+                # Template info as fallback (only if not already set from Kaggle description)
+                if filename and filename not in self.submission_metadata:
                     model_tpl = entry.get("config", {}).get("system", {}).get("template")
                     notes = entry.get("notes", "")
 

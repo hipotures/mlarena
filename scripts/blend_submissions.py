@@ -474,12 +474,24 @@ class InteractiveBlender:
         """Render the main interactive screen with submissions table and panels."""
         self.console.clear()
 
+        # Calculate dynamic column widths based on console width
+        console_width = self.console.width
+        # Fixed-width columns: ID(4) + Public(8) + Local(8) + Date(12) + Check(3) + padding/borders(~15)
+        fixed_width = 4 + 8 + 8 + 12 + 3 + 15
+        # Remaining space for Filename, Model Tpl, Prep Tpl
+        remaining = max(console_width - fixed_width, 60)  # Minimum 60 for variable columns
+
+        # Distribute remaining space: Filename(40%), Model(30%), Prep(30%)
+        filename_width = max(int(remaining * 0.40), 25)
+        model_width = max(int(remaining * 0.30), 15)
+        prep_width = max(int(remaining * 0.30), 15)
+
         # Build submissions table
-        table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True)
+        table = Table(title="Top Submissions", box=box.ROUNDED, show_header=True, expand=True)
         table.add_column("#", justify="right", style="cyan", width=4)
-        table.add_column("Filename", style="white", width=30)
-        table.add_column("Model Tpl", style="cyan", width=20)
-        table.add_column("Prep Tpl", style="green", width=18)
+        table.add_column("Filename", style="white", width=filename_width)
+        table.add_column("Model Tpl", style="cyan", width=model_width)
+        table.add_column("Prep Tpl", style="green", width=prep_width)
         table.add_column("Public", justify="right", style="yellow", width=8)
         table.add_column("Local", justify="right", style="magenta", width=8)
         table.add_column("Date", style="blue", width=12)
@@ -498,13 +510,16 @@ class InteractiveBlender:
 
             # NEW: Get template info
             metadata = self.submission_metadata.get(filename, {})
-            model_tpl = self._truncate(metadata.get("model_template", "-"), 20)
-            prep_tpl = self._truncate(metadata.get("preprocess_template", "-"), 18)
+            model_tpl = self._truncate(metadata.get("model_template", "-"), model_width)
+            prep_tpl = self._truncate(metadata.get("preprocess_template", "-"), prep_width)
 
             # Check if selected
             selected = "✓" if self._is_selected(idx) else ""
 
-            table.add_row(str(idx), filename, model_tpl, prep_tpl, public_score, local_score, date_str, selected)
+            # Truncate filename to fit dynamic width
+            filename_display = self._truncate(filename, filename_width)
+
+            table.add_row(str(idx), filename_display, model_tpl, prep_tpl, public_score, local_score, date_str, selected)
 
         self.console.print(table)
 

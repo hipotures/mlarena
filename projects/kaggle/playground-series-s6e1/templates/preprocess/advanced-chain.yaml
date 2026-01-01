@@ -1,0 +1,1 @@
+chain: [sanity_check, rare_category_handler, custom_features]

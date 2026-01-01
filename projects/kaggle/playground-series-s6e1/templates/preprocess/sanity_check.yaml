@@ -1,0 +1,4 @@
+module: sanity_check
+config:
+  min_unique_fraction: 0.0
+  drop_duplicates: true

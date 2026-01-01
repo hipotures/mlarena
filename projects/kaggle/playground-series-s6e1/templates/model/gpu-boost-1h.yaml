@@ -1,0 +1,10 @@
+model: autogluon_baseline
+preprocess_template: advanced-chain
+config:
+  preset: best_quality
+  time_limit: 3600
+  use_gpu: true
+  hyperparameters:
+    GBM: {}
+    CAT: {}
+    XGB: {}

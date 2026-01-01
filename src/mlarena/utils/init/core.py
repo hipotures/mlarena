@@ -72,7 +72,7 @@ def init_project(
             next_steps = (
                 f"[bold]To work with this project:[/]\n"
                 f"[bold]1.[/] Run EDA: [cyan]uv run python scripts/mla.py eda --project {competition_slug}[/cyan]\n"
-                f"[bold]2.[/] Train model: [cyan]uv run python scripts/mla.py model --project {competition_slug} --model-template gpu-dev-5m[/cyan]\n\n"
+                f"[bold]2.[/] Run auto-flow: [cyan]uv run python scripts/mla.py --project {competition_slug}[/cyan]\n\n"
                 f"[bold]To reinitialize:[/] Use [cyan]--force[/cyan] flag"
             )
             console.print(Panel(next_steps, title="Project Already Initialized", border_style="yellow"))
@@ -290,7 +290,7 @@ def init_project(
     next_steps = (
         f"[bold]1.[/] Review configuration: [cyan]{project_root}/code/utils/config.py[/cyan]\n"
         f"[bold]2.[/] Run EDA: [cyan]uv run python scripts/mla.py eda --project {competition_slug}[/cyan]\n"
-        f"[bold]3.[/] Train baseline: [cyan]uv run python scripts/mla.py model --project {competition_slug} --model-template gpu-dev-5m[/cyan]"
+        f"[bold]3.[/] Run auto-flow: [cyan]uv run python scripts/mla.py --project {competition_slug}[/cyan]"
     )
     console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
 

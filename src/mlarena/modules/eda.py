@@ -163,6 +163,17 @@ class EDAModule(BaseModule):
         # Display Rich output
         console = Console(force_terminal=True)
 
+        # Next steps
+        from rich.panel import Panel
+        project_name = self.context.project
+        next_steps = (
+            f"[bold]1.[/] Run auto-flow pipeline: [cyan]uv run python scripts/mla.py --project {project_name}[/cyan]\n"
+            f"[bold]2.[/] Or run individual steps:\n"
+            f"   • [cyan]uv run python scripts/mla.py preprocess --project {project_name}[/cyan]\n"
+            f"   • [cyan]uv run python scripts/mla.py model --project {project_name}[/cyan]"
+        )
+        console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
+
         return ModuleResult(
             success=True,
             payload={

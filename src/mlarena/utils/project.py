@@ -60,22 +60,38 @@ def load_submission_module(project_root: Path):
 def data_paths(config_module) -> Tuple[Path, Path]:
     train = getattr(config_module, "TRAIN_PATH", None)
     test = getattr(config_module, "TEST_PATH", None)
-    if train is None or test is None:
-        data_dir = getattr(config_module, "DATA_DIR", Path("."))  # type: ignore
 
-        # Priorytet: .csv.gz (compressed)
-        train = data_dir / "train.csv.gz"
-        test = data_dir / "test.csv.gz"
+    # If not defined or defined but doesn't exist, try to resolve/fallback
+    if train is None or not Path(train).exists():
+        data_dir = getattr(config_module, "DATA_DIR", None)
+        if data_dir is None and train is not None:
+            data_dir = Path(train).parent
+        
+        if data_dir:
+            # Try .csv.gz first, then .csv
+            gz_path = Path(data_dir) / "train.csv.gz"
+            csv_path = Path(data_dir) / "train.csv"
+            if gz_path.exists():
+                train = gz_path
+            elif csv_path.exists():
+                train = csv_path
+            elif train is None:
+                train = gz_path # Default to .gz if neither exists
 
-        # Fallback do .csv jeśli .gz nie istnieje (kompatybilność wsteczna)
-        if not train.exists():
-            train_csv = data_dir / "train.csv"
-            if train_csv.exists():
-                train = train_csv
-
-        if not test.exists():
-            test_csv = data_dir / "test.csv"
-            if test_csv.exists():
-                test = test_csv
+    if test is None or not Path(test).exists():
+        data_dir = getattr(config_module, "DATA_DIR", None)
+        if data_dir is None and test is not None:
+            data_dir = Path(test).parent
+            
+        if data_dir:
+            # Try .csv.gz first, then .csv
+            gz_path = Path(data_dir) / "test.csv.gz"
+            csv_path = Path(data_dir) / "test.csv"
+            if gz_path.exists():
+                test = gz_path
+            elif csv_path.exists():
+                test = csv_path
+            elif test is None:
+                test = gz_path # Default to .gz if neither exists
 
     return Path(train), Path(test)

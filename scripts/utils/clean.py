@@ -9,7 +9,7 @@ import argparse
 import shutil
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Iterable, List, Tuple
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -21,7 +21,8 @@ console = Console()
 
 def get_project_root() -> Path:
     """Zwraca główny katalog repozytorium (gdzie znajduje się scripts/)."""
-    return Path(__file__).parent.parent.resolve()
+    # scripts/utils/clean.py -> repo root
+    return Path(__file__).resolve().parents[2]
 
 
 def validate_project(project_name: str) -> Path:
@@ -84,8 +85,9 @@ def find_autogluon_model_dirs(experiments_path: Path) -> List[Path]:
     """
     Znajduje wszystkie katalogi zawierające modele AutoGluon.
 
-    AutoGluon może zapisywać modele pod różnymi nazwami (model/, AutogluonModels/, av_model/, etc.).
-    Identyfikujemy je po obecności plików predictor.pkl lub learner.pkl.
+    AutoGluon może zapisywać modele pod różnymi nazwami (model/, models/, AutogluonModels/, av_model/, etc.).
+    Identyfikujemy je po znacznikach (predictor.pkl/learner.pkl, metadata.json/version.txt)
+    oraz typowych layoutach w artifacts/ (w tym dodatkowe poziomy katalogów).
 
     Args:
         experiments_path: Ścieżka do katalogu experiments
@@ -95,18 +97,79 @@ def find_autogluon_model_dirs(experiments_path: Path) -> List[Path]:
     """
     autogluon_dirs = set()
 
+    def is_under_artifacts(path: Path) -> bool:
+        return "artifacts" in path.parts
+
+    def is_under_code_snapshot(path: Path) -> bool:
+        return "code_snapshot" in path.parts
+
+    def has_autogluon_markers(path: Path) -> bool:
+        return (
+            (path / "metadata.json").exists()
+            or (path / "version.txt").exists()
+            or (path / "models").is_dir()
+        )
+
+    def add_dir(path: Path, require_artifacts: bool = True) -> None:
+        if not path.is_dir():
+            return
+        if is_under_code_snapshot(path):
+            return
+        if require_artifacts and not is_under_artifacts(path):
+            return
+        autogluon_dirs.add(path)
+
     # Znajdź wszystkie pliki predictor.pkl i learner.pkl
     for pkl_file in experiments_path.rglob("predictor.pkl"):
         if pkl_file.is_file():
             # Katalog zawierający predictor.pkl to katalog AutoGluon
-            autogluon_dirs.add(pkl_file.parent)
+            add_dir(pkl_file.parent, require_artifacts=False)
 
     for pkl_file in experiments_path.rglob("learner.pkl"):
         if pkl_file.is_file():
             # Katalog zawierający learner.pkl to katalog AutoGluon
-            autogluon_dirs.add(pkl_file.parent)
+            add_dir(pkl_file.parent, require_artifacts=False)
 
-    return list(autogluon_dirs)
+    # Nowe layouty: katalogi nazwane po modelach i dodatkowe poziomy (np. hash)
+    for dir_name in ["AutogluonModels", ".predictor", "av_model", "ds_sub_fit"]:
+        for candidate in experiments_path.rglob(dir_name):
+            add_dir(candidate)
+
+    # Typowy AutoGluon: artifacts/<template>/models
+    for models_dir in experiments_path.rglob("models"):
+        add_dir(models_dir)
+
+    # AutoGluon predictor: artifacts/.../model (z metadata.json/version.txt)
+    for model_dir in experiments_path.rglob("model"):
+        if not model_dir.is_dir():
+            continue
+        if is_under_code_snapshot(model_dir):
+            continue
+        if not is_under_artifacts(model_dir):
+            continue
+        if has_autogluon_markers(model_dir):
+            autogluon_dirs.add(model_dir)
+
+    return _dedupe_paths(autogluon_dirs)
+
+
+def _dedupe_paths(paths: Iterable[Path]) -> List[Path]:
+    """Usuwa duplikaty i pomija ścieżki będące podkatalogami już dodanych."""
+    unique_paths = sorted(set(paths), key=lambda p: len(p.parts))
+    result: List[Path] = []
+    for path in unique_paths:
+        if any(_is_subpath(path, existing) for existing in result):
+            continue
+        result.append(path)
+    return result
+
+
+def _is_subpath(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
 
 
 def find_items_to_clean(
@@ -118,7 +181,7 @@ def find_items_to_clean(
 
     Args:
         project_path: Ścieżka do projektu
-        remove_processed_csv: Czy usuwać także *_processed.csv
+        remove_processed_csv: Czy usuwać także *_processed.csv(.gz)
 
     Returns:
         Tuple z listą (ścieżka, typ, rozmiar) i całkowitym rozmiarem
@@ -128,19 +191,21 @@ def find_items_to_clean(
     experiments_path = project_path / "experiments"
 
     # Znajdź wszystkie katalogi zawierające modele AutoGluon
-    # (identyfikowane po predictor.pkl lub learner.pkl)
+    # (różne layouty + dodatkowe poziomy katalogów)
     autogluon_dirs = find_autogluon_model_dirs(experiments_path)
+    seen_paths = set()
 
     for autogluon_dir in autogluon_dirs:
+        if autogluon_dir in seen_paths:
+            continue
         size = get_directory_size(autogluon_dir)
         # Typ: nazwa katalogu + "/"
         dir_name = autogluon_dir.name + "/"
         items_to_remove.append((autogluon_dir, dir_name, size))
         total_size += size
+        seen_paths.add(autogluon_dir)
 
     # Znajdź wszystkie pliki .lock i katalogi __pycache__
-    seen_paths = set()  # Unikaj duplikatów
-
     for exp_dir in experiments_path.iterdir():
         if not exp_dir.is_dir():
             continue
@@ -171,17 +236,28 @@ def find_items_to_clean(
 
     # Opcjonalnie: *_processed.csv
     if remove_processed_csv:
-        for pre_dir in experiments_path.glob("pre-*"):
-            if not pre_dir.is_dir():
+        for preprocess_dir in experiments_path.rglob("preprocess"):
+            if not preprocess_dir.is_dir():
                 continue
-
-            artifacts_preprocess = pre_dir / "artifacts" / "preprocess"
-            if artifacts_preprocess.exists():
-                for csv_file in artifacts_preprocess.glob("*_processed.csv"):
-                    if csv_file.is_file():
-                        size = csv_file.stat().st_size
-                        items_to_remove.append((csv_file, "*_processed.csv", size))
-                        total_size += size
+            if "code_snapshot" in preprocess_dir.parts:
+                continue
+            if "artifacts" not in preprocess_dir.parts:
+                continue
+            for csv_file in preprocess_dir.rglob("*"):
+                if not csv_file.is_file():
+                    continue
+                name = csv_file.name
+                if not (
+                    name.endswith("_processed.csv")
+                    or name.endswith("_processed.csv.gz")
+                ):
+                    continue
+                if csv_file in seen_paths:
+                    continue
+                size = csv_file.stat().st_size
+                items_to_remove.append((csv_file, "*_processed.csv(.gz)", size))
+                total_size += size
+                seen_paths.add(csv_file)
 
     return items_to_remove, total_size
 
@@ -355,7 +431,7 @@ Co jest usuwane:
   - AutogluonModels/ (modele, pickle'y, cache)
   - *.lock, state.lock (pliki tymczasowe)
   - __pycache__/ (bytecode Python)
-  - *_processed.csv (opcjonalnie, z --remove-processed-csv)
+  - *_processed.csv(.gz) (opcjonalnie, z --remove-processed-csv)
 
 Co jest ZACHOWANE:
   - state.json (metadane eksperymentów)

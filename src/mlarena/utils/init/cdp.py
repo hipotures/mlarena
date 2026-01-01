@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlsplit, urlunsplit
 from typing import Optional
 
 PLAYWRIGHT_EVAL_SCRIPT = """
@@ -53,14 +54,28 @@ PLAYWRIGHT_EVAL_SCRIPT = """
 """
 
 
+def _normalize_cdp_url(url: Optional[str]) -> Optional[str]:
+    """Force IPv4 loopback when a URL uses localhost."""
+    if not url or "localhost" not in url:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url.replace("localhost", "127.0.0.1")
+    if parts.hostname != "localhost":
+        return url
+    netloc = parts.netloc.replace("localhost", "127.0.0.1", 1)
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
 def resolve_cdp_url(custom_url: Optional[str]) -> Optional[str]:
     """Resolve CDP endpoint URL from custom param or environment."""
     if custom_url is not None:
-        return custom_url or None
+        return _normalize_cdp_url(custom_url) or None
     env_url = os.environ.get("KAGGLE_CDP_URL") or os.environ.get("CDP_URL")
     if env_url is not None:
-        return env_url or None
-    return "http://localhost:9222"
+        return _normalize_cdp_url(env_url) or None
+    return "http://127.0.0.1:9222"
 
 
 async def fetch_evaluation_text_via_cdp(competition_slug: str, cdp_url: str) -> str:

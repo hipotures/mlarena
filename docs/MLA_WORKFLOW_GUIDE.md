@@ -547,7 +547,7 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq -e '.[-1].public_s
 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 
 # Verify connection
-curl http://localhost:9222/json/version
+curl http://127.0.0.1:9222/json/version
 ```
 
 ### "Kaggle API authentication failed"

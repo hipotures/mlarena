@@ -106,6 +106,77 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
     return templates, template_configs, chain_exp_id, combined_hash, is_meta
 
 
+def _validate_setup_modules(
+    project_root: Path,
+    console,
+) -> Tuple[bool, Optional[str]]:
+    """
+    Validate that required setup modules (init, eda) have been completed.
+
+    Args:
+        project_root: Path to project directory
+        console: Rich console for output
+
+    Returns:
+        Tuple of (is_valid, error_message)
+        - (True, None) if validation passes
+        - (False, error_msg) if validation fails
+    """
+    import json
+
+    # Check init completion
+    init_state_file = project_root / "experiments" / "init" / "state.json"
+    if not init_state_file.exists():
+        return False, (
+            "Project initialization not found.\n"
+            f"Run: mla init --project {project_root.name}"
+        )
+
+    try:
+        with open(init_state_file) as f:
+            init_state = json.load(f)
+            init_module = init_state.get("modules", {}).get("init", {})
+            init_status = init_module.get("status")
+
+            if init_status != "completed":
+                return False, (
+                    f"Project initialization incomplete (status: {init_status}).\n"
+                    f"Run: mla init --project {project_root.name} --force"
+                )
+    except (json.JSONDecodeError, KeyError) as e:
+        return False, (
+            f"Invalid init state file: {e}\n"
+            f"Run: mla init --project {project_root.name} --force"
+        )
+
+    # Check eda completion
+    eda_state_file = project_root / "experiments" / "eda" / "state.json"
+    if not eda_state_file.exists():
+        return False, (
+            "Exploratory data analysis not found.\n"
+            f"Run: mla eda --project {project_root.name}"
+        )
+
+    try:
+        with open(eda_state_file) as f:
+            eda_state = json.load(f)
+            eda_module = eda_state.get("modules", {}).get("eda", {})
+            eda_status = eda_module.get("status")
+
+            if eda_status != "completed":
+                return False, (
+                    f"Exploratory data analysis incomplete (status: {eda_status}).\n"
+                    f"Run: mla eda --project {project_root.name} --force"
+                )
+    except (json.JSONDecodeError, KeyError) as e:
+        return False, (
+            f"Invalid eda state file: {e}\n"
+            f"Run: mla eda --project {project_root.name} --force"
+        )
+
+    return True, None
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """
     Build a simplified top-level CLI parser.
@@ -363,12 +434,23 @@ def run_auto_flow(
     skip_git = config.skip_git
     wait_seconds = config.wait_seconds
 
-    # Full sequence with smart checking
-    setup_modules = ["init", "eda", "preprocess"]
+    # Pipeline sequence (prerequisites validated separately)
     pipeline_modules = ["model", "predict", "submit", "fetch-score"]
 
     if force:
         console.print(f"\n[dim]Force mode: ON[/dim]\n")
+
+    # Validate prerequisites (init, eda must be run manually)
+    console.print("[bold cyan]Validating prerequisites...[/bold cyan]")
+
+    is_valid, error_msg = _validate_setup_modules(project_root, console)
+
+    if not is_valid:
+        console.print(f"\n[bold red]✗ Prerequisites validation failed:[/bold red]\n")
+        console.print(f"[yellow]{error_msg}[/yellow]\n")
+        return 1
+
+    console.print("[dim]✓ Prerequisites validated (init, eda completed)[/dim]\n")
 
     # Load project config module
     config_module = None
@@ -394,60 +476,7 @@ def run_auto_flow(
         except Exception:
             resolved_preprocess_template = "baseline"
 
-    # Phase 1: Setup modules
-    for module_name in ["init", "eda"]:
-        check_exp_id = module_name
-        exp_dir = project_root / "experiments" / check_exp_id
-        state_file = exp_dir / "state.json"
-
-        already_completed = False
-        module_payload = {}
-        if state_file.exists():
-            with open(state_file) as f:
-                saved_state = json.load(f)
-                module_entry = saved_state.get("modules", {}).get(module_name, {})
-                already_completed = module_entry.get("status") == "completed"
-                module_payload = module_entry.get("payload", {})
-
-        if already_completed and not force:
-            console.print(f"[dim]✓ {module_name} already completed (exp: {check_exp_id}), skipping[/dim]")
-            results[module_name] = ModuleResult(success=True, payload=module_payload)
-            continue
-
-        context = _build_module_context(
-            project_root=project_root,
-            project=project_name,
-            module_name=module_name,
-            config=config,
-            experiment_id=check_exp_id,
-            config_module=config_module,
-            pipeline_def=pipeline_def,
-            argv=argv,
-        )
-
-        module_cls = ModuleRegistry.get(module_name)
-        module = module_cls(context)
-
-        if module_name == "init":
-            module.set_invocation_params({
-                "model_template": model_template,
-                "preprocess_template": resolved_preprocess_template,
-                "force": force,
-            })
-        else:
-            module.set_invocation_params({"force": force})
-
-        executor = PipelineExecutor({module_name: module})
-        module_results = executor.run_module(module_name, force=force, skip_deps=False)
-
-        result = module_results.get(module_name)
-        results[module_name] = result
-
-        if not result or not result.success:
-            console.print(f"\n[red]✗ Auto-flow stopped at {module_name}[/red]")
-            return 1
-
-    # Phase 1b: Preprocessing chain
+    # Phase 1: Preprocessing chain
     exit_code, chain_results, final_preprocess_exp_dir, preprocess_templates = run_preprocess_chain(
         project_root, project_name, config, config_module, pipeline_def, argv or [], console
     )

@@ -250,8 +250,13 @@ python scripts/submission_queue.py --project {project} remove 1
 
 **File**: `src/mlarena/cli/main.py`
 
-**Phase 1: Setup**
-- Run init/eda if not completed
+**Prerequisites** (manual, one-time):
+- `mla init --project <name>` - initialize project structure and download data
+- `mla eda --project <name>` - run exploratory data analysis
+- Auto-flow validates both init and eda are completed before starting
+- Validation fails with clear error message if prerequisites missing
+
+**Phase 1: Preprocessing**
 - Run preprocessing chain (each named `pre-{template}`)
 - Skip if completed + input unchanged (unless `--force`)
 
@@ -363,14 +368,20 @@ gunzip data/train.csv.gz  # Creates train.csv, removes train.csv.gz
 uv run python scripts/mla.py model --project <proj> --profile smoke skip_submit=true
 ```
 
-**Full pipeline test (init → preprocess → model → predict):**
+**Full pipeline test (preprocess → model → predict → submit):**
 ```bash
+# Prerequisites (one-time setup):
+uv run python scripts/mla.py init -p <project>
+uv run python scripts/mla.py eda -p <project>
+
+# Auto-flow pipeline:
 uv run python scripts/mla.py -p <project>
 ```
 - Example: `uv run python scripts/mla.py -p Titanic`
-- **Duration**: ~2-3 minutes for complete flow
-- Auto-runs: init (if needed) → eda → preprocess → model → predict → submit
+- **Duration**: ~2-3 minutes for complete flow (after init/eda)
+- Auto-runs: preprocess → model → predict → submit → fetch-score
 - Use `--profile smoke` for faster testing (60s time limit instead of default)
+- **Note**: init and eda must be run manually first
 
 ### Commit Format
 - `feat:`, `fix:`, `experiment:`

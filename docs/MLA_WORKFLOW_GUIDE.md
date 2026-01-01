@@ -47,14 +47,14 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 
 **Fastest way to run complete pipeline:**
 ```bash
-# Initialize project (downloads data)
+# Step 1: Initialize project (downloads data)
 uv run python scripts/mla.py init --project titanic
 
-# Run full pipeline (60s countdown before auto-submit)
-uv run python scripts/mla.py model \
-  --project titanic \
-  model_template=cpu-fast-1m \
-  wait_seconds=45
+# Step 2: Run EDA
+uv run python scripts/mla.py eda --project titanic
+
+# Step 3: Run auto-flow pipeline
+uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m wait_seconds=45
 
 # Check results
 uv run python scripts/submissions_tracker.py --project titanic list
@@ -305,26 +305,34 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq '.[-1].public_scor
 
 ---
 
-## One-Command Pipeline
+## Auto-Flow Pipeline
 
-Runs EDA → Model → Predict → Submit → Fetch Score automatically:
+**Prerequisites** (one-time setup):
 
 ```bash
-# Default: 60s countdown before auto-submit
-uv run python scripts/mla.py model \
-  --project titanic \
-  --model-template cpu-fast-1m \
-  --wait-seconds 45
+# Step 1: Initialize project structure and download data
+uv run python scripts/mla.py init --project titanic
+
+# Step 2: Run exploratory data analysis
+uv run python scripts/mla.py eda --project titanic
 ```
 
-**With preprocessing:**
+**Auto-Flow**: Runs Preprocess → Model → Predict → Submit → Fetch Score automatically:
+
 ```bash
-# Default: 60s countdown before auto-submit
-uv run python scripts/mla.py model \
-  --project titanic \
-  --preprocess-template identity \
-  --model-template cpu-dev-5m
+# Default: 30s countdown before auto-submit
+uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m wait_seconds=45
 ```
+
+**With custom preprocessing:**
+```bash
+# Specify preprocessing template
+uv run python scripts/mla.py --project titanic \
+  preprocess_template=identity \
+  model_template=cpu-dev-5m
+```
+
+**Note**: Auto-flow validates that init and eda are completed before starting. If missing, you'll get a clear error message with instructions.
 
 ---
 

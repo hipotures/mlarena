@@ -33,10 +33,20 @@ chmod 600 ~/.kaggle/kaggle.json
 
 ### 2. Auto-Flow (Recommended)
 
-The recommended way to run a full experiment is using the auto-flow, which orchestrates the entire pipeline.
+The recommended way to run a full experiment is using the auto-flow, which orchestrates the preprocessing and modeling pipeline.
 
+**Prerequisites** (one-time setup):
 ```bash
-# Run the complete pipeline: init → eda → preprocess → model → submit → fetch-score
+# Initialize project structure and download data
+uv run python scripts/mla.py init --project <competition-slug>
+
+# Run exploratory data analysis
+uv run python scripts/mla.py eda --project <competition-slug>
+```
+
+**Run auto-flow pipeline**:
+```bash
+# Run the pipeline: preprocess → model → predict → submit → fetch-score
 # This uses the "baseline" templates by default.
 uv run python scripts/mla.py --project <competition-slug>
 
@@ -67,9 +77,11 @@ MLArena uses a hybrid approach for maximum flexibility:
 
 The pipeline consists of the following modules:
 
-**Core modules (part of auto-flow):**
--   `init`: Initializes a new competition project structure.
+**Prerequisites (manual, one-time setup):**
+-   `init`: Initializes a new competition project structure and downloads data.
 -   `eda`: Performs exploratory data analysis.
+
+**Core modules (part of auto-flow):**
 -   `preprocess`: Applies data preprocessing steps.
 -   `model`: Trains a model using a specified template.
 -   `predict`: Generates predictions from a trained model.

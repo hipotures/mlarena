@@ -464,7 +464,7 @@ def run_auto_flow(
 
     # Resolve preprocess template
     resolved_preprocess_template = config.preprocess_template
-    if resolved_preprocess_template is None:
+    if not resolved_preprocess_template:
         try:
             import sys
             sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -472,17 +472,21 @@ def run_auto_flow(
 
             model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
             model_tpl_cfg = model_templates.get(model_template, {})
-            resolved_preprocess_template = model_tpl_cfg.get("preprocess_template", "baseline")
+            resolved_preprocess_template = model_tpl_cfg.get("preprocess_template")
         except Exception:
-            resolved_preprocess_template = "baseline"
+            resolved_preprocess_template = None
 
     # Phase 1: Preprocessing chain
-    exit_code, chain_results, final_preprocess_exp_dir, preprocess_templates = run_preprocess_chain(
-        project_root, project_name, config, config_module, pipeline_def, argv or [], console
-    )
-    results.update(chain_results)
-    if exit_code != 0:
-        return exit_code
+    preprocess_templates = []
+    final_preprocess_exp_dir = None
+    if resolved_preprocess_template:
+        config.preprocess_template = resolved_preprocess_template
+        exit_code, chain_results, final_preprocess_exp_dir, preprocess_templates = run_preprocess_chain(
+            project_root, project_name, config, config_module, pipeline_def, argv or [], console
+        )
+        results.update(chain_results)
+        if exit_code != 0:
+            return exit_code
 
     # Phase 2: Pipeline modules
     model_context = _build_module_context(

@@ -1,0 +1,32 @@
+model: autogluon_baseline
+preprocess_template: train_p10
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: true
+  included_model_types:
+  - GBM
+  - CAT
+  - XGB
+  hpo_preset: hpo_boost_best
+  num_trials: 500
+  search_space:
+    GBM:
+      device: gpu
+      ag_args_fit:
+        num_gpus: 1
+        num_cpus: 4
+    CAT:
+      task_type: GPU
+      devices: '0'
+      ag_args_fit:
+        num_gpus: 1
+        num_cpus: 4
+    XGB:
+      device: cuda
+      tree_method: hist
+      enable_categorical: true
+      n_jobs: 8
+      ag_args_fit:
+        num_gpus: 1
+        num_cpus: 4

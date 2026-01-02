@@ -1,0 +1,4 @@
+module: scaler
+cache: true
+config:
+  method: standard

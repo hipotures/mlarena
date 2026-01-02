@@ -1,0 +1,3 @@
+chain:
+- 20260101120100_sanity_check
+- 20260101120100_encoder_onehot

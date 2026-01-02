@@ -1,0 +1,4 @@
+module: train_fraction
+config:
+  train_fraction: 0.3
+  random_state: 42

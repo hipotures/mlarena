@@ -1,0 +1,114 @@
+model: autogluon_baseline
+preprocess_template: 20260101122500_chain_b2
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: false
+  included_model_types:
+  - GBM
+  - XGB
+  - CAT
+  random_state: 42
+  eval_metric: root_mean_squared_error
+  hyperparameters:
+    hyperparameter_tune_kwargs:
+      num_trials: 50
+      scheduler: local
+      searcher: auto
+    search_space:
+      GBM:
+        learning_rate:
+        - 0.01
+        - 0.3
+        - log
+        num_leaves:
+        - 20
+        - 150
+        - int
+        min_data_in_leaf:
+        - 10
+        - 50
+        - int
+        feature_fraction:
+        - 0.6
+        - 1.0
+        bagging_fraction:
+        - 0.6
+        - 1.0
+        bagging_freq:
+        - 1
+        - 7
+        - int
+        lambda_l1:
+        - 1.0e-05
+        - 10.0
+        - log
+        lambda_l2:
+        - 1.0e-05
+        - 10.0
+        - log
+        num_boost_round:
+        - 500
+        - 3000
+        - int
+      XGB:
+        learning_rate:
+        - 0.01
+        - 0.3
+        - log
+        max_depth:
+        - 3
+        - 8
+        - int
+        min_child_weight:
+        - 1
+        - 7
+        - int
+        subsample:
+        - 0.6
+        - 1.0
+        colsample_bytree:
+        - 0.6
+        - 1.0
+        gamma:
+        - 0.0
+        - 2.0
+        reg_alpha:
+        - 1.0e-05
+        - 10.0
+        - log
+        reg_lambda:
+        - 1.0e-05
+        - 10.0
+        - log
+        n_estimators:
+        - 500
+        - 3000
+        - int
+      CAT:
+        learning_rate:
+        - 0.01
+        - 0.3
+        - log
+        depth:
+        - 4
+        - 10
+        - int
+        l2_leaf_reg:
+        - 1.0
+        - 30.0
+        bagging_temperature:
+        - 0.0
+        - 1.5
+        random_strength:
+        - 0.0001
+        - 10.0
+        - log
+        border_count:
+        - 32
+        - 255
+        - int
+        iterations:
+        - 500
+        - 3000
+        - int

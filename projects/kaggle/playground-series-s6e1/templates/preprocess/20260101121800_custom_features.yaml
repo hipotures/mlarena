@@ -1,0 +1,4 @@
+module: custom_features
+cache: true
+config:
+  drop_original: true

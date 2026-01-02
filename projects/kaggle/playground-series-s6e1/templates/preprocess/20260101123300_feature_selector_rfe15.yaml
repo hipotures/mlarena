@@ -1,0 +1,5 @@
+module: feature_selector
+cache: true
+config:
+  method: rfe
+  k_features: 15

@@ -1,0 +1,6 @@
+chain:
+- 20260101122600_sanity_check
+- 20260101122600_encoder_target_oof
+- 20260101122600_feature_engineer_poly2
+- 20260101122600_feature_engineer_interact
+- 20260101122600_feature_selector_rfe20

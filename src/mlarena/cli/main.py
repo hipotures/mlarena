@@ -494,7 +494,7 @@ def run_auto_flow(
         project=project_name,
         module_name="model",
         config=config,
-        experiment_id=None,
+        experiment_id=config.experiment_id,
         config_module=config_module,
         pipeline_def=pipeline_def,
         argv=argv,

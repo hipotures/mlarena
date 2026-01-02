@@ -1,0 +1,10 @@
+module: feature_engineer
+cache: true
+config:
+  poly_degree: 2
+  poly_interaction_only: false
+  poly_include_bias: false
+  poly_columns:
+  - study_hours
+  - class_attendance
+  - sleep_hours

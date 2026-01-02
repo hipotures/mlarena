@@ -1,0 +1,7 @@
+module: encoder
+cache: true
+config:
+  encoding_method: target_mean
+  target_encoding_smoothing: 1.0
+  target_encoding_min_samples: 1
+  handle_unknown: ignore

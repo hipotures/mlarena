@@ -1,0 +1,5 @@
+module: rare_category_handler
+cache: true
+config:
+  min_freq_ratio: 0.005
+  rare_label: __RARE__

@@ -1,0 +1,12 @@
+module: feature_engineer
+cache: true
+config:
+  interaction_types:
+  - mul
+  numeric_pairs:
+  - - study_hours
+    - class_attendance
+  - - study_hours
+    - sleep_hours
+  - - class_attendance
+    - sleep_hours

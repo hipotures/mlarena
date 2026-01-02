@@ -164,20 +164,13 @@ run_experiment() {
 
     log_info "Running ${exp_id}: ${template} → ${exp_name}"
 
-    if $SCRIPT model --project $PROJECT --experiment-id "$exp_name" --model-template "$template" skip_submit=true; then
-        if $SCRIPT predict --project $PROJECT --experiment-id "$exp_name" skip_submit=true; then
-            log_success "${exp_id} completed successfully"
-            ((++TOTAL_RUN))
-            register_result "$exp_id" "$exp_name" "completed"
-            return 0
-        else
-            log_error "${exp_id} predict failed"
-            ((++TOTAL_FAIL))
-            register_result "$exp_id" "$exp_name" "failed"
-            return 1
-        fi
+    if $SCRIPT --project $PROJECT --experiment-id "$exp_name" --model-template "$template" skip_submit=true; then
+        log_success "${exp_id} completed successfully"
+        ((++TOTAL_RUN))
+        register_result "$exp_id" "$exp_name" "completed"
+        return 0
     else
-        log_error "${exp_id} model failed"
+        log_error "${exp_id} failed"
         ((++TOTAL_FAIL))
         register_result "$exp_id" "$exp_name" "failed"
         return 1

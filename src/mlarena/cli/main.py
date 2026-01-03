@@ -467,7 +467,6 @@ def run_auto_flow(
     resolved_preprocess_template = config.preprocess_template
     if not resolved_preprocess_template:
         try:
-            import sys
             sys.path.insert(0, str(REPO_ROOT / "scripts"))
             from template_loader import load_templates
 
@@ -850,16 +849,49 @@ def main(argv: List[str] | None = None) -> int:
     if command == "preprocess":
         from rich.console import Console
         console = Console(force_terminal=True)
-        
+
         # Check if project exists
         if not project_root.exists():
             print(f"[error] Project '{project}' not initialized. Run: mla init --project {project}")
             return 1
-            
+
         exit_code, _, _, _ = run_preprocess_chain(
             project_root, project, config, config_module, pipeline_def, argv, console
         )
         return exit_code
+
+    # Special case: model with auto-preprocessing
+    # Resolve and run preprocessing chain before model execution (similar to auto-flow)
+    final_preprocess_template = None
+    final_preprocess_exp_dir = None
+    if command == "model":
+        from rich.console import Console
+        console = Console(force_terminal=True)
+
+        # Resolve preprocess template (CLI arg or from model template)
+        resolved_preprocess_template = config.preprocess_template
+        if not resolved_preprocess_template:
+            try:
+                sys.path.insert(0, str(REPO_ROOT / "scripts"))
+                from template_loader import load_templates
+
+                model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
+                model_tpl_cfg = model_templates.get(config.model_template, {})
+                resolved_preprocess_template = model_tpl_cfg.get("preprocess_template")
+            except Exception:
+                resolved_preprocess_template = None
+
+        # Run preprocessing chain if template exists
+        preprocess_templates = []
+        if resolved_preprocess_template:
+            config.preprocess_template = resolved_preprocess_template
+            exit_code, chain_results, final_preprocess_exp_dir, preprocess_templates = run_preprocess_chain(
+                project_root, project, config, config_module, pipeline_def, argv, console
+            )
+            if exit_code != 0:
+                return exit_code
+
+            final_preprocess_template = preprocess_templates[-1] if preprocess_templates else resolved_preprocess_template
 
     state = ExperimentState.load_or_create(
         project_root=project_root,
@@ -889,12 +921,17 @@ def main(argv: List[str] | None = None) -> int:
             for field in ["model_template", "preprocess_template", "force", "skip_submit"]:
                 if hasattr(config, field):
                     params[field] = getattr(config, field)
-            
+
             # Also inject common fields (these override template defaults if explicitly set via CLI)
             for field, value in config.common.model_dump().items():
                 if value is not None:
                     params[field] = value
-                    
+
+            # Override with auto-resolved preprocessing params (for model command)
+            if name == "model" and final_preprocess_template:
+                params["preprocess_template"] = final_preprocess_template
+                params["preprocess_exp_dir"] = str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None
+
             module.set_invocation_params(params)
         modules[name] = module
 

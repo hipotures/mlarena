@@ -73,7 +73,7 @@ class PredictModule(BaseModule):
             pp_exp_dir = (model_entry.payload or {}).get("preprocess_exp_dir") or (model_entry.invocation or {}).get("preprocess_exp_dir")  # type: ignore[union-attr]
 
         if pp_template:
-            _, test_df_pp, _, _ = _load_processed_or_raw(
+            _, test_df_pp, _, _, _ = _load_processed_or_raw(
                 self.context,
                 config,
                 pp_template,

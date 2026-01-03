@@ -1,0 +1,11 @@
+**/experiments/**
+**/artifacts/**
+**/AutogluonModels/**
+**/data/*.csv
+**/data/*.csv.gz
+**/*.pkl
+**/*.zip
+**/__pycache__/**
+.venv/**
+.git/**
+.pytest_cache/**

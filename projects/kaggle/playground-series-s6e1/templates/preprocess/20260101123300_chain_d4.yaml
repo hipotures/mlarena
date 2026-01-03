@@ -1,6 +1,6 @@
 chain:
 - 20260101123300_sanity_check
 - 20260101123300_target_transformer_log1p
-- 20260101123300_encoder_target_oof
 - 20260101123300_custom_features
+- 20260101123300_encoder_target_oof
 - 20260101123300_feature_selector_rfe15

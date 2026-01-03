@@ -1,4 +1,4 @@
 chain:
 - 20260101122100_sanity_check
-- 20260101122100_encoder_target_oof
 - 20260101122100_custom_features
+- 20260101122100_encoder_target_oof

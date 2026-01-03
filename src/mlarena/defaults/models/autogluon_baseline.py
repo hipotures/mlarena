@@ -34,13 +34,14 @@ def train(
     artifacts: Optional[Dict[str, Any]] = None,
 ) -> Tuple[TabularPredictor, Dict[str, Any]]:
     """
-    Train AutoGluon model with optional external dataset merging.
+    Train AutoGluon model with optional external dataset merging and tuning data.
 
     If artifacts contains 'orig_df', it will be merged with train_df before training.
+    If artifacts contains 'tuning_df', it will be passed to AutoGluon for hyperparameter tuning.
 
     Args:
         train_df: Kaggle training data (preprocessed)
-        val_df: Validation data (optional, not used)
+        val_df: Validation data (DEPRECATED, use tuning_df in artifacts instead)
         config: Model configuration
             - config.dataset.sample_weight_strategy: Optional[str]
                 'auto_weight' - AutoGluon auto-balancing
@@ -54,6 +55,8 @@ def train(
         artifacts: Optional dict containing:
             - orig_df: External dataset (from external_dataset preprocessing module)
             - sample_weight: Sample weights (from imbalance_handler or av_weights)
+            - tuning_df: Validation data for hyperparameter tuning (from train_fraction module)
+            - eval_df: Offline evaluation data (for leaderboard only, NOT passed to fit)
 
     Returns:
         Tuple of (predictor, training_summary)
@@ -65,14 +68,18 @@ def train(
     time_limit = config.hyperparameters.time_limit or 300
     use_gpu = bool(config.hyperparameters.use_gpu)
 
-    # Check for orig_df in artifacts
+    # Check for orig_df, sample_weight, tuning_df, and eval_df in artifacts
     orig_df = None
     sample_weight = None
+    tuning_df = None
+    eval_df = None
     merged_rows = 0
 
     if artifacts:
         orig_df = artifacts.get("orig_df")
         sample_weight = artifacts.get("sample_weight")
+        tuning_df = artifacts.get("tuning_df")
+        eval_df = artifacts.get("eval_df")
 
     base_train_rows = len(train_df)
 
@@ -103,6 +110,28 @@ def train(
 
     if target_column not in train_data.columns:
         raise ValueError(f"Target column '{target_column}' not found in training data")
+
+    # Prepare tuning_data (same preprocessing as train_data)
+    tuning_data = None
+    if tuning_df is not None:
+        tuning_data = tuning_df.drop(columns=[c for c in drop_cols if c in tuning_df.columns], errors="ignore")
+
+        if target_column not in tuning_data.columns:
+            print(f"[AutoGluon Tuning] Warning: target '{target_column}' not in tuning_df, ignoring")
+            tuning_data = None
+        else:
+            print(f"[AutoGluon Tuning] Using tuning_data with {len(tuning_data):,} rows")
+
+    # Prepare eval_data (for offline leaderboard only, NOT passed to fit)
+    eval_data = None
+    if eval_df is not None:
+        eval_data = eval_df.drop(columns=[c for c in drop_cols if c in eval_df.columns], errors="ignore")
+
+        if target_column not in eval_data.columns:
+            print(f"[AutoGluon Eval] Warning: target '{target_column}' not in eval_df, ignoring")
+            eval_data = None
+        else:
+            print(f"[AutoGluon Eval] Using eval_data with {len(eval_data):,} rows for leaderboard")
 
     # Handle sample weights (if provided) and (optionally) extend for external rows.
     # Preprocessing weights are typically a single-column DataFrame (column name may vary).
@@ -166,6 +195,12 @@ def train(
                 sample_weight_param = "__sample_weight__"
                 train_data[sample_weight_param] = weights.values
                 print(f"[AutoGluon Sample Weights] Using sample weights from artifacts: {sample_weight_param}")
+
+                # Apply neutral weight to tuning data
+                if tuning_data is not None:
+                    tuning_weight = float(weights.mean()) if weights.notna().any() else 1.0
+                    tuning_data[sample_weight_param] = tuning_weight
+                    print(f"[AutoGluon Sample Weights] Applied neutral weight ({tuning_weight:.4f}) to tuning data")
             else:
                 print(
                     f"[AutoGluon Sample Weights] Ignoring sample weights: expected {expected_rows:,} rows, got {len(weights):,}"
@@ -205,6 +240,24 @@ def train(
         "time_limit": time_limit,
         "num_gpus": 1 if use_gpu else 0,
     }
+
+    if tuning_data is not None:
+        fit_kwargs["tuning_data"] = tuning_data
+
+        # Set use_bag_holdout if bagging enabled
+        num_bag_folds = getattr(config.hyperparameters, "num_bag_folds", 0)
+        num_bag_sets = getattr(config.hyperparameters, "num_bag_sets", None)
+        bagging_enabled = (num_bag_folds and num_bag_folds > 0) or (num_bag_sets and num_bag_sets > 0)
+
+        if bagging_enabled:
+            use_bag_holdout = True  # Default
+            # Allow template override via config.model dict
+            if hasattr(config, "model") and isinstance(config.model, dict):
+                use_bag_holdout = config.model.get("use_bag_holdout", True)
+
+            fit_kwargs["use_bag_holdout"] = use_bag_holdout
+            print(f"[AutoGluon Tuning] Bagging enabled with use_bag_holdout={use_bag_holdout}")
+
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
     included_models = getattr(config.hyperparameters, "included_model_types", None)
@@ -284,8 +337,16 @@ def train(
     best_model_name = predictor.model_best
     best_score = predictor.model_info(best_model_name).get("val_score")
 
-    # Get leaderboard for saving to file (called once here, not in model.py)
-    leaderboard = predictor.leaderboard(silent=True)
+    # Get leaderboard (use eval_data if provided for offline evaluation)
+    eval_score = None
+    if eval_data is not None:
+        leaderboard = predictor.leaderboard(data=eval_data, silent=True)
+        # Extract best model score on eval data
+        best_model_row = leaderboard[leaderboard['model'] == best_model_name]
+        eval_score = best_model_row['score_val'].values[0] if not best_model_row.empty else None
+        print(f"[AutoGluon Eval] Leaderboard score on eval_data: {eval_score}")
+    else:
+        leaderboard = predictor.leaderboard(silent=True)
 
     # Build training summary
     training_summary = {
@@ -296,6 +357,9 @@ def train(
         "used_orig": orig_df is not None,
         "orig_rows": merged_rows,
         "total_train_rows": len(train_df),
+        "tuning_rows": len(tuning_df) if tuning_df is not None else 0,
+        "eval_rows": len(eval_df) if eval_df is not None else 0,
+        "eval_score": eval_score if eval_score is not None else None,
         "preset": preset,
         "time_limit": time_limit,
         "use_gpu": use_gpu,

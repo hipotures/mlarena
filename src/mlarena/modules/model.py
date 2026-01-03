@@ -35,7 +35,7 @@ def _load_processed_or_raw(
             (e.g., experiments/pre-ps5e12_drift_mi/7-imbalance_handler)
 
     Returns:
-        Tuple of (train_df, test_df, sample_weight_df or None, orig_df or None)
+        Tuple of (train_df, test_df, sample_weight_df or None, orig_df or None, tuning_df or None)
     """
     import pandas as pd
     import json
@@ -46,13 +46,15 @@ def _load_processed_or_raw(
         train_path = exp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
         test_path = exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
         orig_path = exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
+        tuning_path = exp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
 
         if not train_path.exists():
-            return None, None, None, None
+            return None, None, None, None, None
 
         train_df_local = pd.read_csv(train_path, compression='infer')
         test_df_local = pd.read_csv(test_path, compression='infer') if test_path.exists() else None
         orig_df_local = pd.read_csv(orig_path, compression='infer') if orig_path.exists() else None
+        tuning_df_local = pd.read_csv(tuning_path, compression='infer') if tuning_path.exists() else None
 
         sample_weight_local = None
         state_path = exp_dir / "state.json"
@@ -81,21 +83,21 @@ def _load_processed_or_raw(
                 if weights_path.exists():
                     sample_weight_local = pd.read_csv(weights_path, compression='infer')
 
-        return train_df_local, test_df_local, sample_weight_local, orig_df_local
+        return train_df_local, test_df_local, sample_weight_local, orig_df_local, tuning_df_local
 
     if preprocess_template:
         # 1) Prefer explicit experiment dir (for chains)
         if preprocess_exp_dir:
             exp_dir = Path(preprocess_exp_dir)
-            train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(exp_dir)
+            train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(exp_dir)
             if train_df is not None:
-                return train_df, test_df, sample_weight, orig_df
+                return train_df, test_df, sample_weight, orig_df, tuning_df
 
         # 2) Try default single-step location (legacy)
         default_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
-        train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(default_dir)
+        train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(default_dir)
         if train_df is not None:
-            return train_df, test_df, sample_weight, orig_df
+            return train_df, test_df, sample_weight, orig_df, tuning_df
 
         # 3) Fallback: search meta-template chain dir (pre-{template}) and use last step
         chain_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
@@ -114,9 +116,9 @@ def _load_processed_or_raw(
             if candidates:
                 candidates.sort(reverse=True)
                 _, latest_dir = candidates[0]
-                train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(latest_dir)
+                train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(latest_dir)
                 if train_df is not None:
-                    return train_df, test_df, sample_weight, orig_df
+                    return train_df, test_df, sample_weight, orig_df, tuning_df
 
             # Also handle hashed chain dirs: pre-{template}/{hash}/<idx>-<module>
             hashed_latest = []
@@ -139,9 +141,9 @@ def _load_processed_or_raw(
                     hashed_latest.append(latest_step)
             if hashed_latest:
                 latest_dir = max(hashed_latest, key=lambda p: p.stat().st_mtime)
-                train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(latest_dir)
+                train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(latest_dir)
                 if train_df is not None:
-                    return train_df, test_df, sample_weight, orig_df
+                    return train_df, test_df, sample_weight, orig_df, tuning_df
 
         # 4) Fallback: search chain directories containing this template (pick most recent)
         experiments_dir = context.project_root / "experiments"
@@ -149,9 +151,9 @@ def _load_processed_or_raw(
         candidates += list(experiments_dir.glob(f"pre-*/*/[0-9]*-{preprocess_template}"))
         candidates = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
         for exp_dir in candidates:
-            train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(exp_dir)
+            train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(exp_dir)
             if train_df is not None:
-                return train_df, test_df, sample_weight, orig_df
+                return train_df, test_df, sample_weight, orig_df, tuning_df
 
         raise FileNotFoundError(
             f"Preprocessed data not found for template '{preprocess_template}'.\n"
@@ -159,13 +161,14 @@ def _load_processed_or_raw(
             f"Run: python scripts/mla.py preprocess --project {context.project_name} --preprocess-template {preprocess_template}"
         )
     else:
-        # Use raw data (no orig in raw data)
+        # Use raw data (no orig in raw data, no tuning)
         train_path, test_path = data_paths(config)
         train_df = pd.read_csv(train_path, compression='infer')
         test_df = pd.read_csv(test_path, compression='infer') if test_path.exists() else None
         orig_df = None
+        tuning_df = None
 
-    return train_df, test_df, sample_weight, orig_df
+    return train_df, test_df, sample_weight, orig_df, tuning_df
 
 
 def _resolve_model_path(project_root: Path, model_name: str) -> Path:
@@ -565,12 +568,43 @@ class ModelModule(BaseModule):
         if not preprocess_template:
             preprocess_template = template_cfg.get("preprocess_template")
 
-        train_df, test_df, sample_weight, orig_df = _load_processed_or_raw(
+        train_df, test_df, sample_weight, orig_df, tuning_df = _load_processed_or_raw(
             self.context,
             config,
             preprocess_template,
             preprocess_exp_dir=preprocess_exp_dir,
         )
+
+        # Load eval data from custom_module_state (if train_fraction module created it)
+        eval_df = None
+        if preprocess_exp_dir:
+            import json
+            state_path = Path(preprocess_exp_dir) / "state.json"
+            if state_path.exists():
+                try:
+                    with open(state_path) as f:
+                        state = json.load(f)
+                    # For chains, get the first module (should be the preprocessing step)
+                    modules = state.get("modules", {})
+                    if modules:
+                        preprocess_module = modules.get("preprocess") or next(iter(modules.values()))
+                        preprocess_payload = preprocess_module.get("payload", {})
+                    else:
+                        preprocess_payload = {}
+
+                    # Check for eval_path in custom_module_state (new format)
+                    custom_state = preprocess_payload.get("custom_module_state", {})
+                    eval_path_str = custom_state.get("eval_path")
+                    if eval_path_str:
+                        eval_path = Path(eval_path_str)
+                        if not eval_path.is_absolute():
+                            eval_path = self.context.project_root / eval_path
+                        if eval_path.exists():
+                            import pandas as pd
+                            eval_df = pd.read_csv(eval_path, compression='infer')
+                except Exception:
+                    pass  # Silently ignore errors loading eval data
+
         target = getattr(config, "TARGET_COLUMN", None)
         if target is None or target not in train_df.columns:
             marker = artifact_dir / "model_failed.txt"
@@ -587,12 +621,16 @@ class ModelModule(BaseModule):
         # Build ModelConfig for model interface
         model_config = self._build_model_config(template_cfg, config, preset, time_limit, use_gpu_param, artifact_dir)
 
-        # Build artifacts dict with orig_df and sample_weight
+        # Build artifacts dict with orig_df, sample_weight, tuning_df, and eval_df
         artifacts = {}
         if orig_df is not None:
             artifacts['orig_df'] = orig_df
         if sample_weight is not None:
             artifacts['sample_weight'] = sample_weight
+        if tuning_df is not None:
+            artifacts['tuning_df'] = tuning_df
+        if eval_df is not None:
+            artifacts['eval_df'] = eval_df
 
         # Call train()
         console.print("[green]Training model...[/green]")
@@ -649,6 +687,7 @@ class ModelModule(BaseModule):
                 "template": template_name,
                 "preprocess_template": preprocess_template,
                 "leaderboard": str(lb_path) if lb_path else None,
+                "tuning_rows": len(tuning_df) if tuning_df is not None else 0,
             },
             artifacts=[f for f in [artifact_dir / "model", lb_path] if f and f.exists()],
         )

@@ -1,6 +1,6 @@
 model: autogluon_baseline
 preprocess_template: train_p60
-preset: medium_quality_faster_train
+preset: high # medium_quality_faster_train
 time_limit: 600
 use_gpu: false
 seed: 42
@@ -10,5 +10,7 @@ included_model_types:
 fit_args:
   keep_only_best: true
   save_space: true
-  holdout_frac: 0.1
+  #holdout_frac: 0.1
   fit_weighted_ensemble: false
+  auto_stack: false
+  use_bag_holdout: true

@@ -1,0 +1,20 @@
+module: train_fraction
+cache: true
+config:
+  # Fraction of training data to keep (0, 1]
+  train_fraction: 0.6
+
+  # Fraction of training data for validation/tuning [0, 1)
+  # Set to 0 to disable validation split (default: 0.0)
+  valid_fraction: 0.1
+
+  # Fraction of training data for offline evaluation/leaderboard [0, 1)
+  # Set to 0 to disable (default: 0.0)
+  # Used only for predictor.leaderboard(), NOT passed to fit()
+  eval_fraction: 0.1
+
+  # Random seed for reproducibility
+  random_state: 42
+
+  # NOTE: train_fraction + valid_fraction + eval_fraction must be <= 1.0
+  # Example: 0.6 + 0.1 + 0.1 = 0.8 (20% discarded)

@@ -166,22 +166,35 @@ class PreprocessModule(BaseModule):
 
         processed_train = artifact_dir / "train_processed.csv.gz"
         processed_test = artifact_dir / "test_processed.csv.gz"
+        processed_tuning = artifact_dir / "tuning_processed.csv.gz"
 
         console = Console(force_terminal=True)
 
         if cache_ok and processed_train.exists() and processed_test.exists():
             console.print(f"\n[bold yellow]Using cached preprocessed data[/bold yellow]")
 
+            # Check if tuning and eval files exist in cache
+            tuning_exists = processed_tuning.exists()
+            processed_eval = artifact_dir / "eval_processed.csv.gz"
+            eval_exists = processed_eval.exists()
+
+            artifacts_list = [processed_train, processed_test]
+            if tuning_exists:
+                artifacts_list.append(processed_tuning)
+            if eval_exists:
+                artifacts_list.append(processed_eval)
+
             return ModuleResult(
                 success=True,
                 payload={
                     "train_processed": str(processed_train),
                     "test_processed": str(processed_test),
+                    "tuning_processed": str(processed_tuning) if tuning_exists else None,
                     "cached": True,
                     "template": template_name,
                     "input_source": input_source,
                 },
-                artifacts=[processed_train, processed_test],
+                artifacts=artifacts_list,
             )
 
         # Load input data (from previous preprocessing step or raw data)
@@ -193,6 +206,7 @@ class PreprocessModule(BaseModule):
             train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
             test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
             orig_path = prev_exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
+            tuning_path = prev_exp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
 
             if not train_path.exists():
                 raise FileNotFoundError(
@@ -217,6 +231,7 @@ class PreprocessModule(BaseModule):
             # First step: load raw data
             train_path, test_path = data_paths(config)
             orig_path = None  # No orig at start of chain
+            tuning_path = None  # No tuning at start of chain
 
             if not train_path.exists() or not test_path.exists():
                 marker = artifact_dir / "preprocess_skipped.txt"
@@ -226,11 +241,13 @@ class PreprocessModule(BaseModule):
         train_df = pd.read_csv(train_path, compression='infer')
         test_df = pd.read_csv(test_path, compression='infer')
         orig_df = pd.read_csv(orig_path, compression='infer') if orig_path and orig_path.exists() else None
+        tuning_df = pd.read_csv(tuning_path, compression='infer') if tuning_path and tuning_path.exists() else None
 
         # Store original shapes
         orig_train_shape = train_df.shape
         orig_test_shape = test_df.shape
         orig_orig_shape = orig_df.shape if orig_df is not None else None
+        orig_tuning_shape = tuning_df.shape if tuning_df is not None else None
 
         # Get ignored columns for later use
         ignored = getattr(config, "IGNORED_COLUMNS", []) or []
@@ -277,7 +294,7 @@ class PreprocessModule(BaseModule):
                 if supports_orig_df:
                     result = preprocess_module.fit_transform(
                         train_df=train_df,
-                        val_df=None,
+                        val_df=tuning_df,
                         test_df=test_df,
                         config=preprocess_config,
                         orig_df=orig_df,
@@ -285,19 +302,20 @@ class PreprocessModule(BaseModule):
                 else:
                     result = preprocess_module.fit_transform(
                         train_df=train_df,
-                        val_df=None,
+                        val_df=tuning_df,
                         test_df=test_df,
                         config=preprocess_config,
                     )
 
                 # Handle both old (4-tuple) and new (5-tuple) return signatures
                 if len(result) == 5:
-                    # New modules: return train, val, test, orig, state
-                    train_df, val_df, test_df, orig_df, custom_preprocess_state = result
+                    # New modules: return train, tuning, test, orig, state
+                    train_df, tuning_df, test_df, orig_df, custom_preprocess_state = result
                 elif len(result) == 4:
-                    # Old modules: return train, val, test, state (no orig)
-                    train_df, val_df, test_df, custom_preprocess_state = result
+                    # Old modules: return train, val (None), test, state (no orig)
+                    train_df, _, test_df, custom_preprocess_state = result
                     orig_df = None  # Old modules don't support orig
+                    tuning_df = None  # Old modules don't support tuning
                 else:
                     raise ValueError(
                         f"Invalid fit_transform return signature: expected 4 or 5 values, got {len(result)}"
@@ -334,6 +352,12 @@ class PreprocessModule(BaseModule):
             processed_orig = artifact_dir / "orig_processed.csv.gz"
             orig_df.to_csv(processed_orig, index=False, compression='infer')
 
+        # Save tuning if present
+        processed_tuning_final = None
+        if tuning_df is not None:
+            processed_tuning_final = artifact_dir / "tuning_processed.csv.gz"
+            tuning_df.to_csv(processed_tuning_final, index=False, compression='infer')
+
         # Prepare payload with custom preprocessing state
         # For pass-through modules, shapes before/after are the same (no modification)
         if is_pass_through:
@@ -344,6 +368,8 @@ class PreprocessModule(BaseModule):
                 "test_after": orig_test_shape,  # Same as input
                 "orig_before": orig_orig_shape,
                 "orig_after": orig_orig_shape,  # Same as input
+                "tuning_before": orig_tuning_shape,
+                "tuning_after": orig_tuning_shape,  # Same as input
                 "pass_through": True,  # Flag for display
             }
         else:
@@ -354,6 +380,8 @@ class PreprocessModule(BaseModule):
                 "test_after": test_df.shape,
                 "orig_before": orig_orig_shape,
                 "orig_after": orig_df.shape if orig_df is not None else None,
+                "tuning_before": orig_tuning_shape,
+                "tuning_after": tuning_df.shape if tuning_df is not None else None,
                 "pass_through": False,
             }
 
@@ -361,6 +389,7 @@ class PreprocessModule(BaseModule):
             "train_processed": str(processed_train),
             "test_processed": str(processed_test),
             "orig_processed": str(processed_orig) if processed_orig else None,
+            "tuning_processed": str(processed_tuning_final) if processed_tuning_final else None,
             "ignored_columns": ignored,
             "template": template_name,
             "input_source": input_source,  # Track previous step in chain
@@ -379,10 +408,20 @@ class PreprocessModule(BaseModule):
 
         # Next steps will be printed by pipeline after footer (only for last in chain)
 
-        # Build artifacts list (include orig if present)
+        # Build artifacts list (include orig, tuning, and eval if present)
         artifacts_list = [processed_train, processed_test]
         if processed_orig:
             artifacts_list.append(processed_orig)
+        if processed_tuning_final:
+            artifacts_list.append(processed_tuning_final)
+
+        # Add eval file if present (saved directly by train_fraction module)
+        if final_custom_state and "eval_path" in final_custom_state:
+            eval_path = Path(final_custom_state["eval_path"])
+            if not eval_path.is_absolute():
+                eval_path = self.context.project_root / eval_path
+            if eval_path.exists():
+                artifacts_list.append(eval_path)
 
         return ModuleResult(
             success=True,

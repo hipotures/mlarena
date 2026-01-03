@@ -159,8 +159,24 @@ class PipelineExecutor:
                     shapes = payload.get("shapes", {})
                     train_after = shapes.get("train_after")
                     test_after = shapes.get("test_after")
-                    if train_after or test_after:
-                        return {"train": train_after, "test": test_after}
+                    tuning_after = shapes.get("tuning_after")
+
+                    # Get eval rows from custom_module_state
+                    custom_state = payload.get("custom_module_state", {})
+                    eval_rows = custom_state.get("eval_rows")
+
+                    result = {}
+                    if train_after:
+                        result["train"] = train_after
+                    if test_after:
+                        result["test"] = test_after
+                    if tuning_after:
+                        result["tuning"] = tuning_after
+                    if eval_rows:
+                        # Format as (rows, ?) since we don't have column count for eval
+                        result["eval"] = (eval_rows, None)
+
+                    return result if result else None
                 except Exception:
                     return None
                 return None
@@ -210,8 +226,18 @@ class PipelineExecutor:
             if pp_dir:
                 train_pp = pp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
                 test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
+                tuning_pp = pp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
+                eval_pp = pp_dir / "artifacts" / "preprocess" / "eval_processed.csv.gz"
+
                 input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
                 input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
+
+                # Add tuning and eval if they exist
+                if tuning_pp.exists():
+                    input_paths["tuning"] = format_path_relative(tuning_pp, module.context.project_root)
+                if eval_pp.exists():
+                    input_paths["eval"] = format_path_relative(eval_pp, module.context.project_root)
+
                 # Try state.json in this dir; if not found, try chain root / latest step
                 shapes_meta = _load_shapes_from_chain_root(pp_dir)
                 if shapes_meta:
@@ -509,6 +535,10 @@ class PipelineExecutor:
                                 output_paths["train"] = format_path_relative(payload["train_processed"], module.context.project_root)
                             if "test_processed" in payload:
                                 output_paths["test"] = format_path_relative(payload["test_processed"], module.context.project_root)
+                            if "orig_processed" in payload and payload["orig_processed"]:
+                                output_paths["orig"] = format_path_relative(payload["orig_processed"], module.context.project_root)
+                            if "tuning_processed" in payload and payload["tuning_processed"]:
+                                output_paths["tuning"] = format_path_relative(payload["tuning_processed"], module.context.project_root)
 
                         # Always show auxiliary outputs (e.g., weights)
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:

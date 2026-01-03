@@ -1,4 +1,5 @@
 module: train_fraction
+cache: true
 config:
   train_fraction: 0.6
   valid_fraction: 0.1

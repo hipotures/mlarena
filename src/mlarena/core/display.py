@@ -271,6 +271,8 @@ def build_path_tree_for_chain(
                 "orig_processed": "orig_processed",
                 "orig": "orig_processed",
                 "original": "orig_processed",
+                "tuning_processed": "tuning_processed",
+                "tuning": "tuning_processed",
             }
             for key, value in paths.items():
                 if key == "__shapes__":
@@ -309,7 +311,8 @@ def build_path_tree_for_chain(
                     chain_history.append({
                         "step": step_dir.name,  # "0-imputer"
                         "paths": processed_paths,
-                        "shapes": payload.get("shapes", {})
+                        "shapes": payload.get("shapes", {}),
+                        "custom_module_state": payload.get("custom_module_state", {})
                     })
                 except (json.JSONDecodeError, KeyError):
                     # Skip malformed state files
@@ -375,8 +378,8 @@ def build_path_tree_for_chain(
             paths_dict = step_info.get("paths", {})
             shapes_dict = step_info.get("shapes", {})
 
-            # Process train/test/orig processed files
-            for file_key in ["train_processed", "test_processed", "orig_processed"]:
+            # Process train/test/orig/tuning processed files
+            for file_key in ["train_processed", "test_processed", "orig_processed", "tuning_processed"]:
                 if file_key in paths_dict:
                     file_path = paths_dict[file_key]
                     if file_path:  # Skip None values
@@ -392,6 +395,18 @@ def build_path_tree_for_chain(
                         # Add file node with color coding
                         file_label = _style_label(f"📄 {filename}{shape_annotation}", step_style, dim=not is_active)
                         preprocess_node.add(file_label)
+
+            # Add eval_processed if present in custom_module_state
+            custom_state = step_info.get("custom_module_state", {})
+            if "eval_path" in custom_state:
+                eval_path_str = custom_state["eval_path"]
+                if eval_path_str:
+                    filename = Path(eval_path_str).name
+                    # Try to get row count from custom_module_state
+                    eval_rows = custom_state.get("eval_rows")
+                    shape_annotation = f" ({eval_rows:,} rows)" if eval_rows else ""
+                    file_label = _style_label(f"📄 {filename}{shape_annotation}", step_style, dim=not is_active)
+                    preprocess_node.add(file_label)
 
         return tree
 
@@ -624,22 +639,10 @@ def print_module_header(
     path_tree = None
     use_preprocess_tree = False
 
-    if module_name == "preprocess":
-        chain_exp_id = cli_invocation.get("chain_exp_id") if cli_invocation else None
-        input_source = cli_invocation.get("input_source") if cli_invocation else None
-        if experiment_id and "/" in experiment_id:
-            current_step = experiment_id.split("/")[-1]
-
-        path_tree = build_path_tree_for_chain(
-            current_paths=output_paths,
-            current_shapes=None,
-            chain_exp_id=chain_exp_id,
-            input_source=input_source,
-            current_step=current_step,
-            is_header=True,
-            project_root=project_root
-        )
-        use_preprocess_tree = path_tree is not None
+    # Disable tree in header for preprocessing - only show in footer
+    # Header should show INPUT (raw data), tree shows historical chain state
+    use_preprocess_tree = False
+    path_tree = None
 
     # Parse timestamp
     try:
@@ -784,10 +787,21 @@ def print_module_header(
             if shapes_meta:
                 train_shape = shapes_meta.get("train")
                 test_shape = shapes_meta.get("test")
+                tuning_shape = shapes_meta.get("tuning")
+                eval_shape = shapes_meta.get("eval")
+
                 if train_shape:
                     lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Train: {train_shape[0]:,} × {train_shape[1]}")
                 if test_shape:
                     lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Test: {test_shape[0]:,} × {test_shape[1]}")
+                if tuning_shape:
+                    lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Tuning: {tuning_shape[0]:,} × {tuning_shape[1]}")
+                if eval_shape:
+                    # eval_shape might be (rows, None) if column count unknown
+                    if eval_shape[1] is not None:
+                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Eval: {eval_shape[0]:,} × {eval_shape[1]}")
+                    else:
+                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Eval: {eval_shape[0]:,} rows")
 
         # Output paths (expected)
         if output_paths:

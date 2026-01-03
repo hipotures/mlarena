@@ -266,6 +266,40 @@ def _print_training_summary(
     from rich.table import Table
     from mlarena.core.module import print_next_steps
 
+    def _print_leaderboard_table(path: Path, columns: list[str]) -> None:
+        import numbers
+        import pandas as pd
+
+        try:
+            leaderboard = pd.read_csv(path, compression="infer")
+        except Exception:
+            return
+
+        available_columns = [column for column in columns if column in leaderboard.columns]
+        if not available_columns:
+            return
+
+        table = Table(title="Leaderboard (selected columns)", show_header=True)
+        for column in available_columns:
+            table.add_column(column, style="cyan")
+
+        def _format_value(value: object) -> str:
+            if pd.isna(value):
+                return ""
+            if isinstance(value, bool):
+                return str(value)
+            if isinstance(value, numbers.Number):
+                if isinstance(value, numbers.Integral):
+                    return f"{int(value)}"
+                return f"{float(value):.6f}"
+            return str(value)
+
+        for _, row in leaderboard[available_columns].iterrows():
+            table.add_row(*[_format_value(row[column]) for column in available_columns])
+
+        console.print("\n")
+        console.print(table)
+
     # Training configuration table
     config_table = Table(title="Training Configuration", show_header=True)
     config_table.add_column("Parameter", style="cyan")
@@ -289,6 +323,10 @@ def _print_training_summary(
     console.print(f"\n[bold green]✓[/bold green] Training completed:")
     if leaderboard_path and leaderboard_path.exists():
         console.print(f"  Leaderboard: [cyan]{leaderboard_path.relative_to(project_root)}[/cyan]")
+        _print_leaderboard_table(
+            leaderboard_path,
+            ["model", "score_test", "score_val", "eval_metric", "stack_level"],
+        )
 
 
 @ModuleRegistry.register

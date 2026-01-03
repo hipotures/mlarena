@@ -744,3 +744,33 @@ No-op
 Path: ``src/mlarena/defaults/preprocessing/noop.py``
 
 No configuration; smoke-test module that writes a minimal report without transforming the data.
+
+Train Fraction
+--------------
+
+Path: ``src/mlarena/defaults/preprocessing/train_fraction.py``
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 14 14 50
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - train_fraction
+     - float
+     - 1.0
+     - Fraction of original data to use for training (0, 1].
+   * - valid_fraction
+     - float
+     - 0.0
+     - Fraction of original data for validation/tuning [0, 1).
+   * - eval_fraction
+     - float
+     - 0.0
+     - Fraction of original data for offline evaluation [0, 1).
+   * - random_state
+     - int
+     - 42
+     - Seed for reproducibility.

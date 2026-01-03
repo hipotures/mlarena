@@ -28,6 +28,7 @@ Common keys:
 
 - `model`: Python module to load (project module preferred over `src/mlarena/defaults/models/` when both exist).
 - `preprocess_template`: Name of the preprocessing template to pair with this model (optional).
+- `mla_retention`: Boolean (default: `false`). If `true`, cleans up intermediate AutoGluon models after training to save disk space while keeping the best model for predictions.
 - `config`: Passed through to the model implementation; typically includes `preset`, `time_limit`, `use_gpu`, `hyperparameters`, and optional HPO fields such as `hpo_preset`, `search_space`, and `hyperparameter_tune_kwargs`.
 
 ## AutoGluon HPO layout

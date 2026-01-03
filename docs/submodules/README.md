@@ -80,6 +80,28 @@ The documentation should include:
 - [ ] Logs shape changes and new columns created
 - [ ] **Documentation created** in `docs/submodules/{name}.md`
 
+## Available Sub-Modules
+
+Detailed documentation for each sub-module:
+
+- **[sanity_check.md](sanity_check.md)**: Basic cleaning and data type enforcement.
+- **[imputer.md](imputer.md)**: Missing value imputation (numeric and categorical).
+- **[rare_category_handler.md](rare_category_handler.md)**: Group rare categories to reduce cardinality.
+- **[encoder.md](encoder.md)**: Categorical encoding (one-hot, target, catboost, hashing).
+- **[categorical_encoder.md](categorical_encoder.md)**: Advanced pandas-native categorical conversion using EDA metadata.
+- **[scaler.md](scaler.md)**: Numerical scaling and distribution transformations.
+- **[drift_detector.md](drift_detector.md)**: Detection and removal of drifting features between train/test.
+- **[feature_engineer.md](feature_engineer.md)**: Automatic creation of interaction and polynomial features.
+- **[feature_selector.md](feature_selector.md)**: Automated feature selection using multiple methods.
+- **[imbalance_handler.md](imbalance_handler.md)**: Handling class imbalance via weighting or resampling.
+- **[outlier_handler.md](outlier_handler.md)**: Detection and handling of numeric outliers.
+- **[datetime_handler.md](datetime_handler.md)**: Parsing and expanding datetime columns.
+- **[target_transformer.md](target_transformer.md)**: Transformations for regression target columns.
+- **[adversarial_validation.md](adversarial_validation.md)**: Distribution shift handling via AV weighting.
+- **[external_dataset.md](external_dataset.md)**: Loading and aligning external/original datasets.
+- **[train_fraction.md](train_fraction.md)**: Training data subsampling and validation/evaluation splitting.
+- **[utility_modules.md](utility_modules.md)**: Minimal modules like `noop` and `identity` for testing.
+
 ## Utilities Available
 
 ### validation.py

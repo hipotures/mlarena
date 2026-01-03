@@ -392,31 +392,161 @@ class PipelineExecutor:
                     # Let init module execute to show config
                     pass
                 elif name == module_name:
-                    # Target module is already completed - show warning and skip
+                    # Target module is already completed - show full header/footer with "Already completed" status
                     console = Console(force_terminal=True)
-                    completed_time_raw = state_entry.finished_at or state_entry.started_at or "unknown"
 
-                    # Format timestamp to seconds (remove microseconds and timezone)
-                    if completed_time_raw != "unknown":
-                        try:
-                            dt_obj = dt.fromisoformat(completed_time_raw.replace('Z', '+00:00'))
-                            completed_time = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
-                        except Exception:
-                            completed_time = completed_time_raw
-                    else:
-                        completed_time = completed_time_raw
+                    # Collect header data (same as normal execution)
+                    try:
+                        header_data = self._collect_module_header_data(name, module)
+                    except Exception as e:
+                        console.print(f"[dim red]Data collection error: {e}[/dim red]")
+                        header_data = {}
 
-                    info_table = Table(show_header=False, box=None)
-                    info_table.add_column(style="bold")
-                    info_table.add_column(style="green")
-                    info_table.add_row("Status:", "Already completed")
-                    info_table.add_row("Completed at:", completed_time)
+                    # Get started_at from state_entry
+                    started_at = state_entry.started_at or dt.now().isoformat()
 
-                    console.print(Panel(
-                        info_table,
-                        title=f"[bold yellow]{name.upper()}[/bold yellow]",
-                        border_style="yellow"
-                    ))
+                    # Display module header with collected data
+                    try:
+                        print_module_header(
+                            module_name=name,
+                            started_at=started_at,
+                            experiment_id=module.context.experiment_id,
+                            template_name=header_data.get("template_name"),
+                            template_config=header_data.get("template_config"),
+                            cli_overrides=header_data.get("cli_overrides"),
+                            cli_invocation=getattr(module, "invocation_params", {}),
+                            input_paths=header_data.get("input_paths"),
+                            output_paths=header_data.get("output_paths"),
+                            project_root=module.context.project_root,
+                            project_name=module.context.project_name,
+                            console=console
+                        )
+                    except Exception as e:
+                        # Fallback to simple header if display fails
+                        console.print(f"[dim red]Header display error: {e}[/dim red]")
+                        start_time = dt.now().strftime("%Y-%m-%d %H:%M:%S")
+                        header_content = f"[bold]Started:[/bold] {start_time}"
+                        console.print(Panel(header_content, title=f"[bold cyan]{name.upper()}[/bold cyan]", border_style="cyan"))
+
+                    # Calculate duration
+                    completed_time_raw = state_entry.finished_at or state_entry.started_at or dt.now().isoformat()
+                    try:
+                        started_dt = dt.fromisoformat(started_at.replace('Z', '+00:00'))
+                        finished_dt = dt.fromisoformat(completed_time_raw.replace('Z', '+00:00'))
+                        duration = (finished_dt - started_dt).total_seconds()
+                    except Exception:
+                        duration = 0.0
+
+                    # Extract data for footer from payload
+                    payload = state_entry.payload or {}
+                    output_paths = {}
+                    metrics = {}
+                    shapes = payload.get("shapes")
+
+                    # Module-specific path extraction (same as lines 556-637 in normal execution)
+                    if name == "preprocess":
+                        # For pass-through modules, don't show train/test outputs (they're unchanged copies)
+                        is_pass_through = shapes and shapes.get("pass_through", False)
+
+                        if not is_pass_through:
+                            if "train_processed" in payload:
+                                output_paths["train"] = format_path_relative(payload["train_processed"], module.context.project_root)
+                            if "test_processed" in payload:
+                                output_paths["test"] = format_path_relative(payload["test_processed"], module.context.project_root)
+                            if "orig_processed" in payload and payload["orig_processed"]:
+                                output_paths["orig"] = format_path_relative(payload["orig_processed"], module.context.project_root)
+                            if "tuning_processed" in payload and payload["tuning_processed"]:
+                                output_paths["tuning"] = format_path_relative(payload["tuning_processed"], module.context.project_root)
+
+                        # Always show auxiliary outputs (e.g., weights)
+                        if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
+                            output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)
+                        if "custom_module_state" in payload and "av_stats" in payload["custom_module_state"]:
+                            metrics["av_stats"] = payload["custom_module_state"]["av_stats"]
+                            if "output_rows" in payload["custom_module_state"]:
+                                metrics["clipped_rows"] = payload["custom_module_state"]["output_rows"]
+                    elif name == "model":
+                        if "model_artifact" in payload:
+                            output_paths["model"] = format_path_relative(payload.get("model_artifact"), module.context.project_root)
+                        if "leaderboard" in payload:
+                            output_paths["leaderboard"] = format_path_relative(payload.get("leaderboard"), module.context.project_root)
+                        if "submission_file" in payload:
+                            output_paths["submission"] = format_path_relative(payload.get("submission_file"), module.context.project_root)
+                        if "local_cv_score" in payload:
+                            metrics["local_cv_score"] = payload["local_cv_score"]
+                        if "best_model" in payload:
+                            metrics["best_model"] = payload["best_model"]
+                    elif name == "eda":
+                        # Only add string paths, skip dict data
+                        if "summary_file" in payload and isinstance(payload.get("summary_file"), str):
+                            output_paths["summary"] = format_path_relative(payload.get("summary_file"), module.context.project_root)
+                        if "train_profile_path" in payload:
+                            output_paths["train_profile"] = format_path_relative(payload.get("train_profile_path"), module.context.project_root)
+                        if "test_profile_path" in payload:
+                            output_paths["test_profile"] = format_path_relative(payload.get("test_profile_path"), module.context.project_root)
+
+                        # Extract key statistics from train/test profiles
+                        if "train_profile" in payload and isinstance(payload["train_profile"], dict):
+                            train_prof = payload["train_profile"]
+                            if "summary" in train_prof and "table" in train_prof["summary"]:
+                                table = train_prof["summary"]["table"]
+                                metrics["train_shape"] = f"{table.get('n', 0):,} × {table.get('n_var', 0)}"
+                                if table.get("n_cells_missing", 0) > 0:
+                                    metrics["train_missing"] = f"{table.get('n_cells_missing'):,} cells ({table.get('p_cells_missing', 0)*100:.1f}%)"
+
+                        if "test_profile" in payload and isinstance(payload["test_profile"], dict):
+                            test_prof = payload["test_profile"]
+                            if "summary" in test_prof and "table" in test_prof["summary"]:
+                                table = test_prof["summary"]["table"]
+                                metrics["test_shape"] = f"{table.get('n', 0):,} × {table.get('n_var', 0)}"
+
+                        if "target" in payload:
+                            metrics["target"] = payload["target"]
+
+                    elif name == "predict":
+                        # Only show submission file (predictions and submission_file are the same)
+                        if "submission_file" in payload:
+                            output_paths["submission"] = format_path_relative(payload["submission_file"], module.context.project_root)
+
+                    elif name == "submit":
+                        if "submission_file" in payload:
+                            output_paths["submission"] = format_path_relative(payload["submission_file"], module.context.project_root)
+                        if "local_cv_score" in payload:
+                            metrics["local_cv_score"] = payload["local_cv_score"]
+                        if "public_score" in payload and payload["public_score"]:
+                            metrics["public_score"] = payload["public_score"]
+
+                    elif name == "fetch-score":
+                        if "score" in payload and payload["score"]:
+                            metrics["public_score"] = payload["score"]
+                        submission_info = payload.get("matched_submission") or payload.get("latest_submission")
+                        if submission_info:
+                            metrics["submission_id"] = submission_info
+                        if payload.get("target_submission"):
+                            metrics["submission_target"] = payload["target_submission"]
+
+                    # Add "Already completed" status in red
+                    metrics["status"] = "✓ [red]Already completed[/red]"
+
+                    # Display footer with all information
+                    try:
+                        print_module_footer(
+                            module_name=name,
+                            finished_at=completed_time_raw,
+                            duration=duration,
+                            output_paths=output_paths,
+                            metrics=metrics,
+                            shapes=shapes,
+                            project_root=module.context.project_root,
+                            project_name=module.context.project_name,
+                            experiment_id=module.context.experiment_id,
+                            cli_invocation=getattr(module, "invocation_params", {}),
+                            console=console
+                        )
+                    except Exception as e:
+                        # Fallback to simple footer if display fails
+                        console.print(f"[dim red]Footer display error: {e}[/dim red]")
+
                     console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
 
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)

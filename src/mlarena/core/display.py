@@ -964,12 +964,13 @@ def print_module_footer(
         lines.append("")
         lines.append(f"[bold red]Error:[/bold red] {error}")
     else:
-        # Output files
+        # Output files (cache_status moved to end, after all content)
         if output_paths:
-            lines.append("")
             if module_name == "preprocess" and use_preprocess_tree:
+                # Don't add empty line here - will be added before tree in content_renderable
                 pass
             else:
+                lines.append("")
                 lines.append(f"[{COLOR_KEY}]Output Files:[/{COLOR_KEY}]")
                 # Original format for non-preprocessing modules
                 for key, path in output_paths.items():
@@ -1028,16 +1029,6 @@ def print_module_footer(
 
         # Module-specific metrics
         if metrics:
-            cache_status = metrics.get("cache_status")
-            if cache_status:
-                cache_text = str(cache_status)
-                cached_idx = cache_text.find("Cached")
-                if cached_idx != -1:
-                    prefix = cache_text[:cached_idx]
-                    cached_text = cache_text[cached_idx:]
-                    cache_text = f"{prefix}[red]{cached_text}[/red]"
-                lines.append(f"[{COLOR_KEY}]Cache Status:[/{COLOR_KEY}] {cache_text}")
-
             # AV statistics (for preprocess with adversarial validation)
             if "av_stats" in metrics:
                 av_stats = metrics["av_stats"]
@@ -1062,18 +1053,50 @@ def print_module_footer(
 
             # Other metrics
             for key, value in metrics.items():
-                if key not in ["av_stats", "clipped_rows", "local_cv_score", "best_model", "cache_status"]:
+                if key not in ["av_stats", "clipped_rows", "local_cv_score", "best_model", "cache_status", "status"]:
                     label = key.replace('_', ' ').title()
                     lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {value}")
 
-    # Enforce max 15 lines
+    # Enforce max 15 lines (before status, which is always last)
     if len(lines) > 15:
         lines = lines[:14] + ["[dim]... (output truncated)[/dim]"]
 
     content = "\n".join(lines)
 
-    if path_tree:
+    # Build status text (always last, after tree if present)
+    status_text = None
+    if metrics:
+        cache_status = metrics.get("cache_status")
+        status = metrics.get("status")
+
+        if cache_status:
+            cache_text = str(cache_status)
+            cached_idx = cache_text.find("Cached")
+            if cached_idx != -1:
+                prefix = cache_text[:cached_idx]
+                cached_text = cache_text[cached_idx:]
+                cache_text = f"{prefix}[red]{cached_text}[/red]"
+            status_text = f"[{COLOR_KEY}]Status:[/{COLOR_KEY}] {cache_text}"
+        elif status:
+            status_text = f"[{COLOR_KEY}]Status:[/{COLOR_KEY}] {status}"
+
+    # Build content_renderable: content + tree (if present) + status (if present)
+    if path_tree and status_text:
+        content_renderable = Group(
+            Text.from_markup(content),
+            Text(""),
+            path_tree,
+            Text(""),
+            Text.from_markup(status_text)
+        )
+    elif path_tree:
         content_renderable = Group(Text.from_markup(content), Text(""), path_tree)
+    elif status_text:
+        content_renderable = Group(
+            Text.from_markup(content),
+            Text(""),
+            Text.from_markup(status_text)
+        )
     else:
         content_renderable = content
 

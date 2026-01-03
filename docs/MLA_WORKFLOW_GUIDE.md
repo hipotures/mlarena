@@ -490,6 +490,20 @@ Fitted model: LightGBM/T2 ...
 - High preset: +1-2% over baseline
 - Best preset: +2-3% over baseline (diminishing returns)
 
+### Experiment Locking (`lock=true`)
+
+To prevent accidental overwriting of valuable experiment results (especially long-running production models), you can use the `lock` parameter.
+
+```bash
+# Run and lock upon success
+uv run python scripts/mla.py --project titanic model.time_limit=3600 lock=true
+```
+
+**Behavior:**
+- Creates an `overwrite.lock` file in the experiment directory after successful completion.
+- Prevents any future execution of this experiment (even with `--force`).
+- **To Unlock:** Manually delete the `overwrite.lock` file from the experiment directory.
+
 ---
 
 ## Verification Steps

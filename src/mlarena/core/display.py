@@ -817,11 +817,28 @@ def print_module_header(
         # Input paths (with optional shapes)
         if input_paths:
             lines.append("")
+
+            # Special handling for predict module - show configuration first
+            if module_name == "predict":
+                preprocessing = input_paths.get("preprocessing")
+                model_template = input_paths.get("model_template")
+
+                if preprocessing or model_template:
+                    lines.append(f"[{COLOR_KEY}]Configuration:[/{COLOR_KEY}]")
+                    if preprocessing:
+                        lines.append(f"  [{COLOR_KEY}]Preprocessing:[/{COLOR_KEY}] {preprocessing}")
+                    if model_template:
+                        lines.append(f"  [{COLOR_KEY}]Model Template:[/{COLOR_KEY}] {model_template}")
+                    lines.append("")
+
             lines.append(f"[{COLOR_KEY}]Input:[/{COLOR_KEY}]")
 
             # Original format for non-preprocessing modules
             for key, path in input_paths.items():
                 if key == "__shapes__":
+                    continue
+                # Skip preprocessing and model_template for predict (already shown in Configuration)
+                if module_name == "predict" and key in ["preprocessing", "model_template"]:
                     continue
                 label = key.replace('_', ' ').title()
                 lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")

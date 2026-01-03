@@ -43,13 +43,18 @@ class PipelineExecutor:
         """
         invocation = getattr(module, "invocation_params", {})
 
+        # For already-completed modules, get invocation from state if invocation_params is empty
+        if not invocation:
+            state_entry = module.context.state.modules.get(module_name)
+            if state_entry and hasattr(state_entry, "invocation") and state_entry.invocation:
+                invocation = state_entry.invocation
+
         # Get template info
         template_name = invocation.get(f"{module_name}_template")
         template_config = {}
         cli_overrides = {}
 
         if template_name:
-            # Load template configuration
             try:
                 import sys
                 from pathlib import Path as P
@@ -60,8 +65,6 @@ class PipelineExecutor:
                 templates, _ = load_templates(module_name, module.context.project_root, suppress_warnings=True)
                 template_config = templates.get(template_name, {})
 
-                # Apply convenience flags to invocation BEFORE extracting overrides
-                # This ensures header shows final values
                 if invocation.get("dev"):
                     invocation["preset"] = "medium"
                     invocation["time_limit"] = 300
@@ -73,55 +76,43 @@ class PipelineExecutor:
                     invocation["use_gpu"] = 0
                     invocation["_convenience_flag"] = "smoke"
 
-                # Extract CLI overrides
                 cli_overrides = extract_template_overrides(template_config.get("config", {}), invocation)
             except Exception:
-                pass  # Template loading failed, continue with empty config
+                pass
 
-        # Collect input/output paths based on module type
         input_paths = {}
         output_paths = {}
 
         if module_name == "init":
-            # For init in auto-flow, show pipeline configuration
             model_tpl = invocation.get("model_template")
             preprocess_tpl = invocation.get("preprocess_template")
 
             if model_tpl or preprocess_tpl:
-                # This is auto-flow
                 input_paths["pipeline"] = "auto-flow"
                 if model_tpl:
                     input_paths["model_template"] = model_tpl
                 if preprocess_tpl:
                     input_paths["preprocess_template"] = preprocess_tpl
 
-                # Show which modules will run (use short names for compactness)
                 modules = ["init", "eda", "prep", "model"]
                 if not invocation.get("skip_submit"):
                     modules.extend(["submit", "fetch"])
-                # Format as compact flow
                 flow = " → ".join(modules)
                 output_paths["flow"] = flow
 
         elif module_name == "preprocess":
-            # Check if part of chain (input_source in invocation)
             input_source = invocation.get("input_source")
             chain_exp_id = invocation.get("chain_exp_id", "")
 
-            # Input paths for preprocessing
             if input_source:
-                # Part of chain: show previous step as input
-                # input_source now contains index (e.g., "0-noop")
                 input_paths["from"] = input_source
                 if chain_exp_id:
                     input_paths["train"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/train_processed.csv.gz"
                     input_paths["test"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/test_processed.csv.gz"
                 else:
-                    # Legacy fallback (shouldn't happen)
                     input_paths["train"] = f"experiments/pre-{input_source}/artifacts/preprocess/train_processed.csv.gz"
                     input_paths["test"] = f"experiments/pre-{input_source}/artifacts/preprocess/test_processed.csv.gz"
             else:
-                # First step: show raw data
                 try:
                     from mlarena.utils.project import data_paths, load_project_config
                     config = module.context.config_module or load_project_config(module.context.project_root)
@@ -129,7 +120,6 @@ class PipelineExecutor:
                     input_paths["train"] = format_path_relative(train_path, module.context.project_root)
                     input_paths["test"] = format_path_relative(test_path, module.context.project_root)
 
-                    # Check for original dataset in template config
                     config_dict = template_config.get("config", {})
                     if config_dict and "orig_path" in config_dict:
                         orig_path = config_dict["orig_path"]
@@ -137,13 +127,11 @@ class PipelineExecutor:
                 except Exception:
                     pass
 
-            # Output paths for preprocessing (always to current experiment)
             experiment_id = module.context.experiment_id
             output_paths["train"] = f"experiments/{experiment_id}/artifacts/preprocess/train_processed.csv.gz"
             output_paths["test"] = f"experiments/{experiment_id}/artifacts/preprocess/test_processed.csv.gz"
 
         elif module_name == "model":
-            # Input paths for model
             preprocess_template = invocation.get("preprocess_template") or template_config.get("preprocess_template")
             preprocess_exp_dir = invocation.get("preprocess_exp_dir")
             shapes_meta = None
@@ -162,7 +150,6 @@ class PipelineExecutor:
                     test_after = shapes.get("test_after")
                     tuning_after = shapes.get("tuning_after")
 
-                    # Get eval rows from custom_module_state
                     custom_state = payload.get("custom_module_state", {})
                     eval_rows = custom_state.get("eval_rows")
 
@@ -174,7 +161,6 @@ class PipelineExecutor:
                     if tuning_after:
                         result["tuning"] = tuning_after
                     if eval_rows:
-                        # Format as (rows, ?) since we don't have column count for eval
                         result["eval"] = (eval_rows, None)
 
                     return result if result else None
@@ -183,11 +169,9 @@ class PipelineExecutor:
                 return None
 
             def _load_shapes_from_chain_root(root: Path):
-                # Try root state
                 shapes = _load_shapes_from_state(root)
                 if shapes:
                     return shapes
-                # Try latest step subdir (named "<idx>-<step>")
                 candidates = []
                 for subdir in root.iterdir():
                     if not subdir.is_dir():
@@ -212,7 +196,6 @@ class PipelineExecutor:
                     default_dir = module.context.project_root / f"experiments/pre-{preprocess_template}"
                     if default_dir.exists():
                         return default_dir
-                    # search chain dirs
                     experiments_dir = module.context.project_root / "experiments"
                     candidates = sorted(
                         experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"),
@@ -220,7 +203,7 @@ class PipelineExecutor:
                         reverse=True,
                     )
                     if candidates:
-                        return candidates[0]  # step dir
+                        return candidates[0]
                 return None
 
             pp_dir = _resolve_preprocess_dir()
@@ -233,13 +216,11 @@ class PipelineExecutor:
                 input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
                 input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
 
-                # Add tuning and eval if they exist
                 if tuning_pp.exists():
                     input_paths["tuning"] = format_path_relative(tuning_pp, module.context.project_root)
                 if eval_pp.exists():
                     input_paths["eval"] = format_path_relative(eval_pp, module.context.project_root)
 
-                # Try state.json in this dir; if not found, try chain root / latest step
                 shapes_meta = _load_shapes_from_chain_root(pp_dir)
                 if shapes_meta:
                     input_paths["__shapes__"] = shapes_meta
@@ -248,30 +229,90 @@ class PipelineExecutor:
                 input_paths["test"] = "data/test.csv.gz"
                 shapes_meta = None
 
-            # Output paths for model
             experiment_id = module.context.experiment_id
             output_paths["model"] = f"experiments/{experiment_id}/artifacts/"
             output_paths["submission"] = "submissions/"
 
         elif module_name == "eda":
-            # Input paths for EDA
             input_paths["train"] = "data/train.csv.gz"
             input_paths["test"] = "data/test.csv.gz"
 
-            # Output paths for EDA
             experiment_id = module.context.experiment_id
             output_paths["summary"] = f"experiments/{experiment_id}/eda_summary.txt"
 
         elif module_name == "predict":
-            # Input paths for predict
             experiment_id = invocation.get("experiment_id")
+            if not experiment_id:
+                predict_state = module.context.state.modules.get("predict")
+                if predict_state and hasattr(predict_state, "invocation") and predict_state.invocation:
+                    experiment_id = predict_state.invocation.get("experiment_id")
+            if not experiment_id:
+                experiment_id = module.context.experiment_id
+
             if experiment_id:
-                input_paths["model"] = f"experiments/{experiment_id}/artifacts/"
-                input_paths["test"] = "data/test.csv.gz"
-                output_paths["predictions"] = f"experiments/{experiment_id}/predictions.csv"
+                model_state_path = module.context.project_root / "experiments" / experiment_id / "state.json"
+                preprocess_template = None
+                preprocess_exp_dir = None
+                shapes_meta = None
+                model_template = None
+
+                if model_state_path.exists():
+                    try:
+                        import json
+                        with open(model_state_path) as f:
+                            state = json.load()
+
+                        model_payload = state.get("modules", {}).get("model", {}).get("payload", {})
+                        model_invocation = state.get("modules", {}).get("model", {}).get("invocation", {})
+
+                        preprocess_template = model_payload.get("preprocess_template") or model_invocation.get("preprocess_template")
+                        preprocess_exp_dir = model_invocation.get("preprocess_exp_dir")
+                        model_template = model_payload.get("template") or model_invocation.get("model_template")
+                    except Exception:
+                        pass
+
+                input_paths["model"] = f"experiments/{experiment_id}/artifacts/model"
+
+                if preprocess_template:
+                    if preprocess_exp_dir:
+                        pp_dir = Path(preprocess_exp_dir)
+                    else:
+                        pp_dir = module.context.project_root / f"experiments/pre-{preprocess_template}"
+
+                    test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
+                    if test_pp.exists():
+                        input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
+
+                        def _load_shapes_from_state(exp_dir: Path):
+                            state_path = exp_dir / "state.json"
+                            if not state_path.exists():
+                                return None
+                            try:
+                                import json
+                                with open(state_path) as f:
+                                    state = json.load()
+                                payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
+                                shapes = payload.get("shapes", {})
+                                test_after = shapes.get("test_after")
+                                return {"test": test_after} if test_after else None
+                            except Exception:
+                                return None
+
+                        shapes_meta = _load_shapes_from_state(pp_dir)
+                        if shapes_meta:
+                            input_paths["__shapes__"] = shapes_meta
+                    else:
+                        input_paths["test"] = "data/test.csv.gz"
+                else:
+                    input_paths["test"] = "data/test.csv.gz"
+
+                if preprocess_template:
+                    input_paths["preprocessing"] = preprocess_template
+
+                if model_template:
+                    input_paths["model_template"] = model_template
 
         elif module_name == "submit":
-            # Input paths for submit - get actual file from predict payload
             predict_payload = module.context.state.modules.get("predict")
             if predict_payload and hasattr(predict_payload, "payload") and predict_payload.payload:
                 submission_file = predict_payload.payload.get("submission_file")
@@ -280,7 +321,6 @@ class PipelineExecutor:
             output_paths["kaggle"] = "Kaggle API upload"
 
         elif module_name == "fetch-score":
-            # Input paths for fetch-score
             experiment_id = invocation.get("experiment_id")
             if experiment_id:
                 input_paths["submission"] = f"experiments/{experiment_id}/"
@@ -437,15 +477,12 @@ class PipelineExecutor:
                     except Exception:
                         duration = 0.0
 
-                    # Extract data for footer from payload
                     payload = state_entry.payload or {}
                     output_paths = {}
                     metrics = {}
                     shapes = payload.get("shapes")
 
-                    # Module-specific path extraction (same as lines 556-637 in normal execution)
                     if name == "preprocess":
-                        # For pass-through modules, don't show train/test outputs (they're unchanged copies)
                         is_pass_through = shapes and shapes.get("pass_through", False)
 
                         if not is_pass_through:
@@ -458,7 +495,6 @@ class PipelineExecutor:
                             if "tuning_processed" in payload and payload["tuning_processed"]:
                                 output_paths["tuning"] = format_path_relative(payload["tuning_processed"], module.context.project_root)
 
-                        # Always show auxiliary outputs (e.g., weights)
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
                             output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)
                         if "custom_module_state" in payload and "av_stats" in payload["custom_module_state"]:
@@ -477,7 +513,6 @@ class PipelineExecutor:
                         if "best_model" in payload:
                             metrics["best_model"] = payload["best_model"]
                     elif name == "eda":
-                        # Only add string paths, skip dict data
                         if "summary_file" in payload and isinstance(payload.get("summary_file"), str):
                             output_paths["summary"] = format_path_relative(payload.get("summary_file"), module.context.project_root)
                         if "train_profile_path" in payload:
@@ -485,7 +520,6 @@ class PipelineExecutor:
                         if "test_profile_path" in payload:
                             output_paths["test_profile"] = format_path_relative(payload.get("test_profile_path"), module.context.project_root)
 
-                        # Extract key statistics from train/test profiles
                         if "train_profile" in payload and isinstance(payload["train_profile"], dict):
                             train_prof = payload["train_profile"]
                             if "summary" in train_prof and "table" in train_prof["summary"]:
@@ -504,7 +538,6 @@ class PipelineExecutor:
                             metrics["target"] = payload["target"]
 
                     elif name == "predict":
-                        # Only show submission file (predictions and submission_file are the same)
                         if "submission_file" in payload:
                             output_paths["submission"] = format_path_relative(payload["submission_file"], module.context.project_root)
 
@@ -525,10 +558,8 @@ class PipelineExecutor:
                         if payload.get("target_submission"):
                             metrics["submission_target"] = payload["target_submission"]
 
-                    # Add "Already completed" status in red
                     metrics["status"] = "✓ [red]Already completed[/red]"
 
-                    # Display footer with all information
                     try:
                         print_module_footer(
                             module_name=name,
@@ -544,7 +575,6 @@ class PipelineExecutor:
                             console=console
                         )
                     except Exception as e:
-                        # Fallback to simple footer if display fails
                         console.print(f"[dim red]Footer display error: {e}[/dim red]")
 
                     console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
@@ -552,7 +582,6 @@ class PipelineExecutor:
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)
                     continue
                 else:
-                    # Dependency is completed - skip silently
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)
                     continue
 
@@ -562,24 +591,20 @@ class PipelineExecutor:
             if not defer_save:
                 module.context.state.save()
 
-            # Get module state for header/footer
             module_state = module.context.state.modules.get(name)
             console = Console(force_terminal=True)
 
-            # Collect header data (template, paths, etc.)
             try:
                 header_data = self._collect_module_header_data(name, module)
             except Exception as e:
                 console.print(f"[dim red]Data collection error: {e}[/dim red]")
                 header_data = {}
 
-            # Get started_at from module_state
             if module_state and hasattr(module_state, 'started_at'):
                 started_at = module_state.started_at
             else:
                 started_at = dt.now().isoformat()
 
-            # Display module header with collected data
             try:
                 print_module_header(
                     module_name=name,
@@ -596,7 +621,6 @@ class PipelineExecutor:
                     console=console
                 )
             except Exception as e:
-                # Fallback to simple header if display fails
                 console.print(f"[dim red]Header display error: {e}[/dim red]")
                 import traceback
                 console.print(f"[dim]{traceback.format_exc()}[/dim]")
@@ -606,7 +630,7 @@ class PipelineExecutor:
 
             try:
                 outcome = module.execute()
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 import traceback
                 error_msg = f"{exc}"
                 detail = traceback.format_exc()
@@ -614,7 +638,6 @@ class PipelineExecutor:
                 if not defer_save or module.context.project_root.exists():
                     module.context.state.save()
 
-                # Display error footer
                 module_state_after = module.context.state.modules.get(name)
                 try:
                     if module_state_after:
@@ -639,7 +662,7 @@ class PipelineExecutor:
                         console=console
                     )
                 except:
-                    pass  # Skip footer if there's an error
+                    pass
 
                 results[name] = ModuleResult(success=False, error=detail)
                 break
@@ -649,7 +672,6 @@ class PipelineExecutor:
                 if not defer_save or module.context.project_root.exists():
                     module.context.state.save()
 
-                # Create overwrite lock if requested
                 lock_param = getattr(module, "invocation_params", {}).get("lock", False)
                 if lock_param:
                     lock_metadata = {}
@@ -664,7 +686,6 @@ class PipelineExecutor:
 
                     module.context.state.create_lock(name, lock_metadata)
 
-                # Display success footer
                 module_state_after = module.context.state.modules.get(name)
                 try:
                     if module_state_after:
@@ -677,15 +698,12 @@ class PipelineExecutor:
                     finished_at = dt.fromisoformat(finished_at_str.replace('Z', '+00:00'))
                     duration = (finished_at - started_at).total_seconds()
 
-                    # Extract data for footer from payload
                     payload = outcome.payload or {}
                     output_paths = {}
                     metrics = {}
                     shapes = payload.get("shapes")
 
-                    # Module-specific path extraction
                     if name == "preprocess":
-                        # For pass-through modules, don't show train/test outputs (they're unchanged copies)
                         is_pass_through = shapes and shapes.get("pass_through", False)
 
                         if not is_pass_through:
@@ -698,7 +716,6 @@ class PipelineExecutor:
                             if "tuning_processed" in payload and payload["tuning_processed"]:
                                 output_paths["tuning"] = format_path_relative(payload["tuning_processed"], module.context.project_root)
 
-                        # Always show auxiliary outputs (e.g., weights)
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
                             output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)
                         if "custom_module_state" in payload and "av_stats" in payload["custom_module_state"]:
@@ -717,7 +734,6 @@ class PipelineExecutor:
                         if "best_model" in payload:
                             metrics["best_model"] = payload["best_model"]
                     elif name == "eda":
-                        # Only add string paths, skip dict data
                         if "summary_file" in payload and isinstance(payload.get("summary_file"), str):
                             output_paths["summary"] = format_path_relative(payload.get("summary_file"), module.context.project_root)
                         if "train_profile_path" in payload:
@@ -725,7 +741,6 @@ class PipelineExecutor:
                         if "test_profile_path" in payload:
                             output_paths["test_profile"] = format_path_relative(payload.get("test_profile_path"), module.context.project_root)
 
-                        # Extract key statistics from train/test profiles
                         if "train_profile" in payload and isinstance(payload["train_profile"], dict):
                             train_prof = payload["train_profile"]
                             if "summary" in train_prof and "table" in train_prof["summary"]:
@@ -744,7 +759,6 @@ class PipelineExecutor:
                             metrics["target"] = payload["target"]
 
                     elif name == "predict":
-                        # Only show submission file (predictions and submission_file are the same)
                         if "submission_file" in payload:
                             output_paths["submission"] = format_path_relative(payload["submission_file"], module.context.project_root)
 
@@ -779,11 +793,9 @@ class PipelineExecutor:
                         console=console
                     )
 
-                    # Print next steps after footer (for all modules)
                     from mlarena.core.module import print_next_steps
                     print_next_steps(name, module.context.project_name, module.context.experiment_id, console)
                 except Exception as e:
-                    # Skip footer if there's an error
                     pass
 
                 results[name] = outcome
@@ -792,7 +804,6 @@ class PipelineExecutor:
                 if not defer_save or module.context.project_root.exists():
                     module.context.state.save()
 
-                # Display error footer
                 module_state_after = module.context.state.modules.get(name)
                 try:
                     if module_state_after:
@@ -817,7 +828,7 @@ class PipelineExecutor:
                         console=console
                     )
                 except:
-                    pass  # Skip footer if there's an error
+                    pass
 
                 results[name] = outcome
                 break

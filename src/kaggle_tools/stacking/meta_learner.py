@@ -11,6 +11,9 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.model_selection import cross_val_score
+from rich.console import Console
+
+console = Console()
 
 
 class MetaLearner:
@@ -79,7 +82,7 @@ class MetaLearner:
             scoring="roc_auc",
         )
 
-        print(f"Meta-model CV score: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
+        console.print(f"[green]✓[/green] [bold]Meta-model CV score:[/bold] [yellow]{cv_scores.mean():.4f}[/yellow] (+/- {cv_scores.std():.4f})")
 
         return self
 

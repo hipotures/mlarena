@@ -314,10 +314,8 @@ class SubmitModule(BaseModule):
 
         console.print(f"[green]✓[/green] Submission validation passed")
 
-        # Preview + countdown with interactive confirmation (unless disabled)
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")
 
-        # Queue submission instead of uploading
         if queue_submit:
             _add_to_queue(self.context, submission_file, message, config)
             marker = artifact_dir / "submit_queued.txt"
@@ -339,7 +337,6 @@ class SubmitModule(BaseModule):
             marker.write_text("Submission skipped by user flag.")
             return ModuleResult(success=True, payload={"submitted": False, "skipped": True}, artifacts=[marker])
 
-        # Non-interactive guard when confirmation is required
         if confirm_timeout > 0 and not sys.stdin.isatty():
             marker = artifact_dir / "submit_aborted.txt"
             marker.write_text("Non-interactive stdin. Re-run with submit.confirm_timeout=0 to submit.")
@@ -352,18 +349,15 @@ class SubmitModule(BaseModule):
         if confirm_timeout == 0:
             console.print("\n[dim]Confirmation disabled (submit.confirm_timeout=0). Submitting...[/dim]")
         else:
-            # Countdown with y/n input (no Enter needed)
             console.print("\n[bold cyan]Submit to Kaggle?[/bold cyan]")
             console.print(
                 f"[dim]Press 'y' to submit now, 'n' to cancel, or wait {confirm_timeout}s for auto-submit[/dim]\n"
             )
 
-            # Audio beep to alert user
             for _ in range(3):
                 print("\a", end="", flush=True)
                 time.sleep(0.1)
 
-            # Try system beep as fallback
             try:
                 subprocess.run(["paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga"],
                              stderr=subprocess.DEVNULL, timeout=0.5)
@@ -375,12 +369,10 @@ class SubmitModule(BaseModule):
             submitted = False
             cancelled = False
 
-            # Save terminal settings
             fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(fd)
 
             try:
-                # Set terminal to raw mode for single-key input
                 tty.setraw(fd)
 
                 with Progress(
@@ -397,7 +389,6 @@ class SubmitModule(BaseModule):
                         elapsed = time.time() - start_time
                         remaining = max(0, countdown_seconds - int(elapsed))
 
-                        # Check for key press (non-blocking)
                         if select.select([sys.stdin], [], [], 0)[0]:
                             ch = sys.stdin.read(1).lower()
                             if ch == 'y':
@@ -414,7 +405,6 @@ class SubmitModule(BaseModule):
                             submitted = True
                             break
 
-                        # Update countdown display
                         progress.update(
                             task,
                             description=f"[cyan]Auto-submitting in {remaining}s... [dim](y/n)[/dim]",
@@ -424,7 +414,6 @@ class SubmitModule(BaseModule):
                         time.sleep(0.1)
 
             finally:
-                # Restore terminal settings
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
             if cancelled:
@@ -433,16 +422,14 @@ class SubmitModule(BaseModule):
                 marker.write_text("Submission aborted by user.")
                 return ModuleResult(success=False, error="aborted", artifacts=[marker])
 
-        console.print()  # Empty line before upload progress
+        console.print()
 
-        # Decompress .csv.gz to .csv for Kaggle submission
-        # Kaggle API requires uncompressed .csv files
         submission_file_for_upload = submission_file
         if str(submission_file).endswith('.csv.gz'):
             import gzip
             import shutil
 
-            csv_path = Path(str(submission_file)[:-3])  # Remove .gz extension
+            csv_path = Path(str(submission_file)[:-3])
             if not csv_path.exists():
                 console.print(f"[dim]Decompressing {submission_file.name} for Kaggle upload...[/dim]")
                 with gzip.open(submission_file, 'rb') as f_in:
@@ -474,7 +461,7 @@ class SubmitModule(BaseModule):
                 payload={
                     "submitted": True,
                     "competition": competition,
-                    "submission_file": str(submission_file_for_upload)  # Use actual uploaded file for fetch-score matching
+                    "submission_file": str(submission_file_for_upload)
                 },
                 artifacts=[marker],
             )

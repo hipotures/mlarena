@@ -75,18 +75,15 @@ def _extract_categorical_columns(
     eda_metadata = {}
 
     for col, meta in variables.items():
-        # Skip target column
         if target_column and col == target_column:
             continue
 
         col_type = meta.get("type", "")
         n_distinct = meta.get("n_distinct", 0)
 
-        # Filter by cardinality
         if n_distinct > max_cardinality:
             continue
 
-        # Categorical type (e.g., Sex, Pclass, Embarked)
         if col_type == "Categorical":
             categorical_cols.append(col)
             eda_metadata[col] = {
@@ -95,7 +92,6 @@ def _extract_categorical_columns(
                 "n_missing": int(meta.get("n_missing", 0)),
             }
 
-        # Text type (e.g., Name, Ticket, Cabin) - include if low cardinality
         elif col_type == "Text" and not exclude_text_type:
             categorical_cols.append(col)
             eda_metadata[col] = {
@@ -104,7 +100,6 @@ def _extract_categorical_columns(
                 "n_missing": int(meta.get("n_missing", 0)),
             }
 
-        # Numeric type with low cardinality (e.g., Pclass: 1,2,3)
         elif col_type == "Numeric" and include_numeric_categories and n_distinct <= 10:
             categorical_cols.append(col)
             eda_metadata[col] = {
@@ -124,19 +119,6 @@ def _auto_detect_categorical(
 ) -> Tuple[List[str], Dict[str, Dict]]:
     """
     Auto-detect integer/float-encoded categorical columns.
-
-    Analyzes train + test together to find columns with:
-    - Low cardinality (< threshold unique values)
-    - Numeric dtype (int64 or float64)
-
-    Args:
-        train_df: Training dataframe
-        test_df: Test dataframe
-        threshold: Maximum unique values for categorical
-        target_column: Target column to exclude
-
-    Returns:
-        Tuple of (categorical_columns, metadata)
     """
     exclude_cols = ["id"]
     if target_column:
@@ -146,7 +128,6 @@ def _auto_detect_categorical(
     categorical_cols = []
     metadata = {}
 
-    # Find numeric columns present in both datasets
     numeric_cols = [
         col
         for col in train_df.columns
@@ -156,19 +137,16 @@ def _auto_detect_categorical(
     ]
 
     for col in numeric_cols:
-        # Combine values from train + test
         combined_values = pd.concat([train_df[col].dropna(), test_df[col].dropna()])
 
         n_unique = combined_values.nunique()
         unique_ratio = n_unique / total_rows
 
-        # Criteria: max unique <= threshold AND ratio < 1%
         is_categorical = n_unique <= threshold and unique_ratio < 0.01
 
         if is_categorical:
             unique_vals = sorted(combined_values.unique())
 
-            # Detect type
             is_binary = n_unique == 2
             is_sequential = False
 
@@ -178,7 +156,6 @@ def _auto_detect_categorical(
                 expected_range = list(range(min_val, max_val + 1))
                 is_sequential = unique_vals == expected_range
 
-            # Classify type
             if is_binary:
                 col_type = "Binary (auto-detected)"
             elif is_sequential:
@@ -186,7 +163,6 @@ def _auto_detect_categorical(
             else:
                 col_type = "Nominal (auto-detected)"
 
-            # Convert numpy types to native Python types for JSON serialization
             import numpy as np
             unique_vals_native = [
                 int(v) if isinstance(v, np.integer)

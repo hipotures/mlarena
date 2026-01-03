@@ -580,46 +580,23 @@ def show_path_copy_menu(
 def format_progress_message(message: str, project_root: Path) -> str:
     """
     Transform custom module output into rich-styled format.
-
-    Removes module prefixes like [module_name] and formats paths/key-value pairs.
-
-    Args:
-        message: Raw message from custom module
-        project_root: Project root for path formatting
-
-    Returns:
-        Rich-formatted string
-
-    Examples:
-        "[av_weights_mix] Loading dataset: /path"
-        -> "[bold cyan]Loading dataset:[/bold cyan] data/file.csv"
-
-        "[av_weights_mix] AV stats: mean=1.02, min=0.01"
-        -> "[bold cyan]AV stats:[/bold cyan] mean=[green]1.02[/green] min=[yellow]0.01[/yellow]"
     """
-    # Remove module prefix [module_name]
     message = re.sub(r'^\[[\w_-]+\]\s*', '', message)
 
-    # Format paths in message
     def replace_path(match):
         path = match.group(0)
         return format_path_relative(path, project_root)
 
-    # Replace absolute paths (starting with / or containing /mnt/, /home/)
     message = re.sub(r'(?:/[\w/./_-]+)', replace_path, message)
 
-    # Format key:value pairs
     if ':' in message and '=' not in message:
         key, value = message.split(':', 1)
         return f"[{COLOR_KEY}]{key.strip()}:[/{COLOR_KEY}] [{COLOR_VALUE}]{value.strip()}[/{COLOR_VALUE}]"
 
-    # Format key=value pairs (e.g., "mean=1.02, min=0.01")
     if '=' in message and ':' in message:
-        # Extract prefix before stats
         prefix, stats = message.split(':', 1)
         formatted_prefix = f"[{COLOR_KEY}]{prefix.strip()}:[/{COLOR_KEY}]"
 
-        # Format each stat
         formatted_stats = []
         for stat in stats.split(','):
             stat = stat.strip()
@@ -648,23 +625,7 @@ def print_module_header(
     project_name: Optional[str] = None,
     console: Optional[Console] = None
 ) -> None:
-    """
-    Print standardized module header panel.
-
-    Args:
-        module_name: Name of the module (e.g., "preprocess", "model")
-        started_at: ISO-8601 timestamp of module start
-        experiment_id: Experiment ID
-        template_name: Template name if applicable
-        template_config: Configuration from template YAML
-        cli_overrides: Parameters overridden by CLI (from extract_template_overrides)
-        cli_invocation: CLI invocation parameters
-        input_paths: Input file paths dict
-        output_paths: Expected output file paths dict
-        project_root: Project root for path formatting
-        project_name: Project name to display at top
-        console: Rich console instance (creates new if None)
-    """
+    """Standardized module header panel."""
     if console is None:
         console = Console(force_terminal=True)
 
@@ -676,99 +637,60 @@ def print_module_header(
     input_paths = input_paths or {}
     output_paths = output_paths or {}
 
-    chain_exp_id = None
-    input_source = None
-    current_step = None
-    path_tree = None
-    use_preprocess_tree = False
-
-    # Disable tree in header for preprocessing - only show in footer
-    # Header should show INPUT (raw data), tree shows historical chain state
-    use_preprocess_tree = False
-    path_tree = None
-
-    # Parse timestamp
     try:
-        dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-        formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+        dt_val = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+        formatted_time = dt_val.strftime("%Y-%m-%d %H:%M:%S")
     except:
         formatted_time = started_at
 
-    # Build content lines
     lines = []
-    # Show project name first (most important context)
     if project_name:
         lines.append(f"[{COLOR_KEY}]Project:[/{COLOR_KEY}] {project_name}")
     lines.append(f"[{COLOR_KEY}]Started:[/{COLOR_KEY}] {formatted_time}")
     if experiment_id:
         lines.append(f"[{COLOR_KEY}]Experiment:[/{COLOR_KEY}] {experiment_id}")
 
-    # Template configuration
     if template_name:
         lines.append("")
         lines.append(f"[{COLOR_KEY}]Template:[/{COLOR_KEY}] {template_name}")
 
-        # Display module/model name based on template type
-        # Preprocess templates have 'module' field, model templates have 'model' field
         implementation_name = template_config.get("module") or template_config.get("model")
         if implementation_name:
-            # Determine label based on which field exists
             label = "Module" if "module" in template_config else "Model"
             lines.append(f"[{COLOR_KEY}]{label}:[/{COLOR_KEY}] {implementation_name}")
 
-        # Display HPO preset if specified
         hpo_preset = template_config.get("hpo_preset")
         if hpo_preset:
             lines.append(f"[{COLOR_KEY}]HPO Preset:[/{COLOR_KEY}] [{COLOR_OVERRIDE}]{hpo_preset}[/{COLOR_OVERRIDE}]")
 
-        # Show ALL config parameters (dynamically)
         config_dict = template_config.get("config", {})
 
         def format_config_value(key: str, value: Any, max_length: int = 70) -> str:
-            """Format config value based on type with truncation."""
-            # None/null -> skip (handled by caller)
             if value is None:
                 return "null"
-
-            # Boolean -> Yes/No
             if isinstance(value, bool):
                 return "Yes" if value else "No"
-
-            # List -> join with " | "
             if isinstance(value, list):
                 if len(value) == 0:
                     return "[]"
                 items_str = " | ".join(str(item) for item in value)
-                # Add count if >1 elements
                 count_prefix = f"[{len(value)}] " if len(value) > 1 else ""
                 if len(items_str) > max_length:
                     return f"{count_prefix}{items_str[:max_length - 3]}..."
                 return f"{count_prefix}{items_str}"
-
-            # Dict -> key:val pairs with " | "
             if isinstance(value, dict):
                 if len(value) == 0:
                     return "{}"
                 items = [f"{k}:{v}" for k, v in value.items()]
                 dict_str = " | ".join(items)
-                # Add count if >1 elements
                 count_prefix = f"[{len(value)}] " if len(value) > 1 else ""
                 if len(dict_str) > max_length:
                     return f"{count_prefix}{dict_str[:max_length - 3]}..."
                 return f"{count_prefix}{dict_str}"
-
-            # time_limit -> special formatting
             if key == "time_limit":
                 return format_time_limit(value)
-
-            # use_gpu -> handle int/bool
             if key == "use_gpu":
-                if isinstance(value, bool):
-                    return "Yes" if value else "No"
-                elif isinstance(value, int):
-                    return "Yes" if value else "No"
-
-            # Default: convert to string and truncate
+                return "Yes" if bool(value) else "No"
             value_str = str(value)
             if len(value_str) > max_length:
                 return value_str[:max_length - 3] + "..."
@@ -776,34 +698,19 @@ def print_module_header(
 
         for param_key in sorted(config_dict.keys()):
             value = config_dict[param_key]
-
-            # Skip None values
             if value is None:
                 continue
-
-            # Convert snake_case to Title Case for display
             param_label = param_key.replace('_', ' ').title()
-
-            # Format value
             value_str = format_config_value(param_key, value)
 
-            # Check if overridden by CLI
             if param_key in cli_overrides:
                 _, cli_value = cli_overrides[param_key]
-
-                # If CLI value is None, use template value (argparse default)
                 if cli_value is None:
                     lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
                 else:
                     cli_value_str = format_config_value(param_key, cli_value)
-
-                    # Check if from convenience flag
                     convenience_flag = cli_invocation.get("_convenience_flag") if cli_invocation else None
-                    if convenience_flag:
-                        flag_label = f"--{convenience_flag}"
-                    else:
-                        flag_label = "CLI override"
-
+                    flag_label = f"--{convenience_flag}" if convenience_flag else "CLI override"
                     lines.append(
                         f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] "
                         f"[{COLOR_OVERRIDE}]{cli_value_str}[/{COLOR_OVERRIDE}] "
@@ -812,81 +719,52 @@ def print_module_header(
             else:
                 lines.append(f"  [{COLOR_KEY}]{param_label}:[/{COLOR_KEY}] {value_str}")
 
-    # Input/Output paths
-    if not (module_name == "preprocess" and use_preprocess_tree and (input_paths or output_paths)):
-        # Input paths (with optional shapes)
-        if input_paths:
-            lines.append("")
+    if input_paths:
+        lines.append("")
+        if module_name == "predict":
+            preprocessing = input_paths.get("preprocessing")
+            model_template = input_paths.get("model_template")
+            if preprocessing or model_template:
+                lines.append(f"[{COLOR_KEY}]Configuration:[/{COLOR_KEY}]")
+                if preprocessing:
+                    lines.append(f"  [{COLOR_KEY}]Preprocessing:[/{COLOR_KEY}] {preprocessing}")
+                if model_template:
+                    lines.append(f"  [{COLOR_KEY}]Model Template:[/{COLOR_KEY}] {model_template}")
+                lines.append("")
 
-            # Special handling for predict module - show configuration first
-            if module_name == "predict":
-                preprocessing = input_paths.get("preprocessing")
-                model_template = input_paths.get("model_template")
-
-                if preprocessing or model_template:
-                    lines.append(f"[{COLOR_KEY}]Configuration:[/{COLOR_KEY}]")
-                    if preprocessing:
-                        lines.append(f"  [{COLOR_KEY}]Preprocessing:[/{COLOR_KEY}] {preprocessing}")
-                    if model_template:
-                        lines.append(f"  [{COLOR_KEY}]Model Template:[/{COLOR_KEY}] {model_template}")
-                    lines.append("")
-
-            lines.append(f"[{COLOR_KEY}]Input:[/{COLOR_KEY}]")
-
-            # Original format for non-preprocessing modules
-            for key, path in input_paths.items():
-                if key == "__shapes__":
-                    continue
-                # Skip preprocessing and model_template for predict (already shown in Configuration)
-                if module_name == "predict" and key in ["preprocessing", "model_template"]:
-                    continue
-                label = key.replace('_', ' ').title()
-                lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
-            # Show shapes if provided
-            shapes_meta = input_paths.get("__shapes__") if "__shapes__" in input_paths else None
-            if shapes_meta:
-                train_shape = shapes_meta.get("train")
-                test_shape = shapes_meta.get("test")
-                tuning_shape = shapes_meta.get("tuning")
-                eval_shape = shapes_meta.get("eval")
-
-                if train_shape:
-                    lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Train: {train_shape[0]:,} × {train_shape[1]}")
-                if test_shape:
-                    lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Test: {test_shape[0]:,} × {test_shape[1]}")
-                if tuning_shape:
-                    lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Tuning: {tuning_shape[0]:,} × {tuning_shape[1]}")
-                if eval_shape:
-                    # eval_shape might be (rows, None) if column count unknown
-                    if eval_shape[1] is not None:
-                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Eval: {eval_shape[0]:,} × {eval_shape[1]}")
+        lines.append(f"[{COLOR_KEY}]Input:[/{COLOR_KEY}]")
+        for key, path in input_paths.items():
+            if key == "__shapes__":
+                continue
+            if module_name == "predict" and key in ["preprocessing", "model_template"]:
+                continue
+            label = key.replace('_', ' ').title()
+            lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
+        
+        shapes_meta = input_paths.get("__shapes__")
+        if shapes_meta:
+            for s_key, s_val in shapes_meta.items():
+                if s_val:
+                    label = s_key.title()
+                    if s_val[1] is not None:
+                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] {label}: {s_val[0]:,} × {s_val[1]}")
                     else:
-                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] Eval: {eval_shape[0]:,} rows")
+                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] {label}: {s_val[0]:,} rows")
 
-        # Output paths (expected)
-        if output_paths:
-            lines.append("")
-            lines.append(f"[{COLOR_KEY}]Output:[/{COLOR_KEY}]")
-            for key, path in output_paths.items():
-                label = key.replace('_', ' ').title()
-                lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
+    if output_paths:
+        lines.append("")
+        lines.append(f"[{COLOR_KEY}]Output:[/{COLOR_KEY}]")
+        for key, path in output_paths.items():
+            label = key.replace('_', ' ').title()
+            lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
 
-    content = "\n".join(lines)
-
-    if path_tree:
-        content_renderable = Group(Text.from_markup(content), Text(""), path_tree)
-    else:
-        content_renderable = content
-
-    # Create panel
     panel = Panel(
-        content_renderable,
+        "\n".join(lines),
         title=f"[bold]{module_name.upper()}[/bold]",
         border_style=COLOR_HEADER_BORDER,
         box=box.HEAVY,
         padding=(0, 1)
     )
-
     console.print(panel)
 
 
@@ -904,23 +782,7 @@ def print_module_footer(
     cli_invocation: Optional[Dict] = None,
     console: Optional[Console] = None
 ) -> None:
-    """
-    Print standardized module footer panel.
-
-    Args:
-        module_name: Name of the module
-        finished_at: ISO-8601 timestamp of completion
-        duration: Duration in seconds
-        output_paths: Actual output file paths dict
-        metrics: Module-specific metrics dict
-        shapes: Dataset shape changes (for preprocess)
-        error: Error message if failed
-        project_root: Project root for path formatting
-        project_name: Project name to display at top
-        experiment_id: Experiment ID (for extracting current step)
-        cli_invocation: CLI invocation params (for chain_exp_id, input_source)
-        console: Rich console instance (creates new if None)
-    """
+    """Standardized module footer panel."""
     if console is None:
         console = Console(force_terminal=True)
 
@@ -929,18 +791,12 @@ def print_module_footer(
 
     output_paths = output_paths or {}
     metrics = metrics or {}
-
-    chain_exp_id = None
-    input_source = None
-    current_step = None
     path_tree = None
-    use_preprocess_tree = False
 
     if module_name == "preprocess" and not error:
         chain_exp_id = cli_invocation.get("chain_exp_id") if cli_invocation else None
         input_source = cli_invocation.get("input_source") if cli_invocation else None
-        if experiment_id and "/" in experiment_id:
-            current_step = experiment_id.split("/")[-1]
+        current_step = experiment_id.split("/")[-1] if experiment_id and "/" in experiment_id else None
 
         path_tree = build_path_tree_for_chain(
             current_paths=output_paths,
@@ -951,16 +807,13 @@ def print_module_footer(
             is_header=False,
             project_root=project_root
         )
-        use_preprocess_tree = path_tree is not None
 
-    # Parse timestamp
     try:
-        dt = datetime.fromisoformat(finished_at.replace('Z', '+00:00'))
-        formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+        dt_val = datetime.fromisoformat(finished_at.replace('Z', '+00:00'))
+        formatted_time = dt_val.strftime("%Y-%m-%d %H:%M:%S")
     except:
         formatted_time = finished_at
 
-    # Determine title and border style
     if error:
         title = f"[bold]{module_name.upper()} FAILED[/bold]"
         border_style = COLOR_FOOTER_ERROR
@@ -968,163 +821,92 @@ def print_module_footer(
         title = f"[bold]{module_name.upper()} COMPLETED[/bold]"
         border_style = COLOR_FOOTER_SUCCESS
 
-    # Build content lines
     lines = []
-    # Show project name first (most important context)
     if project_name:
         lines.append(f"[{COLOR_KEY}]Project:[/{COLOR_KEY}] {project_name}")
     lines.append(f"[{COLOR_KEY}]Finished:[/{COLOR_KEY}] {formatted_time}")
     lines.append(f"[{COLOR_KEY}]Duration:[/{COLOR_KEY}] {format_duration(duration)}")
 
     if error:
-        # Show error message
         lines.append("")
         lines.append(f"[bold red]Error:[/bold red] {error}")
     else:
-        # Output files (cache_status moved to end, after all content)
-        if output_paths:
-            if module_name == "preprocess" and use_preprocess_tree:
-                # Don't add empty line here - will be added before tree in content_renderable
-                pass
-            else:
-                lines.append("")
-                lines.append(f"[{COLOR_KEY}]Output Files:[/{COLOR_KEY}]")
-                # Original format for non-preprocessing modules
-                for key, path in output_paths.items():
-                    label = key.replace('_', ' ').title()
-
-                    # Add size for model directory
-                    if module_name == "model" and key == "model":
-                        model_path = Path(path) if not Path(path).is_absolute() else Path(path)
-                        if not model_path.is_absolute():
-                            model_path = project_root / path
-                        size_bytes = get_directory_size(model_path)
-                        size_str = format_size(size_bytes)
-                        lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path} [dim]({size_str})[/dim]")
-                    else:
-                        lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
-
-        # Dataset shapes (for preprocess)
-        if shapes and not (module_name == "preprocess" and use_preprocess_tree):
+        if output_paths and not path_tree:
             lines.append("")
-            is_pass_through = shapes.get("pass_through", False)
+            lines.append(f"[{COLOR_KEY}]Output Files:[/{COLOR_KEY}]")
+            for key, path in output_paths.items():
+                label = key.replace('_', ' ').title()
+                if module_name == "model" and key == "model":
+                    model_path = Path(path)
+                    if not model_path.is_absolute():
+                        model_path = project_root / path
+                    size_str = format_size(get_directory_size(model_path))
+                    lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path} [dim]({size_str})[/dim]")
+                else:
+                    lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
 
-            if is_pass_through:
-                # Pass-through module: show unchanged data with note
+        if shapes and not path_tree:
+            lines.append("")
+            if shapes.get("pass_through", False):
                 lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}] [dim](pass-through, unchanged)[/dim]")
                 if "train_before" in shapes:
-                    train_shape = shapes["train_before"]
-                    lines.append(
-                        f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] "
-                        f"{train_shape[0]:,} × {train_shape[1]}"
-                    )
+                    lines.append(f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] {shapes['train_before'][0]:,} × {shapes['train_before'][1]}")
                 if "test_before" in shapes:
-                    test_shape = shapes["test_before"]
-                    lines.append(
-                        f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] "
-                        f"{test_shape[0]:,} × {test_shape[1]}"
-                    )
+                    lines.append(f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] {shapes['test_before'][0]:,} × {shapes['test_before'][1]}")
             else:
-                # Normal module: show before → after
                 lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}]")
                 if "train_before" in shapes and "train_after" in shapes:
-                    train_before = shapes["train_before"]
-                    train_after = shapes["train_after"]
-                    lines.append(
-                        f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] "
-                        f"{train_before[0]:,} × {train_before[1]} → "
-                        f"{train_after[0]:,} × {train_after[1]}"
-                    )
+                    lines.append(f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] {shapes['train_before'][0]:,} × {shapes['train_before'][1]} → {shapes['train_after'][0]:,} × {shapes['train_after'][1]}")
                 if "test_before" in shapes and "test_after" in shapes:
-                    test_before = shapes["test_before"]
-                    test_after = shapes["test_after"]
-                    lines.append(
-                        f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] "
-                        f"{test_before[0]:,} × {test_before[1]} → "
-                        f"{test_after[0]:,} × {test_after[1]}"
-                    )
+                    lines.append(f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] {shapes['test_before'][0]:,} × {shapes['test_before'][1]} → {shapes['test_after'][0]:,} × {shapes['test_after'][1]}")
 
-        # Module-specific metrics
         if metrics:
-            # AV statistics (for preprocess with adversarial validation)
             if "av_stats" in metrics:
                 av_stats = metrics["av_stats"]
-                lines.append("")
-                lines.append(f"[{COLOR_KEY}]AV Statistics:[/{COLOR_KEY}]")
-                lines.append(
-                    f"  Mean: [{COLOR_METRIC_KEY}]{av_stats.get('mean', 'N/A'):.4f}[/{COLOR_METRIC_KEY}]  "
-                    f"Min: [{COLOR_METRIC_KEY}]{av_stats.get('min', 'N/A'):.4f}[/{COLOR_METRIC_KEY}]  "
-                    f"Max: [{COLOR_METRIC_KEY}]{av_stats.get('max', 'N/A'):.4f}[/{COLOR_METRIC_KEY}]"
-                )
+                lines.append(f"\n[{COLOR_KEY}]AV Statistics:[/{COLOR_KEY}]")
+                lines.append(f"  Mean: [{COLOR_METRIC_KEY}]{av_stats.get('mean', 'N/A'):.4f}[/{COLOR_METRIC_KEY}]  Min: [{COLOR_METRIC_KEY}]{av_stats.get('min', 'N/A'):.4f}[/{COLOR_METRIC_KEY}]  Max: [{COLOR_METRIC_KEY}]{av_stats.get('max', 'N/A'):.4f}[/{COLOR_METRIC_KEY}]")
                 if "clipped_rows" in metrics:
                     lines.append(f"  Clipped: {metrics['clipped_rows']:,} rows")
 
-            # Model metrics (local CV, best model, etc.)
             if "local_cv_score" in metrics:
-                lines.append("")
-                lines.append(f"[{COLOR_KEY}]Model Performance:[/{COLOR_KEY}]")
+                lines.append(f"\n[{COLOR_KEY}]Model Performance:[/{COLOR_KEY}]")
                 lines.append(f"  Local CV: [{COLOR_METRIC_KEY}]{metrics['local_cv_score']:.6f}[/{COLOR_METRIC_KEY}]")
-
             if "best_model" in metrics:
                 lines.append(f"  Best Model: {metrics['best_model']}")
 
-            # Other metrics
             for key, value in metrics.items():
                 if key not in ["av_stats", "clipped_rows", "local_cv_score", "best_model", "cache_status", "status"]:
-                    label = key.replace('_', ' ').title()
-                    lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {value}")
+                    lines.append(f"  [{COLOR_KEY}]{key.replace('_', ' ').title()}:[/{COLOR_KEY}] {value}")
 
-    # Enforce max 15 lines (before status, which is always last)
     if len(lines) > 15:
         lines = lines[:14] + ["[dim]... (output truncated)[/dim]"]
 
     content = "\n".join(lines)
-
-    # Build status text (always last, after tree if present)
     status_text = None
     if metrics:
         cache_status = metrics.get("cache_status")
         status = metrics.get("status")
-
         if cache_status:
             cache_text = str(cache_status)
             cached_idx = cache_text.find("Cached")
             if cached_idx != -1:
-                prefix = cache_text[:cached_idx]
-                cached_text = cache_text[cached_idx:]
-                cache_text = f"{prefix}[red]{cached_text}[/red]"
+                cache_text = f"{cache_text[:cached_idx]}[red]{cache_text[cached_idx:]}[/red]"
             status_text = f"[{COLOR_KEY}]Status:[/{COLOR_KEY}] {cache_text}"
         elif status:
             status_text = f"[{COLOR_KEY}]Status:[/{COLOR_KEY}] {status}"
 
-    # Build content_renderable: content + tree (if present) + status (if present)
-    if path_tree and status_text:
-        content_renderable = Group(
-            Text.from_markup(content),
-            Text(""),
-            path_tree,
-            Text(""),
-            Text.from_markup(status_text)
-        )
-    elif path_tree:
-        content_renderable = Group(Text.from_markup(content), Text(""), path_tree)
-    elif status_text:
-        content_renderable = Group(
-            Text.from_markup(content),
-            Text(""),
-            Text.from_markup(status_text)
-        )
-    else:
-        content_renderable = content
+    renderables = [Text.from_markup(content), Text("")]
+    if path_tree:
+        renderables.append(path_tree)
+        renderables.append(Text(""))
+    if status_text:
+        renderables.append(Text.from_markup(status_text))
 
-    # Create panel
     panel = Panel(
-        content_renderable,
+        Group(*renderables),
         title=title,
         border_style=border_style,
         box=box.HEAVY,
         padding=(0, 1)
     )
-
     console.print(panel)
-    # Clipboard menu removed

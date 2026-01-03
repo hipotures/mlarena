@@ -17,8 +17,11 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 from autogluon.tabular import TabularPredictor
+from rich.console import Console
 
 from kaggle_tools.config_models import ModelConfig
+
+console = Console()
 
 # Suppress C++ compiler warnings and Python warnings
 os.environ['PYTHONWARNINGS'] = 'ignore'
@@ -117,10 +120,10 @@ def train(
         tuning_data = tuning_df.drop(columns=[c for c in drop_cols if c in tuning_df.columns], errors="ignore")
 
         if target_column not in tuning_data.columns:
-            print(f"[AutoGluon Tuning] Warning: target '{target_column}' not in tuning_df, ignoring")
+            console.print(f"[yellow]⚠[/yellow] [bold]Tuning:[/bold] target '{target_column}' not in tuning_df, [red]ignoring[/red]")
             tuning_data = None
         else:
-            print(f"[AutoGluon Tuning] Using tuning_data with {len(tuning_data):,} rows")
+            console.print(f"[green]✓[/green] [bold]Tuning:[/bold] Using tuning_data with [cyan]{len(tuning_data):,}[/cyan] rows")
 
     # Prepare eval_data (for offline leaderboard only, NOT passed to fit)
     eval_data = None
@@ -128,10 +131,10 @@ def train(
         eval_data = eval_df.drop(columns=[c for c in drop_cols if c in eval_df.columns], errors="ignore")
 
         if target_column not in eval_data.columns:
-            print(f"[AutoGluon Eval] Warning: target '{target_column}' not in eval_df, ignoring")
+            console.print(f"[yellow]⚠[/yellow] [bold]Eval:[/bold] target '{target_column}' not in eval_df, [red]ignoring[/red]")
             eval_data = None
         else:
-            print(f"[AutoGluon Eval] Using eval_data with {len(eval_data):,} rows for leaderboard")
+            console.print(f"[green]✓[/green] [bold]Eval:[/bold] Using eval_data with [cyan]{len(eval_data):,}[/cyan] rows for leaderboard")
 
     # Handle sample weights (if provided) and (optionally) extend for external rows.
     # Preprocessing weights are typically a single-column DataFrame (column name may vary).
@@ -145,14 +148,14 @@ def train(
         if sample_weight_strategy in ["auto_weight", "balance_weight"]:
             # Special AutoGluon strategies - pass directly to TabularPredictor
             sample_weight_param = sample_weight_strategy
-            print(f"[AutoGluon Sample Weights] Using strategy: {sample_weight_strategy}")
+            console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Using strategy [magenta]{sample_weight_strategy}[/magenta]")
         else:
             # Custom column name - assume it's already in train_data
             if sample_weight_strategy in train_data.columns:
                 sample_weight_param = sample_weight_strategy
-                print(f"[AutoGluon Sample Weights] Using custom column: {sample_weight_strategy}")
+                console.print(f"[green]✓[/green] [bold]Sample Weights:[/bold] Using custom column [yellow]{sample_weight_strategy}[/yellow]")
             else:
-                print(f"[AutoGluon Sample Weights] Warning: column '{sample_weight_strategy}' not found, ignoring")
+                console.print(f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] column '{sample_weight_strategy}' [red]not found[/red], ignoring")
     elif sample_weight is not None:
         # Legacy behavior: weights from artifacts (preprocessing modules like adversarial_validation)
         weights_series: Optional[pd.Series] = None
@@ -194,16 +197,16 @@ def train(
             if len(weights) == expected_rows:
                 sample_weight_param = "__sample_weight__"
                 train_data[sample_weight_param] = weights.values
-                print(f"[AutoGluon Sample Weights] Using sample weights from artifacts: {sample_weight_param}")
+                console.print(f"[green]✓[/green] [bold]Sample Weights:[/bold] Using weights from artifacts: [yellow]{sample_weight_param}[/yellow]")
 
                 # Apply neutral weight to tuning data
                 if tuning_data is not None:
                     tuning_weight = float(weights.mean()) if weights.notna().any() else 1.0
                     tuning_data[sample_weight_param] = tuning_weight
-                    print(f"[AutoGluon Sample Weights] Applied neutral weight ({tuning_weight:.4f}) to tuning data")
+                    console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{tuning_weight:.4f}[/green]) to tuning data")
             else:
-                print(
-                    f"[AutoGluon Sample Weights] Ignoring sample weights: expected {expected_rows:,} rows, got {len(weights):,}"
+                console.print(
+                    f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] [red]Ignoring weights[/red]: expected {expected_rows:,} rows, got {len(weights):,}"
                 )
 
     # Determine weight_evaluation setting
@@ -217,9 +220,9 @@ def train(
             weight_evaluation_param = False
 
     if sample_weight_param:
-        print(f"[AutoGluon Sample Weights] weight_evaluation={weight_evaluation_param}")
+        console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] weight_evaluation=[magenta]{weight_evaluation_param}[/magenta]")
         if weight_evaluation_param and sample_weight_param in ["auto_weight", "balance_weight"]:
-            print(f"[AutoGluon Sample Weights] WARNING: weight_evaluation=True with {sample_weight_param} is not recommended by AutoGluon docs")
+            console.print(f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] [red]WARNING[/red]: weight_evaluation=True with {sample_weight_param} is not recommended")
 
     # Train model
     # Get verbosity from config or default to 2 (standard logging)
@@ -256,7 +259,7 @@ def train(
                 use_bag_holdout = config.model.get("use_bag_holdout", True)
 
             fit_kwargs["use_bag_holdout"] = use_bag_holdout
-            print(f"[AutoGluon Tuning] Bagging enabled with use_bag_holdout={use_bag_holdout}")
+            console.print(f"[cyan]i[/cyan] [bold]Tuning:[/bold] Bagging enabled with use_bag_holdout=[magenta]{use_bag_holdout}[/magenta]")
 
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
@@ -281,8 +284,8 @@ def train(
     if hpo_tune_kwargs:
         # Enable HPO
         fit_kwargs["hyperparameter_tune_kwargs"] = hpo_tune_kwargs
-        print(f"[AutoGluon HPO] Enabled with {hpo_tune_kwargs['num_trials']} trials")
-        print(f"[AutoGluon HPO] Scheduler: {hpo_tune_kwargs['scheduler']}, Searcher: {hpo_tune_kwargs['searcher']}")
+        console.print(f"[cyan]i[/cyan] [bold]HPO:[/bold] Enabled with [yellow]{hpo_tune_kwargs['num_trials']}[/yellow] trials")
+        console.print(f"[cyan]i[/cyan] [bold]HPO:[/bold] Scheduler: [magenta]{hpo_tune_kwargs['scheduler']}[/magenta], Searcher: [magenta]{hpo_tune_kwargs['searcher']}[/magenta]")
 
     if search_space_dict:
         # Convert YAML search space to autogluon.common.space objects
@@ -300,9 +303,9 @@ def train(
         # Set hyperparameters with search spaces
         fit_kwargs["hyperparameters"] = converted_space
 
-        print(f"[AutoGluon HPO] Search spaces defined for: {list(converted_space.keys())}")
+        console.print(f"[cyan]i[/cyan] [bold]HPO:[/bold] Search spaces defined for: [yellow]{list(converted_space.keys())}[/yellow]")
         for model_type in converted_space:
-            print(f"[AutoGluon HPO]   {model_type}: {len(converted_space[model_type])} parameters")
+            console.print(f"    • [cyan]{model_type:10s}[/cyan] | [yellow]{len(converted_space[model_type])}[/yellow] parameters")
 
     # Forward any model-specific hyperparameters (e.g., NN_TORCH, FASTAI) to AutoGluon.
     known_keys = {
@@ -344,7 +347,7 @@ def train(
         # Extract best model score on eval data
         best_model_row = leaderboard[leaderboard['model'] == best_model_name]
         eval_score = best_model_row['score_val'].values[0] if not best_model_row.empty else None
-        print(f"[AutoGluon Eval] Leaderboard score on eval_data: {eval_score}")
+        console.print(f"[green]✓[/green] [bold]Eval:[/bold] Leaderboard score on eval_data: [yellow]{eval_score:.6f}[/yellow]")
     else:
         leaderboard = predictor.leaderboard(silent=True)
 

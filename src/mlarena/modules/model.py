@@ -669,17 +669,12 @@ class ModelModule(BaseModule):
             marker.write_text("TARGET_COLUMN missing; aborting model step.")
             return ModuleResult(success=False, error="TARGET_COLUMN missing", artifacts=[marker])
 
-        # Load model implementation (defaults to autogluon_baseline)
         model_implementation = template_cfg.get("model", "autogluon_baseline")
         console.print(f"[cyan]Using model implementation: {model_implementation}[/cyan]")
 
-        # Load model module
         model_module = _load_model_module(self.context.project_root, model_implementation)
-
-        # Build ModelConfig for model interface
         model_config = self._build_model_config(template_cfg, config, preset, time_limit, use_gpu_param, artifact_dir)
 
-        # Build artifacts dict with orig_df, sample_weight, tuning_df, and eval_df
         artifacts = {}
         if orig_df is not None:
             artifacts['orig_df'] = orig_df
@@ -690,16 +685,14 @@ class ModelModule(BaseModule):
         if eval_df is not None:
             artifacts['eval_df'] = eval_df
 
-        # Call train()
         console.print("[green]Training model...[/green]")
         train_result = model_module.train(
             train_df=train_df,
             val_df=None,
             config=model_config,
-            artifacts=artifacts if artifacts else None,  # Backward compat: None if empty
+            artifacts=artifacts if artifacts else None,
         )
 
-        # Handle return: (model, summary) tuple or just model
         if isinstance(train_result, tuple) and len(train_result) == 2:
             predictor, training_summary = train_result
         else:
@@ -707,9 +700,8 @@ class ModelModule(BaseModule):
 
         local_cv_score = training_summary.get("local_cv_score")
 
-        # Save leaderboard if returned by train() (extract before JSON serialization)
         lb_path = None
-        leaderboard = training_summary.pop("leaderboard", None)  # Remove from dict to avoid JSON error
+        leaderboard = training_summary.pop("leaderboard", None)
         if leaderboard is not None:
             try:
                 lb_path = artifact_dir / "leaderboard.csv.gz"
@@ -717,7 +709,6 @@ class ModelModule(BaseModule):
             except Exception:
                 pass
 
-        # Print training summary
         _print_training_summary(
             project_root=self.context.project_root,
             experiment_id=self.context.experiment_id,
@@ -732,7 +723,6 @@ class ModelModule(BaseModule):
             leaderboard_path=lb_path,
         )
 
-        # Cleanup model artifacts if requested
         mla_retention = self.invocation_params.get("mla_retention", False)
         if mla_retention:
             self._cleanup_predictor(predictor, artifact_dir / "model")
@@ -744,7 +734,7 @@ class ModelModule(BaseModule):
             success=True,
             payload={
                 "model_implementation": model_implementation,
-                "model_artifact": str(artifact_dir / "model"),  # Required by predict module
+                "model_artifact": str(artifact_dir / "model"),
                 "local_cv_score": local_cv_score,
                 "training_summary": training_summary,
                 "preset": preset,

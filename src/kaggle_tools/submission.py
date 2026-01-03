@@ -14,6 +14,9 @@ import sys
 
 import pandas as pd
 import numpy as np
+from rich.console import Console
+
+console = Console()
 
 # Import tools from scripts/ (experiment_logger, submissions_tracker)
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
@@ -264,9 +267,9 @@ def create_submission(
             raise ValueError(
                 f"test_ids is required when sample submission is missing ({sample_submission_path})."
             )
-        print(
-            f"Warning: sample submission not found at {sample_submission_path}. "
-            "Falling back to default column names."
+        console.print(
+            f"[yellow]⚠ Warning: sample submission not found at {sample_submission_path}.[/yellow] "
+            "[dim]Falling back to default column names.[/dim]"
         )
 
     fallback_id = id_column or default_id_col
@@ -308,8 +311,8 @@ def create_submission(
     # Save submission
     submission.to_csv(filepath, index=False, compression='infer')
 
-    print(f"✓ Submission saved: {filepath}")
-    print(f"  Shape: {submission.shape}")
+    console.print(f"[green]✓[/green] [bold]Submission saved:[/bold] [cyan]{filepath}[/cyan]")
+    console.print(f"  [dim]Shape: {submission.shape[0]:,} rows × {submission.shape[1]} columns[/dim]")
 
     # Add to tracker if requested
     experiment = None
@@ -343,7 +346,7 @@ def create_submission(
                 feature_count=feature_count,
             )
         except Exception as e:
-            print(f"Warning: Could not add to tracker: {e}")
+            console.print(f"[yellow]⚠ Warning: Could not add to tracker: {e}[/yellow]")
 
     return SubmissionArtifact(
         path=filepath,
@@ -378,7 +381,7 @@ def validate_submission(
         bool: True if valid, raises exception otherwise
     """
     if not sample_submission_path.exists():
-        print("Warning: sample_submission.csv not found, skipping validation")
+        console.print("[yellow]⚠ Warning: sample_submission.csv not found, skipping validation[/yellow]")
         return True
 
     sample = pd.read_csv(sample_submission_path, compression='infer')
@@ -401,5 +404,5 @@ def validate_submission(
         target_type = "float"
     _ensure_target_value_types(submission.iloc[:, 1], target_type, sample.columns[1])
 
-    print("✓ Submission format is valid")
+    console.print("[green]✓[/green] [bold]Submission format is valid[/bold]")
     return True

@@ -11,9 +11,11 @@ from typing import Any, Dict, Optional
 import optuna
 from optuna.samplers import TPESampler, RandomSampler, CmaEsSampler
 from optuna.pruners import MedianPruner, SuccessiveHalvingPruner
+from rich.console import Console
 
 from kaggle_tools.config_models import OptunaConfig
 
+console = Console()
 
 class StudyManager:
     """
@@ -202,13 +204,15 @@ class StudyManager:
         if self.study is None:
             raise RuntimeError("Study not loaded. Call create_or_load_study() first.")
 
-        print(f"Number of finished trials: {len(self.study.trials)}")
+        console.print(f"\n[bold cyan]Study Statistics:[/bold cyan]")
+        console.print(f"  [bold]Number of finished trials:[/bold] [yellow]{len(self.study.trials)}[/yellow]")
 
         if len(self.study.trials) > 0:
-            print(f"Best trial:")
             trial = self.study.best_trial
-
-            print(f"  Value: {trial.value}")
-            print(f"  Params:")
+            console.print(f"  [bold green]Best trial:[/bold green]")
+            console.print(f"    [bold]Value:[/bold] [yellow]{trial.value:.6f}[/yellow]")
+            console.print(f"    [bold]Params:[/bold]")
             for key, value in trial.params.items():
-                print(f"    {key}: {value}")
+                console.print(f"      • [cyan]{key:20s}[/cyan]: [white]{value}[/white]")
+        else:
+            console.print("  [dim]No completed trials yet.[/dim]")

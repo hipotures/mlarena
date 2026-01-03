@@ -28,79 +28,45 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[List[str], List[Dict], str, str, bool]:
     """
     Resolve a preprocess template argument into an execution chain with semantic hashing.
-
-    Args:
-        template_arg: Raw CLI value (single name, comma-separated list, or meta-template).
-        project_root: Root of the target Kaggle project.
-
-    Returns:
-        Tuple where:
-            templates: Ordered list of template names to execute.
-            template_configs: Ordered list of template dicts (for hashing).
-            chain_exp_id: Experiment identifier for the chain (e.g., ``pre-full-pipeline``).
-            combined_hash: Content hash for cache directory (e.g., ``abc123def456``).
-            is_meta: Whether the argument resolved to a meta-template chain.
-
-    Raises:
-        ValueError: If a meta-template declares a non-list ``chain`` field.
-
-    Examples:
-        >>> templates, configs, chain_id, hash, is_meta = _parse_preprocess_templates("baseline", Path("."))
-        >>> len(templates)
-        1
-        >>> len(configs)
-        1
-        >>> len(hash)
-        12
     """
     if template_arg is None:
         template_arg = "baseline"
 
-    # Split by comma and strip whitespace
     templates = [t.strip() for t in template_arg.split(",")]
 
-    # Load all templates upfront
     import sys
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     from template_loader import load_templates
 
     all_templates, _ = load_templates("preprocess", project_root, suppress_warnings=True)
 
-    # Check if single template is a meta-template (has "chain" key)
     if len(templates) == 1:
         template_config = all_templates.get(templates[0], {})
 
-        # If template has "chain" key, it's a meta-template
         if "chain" in template_config:
             chain = template_config["chain"]
             if not isinstance(chain, list):
                 raise ValueError(f"Meta-template '{templates[0]}' chain must be a list")
 
-            # Meta-template: expand to chain
             templates = chain
-            chain_exp_id = f"pre-{template_arg}"  # Use original name
+            chain_exp_id = f"pre-{template_arg}"
             is_meta = True
         else:
-            # Regular single template
             chain_exp_id = f"pre-{templates[0]}"
             is_meta = False
     else:
-        # CLI chain: create identifier from template list
         chain_str = ",".join(templates)
         chain_hash_id = hashlib.md5(chain_str.encode()).hexdigest()[:8]
         chain_exp_id = f"pre-chain-{chain_hash_id}"
         is_meta = False
 
-    # Load template configs for hashing
     template_configs = []
     for tpl_name in templates:
         if tpl_name not in all_templates:
             raise ValueError(f"Template '{tpl_name}' not found in preprocess templates")
         template_configs.append(all_templates[tpl_name])
 
-    # Compute content hash
     from mlarena.utils.hash_utils import compute_chain_hash
-
     combined_hash, individual_hashes = compute_chain_hash(template_configs, project_root)
 
     return templates, template_configs, chain_exp_id, combined_hash, is_meta
@@ -112,19 +78,9 @@ def _validate_setup_modules(
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate that required setup modules (init, eda) have been completed.
-
-    Args:
-        project_root: Path to project directory
-        console: Rich console for output
-
-    Returns:
-        Tuple of (is_valid, error_message)
-        - (True, None) if validation passes
-        - (False, error_msg) if validation fails
     """
     import json
 
-    # Check init completion
     init_state_file = project_root / "experiments" / "init" / "state.json"
     if not init_state_file.exists():
         return False, (
@@ -149,7 +105,6 @@ def _validate_setup_modules(
             f"Run: mla init --project {project_root.name} --force"
         )
 
-    # Check eda completion
     eda_state_file = project_root / "experiments" / "eda" / "state.json"
     if not eda_state_file.exists():
         return False, (
@@ -276,15 +231,12 @@ def run_preprocess_chain(
 ) -> Tuple[int, Dict[str, ModuleResult], Optional[Path], List[str]]:
     """
     Execute a chain of preprocessing templates with content-addressed caching.
-    Returns (exit_code, results, final_preprocess_exp_dir, resolved_templates).
     """
     resolved_preprocess_template = config.preprocess_template or "baseline"
 
-    # Parse templates with semantic hashing
     preprocess_templates, template_configs, chain_exp_id, combined_hash, is_meta = \
         _parse_preprocess_templates(resolved_preprocess_template, project_root)
 
-    # Hash-based directory
     chain_base_dir = project_root / "experiments" / chain_exp_id / combined_hash
 
     results = {}
@@ -294,11 +246,8 @@ def run_preprocess_chain(
         console.print(f"\n[bold cyan]Preprocessing Chain:[/bold cyan] {' → '.join(preprocess_templates)}")
         console.print(f"[dim]Chain: {chain_exp_id} | Hash: {combined_hash}[/dim]\n")
 
-    # Save canonical configs on first access
     if not (chain_base_dir / "config").exists():
         from mlarena.utils.hash_utils import save_canonical_configs, compute_chain_hash
-
-        # Recompute to get individual hashes
         _, individual_hashes = compute_chain_hash(template_configs, project_root)
 
         save_canonical_configs(
@@ -310,14 +259,12 @@ def run_preprocess_chain(
             project_root
         )
 
-    # Smart cache validation: check ALL steps upfront
     execution_start_idx = 0
 
     if not force and chain_base_dir.exists():
         all_completed = True
         resume_from_idx = None
 
-        # Validate ALL steps before execution
         for idx, tpl_name in enumerate(preprocess_templates):
             submodule_exp_id = f"{idx}-{tpl_name}"
             exp_dir = chain_base_dir / submodule_exp_id
@@ -339,29 +286,23 @@ def run_preprocess_chain(
                         resume_from_idx = idx
                         break
 
-                    # Accumulate results for cache hit
                     results[f"preprocess-{tpl_name}"] = ModuleResult(
                         success=True,
                         payload=module_entry.get("payload", {})
                     )
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError):
                 all_completed = False
                 resume_from_idx = idx
                 break
 
         if all_completed:
-            # Show header/footer for cached preprocessing
             from mlarena.core.display import print_module_header, print_module_footer
             from datetime import datetime
 
-            # Use first template config for header display
             first_template = preprocess_templates[0]
             first_config = template_configs[0] if template_configs else {}
-
-            # Build chain experiment ID for display
             display_exp_id = f"{chain_exp_id}/{combined_hash}/0-{first_template}"
 
-            # Header
             started_at = datetime.now().isoformat()
             print_module_header(
                 module_name="preprocess",
@@ -374,7 +315,6 @@ def run_preprocess_chain(
                 console=console
             )
 
-            # Footer with cache info
             finished_at = datetime.now().isoformat()
             final_step_id = f"{len(preprocess_templates) - 1}-{preprocess_templates[-1]}"
             final_preprocess_exp_dir = chain_base_dir / final_step_id
@@ -383,7 +323,6 @@ def run_preprocess_chain(
             if len(preprocess_templates) > 1:
                 input_source = f"{len(preprocess_templates) - 2}-{preprocess_templates[-2]}"
 
-            # Get output paths from final step
             final_state_file = final_preprocess_exp_dir / "state.json"
             output_paths = {}
             shapes = None
@@ -410,11 +349,10 @@ def run_preprocess_chain(
                 except:
                     pass
 
-            # Show footer with cache message in metrics
             print_module_footer(
                 module_name="preprocess",
                 finished_at=finished_at,
-                duration=0.0,  # Cached, no actual execution time
+                duration=0.0,
                 output_paths=output_paths,
                 shapes=shapes,
                 metrics={"cache_status": f"✓ Cached (hash: {combined_hash})"},
@@ -431,16 +369,12 @@ def run_preprocess_chain(
             console.print(f"\n[yellow]Resuming from step {resume_from_idx}: {preprocess_templates[resume_from_idx]}[/yellow]")
             execution_start_idx = resume_from_idx
 
-    # Execute chain (starting from execution_start_idx)
     for idx in range(execution_start_idx, len(preprocess_templates)):
         tpl_name = preprocess_templates[idx]
         submodule_exp_id = f"{idx}-{tpl_name}"
         full_exp_id = f"{chain_exp_id}/{combined_hash}/{submodule_exp_id}"
         input_source_idx = idx - 1
         input_source = f"{input_source_idx}-{preprocess_templates[input_source_idx]}" if idx > 0 else None
-
-        exp_dir = chain_base_dir / submodule_exp_id
-        state_file = exp_dir / "state.json"
 
         context = _build_module_context(
             project_root=project_root,
@@ -460,7 +394,7 @@ def run_preprocess_chain(
         module.set_invocation_params({
             "preprocess_template": tpl_name,
             "input_source": input_source,
-            "chain_exp_id": f"{chain_exp_id}/{combined_hash}",  # Include hash
+            "chain_exp_id": f"{chain_exp_id}/{combined_hash}",
             "is_last_in_chain": is_last_in_chain,
             "force": force,
             "lock": config.lock,
@@ -475,7 +409,6 @@ def run_preprocess_chain(
         if not result or not result.success:
             return 1, results, None, preprocess_templates
 
-    # Return final directory
     final_preprocess_exp_dir = None
     if preprocess_templates:
         final_step_id = f"{len(preprocess_templates) - 1}-{preprocess_templates[-1]}"
@@ -806,6 +739,9 @@ def main(argv: List[str] | None = None) -> int:
     """
     Main CLI entry point using GlobalConfig.
     """
+    from rich.console import Console
+    console = Console(force_terminal=True)
+    
     argv = argv or sys.argv[1:]
 
     # Discover modules
@@ -828,9 +764,9 @@ def main(argv: List[str] | None = None) -> int:
             command = overrides.pop(0)
         else:
             available = ", ".join(sorted(ModuleRegistry.available()))
-            print(f"[error] Unknown command: {potential_command}")
+            console.print(f"[bold red]✗ Error:[/bold red] Unknown command: [yellow]{potential_command}[/yellow]")
             if available:
-                print(f"[error] Available modules: {available}")
+                console.print(f"[dim]Available modules: {available}[/dim]")
             return 1
 
     # Detect project
@@ -846,7 +782,7 @@ def main(argv: List[str] | None = None) -> int:
 
     if not project and command != "modules":
         parser.print_help()
-        print("\n[error] --project is required")
+        console.print("\n[bold red]✗ Error:[/bold red] [yellow]--project[/yellow] is required")
         return 1
 
     # Build Unified Config
@@ -861,13 +797,13 @@ def main(argv: List[str] | None = None) -> int:
             
         config = get_config(project or "default", overrides)
     except Exception as e:
-        print(f"[error] Config error: {e}")
+        console.print(f"[bold red]✗ Config error:[/bold red] {e}")
         return 1
 
     # Handle 'modules' command
     if command == "modules":
         available = sorted(ModuleRegistry.available())
-        print("\n".join(available))
+        console.print("\n".join(available))
         return 0
 
     project_root = REPO_ROOT / "projects" / "kaggle" / project
@@ -891,7 +827,7 @@ def main(argv: List[str] | None = None) -> int:
 
     # Single module execution
     if command not in ModuleRegistry.available():
-        print(f"[error] Unknown module: {command}")
+        console.print(f"[bold red]✗ Error:[/bold red] Unknown module: [yellow]{command}[/yellow]")
         return 1
 
     # Load project config and pipeline
@@ -901,7 +837,7 @@ def main(argv: List[str] | None = None) -> int:
         config_module = load_project_config(project_root)
         pipeline_def, _ = load_pipeline_def("default", project_root=project_root)
     elif command != "init":
-        print(f"[error] Project '{project}' not initialized. Run: mla init --project {project}")
+        console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init --project {project}[/cyan]")
         return 1
 
     # Special case: list-style admin commands (avoid creating experiment dirs)
@@ -942,7 +878,7 @@ def main(argv: List[str] | None = None) -> int:
 
         # Check if project exists
         if not project_root.exists():
-            print(f"[error] Project '{project}' not initialized. Run: mla init --project {project}")
+            console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init --project {project}[/cyan]")
             return 1
 
         try:

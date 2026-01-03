@@ -63,8 +63,6 @@ def _load_processed_or_raw(
             # For preprocessing chains, module name is not "preprocess" but the actual step name
             # Get the first module (should be only one in single-step state)
             modules = state.get("modules", {})
-            print(f"[DEBUG] exp_dir: {exp_dir}")
-            print(f"[DEBUG] modules in state: {list(modules.keys()) if modules else 'none'}")
             if modules:
                 # Try "preprocess" first (legacy single-step), then first module (chain step)
                 preprocess_module = modules.get("preprocess") or next(iter(modules.values()))
@@ -74,21 +72,14 @@ def _load_processed_or_raw(
 
             custom_state = preprocess_payload.get("custom_module_state", {})
             weights_path_str = custom_state.get("weights_path")
-            print(f"[DEBUG] weights_path from state: {weights_path_str}")
 
             if weights_path_str:
                 weights_path = Path(weights_path_str)
-                print(f"[DEBUG] Is absolute: {weights_path.is_absolute()}")
                 # Handle both absolute and relative paths
                 if not weights_path.is_absolute():
                     weights_path = context.project_root / weights_path
-                print(f"[DEBUG] Final path: {weights_path}")
-                print(f"[DEBUG] Exists: {weights_path.exists()}")
                 if weights_path.exists():
                     sample_weight_local = pd.read_csv(weights_path, compression='infer')
-                    print(f"[DEBUG] Loaded! shape: {sample_weight_local.shape}")
-                else:
-                    print(f"[DEBUG] ERROR: File not found!")
 
         return train_df_local, test_df_local, sample_weight_local, orig_df_local
 

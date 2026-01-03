@@ -350,9 +350,65 @@ def run_preprocess_chain(
                 break
 
         if all_completed:
-            console.print(f"[bold green]✓ Preprocessing chain cached[/bold green] [dim](hash: {combined_hash})[/dim]")
+            # Show header/footer for cached preprocessing
+            from mlarena.core.display import print_module_header, print_module_footer
+            from datetime import datetime
+
+            # Use first template config for header display
+            first_template = preprocess_templates[0]
+            first_config = template_configs[0] if template_configs else {}
+
+            # Build chain experiment ID for display
+            display_exp_id = f"{chain_exp_id}/{combined_hash}/0-{first_template}"
+
+            # Header
+            started_at = datetime.now().isoformat()
+            print_module_header(
+                module_name="preprocess",
+                started_at=started_at,
+                experiment_id=display_exp_id,
+                template_name=first_template,
+                template_config=first_config,
+                project_root=project_root,
+                project_name=project_name,
+                console=console
+            )
+
+            # Footer with cache info
+            finished_at = datetime.now().isoformat()
             final_step_id = f"{len(preprocess_templates) - 1}-{preprocess_templates[-1]}"
             final_preprocess_exp_dir = chain_base_dir / final_step_id
+
+            # Get output paths from final step
+            final_state_file = final_preprocess_exp_dir / "state.json"
+            output_paths = {}
+            shapes = None
+            if final_state_file.exists():
+                try:
+                    final_state = json.loads(final_state_file.read_text())
+                    final_payload = final_state.get("modules", {}).get("preprocess", {}).get("payload", {})
+                    if "train_processed" in final_payload:
+                        output_paths["train_processed"] = final_payload["train_processed"]
+                    if "test_processed" in final_payload:
+                        output_paths["test_processed"] = final_payload["test_processed"]
+                    shapes = final_payload.get("shapes")
+                except:
+                    pass
+
+            # Show footer with cache message in metrics
+            print_module_footer(
+                module_name="preprocess",
+                finished_at=finished_at,
+                duration=0.0,  # Cached, no actual execution time
+                output_paths=output_paths,
+                shapes=shapes,
+                metrics={"cache_status": f"✓ Cached (hash: {combined_hash})"},
+                project_root=project_root,
+                project_name=project_name,
+                experiment_id=display_exp_id,
+                console=console
+            )
+
             return 0, results, final_preprocess_exp_dir, preprocess_templates
 
         elif resume_from_idx is not None and resume_from_idx > 0:

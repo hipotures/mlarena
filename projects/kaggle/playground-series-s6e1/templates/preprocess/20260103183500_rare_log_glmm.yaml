@@ -1,0 +1,5 @@
+chain:
+- 20260103183500_sanity_check
+- 20260103183500_rare_001
+- 20260103183500_target_log
+- 20260103183500_encoder_glmm

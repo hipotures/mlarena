@@ -1,0 +1,5 @@
+module: encoder
+cache: true
+config:
+  encoding_method: catboost
+  handle_unknown: ignore

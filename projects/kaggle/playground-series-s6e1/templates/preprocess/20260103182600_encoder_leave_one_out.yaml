@@ -1,0 +1,5 @@
+module: encoder
+cache: true
+config:
+  encoding_method: leave_one_out
+  handle_unknown: ignore

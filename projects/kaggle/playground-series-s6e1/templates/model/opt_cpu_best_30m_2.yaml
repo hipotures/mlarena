@@ -1,0 +1,12 @@
+model: autogluon_baseline
+preprocess_template: opt_catboost_log1p
+config:
+  preset: best
+  time_limit: 1800
+  use_gpu: false
+  included_model_types:
+  - GBM
+  - XGB
+  - CAT
+  random_state: 42
+  eval_metric: root_mean_squared_error

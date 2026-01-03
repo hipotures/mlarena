@@ -1,0 +1,4 @@
+module: target_transformer
+cache: true
+config:
+  method: log

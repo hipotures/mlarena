@@ -1,0 +1,9 @@
+module: sanity_check
+cache: true
+config:
+  check_missing: true
+  check_duplicates: true
+  check_target: true
+  min_unique_fraction: 0.0
+  max_missing_fraction: 0.95
+  drop_duplicates: true

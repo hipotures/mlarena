@@ -1,0 +1,6 @@
+module: outlier_handler
+cache: true
+config:
+  method: iqr
+  action: clip
+  iqr_multiplier: 1.5

@@ -463,6 +463,7 @@ def run_preprocess_chain(
             "chain_exp_id": f"{chain_exp_id}/{combined_hash}",  # Include hash
             "is_last_in_chain": is_last_in_chain,
             "force": force,
+            "lock": config.lock,
         })
 
         executor = PipelineExecutor({"preprocess": module})
@@ -583,6 +584,7 @@ def run_auto_flow(
         "preprocess_template": final_preprocess_template,
         "preprocess_exp_dir": str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None,
         "force": force,
+        "lock": config.lock,
     }
     # Backward compat for some model modules that still use dict
     model_params.update(config.model) 
@@ -872,12 +874,20 @@ def main(argv: List[str] | None = None) -> int:
     
     # Auto-flow: no command provided
     if command is None:
-        return run_auto_flow(
-            project_root=project_root,
-            project_name=project,
-            config=config,
-            argv=argv,
-        )
+        try:
+            return run_auto_flow(
+                project_root=project_root,
+                project_name=project,
+                config=config,
+                argv=argv,
+            )
+        except Exception as e:
+            if e.__class__.__name__ == "OverwriteLockedError":
+                from rich.console import Console
+                console = Console(force_terminal=True)
+                console.print(f"[bold red]✗ {str(e)}[/bold red]")
+                return 1
+            raise
 
     # Single module execution
     if command not in ModuleRegistry.available():
@@ -913,6 +923,14 @@ def main(argv: List[str] | None = None) -> int:
         params = getattr(config, command.replace("-", "_"), {})
         if not isinstance(params, dict):
             params = {}
+        else:
+            params = params.copy()
+
+        # Inject top-level config fields
+        for field in ["force", "lock"]:
+            if hasattr(config, field):
+                params[field] = getattr(config, field)
+
         module.set_invocation_params(params)
         result = module.execute()
         return 0 if (result and result.success) else 1
@@ -927,10 +945,18 @@ def main(argv: List[str] | None = None) -> int:
             print(f"[error] Project '{project}' not initialized. Run: mla init --project {project}")
             return 1
 
-        exit_code, _, _, _ = run_preprocess_chain(
-            project_root, project, config, config_module, pipeline_def, argv, console
-        )
-        return exit_code
+        try:
+            exit_code, _, _, _ = run_preprocess_chain(
+                project_root, project, config, config_module, pipeline_def, argv, console
+            )
+            return exit_code
+        except Exception as e:
+            if e.__class__.__name__ == "OverwriteLockedError":
+                from rich.console import Console
+                console = Console(force_terminal=True)
+                console.print(f"[bold red]✗ {str(e)}[/bold red]")
+                return 1
+            raise
 
     # Special case: model with auto-preprocessing
     # Resolve and run preprocessing chain before model execution (similar to auto-flow)
@@ -990,7 +1016,7 @@ def main(argv: List[str] | None = None) -> int:
                 params = params.copy()
             
             # Inject top-level config fields that modules expect
-            for field in ["model_template", "preprocess_template", "force", "skip_submit"]:
+            for field in ["model_template", "preprocess_template", "force", "skip_submit", "lock"]:
                 if hasattr(config, field):
                     params[field] = getattr(config, field)
 
@@ -1008,10 +1034,17 @@ def main(argv: List[str] | None = None) -> int:
         modules[name] = module
 
     executor = PipelineExecutor(modules)
-    results = executor.run_module(command, force=config.force, skip_deps=config.skip_deps)
-
-    last = results.get(command)
-    return 0 if (last and last.success) else 1
+    try:
+        results = executor.run_module(command, force=config.force, skip_deps=config.skip_deps)
+        last = results.get(command)
+        return 0 if (last and last.success) else 1
+    except Exception as e:
+        if e.__class__.__name__ == "OverwriteLockedError":
+            from rich.console import Console
+            console = Console(force_terminal=True)
+            console.print(f"[bold red]✗ {str(e)}[/bold red]")
+            return 1
+        raise
 
 
 if __name__ == "__main__":  # pragma: no cover

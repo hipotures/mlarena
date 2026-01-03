@@ -19,6 +19,27 @@ from mlarena.utils.time import utc_now_iso
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
+class OverwriteLockedError(RuntimeError):
+    """Raised when attempting to overwrite a locked module with --force."""
+
+    def __init__(self, module_name: str, lock_path: Path, lock_metadata: Dict[str, Any]):
+        self.module_name = module_name
+        self.lock_path = lock_path
+        self.lock_metadata = lock_metadata
+
+        locked_at = lock_metadata.get("locked_at", "unknown")
+        template = lock_metadata.get("template", "")
+        template_info = f" (template: {template})" if template else ""
+
+        super().__init__(
+            f"Module '{module_name}' is locked against overwrite{template_info}\n"
+            f"Lock file: {lock_path}\n"
+            f"Locked at: {locked_at}\n"
+            f"To overwrite, remove the lock file manually:\n"
+            f"  rm {lock_path}"
+        )
+
+
 def _relativize_paths(data: Any, project_root: Path) -> Any:
     """
     Recursively convert absolute paths within a project to project-relative paths.
@@ -466,3 +487,35 @@ class ExperimentState:
                 self.state_path.write_text(json.dumps(relative_payload, indent=2))
         except Timeout:
             raise RuntimeError(f"Could not acquire lock for state file at {self.state_path}")
+
+    def get_lock_path(self, module_name: str = None) -> Path:
+        """Get path to overwrite.lock file."""
+        return self.experiment_dir / "overwrite.lock"
+
+    def is_locked(self, module_name: str = None) -> tuple[bool, Optional[Dict[str, Any]]]:
+        """Check if locked. Returns (is_locked, metadata)."""
+        lock_path = self.get_lock_path(module_name)
+        if not lock_path.exists():
+            return False, None
+        try:
+            lock_data = json.loads(lock_path.read_text())
+            return True, lock_data
+        except (json.JSONDecodeError, OSError):
+            return False, None  # Corrupted lock = unlocked
+
+    def create_lock(self, module_name: str, metadata: Dict[str, Any] = None) -> None:
+        """Create overwrite.lock after successful completion."""
+        lock_path = self.get_lock_path(module_name)
+        if lock_path.exists():
+            return  # Idempotent
+
+        lock_data = {
+            "locked_at": utc_now_iso(),
+            "locked_by_pid": os.getpid(),
+            "module_name": module_name,
+            "experiment_id": self.experiment_id,
+            **(metadata or {})
+        }
+
+        self.experiment_dir.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(json.dumps(lock_data, indent=2))

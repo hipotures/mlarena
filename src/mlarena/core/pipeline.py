@@ -13,6 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .module import BaseModule, ModuleResult
+from .experiment import OverwriteLockedError
 from .display import print_module_header, print_module_footer, format_path_relative, extract_template_overrides
 from pathlib import Path
 
@@ -371,6 +372,18 @@ class PipelineExecutor:
                 results[name] = ModuleResult(success=False, error=reason)
                 break
 
+            # Check for overwrite lock when forcing completed module
+            if already_completed and force and name == module_name:
+                is_locked, lock_metadata = module.context.state.is_locked(name)
+                if is_locked:
+                    lock_path = module.context.state.get_lock_path(name)
+                    # Convert to relative path for user-friendly error message
+                    try:
+                        relative_lock_path = lock_path.relative_to(module.context.state.project_root)
+                    except ValueError:
+                        relative_lock_path = lock_path
+                    raise OverwriteLockedError(name, relative_lock_path, lock_metadata)
+
             # Handle already completed modules
             # force only applies to target module, not dependencies
             if already_completed and not (force and name == module_name):
@@ -505,6 +518,21 @@ class PipelineExecutor:
                 module.context.state.complete_module(name, outcome.payload)
                 if not defer_save or module.context.project_root.exists():
                     module.context.state.save()
+
+                # Create overwrite lock if requested
+                lock_param = getattr(module, "invocation_params", {}).get("lock", False)
+                if lock_param:
+                    lock_metadata = {}
+                    if name == "preprocess":
+                        template = getattr(module, "invocation_params", {}).get("preprocess_template")
+                        if template:
+                            lock_metadata["template"] = template
+                    elif name == "model":
+                        template = getattr(module, "invocation_params", {}).get("model_template")
+                        if template:
+                            lock_metadata["template"] = template
+
+                    module.context.state.create_lock(name, lock_metadata)
 
                 # Display success footer
                 module_state_after = module.context.state.modules.get(name)

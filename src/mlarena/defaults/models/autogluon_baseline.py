@@ -82,35 +82,19 @@ def train(
         merge_orig = config.model.get("merge_orig", True)
 
     if not merge_orig:
-        print("[AutoGluon with Orig] merge_orig disabled; skipping external dataset merge")
         orig_df = None
 
     if orig_df is not None:
         if target_column not in orig_df.columns:
-            print(
-                f"[AutoGluon with Orig] External dataset missing target '{target_column}', skipping merge"
-            )
             orig_df = None
         else:
             # Drop rows with missing target (can't train on unlabeled rows)
-            orig_before = len(orig_df)
             orig_df = orig_df.dropna(subset=[target_column])
-            dropped = orig_before - len(orig_df)
-            if dropped:
-                print(f"[AutoGluon with Orig] Dropped {dropped:,} external rows with missing target")
 
     if orig_df is not None:
-        print(f"[AutoGluon with Orig] Merging external dataset:")
-        print(f"  Kaggle train rows: {base_train_rows:,}")
-        print(f"  External rows:     {len(orig_df):,}")
-
         # Concatenate train + orig
         train_df = pd.concat([train_df, orig_df], ignore_index=True)
         merged_rows = int(len(orig_df))
-
-        print(f"  Merged total:      {len(train_df):,}")
-    else:
-        print("[AutoGluon with Orig] No external dataset found, using Kaggle data only")
 
     # Drop ignored columns (keep target)
     drop_cols = set((config.dataset.ignored_columns or []) + [config.dataset.id_column])
@@ -126,10 +110,6 @@ def train(
 
     # Check for config override (sample_weight_strategy: 'auto_weight', 'balance_weight', or custom column)
     sample_weight_strategy = config.dataset.sample_weight_strategy
-    print(f"[DEBUG] sample_weight_strategy from config: {sample_weight_strategy}")
-    print(f"[DEBUG] sample_weight from artifacts: {type(sample_weight).__name__ if sample_weight is not None else 'None'}")
-    if sample_weight is not None and hasattr(sample_weight, 'shape'):
-        print(f"[DEBUG] sample_weight shape: {sample_weight.shape}")
 
     if sample_weight_strategy:
         # User explicitly configured sample_weight_strategy in template

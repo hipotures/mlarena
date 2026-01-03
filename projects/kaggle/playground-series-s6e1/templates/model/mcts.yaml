@@ -11,3 +11,4 @@ fit_args:
   keep_only_best: true
   save_space: true
   holdout_frac: 0.1
+  fit_weighted_ensemble: false

@@ -14,6 +14,7 @@ import os
 import warnings
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 from autogluon.tabular import TabularPredictor
 
@@ -58,6 +59,8 @@ def train(
         Tuple of (predictor, training_summary)
     """
     target_column = config.dataset.target
+    seed = getattr(config.system, "random_seed", 42)
+    np.random.seed(seed)
     preset = config.hyperparameters.presets or "medium"
     time_limit = config.hyperparameters.time_limit or 300
     use_gpu = bool(config.hyperparameters.use_gpu)
@@ -227,11 +230,16 @@ def train(
     included_models = getattr(config.hyperparameters, "included_model_types", None)
     if included_models:
         fit_kwargs["included_model_types"] = included_models
+    fit_args = getattr(config.hyperparameters, "fit_args", None)
+    if fit_args is not None and not isinstance(fit_args, dict):
+        raise ValueError("fit_args must be a dict")
 
     hyper_dict = config.hyperparameters.model_dump(exclude_none=True)
     if use_gpu and not hyper_dict.get("ag_args_fit"):
         # Reserve GPU per model to avoid Ray launching multiple GPU tasks on one card.
         fit_kwargs["ag_args_fit"] = {"num_gpus": 1}
+    if fit_args:
+        fit_kwargs.update(fit_args)
 
     # NEW: Add HPO support
     hpo_tune_kwargs = getattr(config.hyperparameters, "hyperparameter_tune_kwargs", None)
@@ -273,6 +281,7 @@ def train(
         "preset",
         "hyperparameter_tune_kwargs",  # NEW
         "search_space",  # NEW
+        "fit_args",
     }
     model_hparams = {k: v for k, v in hyper_dict.items() if k not in known_keys}
 

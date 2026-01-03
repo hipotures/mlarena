@@ -199,6 +199,7 @@ def _build_module_context(
     config_module=None,
     pipeline_def: Optional[Dict] = None,
     argv: Optional[List[str]] = None,
+    create_dirs: bool = True,
 ) -> ModuleContext:
     """
     Build an isolated execution context for a module.
@@ -224,7 +225,7 @@ def _build_module_context(
         experiment_id=experiment_id,
         pipeline=pipeline_def or {},
         run_invocation={"argv": argv or [], "module": module_name},
-        create_dirs=True,
+        create_dirs=create_dirs,
         setup_module_name=setup_module_name,
     )
 
@@ -821,6 +822,29 @@ def main(argv: List[str] | None = None) -> int:
     elif command != "init":
         print(f"[error] Project '{project}' not initialized. Run: mla init --project {project}")
         return 1
+
+    # Special case: list-style admin commands (avoid creating experiment dirs)
+    if command in {"submissions", "experiments"}:
+        context = _build_module_context(
+            project_root=project_root,
+            project=project,
+            module_name=command,
+            config=config,
+            experiment_id=f"cli-{command}",
+            config_module=config_module,
+            pipeline_def=pipeline_def,
+            argv=argv,
+            create_dirs=False,
+        )
+
+        module_cls = ModuleRegistry.get(command)
+        module = module_cls(context)
+        params = getattr(config, command.replace("-", "_"), {})
+        if not isinstance(params, dict):
+            params = {}
+        module.set_invocation_params(params)
+        result = module.execute()
+        return 0 if (result and result.success) else 1
 
     # Special case: preprocess chain (even if run as single command)
     if command == "preprocess":

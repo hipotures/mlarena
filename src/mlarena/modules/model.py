@@ -127,13 +127,36 @@ def _load_processed_or_raw(
                 if train_df is not None:
                     return train_df, test_df, sample_weight, orig_df
 
+            # Also handle hashed chain dirs: pre-{template}/{hash}/<idx>-<module>
+            hashed_latest = []
+            for hash_dir in chain_dir.iterdir():
+                if not hash_dir.is_dir():
+                    continue
+                step_candidates = []
+                for step_dir in hash_dir.iterdir():
+                    if not step_dir.is_dir():
+                        continue
+                    try:
+                        idx_str = step_dir.name.split("-")[0]
+                        idx = int(idx_str)
+                    except Exception:
+                        continue
+                    step_candidates.append((idx, step_dir))
+                if step_candidates:
+                    step_candidates.sort(reverse=True)
+                    _, latest_step = step_candidates[0]
+                    hashed_latest.append(latest_step)
+            if hashed_latest:
+                latest_dir = max(hashed_latest, key=lambda p: p.stat().st_mtime)
+                train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(latest_dir)
+                if train_df is not None:
+                    return train_df, test_df, sample_weight, orig_df
+
         # 4) Fallback: search chain directories containing this template (pick most recent)
         experiments_dir = context.project_root / "experiments"
-        candidates = sorted(
-            experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        candidates = list(experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"))
+        candidates += list(experiments_dir.glob(f"pre-*/*/[0-9]*-{preprocess_template}"))
+        candidates = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
         for exp_dir in candidates:
             train_df, test_df, sample_weight, orig_df = _load_from_exp_dir(exp_dir)
             if train_df is not None:
@@ -309,6 +332,11 @@ class ModelModule(BaseModule):
             hyperparams_dict["excluded_models"] = template_cfg["excluded_model_types"]
         if "included_model_types" in template_cfg:
             hyperparams_dict["included_model_types"] = template_cfg["included_model_types"]
+        fit_args = template_cfg.get("fit_args")
+        if fit_args is not None:
+            if not isinstance(fit_args, dict):
+                raise ValueError("fit_args must be a dict")
+            hyperparams_dict["fit_args"] = fit_args
 
         # NEW: Load HPO preset if specified
         hpo_preset_name = template_cfg.get("hpo_preset")
@@ -379,6 +407,11 @@ class ModelModule(BaseModule):
         # Add model-specific hyperparameters (e.g., NN_TORCH, GBM configs)
         hyperparams_dict.update(template_cfg.get("hyperparameters", {}))
 
+        template_seed = template_cfg.get("random_seed")
+        if template_seed is None:
+            template_seed = template_cfg.get("seed")
+        random_seed = template_seed if template_seed is not None else getattr(config_module, "RANDOM_SEED", 42)
+
         return ModelConfig(
             hyperparameters=Hyperparameters(**hyperparams_dict),
             dataset=DatasetConfig(
@@ -402,7 +435,7 @@ class ModelModule(BaseModule):
                 model_path=artifact_dir / "model",
                 template=self.invocation_params.get("model_template", "gpu-dev-5m"),
                 experiment_id=self.context.experiment_id,
-                random_seed=getattr(config_module, "RANDOM_SEED", 42),
+                random_seed=random_seed,
                 use_gpu=use_gpu_param if use_gpu_param is not None else False,
             ),
             model=model_cfg,

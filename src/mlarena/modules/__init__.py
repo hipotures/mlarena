@@ -15,6 +15,8 @@ from mlarena.modules.tune import TuneModule  # noqa: F401
 from mlarena.modules.stack import StackModule  # noqa: F401
 from mlarena.modules.submit import SubmitModule  # noqa: F401
 from mlarena.modules.fetch_score import FetchScoreModule  # noqa: F401
+from mlarena.modules.submissions import SubmissionsModule  # noqa: F401
+from mlarena.modules.experiments import ExperimentsModule  # noqa: F401
 
 __all__ = [
     "InitModule",
@@ -27,4 +29,6 @@ __all__ = [
     "StackModule",
     "SubmitModule",
     "FetchScoreModule",
+    "SubmissionsModule",
+    "ExperimentsModule",
 ]

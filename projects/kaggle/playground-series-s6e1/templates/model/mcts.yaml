@@ -1,0 +1,13 @@
+model: autogluon_baseline
+preprocess_template: train_p60
+preset: medium_quality_faster_train
+time_limit: 600
+use_gpu: false
+seed: 42
+included_model_types:
+  - GBM
+  - XGB
+fit_args:
+  keep_only_best: true
+  save_space: true
+  holdout_frac: 0.1

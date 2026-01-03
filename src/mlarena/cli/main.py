@@ -378,11 +378,19 @@ def run_preprocess_chain(
             finished_at = datetime.now().isoformat()
             final_step_id = f"{len(preprocess_templates) - 1}-{preprocess_templates[-1]}"
             final_preprocess_exp_dir = chain_base_dir / final_step_id
+            footer_exp_id = f"{chain_exp_id}/{combined_hash}/{final_step_id}"
+            input_source = None
+            if len(preprocess_templates) > 1:
+                input_source = f"{len(preprocess_templates) - 2}-{preprocess_templates[-2]}"
 
             # Get output paths from final step
             final_state_file = final_preprocess_exp_dir / "state.json"
             output_paths = {}
             shapes = None
+            cli_invocation = {
+                "chain_exp_id": f"{chain_exp_id}/{combined_hash}",
+                "input_source": input_source,
+            }
             if final_state_file.exists():
                 try:
                     final_state = json.loads(final_state_file.read_text())
@@ -391,6 +399,13 @@ def run_preprocess_chain(
                         output_paths["train_processed"] = final_payload["train_processed"]
                     if "test_processed" in final_payload:
                         output_paths["test_processed"] = final_payload["test_processed"]
+                    if "orig_processed" in final_payload and final_payload["orig_processed"]:
+                        output_paths["orig_processed"] = final_payload["orig_processed"]
+                    if "tuning_processed" in final_payload and final_payload["tuning_processed"]:
+                        output_paths["tuning_processed"] = final_payload["tuning_processed"]
+                    custom_state = final_payload.get("custom_module_state", {})
+                    if custom_state.get("eval_path"):
+                        output_paths["eval_processed"] = custom_state["eval_path"]
                     shapes = final_payload.get("shapes")
                 except:
                     pass
@@ -405,7 +420,8 @@ def run_preprocess_chain(
                 metrics={"cache_status": f"✓ Cached (hash: {combined_hash})"},
                 project_root=project_root,
                 project_name=project_name,
-                experiment_id=display_exp_id,
+                experiment_id=footer_exp_id,
+                cli_invocation=cli_invocation,
                 console=console
             )
 

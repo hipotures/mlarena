@@ -975,6 +975,16 @@ def print_module_footer(
 
         # Module-specific metrics
         if metrics:
+            cache_status = metrics.get("cache_status")
+            if cache_status:
+                cache_text = str(cache_status)
+                cached_idx = cache_text.find("Cached")
+                if cached_idx != -1:
+                    prefix = cache_text[:cached_idx]
+                    cached_text = cache_text[cached_idx:]
+                    cache_text = f"{prefix}[red]{cached_text}[/red]"
+                lines.append(f"[{COLOR_KEY}]Cache Status:[/{COLOR_KEY}] {cache_text}")
+
             # AV statistics (for preprocess with adversarial validation)
             if "av_stats" in metrics:
                 av_stats = metrics["av_stats"]
@@ -999,7 +1009,7 @@ def print_module_footer(
 
             # Other metrics
             for key, value in metrics.items():
-                if key not in ["av_stats", "clipped_rows", "local_cv_score", "best_model"]:
+                if key not in ["av_stats", "clipped_rows", "local_cv_score", "best_model", "cache_status"]:
                     label = key.replace('_', ' ').title()
                     lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {value}")
 

@@ -496,17 +496,6 @@ class ModelModule(BaseModule):
 
         preprocess_template = self.invocation_params.get("preprocess_template")
         preprocess_exp_dir = self.invocation_params.get("preprocess_exp_dir")
-        train_df, test_df, sample_weight, orig_df = _load_processed_or_raw(
-            self.context,
-            config,
-            preprocess_template,
-            preprocess_exp_dir=preprocess_exp_dir,
-        )
-        target = getattr(config, "TARGET_COLUMN", None)
-        if target is None or target not in train_df.columns:
-            marker = artifact_dir / "model_failed.txt"
-            marker.write_text("TARGET_COLUMN missing; aborting model step.")
-            return ModuleResult(success=False, error="TARGET_COLUMN missing", artifacts=[marker])
 
         # Priority order (lowest to highest): defaults -> template -> CLI args -> convenience flags
         # 1. Start with defaults
@@ -584,6 +573,18 @@ class ModelModule(BaseModule):
         # Allow template to supply default preprocess template (overridable by CLI)
         if not preprocess_template:
             preprocess_template = template_cfg.get("preprocess_template")
+
+        train_df, test_df, sample_weight, orig_df = _load_processed_or_raw(
+            self.context,
+            config,
+            preprocess_template,
+            preprocess_exp_dir=preprocess_exp_dir,
+        )
+        target = getattr(config, "TARGET_COLUMN", None)
+        if target is None or target not in train_df.columns:
+            marker = artifact_dir / "model_failed.txt"
+            marker.write_text("TARGET_COLUMN missing; aborting model step.")
+            return ModuleResult(success=False, error="TARGET_COLUMN missing", artifacts=[marker])
 
         # Load model implementation (defaults to autogluon_baseline)
         model_implementation = template_cfg.get("model", "autogluon_baseline")

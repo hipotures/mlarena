@@ -95,6 +95,49 @@ def extract_template_overrides(
     return overrides
 
 
+def get_directory_size(path: Path) -> int:
+    """
+    Calculate total size of directory in bytes.
+
+    Args:
+        path: Directory path
+
+    Returns:
+        Total size in bytes
+    """
+    if not path.exists() or not path.is_dir():
+        return 0
+
+    total = 0
+    for entry in path.rglob('*'):
+        if entry.is_file():
+            try:
+                total += entry.stat().st_size
+            except (OSError, PermissionError):
+                pass
+    return total
+
+
+def format_size(size_bytes: int) -> str:
+    """
+    Format size in bytes to human-readable string.
+
+    Args:
+        size_bytes: Size in bytes
+
+    Returns:
+        Formatted string like "352KB", "29MB", "1.2GB"
+    """
+    if size_bytes < 1024:
+        return f"{size_bytes}B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.0f}KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.0f}MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f}GB"
+
+
 def format_duration(seconds: float) -> str:
     """
     Format duration in seconds to human-readable string.
@@ -931,7 +974,17 @@ def print_module_footer(
                 # Original format for non-preprocessing modules
                 for key, path in output_paths.items():
                     label = key.replace('_', ' ').title()
-                    lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
+
+                    # Add size for model directory
+                    if module_name == "model" and key == "model":
+                        model_path = Path(path) if not Path(path).is_absolute() else Path(path)
+                        if not model_path.is_absolute():
+                            model_path = project_root / path
+                        size_bytes = get_directory_size(model_path)
+                        size_str = format_size(size_bytes)
+                        lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path} [dim]({size_str})[/dim]")
+                    else:
+                        lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
 
         # Dataset shapes (for preprocess)
         if shapes and not (module_name == "preprocess" and use_preprocess_tree):

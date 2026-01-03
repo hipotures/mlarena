@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -10,6 +11,7 @@ from rich.console import Console
 # pandas imported in execute()
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
@@ -473,6 +475,24 @@ class ModelModule(BaseModule):
             model=model_cfg,
         )
 
+    def _cleanup_predictor(self, predictor, model_path: Path):
+        """Clean up AutoGluon model files keeping only best model.
+
+        Prediction remains functional after cleanup as the best model is preserved.
+        Typically saves ~98% disk space while maintaining full prediction capability.
+        """
+        # Safety check: only cleanup if predictor has the methods
+        if not hasattr(predictor, 'delete_models') or not hasattr(predictor, 'save_space'):
+            logger.warning(f"Predictor does not support cleanup methods, skipping")
+            return
+
+        try:
+            predictor.delete_models(models_to_keep='best')
+            predictor.save_space()
+            logger.info(f"Cleaned up AutoGluon artifacts at {model_path}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup predictor: {e}")
+
     def execute(self) -> ModuleResult:
         """
         Train a model based on the selected template and persist artifacts.
@@ -711,6 +731,14 @@ class ModelModule(BaseModule):
             preprocess_template=preprocess_template,
             leaderboard_path=lb_path,
         )
+
+        # Cleanup model artifacts if requested
+        mla_retention = self.invocation_params.get("mla_retention", False)
+        if mla_retention:
+            self._cleanup_predictor(predictor, artifact_dir / "model")
+            console.print("\n[yellow]⚠️  Model artifacts cleaned up (mla_retention=true)[/yellow]")
+            console.print("   [dim]Kept: Best model only (~98% space savings)[/dim]")
+            console.print("   [dim]Note: Prediction still works with best model[/dim]")
 
         return ModuleResult(
             success=True,

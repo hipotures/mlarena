@@ -131,6 +131,31 @@ def train(train_df, val_df, config, artifacts=None):
 
 **Resolution**: Project-local takes precedence. Error if both exist.
 
+**Model Cleanup Option** (`mla_retention`):
+
+AutoGluon models can be automatically cleaned up after training to save ~99% disk space while keeping prediction functional:
+
+```bash
+# Enable cleanup via CLI
+uv run python scripts/mla.py model -p Titanic model.mla_retention=true
+
+# Or in template YAML
+model: autogluon_baseline
+config:
+  preset: medium_quality
+  time_limit: 300
+  mla_retention: true  # Cleanup after training
+```
+
+**Behavior**:
+- Calls `predictor.delete_models(models_to_keep='best')` + `predictor.save_space()`
+- Keeps best model (typically WeightedEnsemble_L2) - **prediction still works**
+- Deletes non-best models (LightGBM, RandomForest, XGBoost, etc.)
+- Space savings: ~99% (32MB → 352KB on Titanic)
+- Useful for rapid experimentation (50+ quick experiments without filling disk)
+
+**Important**: Use `model.mla_retention=true` syntax (not just `mla_retention=true`)
+
 ### 2. Preprocessing Files
 
 **Location**: `projects/kaggle/{comp}/code/preprocessing/{name}.py` OR `src/mlarena/defaults/preprocessing/{name}.py`

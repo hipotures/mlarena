@@ -32,6 +32,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("command", nargs="?", default="list")
     parser.add_argument("--show-table", action="store_true")
     parser.add_argument("--show-table-compact", action="store_true")
+    parser.add_argument("--status", default="completed", help="Filter by status (default: completed). Use 'all' for everything.")
+    parser.add_argument("--show-submission-name", action="store_true", help="Show full submission filename instead of checkmark.")
     return parser
 
 
@@ -108,6 +110,9 @@ class ExperimentsModule(BaseModule):
             view_table = True
         use_vertical = False
 
+        status_filter = args.status
+        show_sub_name = args.show_submission_name
+
         table = Table(title=f"Experiments for {project_label}", show_lines=False)
         if view_table or view_table_compact:
             table.add_column("Experiment", style="cyan", no_wrap=True)
@@ -123,11 +128,12 @@ class ExperimentsModule(BaseModule):
             table.add_column("Started", style="dim")
             table.add_column("Elapsed", style="dim")
             if view_table:
-                table.add_column("Submission", overflow="fold")
+                table.add_column("Submission", overflow="fold", justify="center")
                 table.add_column("Git", style="dim")
 
-        count = 0
-        for dir_path in sorted(base_dir.glob("exp-*")):
+        experiments_list = []
+
+        for dir_path in base_dir.glob("exp-*"):
             state_path = dir_path / "state.json"
             if not state_path.exists():
                 continue
@@ -153,6 +159,10 @@ class ExperimentsModule(BaseModule):
                     last_module = name
                     last_status = mod.get("status", "-")
                     last_entry = mod
+
+            # Status filtering
+            if status_filter != "all" and last_status != status_filter:
+                continue
 
             model_payload = model_mod.get("payload", {}) or {}
             predict_payload = predict_mod.get("payload", {}) or {}
@@ -227,25 +237,50 @@ class ExperimentsModule(BaseModule):
                 or model_mod.get("submission_file")
                 or submit_payload.get("submission_file")
             )
-            submission_short = "-"
+            submission_display = "-"
             if submission_file:
-                submission_name = Path(str(submission_file)).name
-                submission_short = f".../{submission_name}"
+                if show_sub_name:
+                    submission_name = Path(str(submission_file)).name
+                    submission_display = f".../{submission_name}"
+                else:
+                    submission_display = "✓"
 
+            experiments_list.append({
+                "id": data.get("experiment_id", "-"),
+                "status": last_status,
+                "module": last_module,
+                "template": template,
+                "preset": preset_str,
+                "gpu": use_gpu_str,
+                "time": time_limit_str,
+                "local": local_cv_str,
+                "public": public_str,
+                "started": _format_ts(started_ts),
+                "elapsed": elapsed,
+                "submission": submission_display,
+                "git": (data.get("git") or {}).get("hash", (data.get("git") or {}).get("commit", "-"))[:7],
+                "started_dt": started_dt, # For sorting
+            })
+
+        # Sort by started_at descending (newest first)
+        experiments_list.sort(key=lambda x: x["started_dt"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+
+        count = 0
+        for item in experiments_list:
             if use_vertical:
                 lines = [
-                    f"[cyan]{data.get('experiment_id','-')}[/cyan]",
-                    f"  [dim]state[/dim]: [white]{last_status}[/white] ([white]{last_module}[/white])",
-                    f"  [dim]template[/dim]: [white]{template}[/white]",
-                    f"  [dim]preset[/dim]: [white]{preset_str}[/white]",
-                    f"  [dim]gpu[/dim]: [white]{use_gpu_str}[/white]",
-                    f"  [dim]time_limit[/dim]: [white]{time_limit_str}[/white]",
-                    f"  [dim]local_cv[/dim]: [white]{local_cv_str}[/white]",
-                    f"  [dim]public[/dim]: [white]{public_str}[/white]",
-                    f"  [dim]started[/dim]: [white]{_format_ts(started_ts)}[/white]",
-                    f"  [dim]elapsed[/dim]: [white]{elapsed}[/white]",
-                    f"  [dim]submission[/dim]: [white]{submission_short if submission_short != '-' else '<none>'}[/white]",
-                    f"  [dim]git[/dim]: [white]{(data.get('git') or {}).get('hash', (data.get('git') or {}).get('commit', '-'))[:7]}[/white]",
+                    f"[cyan]{item['id']}[/cyan]",
+                    f"  [dim]state[/dim]: [white]{item['status']}[/white] ([white]{item['module']}[/white])",
+                    f"  [dim]template[/dim]: [white]{item['template']}[/white]",
+                    f"  [dim]preset[/dim]: [white]{item['preset']}[/white]",
+                    f"  [dim]gpu[/dim]: [white]{item['gpu']}[/white]",
+                    f"  [dim]time_limit[/dim]: [white]{item['time']}[/white]",
+                    f"  [dim]local_cv[/dim]: [white]{item['local']}[/white]",
+                    f"  [dim]public[/dim]: [white]{item['public']}[/white]",
+                    f"  [dim]started[/dim]: [white]{item['started']}[/white]",
+                    f"  [dim]elapsed[/dim]: [white]{item['elapsed']}[/white]",
+                    f"  [dim]submission[/dim]: [white]{item['submission'] if item['submission'] != '-' else '<none>'}[/white]",
+                    f"  [dim]git[/dim]: [white]{item['git']}[/white]",
                 ]
                 console.print(
                     Panel.fit(
@@ -256,25 +291,23 @@ class ExperimentsModule(BaseModule):
                 )
             else:
                 row = [
-                    data.get("experiment_id", "-"),
-                    last_status,
-                    last_module,
-                    template,
+                    item['id'],
+                    item['status'],
+                    item['module'],
+                    item['template'],
                 ]
                 if view_table:
-                    row.extend([preset_str, use_gpu_str, time_limit_str])
+                    row.extend([item['preset'], item['gpu'], item['time']])
                 row.extend(
                     [
-                        local_cv_str,
-                        public_str,
-                        _format_ts(started_ts),
-                        elapsed,
+                        item['local'],
+                        item['public'],
+                        item['started'],
+                        item['elapsed'],
                     ]
                 )
                 if view_table:
-                    git_hash = (data.get("git") or {}).get("hash") or (data.get("git") or {}).get("commit")
-                    git_short = git_hash[:7] if git_hash else "-"
-                    row.extend([submission_short, git_short])
+                    row.extend([item['submission'], item['git']])
                 table.add_row(*row)
 
             count += 1

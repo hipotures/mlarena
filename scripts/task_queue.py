@@ -62,17 +62,67 @@ Examples:
     # List command
     subparsers.add_parser("list", help="List queued tasks")
 
-    # Add command
+    # Add command - hybrid mode (template OR command string)
     add_parser = subparsers.add_parser("add", help="Add task to queue")
+
+    # Template mode (NEW)
     add_parser.add_argument(
-        "task_command",
-        help="Full command string (e.g., 'model --model-template lgbm')"
+        "--model-template", "-m",
+        help="Model template name (triggers auto-flow)"
     )
+    add_parser.add_argument(
+        "--preprocess-template",
+        help="Preprocess template (standalone or override model's preprocess)"
+    )
+
+    # MLA flags (NEW)
+    add_parser.add_argument(
+        "--enable-submit",
+        dest="enable_submit",
+        action="store_true",
+        default=None,
+        help="Enable submit (override template mla.skip_submit)"
+    )
+    add_parser.add_argument(
+        "--no-submit",
+        dest="enable_submit",
+        action="store_false",
+        help="Disable submit (override template mla.skip_submit)"
+    )
+    add_parser.add_argument(
+        "--enable-git",
+        dest="enable_git",
+        action="store_true",
+        default=None,
+        help="Enable git commit (override template mla.skip_git)"
+    )
+    add_parser.add_argument(
+        "--no-git",
+        dest="enable_git",
+        action="store_false",
+        help="Disable git commit (override template mla.skip_git)"
+    )
+
+    # Priority
     add_parser.add_argument(
         "--priority",
         type=int,
-        default=10,
-        help="Task priority (1=highest, default=10)"
+        default=None,
+        help="Task priority (1=highest, overrides template mla.priority)"
+    )
+
+    # Command string mode (BACKWARD COMPAT)
+    add_parser.add_argument(
+        "--command", "-c",
+        dest="command_string",
+        help="Full command string (alternative to --template, e.g., 'model --model-template lgbm')"
+    )
+
+    # Config overrides (positional to capture all remaining args)
+    add_parser.add_argument(
+        "overrides",
+        nargs="*",
+        help="Config overrides (key=value)"
     )
 
     # Remove command
@@ -138,11 +188,36 @@ Examples:
             return 0
 
         elif args.command == "add":
-            task_id = queue.add_task(args.task_command, args.priority)
-            console.print(f"[green]✓ Added task #{task_id}[/green]")
-            console.print(f"[dim]Command: {args.task_command}[/dim]")
-            console.print(f"[dim]Priority: {args.priority}[/dim]")
-            return 0
+            if args.model_template or args.preprocess_template:
+                # Template mode (NEW)
+                task_id = queue.add_task_from_template(
+                    model_template=args.model_template,
+                    preprocess_template=args.preprocess_template,
+                    priority=args.priority,
+                    submit=args.enable_submit,
+                    git=args.enable_git,
+                    overrides=args.overrides
+                )
+
+                console.print(f"[green]✓ Added task #{task_id}[/green]")
+                if args.model_template:
+                    console.print(f"[dim]Model template: {args.model_template}[/dim]")
+                if args.preprocess_template:
+                    console.print(f"[dim]Preprocess template: {args.preprocess_template}[/dim]")
+                console.print(f"[dim]Priority: {args.priority or 'from template'}[/dim]")
+                return 0
+
+            elif args.command_string:
+                # Command string mode (BACKWARD COMPAT)
+                task_id = queue.add_task(args.command_string, args.priority or 10)
+                console.print(f"[green]✓ Added task #{task_id}[/green]")
+                console.print(f"[dim]Command: {args.command_string}[/dim]")
+                console.print(f"[dim]Priority: {args.priority or 10}[/dim]")
+                return 0
+
+            else:
+                console.print("[red]Error: Either --model-template or --command required[/red]")
+                return 1
 
         elif args.command == "remove":
             queue.remove_task(args.task_id)

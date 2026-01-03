@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from filelock import FileLock
 from rich.console import Console
@@ -41,6 +42,40 @@ class TaskQueue:
         """Save queue.json with FileLock."""
         with FileLock(str(self.lock_file), timeout=10):
             self.queue_file.write_text(json.dumps(queue_data, indent=2))
+
+    def _load_template_mla_settings(
+        self,
+        template_type: str,
+        template_name: str
+    ) -> dict:
+        """
+        Load mla: section from template YAML.
+
+        Args:
+            template_type: "model" or "preprocess"
+            template_name: Template name (without .yaml extension)
+
+        Returns:
+            dict with keys: skip_submit, skip_git, priority (if present in YAML)
+            Empty dict if template not found or no mla section
+        """
+        # Try project-specific first, then global
+        template_paths = [
+            self.project_root / "templates" / template_type / f"{template_name}.yaml",
+            # Global templates (go up from utils/ to repo root)
+            Path(__file__).parent.parent.parent / "templates" / template_type / f"{template_name}.yaml"
+        ]
+
+        for path in template_paths:
+            if path.exists():
+                try:
+                    config = yaml.safe_load(path.read_text())
+                    return config.get("mla", {}) if config else {}
+                except Exception:
+                    # YAML parse error - return empty dict
+                    return {}
+
+        return {}  # Template not found
 
     def add_task(self, command: str, priority: int = 10) -> int:
         """
@@ -76,6 +111,90 @@ class TaskQueue:
 
         return task_id
 
+    def add_task_from_template(
+        self,
+        model_template: Optional[str] = None,
+        preprocess_template: Optional[str] = None,
+        priority: Optional[int] = None,
+        submit: Optional[bool] = None,
+        git: Optional[bool] = None,
+        overrides: Optional[List[str]] = None
+    ) -> int:
+        """
+        Add task from template(s) with auto-loaded MLA settings.
+
+        Priority order for settings:
+        1. CLI flags (priority, submit, git)
+        2. Template mla: section
+        3. System defaults (priority=10, skip_submit=True, skip_git=True)
+
+        Args:
+            model_template: Model template name (triggers auto-flow)
+            preprocess_template: Preprocess template (standalone or override model's)
+            priority: Task priority (overrides template mla.priority)
+            submit: Enable/disable submit (overrides template mla.skip_submit)
+            git: Enable/disable git (overrides template mla.skip_git)
+            overrides: Config overrides (key=value strings)
+
+        Returns:
+            Task ID
+
+        Raises:
+            ValueError: If neither model_template nor preprocess_template provided
+        """
+        # Determine command type
+        if model_template:
+            # Model template → auto-flow
+            cmd_parts = ["model", "--model-template", model_template]
+
+            # Override preprocess if specified
+            if preprocess_template:
+                cmd_parts.extend(["--preprocess-template", preprocess_template])
+
+            # Load mla settings from MODEL template
+            mla = self._load_template_mla_settings("model", model_template)
+
+        elif preprocess_template:
+            # Standalone preprocess (no model)
+            cmd_parts = ["preprocess", "--preprocess-template", preprocess_template]
+
+            # Load mla settings from PREPROCESS template
+            mla = self._load_template_mla_settings("preprocess", preprocess_template)
+
+        else:
+            raise ValueError("Either model_template or preprocess_template required")
+
+        # Resolve priority (CLI > template > default)
+        resolved_priority = priority if priority is not None else mla.get("priority", 10)
+
+        # Resolve submit flag (CLI > template > default)
+        if submit is None:
+            skip_submit = mla.get("skip_submit", True)  # Default TRUE for queue
+        else:
+            skip_submit = not submit
+
+        if skip_submit:
+            cmd_parts.append("skip_submit=true")
+
+        # Resolve git flag (CLI > template > default)
+        if git is None:
+            skip_git = mla.get("skip_git", True)  # Default TRUE for queue
+        else:
+            skip_git = not git
+
+        if skip_git:
+            cmd_parts.append("skip_git=true")
+
+        # Add config overrides
+        if overrides:
+            cmd_parts.extend(overrides)
+
+        # Build command string
+        command = " ".join(cmd_parts)
+
+        # Use existing add_task
+        return self.add_task(command, resolved_priority)
+
     def remove_task(self, task_id: int) -> bool:
         """Remove task from queue."""
         queue_data = self._load_queue()
@@ -105,7 +224,9 @@ class TaskQueue:
         table.add_column("#", style="cyan", width=4)
         table.add_column("Priority", width=8)
         table.add_column("Status", width=12)
-        table.add_column("Command", width=50)
+        table.add_column("Module", width=10)
+        table.add_column("Template", width=20)
+        table.add_column("Options", width=30)
         table.add_column("Experiment", style="dim", width=20)
 
         # Sort by priority (ascending), then by ID (ascending)
@@ -122,8 +243,37 @@ class TaskQueue:
             else:
                 status_str = "[red]failed[/red]"
 
-            # Truncate command
-            cmd_display = task["command"][:50]
+            # Parse command into module/template/options
+            cmd_parts = task["command"].split()
+
+            # Extract module (first element)
+            module = cmd_parts[0] if cmd_parts else "-"
+
+            # Extract template name
+            template = "-"
+            if "--model-template" in cmd_parts:
+                idx = cmd_parts.index("--model-template")
+                template = cmd_parts[idx + 1] if idx + 1 < len(cmd_parts) else "-"
+            elif "--preprocess-template" in cmd_parts:
+                idx = cmd_parts.index("--preprocess-template")
+                template = cmd_parts[idx + 1] if idx + 1 < len(cmd_parts) else "-"
+
+            # Extract options (everything except module and template flags)
+            options = []
+            skip_next = False
+            for i, part in enumerate(cmd_parts[1:], 1):  # Skip module name
+                if skip_next:
+                    skip_next = False
+                    continue
+                if part in ["--model-template", "--preprocess-template", "--project", "-p"]:
+                    skip_next = True
+                    continue
+                options.append(part)
+
+            # Format options - each on new line if multiple
+            options_str = "\n".join(options[:3]) if options else "-"
+            if len(options) > 3:
+                options_str += "\n..."
 
             # Show experiment ID if available
             exp_id = task.get("experiment_id") or "-"
@@ -132,7 +282,9 @@ class TaskQueue:
                 str(task["id"]),
                 str(task["priority"]),
                 status_str,
-                cmd_display,
+                module,
+                template,
+                options_str,
                 exp_id
             )
 

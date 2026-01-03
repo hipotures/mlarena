@@ -1,85 +1,51 @@
 {
-  "next_id": 11,
+  "next_id": 24,
   "queue": [
     {
-      "id": 7,
-      "priority": 1,
+      "id": 19,
+      "priority": 5,
       "status": "completed",
       "command": "model --model-template cpu-dev-5m skip_submit=true",
-      "added_at": "2026-01-03 16:47:35",
-      "started_at": "2026-01-03 16:48:31",
-      "finished_at": "2026-01-03 16:48:45",
+      "added_at": "2026-01-03 17:39:43",
+      "started_at": "2026-01-03 17:40:18",
+      "finished_at": "2026-01-03 17:40:33",
       "attempts": [
         {
-          "timestamp": "2026-01-03 16:48:45",
+          "timestamp": "2026-01-03 17:40:33",
           "success": true,
           "error": null,
           "exit_code": 0
         }
       ],
       "last_error": null,
-      "experiment_id": "exp-20260103-154832",
-      "log_file": "queue/logs/task-7.log"
+      "experiment_id": "exp-20260103-164018",
+      "log_file": "queue/logs/task-19.log"
     },
     {
-      "id": 8,
-      "priority": 1,
-      "status": "completed",
-      "command": "model --model-template cpu-dev-5m skip_submit=true",
-      "added_at": "2026-01-03 16:47:37",
-      "started_at": "2026-01-03 16:48:45",
-      "finished_at": "2026-01-03 16:48:58",
-      "attempts": [
-        {
-          "timestamp": "2026-01-03 16:48:58",
-          "success": true,
-          "error": null,
-          "exit_code": 0
-        }
-      ],
+      "id": 22,
+      "priority": 3,
+      "status": "pending",
+      "command": "model --model-template test-mla-settings",
+      "added_at": "2026-01-03 17:46:03",
+      "started_at": null,
+      "finished_at": null,
+      "attempts": [],
       "last_error": null,
-      "experiment_id": "exp-20260103-154845",
-      "log_file": "queue/logs/task-8.log"
+      "experiment_id": null,
+      "log_file": "queue/logs/task-22.log"
     },
     {
-      "id": 9,
-      "priority": 2,
-      "status": "failed",
-      "command": "model --model-template cpu-dev-10m skip_submit=true",
-      "added_at": "2026-01-03 16:47:48",
-      "started_at": "2026-01-03 16:48:58",
-      "finished_at": "2026-01-03 16:48:58",
-      "attempts": [
-        {
-          "timestamp": "2026-01-03 16:48:58",
-          "success": false,
-          "error": "Exit code: 1",
-          "exit_code": 1
-        }
-      ],
-      "last_error": "Exit code: 1",
-      "experiment_id": "exp-20260103-154858",
-      "log_file": "queue/logs/task-9.log"
-    },
-    {
-      "id": 10,
-      "priority": 2,
-      "status": "failed",
-      "command": "model --model-template cpu-dev-10m skip_submit=true",
-      "added_at": "2026-01-03 16:47:53",
-      "started_at": "2026-01-03 16:48:58",
-      "finished_at": "2026-01-03 16:48:59",
-      "attempts": [
-        {
-          "timestamp": "2026-01-03 16:48:59",
-          "success": false,
-          "error": "Exit code: 1",
-          "exit_code": 1
-        }
-      ],
-      "last_error": "Exit code: 1",
-      "experiment_id": "exp-20260103-154859",
-      "log_file": "queue/logs/task-10.log"
+      "id": 23,
+      "priority": 10,
+      "status": "pending",
+      "command": "model --model-template cpu-dev-5m skip_submit=true skip_git=true",
+      "added_at": "2026-01-03 17:46:26",
+      "started_at": null,
+      "finished_at": null,
+      "attempts": [],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-23.log"
     }
   ]
 }

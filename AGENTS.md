@@ -438,6 +438,50 @@ projects/kaggle/{project}/queue/
     task-{id}.log     # Per-task execution logs
 ```
 
+### Template-Based API (Recommended)
+
+Queue supports template-based task creation with auto-loaded settings from YAML `mla:` section:
+
+```bash
+# Add task from model template (shortest syntax)
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m
+
+# Override priority
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --priority 1
+
+# Override preprocess (if template has different one)
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --preprocess-template advanced
+
+# Add preprocess-only task
+uv run python scripts/mla.py queue add -p Titanic --preprocess-template baseline
+
+# Config overrides
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m preset=high time_limit=600
+
+# Enable submit (override template default)
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --enable-submit
+
+# Enable git commit
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --enable-git
+```
+
+**Template YAML with mla: section:**
+
+```yaml
+# templates/model/cpu-dev-5m.yaml
+model: autogluon_baseline
+config:
+  preset: medium_quality
+  time_limit: 300
+
+mla:
+  skip_submit: true    # Don't submit to Kaggle by default
+  skip_git: true       # Don't create git commits
+  priority: 10         # Default queue priority
+```
+
+**Settings priority**: CLI flags > Template mla: section > System defaults
+
 ### Basic Commands
 
 ```bash
@@ -480,13 +524,17 @@ uv run python scripts/mla.py queue clean -p Titanic --status failed
 - **Auto-project injection**: Commands automatically get `--project` flag added
 - **Thread-safe**: FileLock prevents concurrent queue modifications
 
-### Example Workflow
+### Example Workflow (Template-Based)
 
 ```bash
-# Queue multiple experiments
-uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-5m skip_submit=true" --priority 10
-uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-10m skip_submit=true" --priority 5
-uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-15m skip_submit=true" --priority 1
+# Queue multiple experiments with template API (recommended)
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --priority 10
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-best-1h --priority 5
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-best-8h --priority 1
+
+# Queue same model with different preprocesses
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --preprocess-template baseline
+uv run python scripts/mla.py queue add -p Titanic --model-template cpu-dev-5m --preprocess-template advanced
 
 # Verify order (priority 1 first, then 5, then 10)
 uv run python scripts/mla.py queue list -p Titanic
@@ -496,6 +544,14 @@ uv run python scripts/mla.py queue run -p Titanic
 
 # Clean up
 uv run python scripts/mla.py queue clean -p Titanic
+```
+
+### Example Workflow (Command String)
+
+```bash
+# Alternative: command string API (backward compatible)
+uv run python scripts/mla.py queue add -p Titanic --command "model --model-template cpu-dev-5m skip_submit=true" --priority 10
+uv run python scripts/mla.py queue add -p Titanic --command "model --model-template cpu-best-1h skip_submit=true" --priority 5
 ```
 
 ## See Also

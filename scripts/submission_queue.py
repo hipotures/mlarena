@@ -68,7 +68,7 @@ class SubmissionQueue:
                         return entry
         return None
 
-    def list_queue(self) -> None:
+    def list_queue(self, show_submission_name: bool = False) -> None:
         """Display queue as Rich table."""
         queue_data = self._load_queue()
         entries = queue_data.get("queue", [])
@@ -77,10 +77,16 @@ class SubmissionQueue:
             console.print("[yellow]No queued submissions[/yellow]")
             return
 
-        table = Table(title="Submission Queue", show_header=True, expand=True)
+        table = Table(
+            title="Submission Queue", 
+            show_header=True, 
+            expand=True,
+            row_styles=["", "reverse"]
+        )
         table.add_column("#", style="cyan", width=4)
         table.add_column("Experiment ID", style="dim", width=20)
         table.add_column("Status", width=12)
+        table.add_column("Submission", justify="center", width=12)
         table.add_column("Message Preview", width=50)
         table.add_column("Error", style="red", width=20)
 
@@ -96,6 +102,15 @@ class SubmissionQueue:
             else:
                 status_str = "[red]failed[/red]"
 
+            # Submission display
+            sub_file = entry.get("submission_file")
+            submission_display = "-"
+            if sub_file:
+                if show_submission_name:
+                    submission_display = Path(sub_file).name
+                else:
+                    submission_display = "✓"
+
             # Truncate message and error
             message = entry.get("kaggle_message", "")[:50]
             error = (entry.get("last_error") or "-")[:20]
@@ -105,6 +120,7 @@ class SubmissionQueue:
                 str(entry["id"]),
                 exp_id,
                 status_str,
+                submission_display,
                 message,
                 error
             )
@@ -319,7 +335,12 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", help="Command")
 
     # List command
-    subparsers.add_parser("list", help="List queued submissions")
+    list_parser = subparsers.add_parser("list", help="List queued submissions")
+    list_parser.add_argument(
+        "--show-submission-name",
+        action="store_true",
+        help="Show full submission filename instead of checkmark"
+    )
 
     # Submit command
     submit_parser = subparsers.add_parser("submit", help="Submit from queue")
@@ -354,7 +375,7 @@ Examples:
     queue = SubmissionQueue(project_root)
 
     if args.command == "list":
-        queue.list_queue()
+        queue.list_queue(show_submission_name=args.show_submission_name)
         return 0
 
     elif args.command == "submit":

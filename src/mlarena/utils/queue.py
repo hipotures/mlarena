@@ -220,7 +220,12 @@ class TaskQueue:
             console.print("[yellow]Queue is empty[/yellow]")
             return
 
-        table = Table(title="Task Queue", show_header=True, expand=True)
+        table = Table(
+            title="Task Queue", 
+            show_header=True, 
+            expand=True,
+            row_styles=["", "reverse"]
+        )
         table.add_column("#", style="cyan", width=4)
         table.add_column("Priority", width=8)
         table.add_column("Status", width=12)
@@ -232,7 +237,7 @@ class TaskQueue:
         # Sort by priority (ascending), then by ID (ascending)
         sorted_tasks = sorted(tasks, key=lambda t: (t["priority"], t["id"]))
 
-        for task in sorted_tasks:
+        for i, task in enumerate(sorted_tasks):
             status = task["status"]
             if status == "pending":
                 status_str = "[yellow]pending[/yellow]"
@@ -261,7 +266,7 @@ class TaskQueue:
             # Extract options (everything except module and template flags)
             options = []
             skip_next = False
-            for i, part in enumerate(cmd_parts[1:], 1):  # Skip module name
+            for j, part in enumerate(cmd_parts[1:], 1):  # Skip module name
                 if skip_next:
                     skip_next = False
                     continue

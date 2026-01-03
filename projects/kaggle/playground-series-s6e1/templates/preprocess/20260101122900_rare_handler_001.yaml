@@ -1,5 +1,5 @@
 module: rare_category_handler
 cache: true
 config:
-  min_freq: 0.01
-  replacement: RARE
+  min_freq_ratio: 0.01
+  rare_label: RARE

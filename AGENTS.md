@@ -423,6 +423,81 @@ uv run python scripts/mla.py -p <project>
 - Documentation
 - Experiment state tracking (`experiments/**/state.json`)
 
+## Task Queue System
+
+MLA provides a task queue system for batch execution of experiments with priority management, failure resilience, and graceful shutdown.
+
+### Queue Structure
+
+```
+projects/kaggle/{project}/queue/
+  queue.json          # Task list with state
+  queue.json.lock     # FileLock for thread-safety
+  .stop               # Stop signal (touch to gracefully stop runner)
+  logs/
+    task-{id}.log     # Per-task execution logs
+```
+
+### Basic Commands
+
+```bash
+# Add task to queue
+uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-5m skip_submit=true" --priority 5
+
+# List queue (sorted by priority, then ID)
+uv run python scripts/mla.py queue list -p Titanic
+
+# Run queue (execute all pending tasks)
+uv run python scripts/mla.py queue run -p Titanic
+
+# Run with limit (execute first N tasks)
+uv run python scripts/mla.py queue run -p Titanic --max-tasks 3
+
+# Remove task by ID
+uv run python scripts/mla.py queue remove -p Titanic 1
+
+# Update task priority (lower = higher priority)
+uv run python scripts/mla.py queue priority -p Titanic 2 --priority 1
+
+# Clean completed tasks
+uv run python scripts/mla.py queue clean -p Titanic
+
+# Clean failed tasks
+uv run python scripts/mla.py queue clean -p Titanic --status failed
+```
+
+### Priority Management
+
+- Priority: 1 = highest, 10 = default, higher numbers = lower priority
+- Tasks executed in order: (priority, id) ascending
+- Dynamic priority updates available via `queue priority` command
+
+### Features
+
+- **Per-task logging**: All output saved to `queue/logs/task-{id}.log`
+- **Failure resilience**: Failed tasks don't stop queue execution (default behavior)
+- **Graceful shutdown**: `touch projects/kaggle/{project}/queue/.stop` to stop after current task
+- **Auto-project injection**: Commands automatically get `--project` flag added
+- **Thread-safe**: FileLock prevents concurrent queue modifications
+
+### Example Workflow
+
+```bash
+# Queue multiple experiments
+uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-5m skip_submit=true" --priority 10
+uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-10m skip_submit=true" --priority 5
+uv run python scripts/mla.py queue add -p Titanic "model --model-template cpu-dev-15m skip_submit=true" --priority 1
+
+# Verify order (priority 1 first, then 5, then 10)
+uv run python scripts/mla.py queue list -p Titanic
+
+# Run all tasks
+uv run python scripts/mla.py queue run -p Titanic
+
+# Clean up
+uv run python scripts/mla.py queue clean -p Titanic
+```
+
 ## See Also
 
 - `docs/MLA_WORKFLOW_GUIDE.md`

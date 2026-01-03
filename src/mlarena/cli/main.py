@@ -8,6 +8,7 @@ executes them through the PipelineExecutor with dependency handling.
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -759,8 +760,8 @@ def main(argv: List[str] | None = None) -> int:
     if overrides and not overrides[0].startswith("-") and "=" not in overrides[0]:
         # First override is a plain value (potential command)
         potential_command = overrides[0]
-        # Check if it's a valid module or 'modules' command
-        if potential_command == "modules" or potential_command in ModuleRegistry.available():
+        # Check if it's a valid module or 'modules' command or 'queue' command
+        if potential_command in ("modules", "queue") or potential_command in ModuleRegistry.available():
             command = overrides.pop(0)
         else:
             available = ", ".join(sorted(ModuleRegistry.available()))
@@ -805,6 +806,17 @@ def main(argv: List[str] | None = None) -> int:
         available = sorted(ModuleRegistry.available())
         console.print("\n".join(available))
         return 0
+
+    # Handle 'queue' command - delegate to standalone script
+    if command == "queue":
+        # Build arguments for task_queue.py (expects --project before subcommand)
+        # Format: task_queue.py --project PROJECT subcommand [args]
+        queue_args = ["--project", project] + [arg for arg in sys.argv[1:] if arg != "queue" and arg not in ["-p", "--project", project]]
+        result = subprocess.run(
+            ["python", "scripts/task_queue.py"] + queue_args,
+            cwd=REPO_ROOT
+        )
+        return result.returncode
 
     project_root = REPO_ROOT / "projects" / "kaggle" / project
     

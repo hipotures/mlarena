@@ -1,0 +1,19 @@
+Every 2,0s: uv run python scripts/mla.py queue list -p Titanic                                                   xai0: 16:53:04
+                                                                                                                  in 0,792s (0)
+                                                          Task Queue                                                           
+┏━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃ #    ┃ Priority ┃ Status       ┃ Command                                           ┃ Added            ┃ Error               ┃
+┡━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│ 7    │ 1        │ completed    │ model --model-template cpu-dev-5m                 │ 2026-01-03       │ -                   │
+│      │          │              │ skip_submit=true                                  │ 16:47:35         │                     │
+│ 8    │ 1        │ completed    │ model --model-template cpu-dev-5m                 │ 2026-01-03       │ -                   │
+│      │          │              │ skip_submit=true                                  │ 16:47:37         │                     │
+│ 9    │ 2        │ failed       │ model --model-template cpu-dev-10m                │ 2026-01-03       │ Exit code: 1        │
+│      │          │              │ skip_submit=tru                                   │ 16:47:48         │                     │
+│ 10   │ 2        │ failed       │ model --model-template cpu-dev-10m                │ 2026-01-03       │ Exit code: 1        │
+│      │          │              │ skip_submit=tru                                   │ 16:47:53         │                     │
+└──────┴──────────┴──────────────┴───────────────────────────────────────────────────┴──────────────────┴─────────────────────┘
+                                                                                                                               
+Total: 4 tasks                                                                                                                 
+                                                                                                                               
+                                                                                                                               

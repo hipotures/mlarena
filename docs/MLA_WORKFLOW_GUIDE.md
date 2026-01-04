@@ -398,14 +398,14 @@ uv run python scripts/mla.py eda --project titanic
 uv run python scripts/mla.py preprocess \
   --project titanic \
   --experiment-id eda \
-  --preprocess-template my-preprocess
+  preprocess_template=my-preprocess
 
 # Step 3: Model (uses preprocessed data)
 uv run python scripts/mla.py model \
   --project titanic \
   --experiment-id eda \
-  --preprocess-template my-preprocess \
-  --model-template cpu-dev-5m
+  preprocess_template=my-preprocess \
+  model_template=cpu-dev-5m
 ```
 
 ### Re-run with Different Template
@@ -415,7 +415,7 @@ uv run python scripts/mla.py model \
 uv run python scripts/mla.py model \
   --project titanic \
   --experiment-id eda \
-  --model-template cpu-best-1h \
+  model_template=cpu-best-1h \
   --force
 ```
 
@@ -423,12 +423,12 @@ uv run python scripts/mla.py model \
 
 ```bash
 # Experiment 1: Fast baseline
-uv run python scripts/mla.py eda --project titanic --eda-notes "exp1"
-uv run python scripts/mla.py model --project titanic --experiment-id eda --model-template cpu-fast-1m
+uv run python scripts/mla.py eda --project titanic
+uv run python scripts/mla.py model --project titanic --experiment-id eda model_template=cpu-fast-1m
 
 # Experiment 2: Best model (creates new exp)
-uv run python scripts/mla.py eda --project titanic --eda-notes "exp2"
-uv run python scripts/mla.py model --project titanic --experiment-id eda --model-template cpu-best-1h
+uv run python scripts/mla.py eda --project titanic
+uv run python scripts/mla.py model --project titanic --experiment-id eda model_template=cpu-best-1h
 
 # Compare results
 uv run python scripts/submissions_tracker.py --project titanic list

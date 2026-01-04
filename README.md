@@ -162,16 +162,18 @@ Queue file location: `projects/kaggle/<competition-slug>/submissions/queue.json`
 
 The Task Queue (`mla queue`) manages computation tasks (training, preprocessing) to be executed sequentially. This is ideal for queuing up multiple experiments overnight.
 
+**Note:** The `queue` command is implemented as a separate script (`scripts/task_queue.py`) and is invoked via subprocess delegation for maintainability.
+
 **Basic Commands:**
 ```bash
 # List queued tasks
 uv run python scripts/mla.py queue list -p <competition-slug>
 
 # Add a task (e.g., train a model)
-uv run python scripts/mla.py queue add -p <competition-slug> --model-template <template-name>
+uv run python scripts/mla.py queue add -p <competition-slug> model_template=<template-name>
 
 # Add task with high priority (1=highest, 10=default)
-uv run python scripts/mla.py queue add -p <competition-slug> --model-template <template-name> --priority 1
+uv run python scripts/mla.py queue add -p <competition-slug> model_template=<template-name> --priority 1
 
 # Run the queue
 uv run python scripts/mla.py queue run -p <competition-slug>

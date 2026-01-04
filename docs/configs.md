@@ -15,6 +15,10 @@ If profile YAML files don't exist, the system provides hardcoded fallbacks for:
 - **smoke**: `{common: {time_limit: 60, preset: "medium", use_gpu: false}}`
 - **dev**: `{common: {time_limit: 300, preset: "high", use_gpu: false}}`
 
+**For naming conventions and parameter format, see:** [Terminology Guide](TERMINOLOGY.md)
+
+---
+
 ## Configuration Levels
 
 ## Core Concepts

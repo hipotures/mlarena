@@ -380,6 +380,8 @@ experiments/
 
 ## Chain State Format
 
+**For detailed payload format documentation, see:** [State Payload Formats](../state_payload_formats.md)
+
 When preprocessing chains execute, each step creates its own state entry:
 
 ```json

@@ -124,39 +124,24 @@ python scripts/blend_submissions.py \
 
 For managing multiple submissions efficiently, use the submission queue script. This is separate from the CLI Task Queue and specifically handles the upload process.
 
-**Add to queue:**
+**Quick start:**
 ```bash
+# Add to queue
 uv run python scripts/mla.py submit \
   --project <competition-slug> \
   --experiment-id <exp-id> \
   submit.queue_submit=true
-```
 
-**Manage queue:**
-```bash
 # List queued submissions
 python scripts/submission_queue.py --project <competition-slug> list
 
-# Submit from queue (by queue number, experiment-id, or filename)
-python scripts/submission_queue.py --project <competition-slug> submit 1
-python scripts/submission_queue.py --project <competition-slug> submit exp-20251226-103504
-python scripts/submission_queue.py --project <competition-slug> submit submission.csv
-
-# Submit with auto fetch-score (waits 30s, fetches score, removes on success)
+# Submit from queue
 python scripts/submission_queue.py --project <competition-slug> submit 1 --continue-flow
-
-# Remove from queue
-python scripts/submission_queue.py --project <competition-slug> remove 1
 ```
 
-**Features:**
-- **Duplicate detection**: Checks Kaggle API before upload to prevent re-submission
-- **Error tracking**: Logs all submission attempts with timestamps
-- **Status tracking**: pending → submitted → completed (or failed)
-- **Auto-cleanup**: Removes from queue on successful fetch-score (with `--continue-flow`)
-- **Thread-safe**: Uses file locking for concurrent access
+**Features:** Duplicate detection, error tracking, status tracking, auto-cleanup, thread-safe
 
-Queue file location: `projects/kaggle/<competition-slug>/submissions/queue.json`
+**For complete documentation, see:** [Submission Queue Guide](docs/submission_queue.md)
 
 ### Task Queue Management
 
@@ -235,6 +220,8 @@ uv run python scripts/mla.py model -p titanic model.time_limit=600
 # Set global seed and preprocess option
 uv run python scripts/mla.py -p titanic common.seed=42 preprocess.cache=true
 ```
+
+**For parameter naming conventions, see:** [Terminology Guide](docs/TERMINOLOGY.md)
 
 ## Architecture
 
@@ -564,3 +551,32 @@ MLArena supports two parameter formats:
    ```
 
 **Note**: Common parameters (`time_limit`, `use_gpu`, `preset`, `seed`) are automatically prefixed with `common.` when using flag format.
+
+---
+
+## Documentation Index
+
+### Core Documentation
+- **[Quick Start Guide](docs/quick_start.md)** - Getting started with MLArena
+- **[Architecture](docs/architecture.md)** - System design and execution flow
+- **[MLA Workflow Guide](docs/MLA_WORKFLOW_GUIDE.md)** - Complete workflow examples
+- **[Configuration System](docs/configs.md)** - Parameter reference and profiles
+
+### Module Documentation
+- **[Preprocessing Submodules](docs/submodules/README.md)** - All preprocessing modules and contracts
+- **[Model Templates](docs/model_templates.md)** - Available model configurations
+- **[Feature Engineering](docs/feat.md)** - Feature transformation module
+- **[Hyperparameter Tuning](docs/tune.md)** - Optuna-based HPO
+- **[Stacking](docs/stack.md)** - Model ensemble techniques
+
+### Advanced Topics
+- **[Terminology Guide](docs/TERMINOLOGY.md)** - Naming conventions (Python, YAML, CLI)
+- **[Submission Queue](docs/submission_queue.md)** - Batch upload management
+- **[State Payload Formats](docs/state_payload_formats.md)** - Understanding state.json structures
+- **[Contributing Guide](docs/contributing.md)** - Development guidelines
+- **[FAQ](docs/faq.md)** - Common questions and troubleshooting
+
+### Agent Documentation
+- **[AGENTS.md](AGENTS.md)** - AI agent guide for navigating the codebase
+
+---

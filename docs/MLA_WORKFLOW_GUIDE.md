@@ -89,14 +89,12 @@ cat projects/kaggle/titanic/code/utils/config.py | grep TARGET
 
 ---
 
-### Step 2: Exploratory Data Analysis (EDA)
+# Step 2: Exploratory Data Analysis (EDA)
 
 Generates data profiling reports using ydata-profiling.
 
 ```bash
-uv run python scripts/mla.py eda \
-  --project titanic \
-  --eda-notes "Initial exploration"
+uv run python scripts/mla.py eda --project titanic
 ```
 
 **What it does:**
@@ -317,6 +315,23 @@ uv run python scripts/mla.py init --project titanic
 uv run python scripts/mla.py eda --project titanic
 ```
 
+### Auto-Flow Validation
+
+Before executing auto-flow, the system validates:
+
+1. **Init module completed**: Checks `experiments/init/state.json` status
+2. **EDA module completed**: Checks `experiments/eda/state.json` status
+
+If either validation fails, you'll see:
+```
+✗ Prerequisites validation failed:
+
+Project initialization not found.
+Run: mla init --project {project}
+```
+
+**Note**: These modules must be run manually before auto-flow.
+
 **Auto-Flow**: Runs Preprocess → Model → Predict → Submit → Fetch Score automatically:
 
 ```bash
@@ -427,17 +442,17 @@ Run AutoGluon native hyperparameter tuning with presets:
 # Quick HPO test (50 trials, ~1-2h)
 uv run python scripts/mla.py model \
   --project titanic \
-  --model-template test_hpo_medium
+  model_template=hpo_boost_medium
 
 # Serious tuning (100 trials, ~4-6h)
 uv run python scripts/mla.py model \
   --project titanic \
-  --model-template test_hpo_high
+  model_template=hpo_boost_high
 
 # Final push (200 trials, ~8-12h)
 uv run python scripts/mla.py model \
   --project titanic \
-  --model-template test_hpo_best
+  model_template=hpo_boost_best
 ```
 
 **Available HPO presets:**

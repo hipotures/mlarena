@@ -20,7 +20,7 @@
 ## 🏗️ Architecture Shortcuts
 
 -   **Adding a Module**: Create file in `src/mlarena/modules/`, inherit `BaseModule`, decorate with `@ModuleRegistry.register`.
--   **Adding a Preprocess Step**: Copy `src/mlarena/preprocessing/TEMPLATE.py` to `src/mlarena/defaults/preprocessing/`.
+-   **Adding a Preprocess Step**: Copy `src/mlarena/defaults/preprocessing/TEMPLATE.py` to `src/mlarena/defaults/preprocessing/`.
 -   **Config System**: Uses `OmegaConf`. Project config (`code/utils/config.py`) is imported dynamically.
 -   **Artifacts**: Always use `self.context.artifact_dir`. Never hardcode paths.
 -   **State**: `self.context.state` contains the `state.json` data.

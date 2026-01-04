@@ -27,7 +27,7 @@ Follow the template structure:
 2. Create artifact directory
 3. Perform transformation
 4. Save artifacts (fitted objects, reports)
-5. Return (train_df, val_df, test_df, state_dict)
+5. Return (train_df, val_df, test_df, orig_df, state_dict)
 
 ### Step 3: Add to Templates
 
@@ -377,7 +377,24 @@ experiments/
       artifacts/...
     2-scaler/
       artifacts/...
+
+## Chain State Format
+
+When preprocessing chains execute, each step creates its own state entry:
+
+```json
+{
+  "experiment_id": "pre-my_pipeline/abc123def/1-imputer",
+  "modules": {
+    "preprocess": {  // Note: Still uses "preprocess" as module name
+      "status": "completed",
+      "payload": {...}
+    }
+  }
+}
 ```
+
+For the final chain output, query the last step's state.json.
 
 **Key Points:**
 - **Chain isolation**: Each unique chain gets separate directory

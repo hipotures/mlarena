@@ -44,6 +44,31 @@ MLArena is organized into four layers: a thin CLI wrapper, a core orchestrator, 
 - **Preprocess meta-templates**: YAML files may define a `chain` key to express sequential preprocessing steps. Chains are executed step-by-step with cached outputs when unchanged.
 - **Model templates**: Map a `model` implementation (project or default) and config, optionally referencing a preprocessing template via `preprocess_template`.
 
+## Template Resolution Details
+
+### Precedence Order (highest to lowest):
+1. CLI dotted overrides (`key=value`)
+2. Template config (within YAML)
+3. Project config (`projects/kaggle/<slug>/config.yaml`)
+4. Profile (`templates/profiles/<name>.yaml`)
+5. Hardcoded defaults (`src/mlarena/core/conf.py`)
+
+### Search Order for Templates:
+1. Project-local: `projects/kaggle/<slug>/templates/{model|preprocess}/<name>.yaml`
+2. Global: `src/mlarena/templates/{model|preprocess}/<name>.yaml`
+
+### Chain Resolution Algorithm:
+1. Parse template argument (single name or comma-separated list)
+2. Load template config from precedence order
+3. Check for `chain` key in config
+4. If `chain` exists: expand to list of template names
+5. If comma-separated: use as-is
+6. For each template in list:
+   - Load individual config
+   - Compute semantic hash
+7. Combine hashes to generate chain experiment ID
+8. Create directory: `pre-{chain_id}/{combined_hash}/{idx}-{template}`
+
 ## Experiment state snapshot
 
 `state.json` tracks module status, payload, invocation parameters, git metadata, and artifacts such as processed datasets and submission files. The file is guarded by a lock to avoid concurrent writes and is reused when resuming modules with `--experiment-id`.

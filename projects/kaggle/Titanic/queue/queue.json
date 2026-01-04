@@ -1,5 +1,5 @@
 {
-  "next_id": 24,
+  "next_id": 26,
   "queue": [
     {
       "id": 19,
@@ -46,6 +46,32 @@
       "last_error": null,
       "experiment_id": null,
       "log_file": "queue/logs/task-23.log"
+    },
+    {
+      "id": 24,
+      "priority": 7,
+      "status": "pending",
+      "command": "model --model-template cpu-dev-10m skip_submit=true skip_git=true skip_submit=true",
+      "added_at": "2026-01-03 17:55:25",
+      "started_at": null,
+      "finished_at": null,
+      "attempts": [],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-24.log"
+    },
+    {
+      "id": 25,
+      "priority": 7,
+      "status": "pending",
+      "command": "model --model-template cpu-dev-10m skip_submit=true skip_git=true skip_submit=true",
+      "added_at": "2026-01-03 17:55:38",
+      "started_at": null,
+      "finished_at": null,
+      "attempts": [],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-25.log"
     }
   ]
 }

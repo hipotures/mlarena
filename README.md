@@ -210,10 +210,10 @@ uv run python scripts/mla.py model --project <competition-slug> model_template=<
 **5. Train with Hyperparameter Optimization (HPO):**
 ```bash
 # Quick HPO (50 trials, 1-2h)
-uv run python scripts/mla.py model --project <competition-slug> model_template=test_hpo_medium
+uv run python scripts/mla.py model --project <competition-slug> model_template=hpo_boost_medium
 
 # Advanced HPO (100 trials, 4-6h)
-uv run python scripts/mla.py model --project <competition-slug> model_template=test_hpo_high
+uv run python scripts/mla.py model --project <competition-slug> model_template=hpo_boost_high
 ```
 
 ### Common Flags
@@ -348,10 +348,10 @@ experiments/
         ├── state.json
         └── artifacts/
             └── preprocess/
-                ├── train_processed.csv    # Transformed training data
-                ├── test_processed.csv     # Transformed test data
-                ├── orig_processed.csv     # External dataset (optional)
-                └── preprocess_state.pkl   # Preprocessing artifacts
+                ├── train_processed.csv.gz    # Transformed training data
+                ├── test_processed.csv.gz     # Transformed test data
+                ├── orig_processed.csv.gz     # External dataset (optional)
+                └── preprocess_state.pkl      # Preprocessing artifacts
 
 Example:
   pre-baseline/
@@ -478,6 +478,29 @@ The MLArena framework is built for reproducibility.
 -   **Git Integration:** The git hash is captured for every experiment, allowing you to check out the exact code version used.
 -   **Code Snapshots:** A snapshot of the executed code is saved with each experiment.
 
+### Auto-Flow Git Commits
+
+When auto-flow completes successfully (unless `skip_git=true`), a git commit is created automatically:
+
+**Commit message format:**
+```
+auto-flow({project}): {module1}→{module2}→... | local {cv_score} | public {score}
+```
+
+**Example:**
+```
+auto-flow(titanic): preprocess→model→predict→submit→fetch-score | local 0.834 | public 0.798
+```
+
+**What gets staged:**
+- Project directory: `projects/kaggle/{project}/`
+- Experiments, submissions, and templates
+
+**Skip auto-commit:**
+```bash
+uv run python scripts/mla.py --project titanic skip_git=true
+```
+
 ### Viewing History
 
 You can list all tracked submissions and experiments for a project:
@@ -519,5 +542,23 @@ In this browser window, log in to your Kaggle account. Keep this window open whe
 ### Control Flags
 
 -   `--wait-seconds <N>`: Sets the delay (in seconds) between submission and score fetching to allow for Kaggle processing (default: 30).
--   `--skip-score-fetch`: Submits to Kaggle but skips the automated score fetching step.
 -   `--cdp-url <URL>`: Specifies a custom CDP endpoint if Chrome is running on a different port or host.
+
+**Note**: Score fetching is controlled by the `skip_submit` flag (skips both submit and fetch) and the `wait_seconds` parameter.
+
+### CLI Parsing Behavior
+
+MLArena supports two parameter formats:
+
+1. **Dotted paths** (recommended): `key.subkey=value`
+   ```bash
+   uv run python scripts/mla.py --project titanic common.time_limit=600
+   ```
+
+2. **Flag format** (converted internally): `--flag value`
+   ```bash
+   uv run python scripts/mla.py --project titanic --time-limit 600
+   # Internally converted to: common.time_limit=600
+   ```
+
+**Note**: Common parameters (`time_limit`, `use_gpu`, `preset`, `seed`) are automatically prefixed with `common.` when using flag format.

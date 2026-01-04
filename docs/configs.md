@@ -1,6 +1,21 @@
 # Configuration System
 
-MLArena uses a unified, hierarchical configuration system based on **OmegaConf** and **Pydantic**. This allows for clean defaults, easy project-specific overrides, and precise control via the command line.
+## Complete Parameter Reference
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `lock` | bool | `false` | Create `overwrite.lock` after successful completion to prevent re-runs |
+| `skip_deps` | bool | `false` | Skip dependency resolution (run only target module) |
+| `show_payload` | bool | `false` | Display module output payload in console |
+| `model.mla_retention` | bool | `false` | Clean up AutoGluon intermediate models after training (saves disk space) |
+
+## Built-in Profile Fallbacks
+
+If profile YAML files don't exist, the system provides hardcoded fallbacks for:
+- **smoke**: `{common: {time_limit: 60, preset: "medium", use_gpu: false}}`
+- **dev**: `{common: {time_limit: 300, preset: "high", use_gpu: false}}`
+
+## Configuration Levels
 
 ## Core Concepts
 

@@ -31,7 +31,7 @@ Follow the template structure:
 
 ### Step 3: Add to Templates
 
-Edit `src/mlarena/templates/preprocess.yaml`:
+Create a new file `src/mlarena/templates/preprocess/my_submodule.yaml` with the following content:
 
 ```yaml
 my_submodule:

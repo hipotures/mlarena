@@ -90,8 +90,8 @@ The pipeline consists of the following modules:
 
 **Optional modules (manual use only):**
 -   `feat`: Applies lightweight feature transformations (log1p, ratios, column drops) defined in feature templates.
--   `tune`: Optuna-based hyperparameter search on a sampled training subset using AutoGluon.
--   `stack`: Averages multiple prediction files to produce an ensemble submission.
+-   `tune`: Optuna-based hyperparameter search (experimental).
+-   `stack`: Averages multiple prediction files (experimental).
 
 **Note**: AutoGluon native HPO is available through model templates with `hpo_preset`. See [HPO Guide](docs/MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 
@@ -120,9 +120,9 @@ python scripts/blend_submissions.py \
   --submissions-dir /path/to/submissions
 ```
 
-### Submission Queue (Batch Processing)
+### Submission Queue (Manual Script)
 
-For managing multiple submissions efficiently, use the submission queue system. Queue submissions for later batch upload with automatic duplicate detection.
+For managing multiple submissions efficiently, use the submission queue script. This is separate from the CLI Task Queue and specifically handles the upload process.
 
 **Add to queue:**
 ```bash
@@ -157,6 +157,30 @@ python scripts/submission_queue.py --project <competition-slug> remove 1
 - **Thread-safe**: Uses file locking for concurrent access
 
 Queue file location: `projects/kaggle/<competition-slug>/submissions/queue.json`
+
+### Task Queue Management
+
+The Task Queue (`mla queue`) manages computation tasks (training, preprocessing) to be executed sequentially. This is ideal for queuing up multiple experiments overnight.
+
+**Basic Commands:**
+```bash
+# List queued tasks
+uv run python scripts/mla.py queue list -p <competition-slug>
+
+# Add a task (e.g., train a model)
+uv run python scripts/mla.py queue add -p <competition-slug> --model-template <template-name>
+
+# Add task with high priority (1=highest, 10=default)
+uv run python scripts/mla.py queue add -p <competition-slug> --model-template <template-name> --priority 1
+
+# Run the queue
+uv run python scripts/mla.py queue run -p <competition-slug>
+```
+
+**Features:**
+- **Priorities**: Control execution order
+- **Templates**: Add tasks using standard model/preprocess templates
+- **Logs**: Per-task execution logs in `projects/kaggle/<slug>/queue/logs/`
 
 ### Manual Workflow Example
 
@@ -253,7 +277,9 @@ mlarena/                         # Repository root
 │   │   │   ├── model.py
 │   │   │   ├── predict.py
 │   │   │   ├── submit.py
-│   │   │   └── fetch_score.py
+│   │   │   ├── fetch_score.py
+│   │   │   ├── stack.py      # Stacking (Experimental)
+│   │   │   └── tune.py       # Tuning (Experimental)
 │   │   ├── defaults/         # Global implementations
 │   │   │   ├── models/       # Default model trainers
 │   │   │   └── preprocessing/ # Default preprocessing steps

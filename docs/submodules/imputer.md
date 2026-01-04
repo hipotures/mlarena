@@ -18,6 +18,8 @@ Universal missing value imputation with configurable strategies per column type 
 
 ## Parameters
 
+**Note**: Parameters starting with `_` (e.g., `_dataset`, `_artifact_dir`) are internal and automatically injected by the framework. You do not need to set them in your config.
+
 ### Global Strategy Parameters
 
 | Parameter | Type | Default | Description |

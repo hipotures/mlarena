@@ -1,0 +1,105 @@
+{
+  "next_id": 11,
+  "queue": [
+    {
+      "id": 6,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template boost_cpu_best1h_base skip_submit=true skip_git=true",
+      "added_at": "2026-01-04 16:31:20",
+      "started_at": "2026-01-04 16:31:24",
+      "finished_at": "2026-01-04 17:27:39",
+      "attempts": [
+        {
+          "timestamp": "2026-01-04 17:27:39",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260104-153125",
+      "log_file": "queue/logs/task-6.log"
+    },
+    {
+      "id": 7,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template boost_cpu_best1h_onehot skip_submit=true skip_git=true",
+      "added_at": "2026-01-04 16:31:20",
+      "started_at": "2026-01-04 17:27:39",
+      "finished_at": "2026-01-04 17:56:59",
+      "attempts": [
+        {
+          "timestamp": "2026-01-04 17:56:59",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260104-162740",
+      "log_file": "queue/logs/task-7.log"
+    },
+    {
+      "id": 8,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template boost_cpu_best1h_target_oof skip_submit=true skip_git=true",
+      "added_at": "2026-01-04 16:31:20",
+      "started_at": "2026-01-04 17:56:59",
+      "finished_at": "2026-01-04 18:28:37",
+      "attempts": [
+        {
+          "timestamp": "2026-01-04 18:28:37",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260104-165700",
+      "log_file": "queue/logs/task-8.log"
+    },
+    {
+      "id": 9,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template boost_cpu_best1h_custom_target skip_submit=true skip_git=true",
+      "added_at": "2026-01-04 16:31:20",
+      "started_at": "2026-01-04 18:28:37",
+      "finished_at": "2026-01-04 18:58:48",
+      "attempts": [
+        {
+          "timestamp": "2026-01-04 18:58:48",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260104-172837",
+      "log_file": "queue/logs/task-9.log"
+    },
+    {
+      "id": 10,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template boost_cpu_best1h_catboost_log1p skip_submit=true skip_git=true",
+      "added_at": "2026-01-04 16:31:20",
+      "started_at": "2026-01-04 18:58:48",
+      "finished_at": "2026-01-04 19:31:17",
+      "attempts": [
+        {
+          "timestamp": "2026-01-04 19:31:17",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260104-175849",
+      "log_file": "queue/logs/task-10.log"
+    }
+  ]
+}

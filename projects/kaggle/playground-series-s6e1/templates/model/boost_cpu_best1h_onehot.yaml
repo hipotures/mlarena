@@ -1,0 +1,22 @@
+model: autogluon_baseline
+preprocess_template: 20260101120100_onehot
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: false
+  included_model_types:
+  - GBM
+  - CAT
+  - XGB
+  hyperparameters:
+    ag_args_fit:
+      num_gpus: 0
+      num_cpus: 8
+    GBM:
+    - device: cpu
+    CAT:
+    - task_type: CPU
+    XGB:
+    - tree_method: hist
+      enable_categorical: true
+      n_jobs: 8

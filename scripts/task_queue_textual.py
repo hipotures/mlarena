@@ -325,8 +325,10 @@ class TaskQueueApp(App):
         if total_tasks > 0:
             pb = self.query_one("#queue-progress", ProgressBar)
             pb.update(total=total_tasks, progress=completed_tasks)
-            # Only show ETA if a task is actually running
-            pb.show_eta = (running_task is not None)
+            # Only show ETA and elapsed time if a task is actually running
+            is_running = (running_task is not None)
+            pb.show_eta = is_running
+            pb.show_elapsed = is_running
 
         status_msg = f"Running Task #{running_task['id']}: {running_task['command']}" if running_task else "Idle"
         if self.is_running_queue and not running_task:

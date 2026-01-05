@@ -8,6 +8,7 @@ import json
 import math
 import random
 import sys
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -604,8 +605,7 @@ def main() -> int:
 
     # Auto-detect next index if files exist
     existing_indices = []
-    import re
-    index_pattern = re.compile(f"^{re.escape(prefix)}(\\d{{{id_width}}})\\.yaml$")
+    index_pattern = re.compile(f"^{re.escape(prefix)}(\d{{{id_width}}})\.yaml$")
     for p in preprocess_dir.glob(f"{prefix}*.yaml"):
         match = index_pattern.match(p.name)
         if match:
@@ -678,87 +678,6 @@ def main() -> int:
     generated: List[Dict[str, Any]] = []
     template_cache: Dict[str, Dict[str, Any]] = {}
     attempt_count = 0
-    current_index = start_index
-    overwrite_all: bool | None = None
-
-    while len(generated) < count:
-        if attempt_count >= max_unique_attempts:
-            print("Error: exceeded max_unique_attempts while searching for unique configs")
-            return 1
-
-        exp_id = f"{prefix}{current_index:0{id_width}d}"
-
-        # Sample groups
-        group_weights = [
-            (group, sum(float(p.get("weight", 1.0)) for p in group_map[group]))
-            for group in available_groups
-        ]
-        selected_groups = _weighted_sample_without_replacement(group_weights, preprocess_per_exp, rng)
-
-        selected_items: List[Dict[str, Any]] = []
-        for group in selected_groups:
-            group_items = group_map[group]
-            weighted_items = [
-                (item, float(item.get("weight", 1.0))) for item in group_items
-            ]
-            preproc = _weighted_choice(weighted_items, rng)
-            variant = _sample_variant(preproc, rng)
-            selected_items.append({"preproc": preproc, "variant": variant})
-
-        selected_items = _resolve_requires(
-            selected_items=selected_items,
-            group_map=group_map,
-            name_map=name_map,
-            rng=rng,
-            reserved_groups=reserved_groups,
-            eda_stats=eda_stats,
-        )
-        selected_items = _order_by_requires(
-            selected_items=selected_items,
-            name_map=name_map,
-            group_map=group_map,
-            reserved_groups=reserved_groups,
-            eda_stats=eda_stats,
-        )
-
-        module_payloads = {}
-        module_signature_configs = {}
-        module_template_names = []
-
-        for item in selected_items:
-            preproc = item["preproc"]
-            variant = item["variant"]
-            payload, signature_config = _build_module_payload(
-                preproc,
-                variant,
-                project_root,
-                template_cache,
-                rng,
-            )
-
-            module_name = preproc["name"]
-            module_template_name = f"{exp_id}-{module_name}"
-            module_template_names.append(module_template_name)
-            module_payloads[module_template_name] = payload
-            module_signature_configs[module_name] = signature_config
-
-        chain = base_chain + module_template_names
-        signature = _compute_signature(base_chain, module_signature_configs)
-
-        if signature in used_signatures:
-            attempt_count += 1
-            continue
-
-        # Check for existing files
-        model_path = model_dir / f"{exp_id}.yaml"
-        chain_path = preprocess_dir / f"{exp_id}.yaml"
-        module_paths = [preprocess_dir / f"{name}.yaml" for name in module_template_names]
-        existing_paths = [p for p in [model_path, chain_path, *module_paths] if p.exists()]
-
-    generated: List[Dict[str, Any]] = []
-    template_cache: Dict[str, Dict[str, Any]] = {}
-    attempt_count = 0
-    current_index = start_index
     overwrite_all: bool | None = None
     auto_append: bool = False
 

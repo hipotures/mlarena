@@ -30,38 +30,43 @@ def main():
         print(f"Error: Local project directory {local_project_dir} not found")
         return
 
-    # NFS Experiments path (structure 1:1)
-    mnt_exp_dir = Path("/mnt/mlarena") / project_rel_path / "experiments"
+    # Potential experiment locations
+    exp_dirs = [
+        local_project_dir / "experiments",
+        Path("/mnt/mlarena") / project_rel_path / "experiments"
+    ]
     
-    if not mnt_exp_dir.exists():
-        print(f"Error: NFS experiments directory {mnt_exp_dir} not found.")
-        print("Check if /mnt/mlarena is mounted correctly.")
-        return
-
-    print(f"Scanning NFS experiments in {mnt_exp_dir}...")
     results = []
+    scanned_dirs = []
     
-    for state_path in mnt_exp_dir.glob("**/state.json"):
-        if "artifacts" in state_path.parts: continue
-        try:
-            with open(state_path, 'r') as f:
-                state = json.load(f)
-            
-            # Use local_cv_score from model module
-            model_info = state.get("modules", {}).get("model", {})
-            score = model_info.get("payload", {}).get("local_cv_score")
-            
-            if score is not None:
-                results.append({
-                    "score": score,
-                    "model_template": model_info.get("invocation", {}).get("model_template"),
-                    "exp_id": state.get("experiment_id")
-                })
-        except Exception:
+    for d in exp_dirs:
+        if not d.exists():
             continue
+        
+        print(f"Scanning experiments in {d}...")
+        scanned_dirs.append(str(d))
+        
+        for state_path in d.glob("**/state.json"):
+            if "artifacts" in state_path.parts: continue
+            try:
+                with open(state_path, 'r') as f:
+                    state = json.load(f)
+                
+                model_info = state.get("modules", {}).get("model", {})
+                score = model_info.get("payload", {}).get("local_cv_score")
+                
+                if score is not None:
+                    results.append({
+                        "score": score,
+                        "model_template": model_info.get("invocation", {}).get("model_template"),
+                        "exp_id": state.get("experiment_id")
+                    })
+            except Exception:
+                continue
 
     if not results:
-        print(f"No experiments with scores found.")
+        print(f"Error: No experiments with scores found.")
+        print(f"Checked directories: {', '.join(scanned_dirs) if scanned_dirs else 'None found'}")
         return
 
     # 2. Sort by score (descending)

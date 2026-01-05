@@ -603,21 +603,6 @@ def main() -> int:
     model_dir.mkdir(parents=True, exist_ok=True)
     preprocess_dir.mkdir(parents=True, exist_ok=True)
 
-    # Auto-detect next index if files exist
-    existing_indices = []
-    index_pattern = re.compile(f"^{re.escape(prefix)}(\d{{{id_width}}})\.yaml$")
-    for p in preprocess_dir.glob(f"{prefix}*.yaml"):
-        match = index_pattern.match(p.name)
-        if match:
-            existing_indices.append(int(match.group(1)))
-    
-    if existing_indices:
-        next_index = max(existing_indices) + 1
-        print(f"Detected existing experiments. Starting from index {next_index:0{id_width}d}")
-        current_index = next_index
-    else:
-        current_index = start_index
-
     # Load base model template
     base_model_path = _resolve_template_path("model", model_template_name, project_root)
     base_model_template = _load_yaml(base_model_path)
@@ -678,8 +663,12 @@ def main() -> int:
     generated: List[Dict[str, Any]] = []
     template_cache: Dict[str, Dict[str, Any]] = {}
     attempt_count = 0
+    current_index = start_index
     overwrite_all: bool | None = None
     auto_append: bool = False
+
+    # Regex for finding next index if auto_append is chosen
+    index_pattern = re.compile(rf"^{re.escape(prefix)}(\d{{{id_width}}})\.yaml$")
 
     while len(generated) < count:
         if attempt_count >= max_unique_attempts:

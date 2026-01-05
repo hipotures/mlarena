@@ -322,7 +322,7 @@ def _resolve_requires(
             if existing["preproc"]["name"] != preproc["name"]:
                 raise ValueError(
                     f"requires_preproc conflict: group '{group}' already has "
-                    f\"{existing['preproc']['name']}\" but requirement asked for '{preproc['name']}'"
+                    f"'{existing['preproc']['name']}' but requirement asked for '{preproc['name']}'"
                 )
             return existing
         if group in reserved_groups:

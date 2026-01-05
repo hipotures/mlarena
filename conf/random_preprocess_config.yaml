@@ -7,7 +7,7 @@ random_seed: 42
 model_template: mcts
 preprocess_template: mcts-chain
 preprocessors_per_experiment: 3
-max_unique_attempts: 200
+max_unique_attempts: 5000
 signature_registry: .random_preprocess_signatures_mcts.json
 auto_filter_by_eda: true
 eda_summary_path: null

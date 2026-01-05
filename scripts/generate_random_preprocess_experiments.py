@@ -596,7 +596,7 @@ def main() -> int:
         print("Error: preprocessors_per_experiment must be >= 0")
         return 1
 
-    max_unique_attempts = int(config.get("max_unique_attempts", 200))
+    max_unique_attempts = int(config.get("max_unique_attempts", 10000))
 
     model_dir = project_root / "templates" / "model"
     preprocess_dir = project_root / "templates" / "preprocess"

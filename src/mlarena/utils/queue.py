@@ -212,13 +212,23 @@ class TaskQueue:
         self._save_queue(queue_data)
         return True
 
-    def list_queue(self, console: Console) -> None:
-        """Display queue as Rich table."""
+    def list_queue(self, console: Console, status: Optional[str] = None) -> None:
+        """
+        Display queue as Rich table.
+        
+        Args:
+            console: Rich console for output
+            status: Filter by status (pending, running, completed, failed, all)
+        """
         queue_data = self._load_queue()
         tasks = queue_data.get("queue", [])
 
+        if status and status != "all":
+            tasks = [t for t in tasks if t["status"] == status]
+
         if not tasks:
-            console.print("[yellow]Queue is empty[/yellow]")
+            msg = f"[yellow]Queue is empty (filter: {status})[/yellow]" if status else "[yellow]Queue is empty[/yellow]"
+            console.print(msg)
             return
 
         table = Table(

@@ -63,6 +63,8 @@ class QueueDashboard(Vertical):
                 yield Static("0", id="stat-completed", classes="stat-value")
                 yield Label("Failed:", classes="stat-label")
                 yield Static("0", id="stat-failed", classes="stat-value")
+                yield Label("Avg Duration:", classes="stat-label")
+                yield Static("-", id="stat-avg-duration", classes="stat-value")
         
         yield Label("Current Status", classes="panel-header")
         with Container(classes="status-container"):
@@ -319,6 +321,29 @@ class TaskQueueApp(App):
         self.query_one("#stat-completed", Static).update(str(counts["completed"]))
         self.query_one("#stat-failed", Static).update(str(counts["failed"]))
         
+        # Calculate Avg Duration
+        durations = []
+        for task in tasks:
+            if task["status"] in ["completed", "failed"] and task["started_at"] and task["finished_at"]:
+                try:
+                    start_dt = datetime.strptime(task["started_at"], "%Y-%m-%d %H:%M:%S")
+                    end_dt = datetime.strptime(task["finished_at"], "%Y-%m-%d %H:%M:%S")
+                    durations.append((end_dt - start_dt).total_seconds())
+                except ValueError:
+                    continue
+        
+        avg_dur_str = "-"
+        if durations:
+            avg_sec = sum(durations) / len(durations)
+            if avg_sec < 60:
+                avg_dur_str = f"{avg_sec:.1f}s"
+            elif avg_sec < 3600:
+                avg_dur_str = f"{avg_sec/60:.1f}m"
+            else:
+                avg_dur_str = f"{avg_sec/3600:.1f}h"
+        
+        self.query_one("#stat-avg-duration", Static).update(avg_dur_str)
+
         # Update Progress Bar
         total_tasks = len(tasks)
         completed_tasks = counts["completed"] + counts["failed"]

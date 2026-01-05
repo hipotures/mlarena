@@ -60,7 +60,12 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", help="Command")
 
     # List command
-    subparsers.add_parser("list", help="List queued tasks")
+    list_parser = subparsers.add_parser("list", help="List queued tasks")
+    list_parser.add_argument(
+        "--status",
+        choices=["completed", "failed", "pending", "running", "all"],
+        help="Filter by status"
+    )
 
     # Add command - hybrid mode (template OR command string)
     add_parser = subparsers.add_parser("add", help="Add task to queue")
@@ -197,7 +202,7 @@ Examples:
 
     try:
         if args.command == "list":
-            queue.list_queue(console)
+            queue.list_queue(console, status=args.status)
             return 0
 
         elif args.command == "add":

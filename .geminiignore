@@ -1,0 +1,15 @@
+.venv/
+.git/
+__pycache__/
+*.py[oc]
+*.csv
+*.gz
+*.zip
+*.parquet
+*.pkl
+**/AutogluonModels/
+**/wandb/
+**/mlruns/
+**/preprocess_cache/
+**/experiments/**
+!**/experiments/*/state.json

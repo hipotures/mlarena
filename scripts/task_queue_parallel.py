@@ -50,12 +50,10 @@ class LogModal(Screen):
     def on_mount(self) -> None:
         self.query_one(RichLog).write(self.log_content)
 
-class TopStats(Horizontal):
-    """Global statistics bar."""
+class GlobalStats(Horizontal):
+    """Global statistics displayed on the tab bar level."""
     def compose(self) -> ComposeResult:
-        yield Label("Max Jobs:", id="jobs-label")
-        yield Select.from_values([str(i) for i in range(1, 17)], value="4", id="max-jobs-select")
-        yield Label(" P:", classes="stat-label-short")
+        yield Label("P:", classes="stat-label-short")
         yield Static("0", id="stat-pending", classes="stat-value-short")
         yield Label("R:", classes="stat-label-short")
         yield Static("0", id="stat-running", classes="stat-value-short")
@@ -65,6 +63,15 @@ class TopStats(Horizontal):
         yield Static("0", id="stat-failed", classes="stat-value-short")
         yield Label("Avg:", classes="stat-label-short")
         yield Static("-", id="stat-avg-duration", classes="stat-value-short")
+
+class SettingsView(Vertical):
+    """Settings tab content."""
+    def compose(self) -> ComposeResult:
+        yield Label("Queue Settings", classes="panel-header")
+        with Container(classes="settings-container"):
+            with Horizontal():
+                yield Label("Maximum Parallel Jobs: ", classes="setting-label")
+                yield Select.from_values([str(i) for i in range(1, 17)], value="4", id="max-jobs-select")
 
 class QueueDashboard(Vertical):
     def compose(self) -> ComposeResult:
@@ -131,12 +138,15 @@ class TaskQueueApp(App):
         width: 100%;
     }
 
-    #top-stats-bar {
+    #global-stats-overlay {
+        position: absolute;
+        top: 1;
+        right: 2;
+        width: auto;
         height: 3;
-        background: $boost;
-        border-bottom: solid $secondary;
-        padding: 0 1;
+        z-index: 100;
         align-vertical: middle;
+        padding: 0 1;
     }
 
     .panel-header {
@@ -158,14 +168,22 @@ class TaskQueueApp(App):
         min-width: 2;
     }
 
-    #jobs-label {
-        margin-left: 1;
-        color: $secondary;
+    /* Settings Styles */
+    .settings-container {
+        padding: 1 2;
+        background: $boost;
+        margin: 1;
+        border: solid $secondary;
+        height: auto;
+    }
+
+    .setting-label {
+        width: 30;
+        content-align: left middle;
     }
 
     #max-jobs-select {
-        width: 10;
-        height: 3;
+        width: 15;
     }
 
     .status-container {
@@ -288,12 +306,14 @@ class TaskQueueApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield TopStats(id="top-stats-bar")
+        yield GlobalStats(id="global-stats-overlay")
         with TabbedContent():
             with TabPane("Dashboard", id="tab-dashboard"):
                 yield QueueDashboard()
             with TabPane("Tasks", id="tab-tasks"):
                 yield TasksView()
+            with TabPane("Settings", id="tab-settings"):
+                yield SettingsView()
         yield Footer()
 
     def on_mount(self) -> None:
@@ -527,6 +547,9 @@ class TaskQueueApp(App):
             self.query_one(TasksView).status_filter = str(event.value)
             self.query_one(TasksView).current_page = 1
             self.refresh_data()
+        elif event.select.id == "max-jobs-select":
+            # Just let it change value, worker_run_queue reads it on start
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-close":

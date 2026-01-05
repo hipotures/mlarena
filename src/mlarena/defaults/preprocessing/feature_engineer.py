@@ -212,7 +212,7 @@ def _apply_polynomial_features(
             "Skipping polynomial features because input contains NaN. "
             "Run an imputer earlier in the chain or set poly_degree: null."
         )
-        return train_df, val_df, test_df, [], {
+        return train_df, val_df, test_df, orig_df, [], {
             "type": "polynomial",
             "skipped": True,
             "reason": "nan_in_input",

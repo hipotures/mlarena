@@ -263,6 +263,141 @@ def _sample_variant(preproc: Dict[str, Any], rng: random.Random) -> Dict[str, An
     return chosen
 
 
+def _collect_requires(preproc: Dict[str, Any], variant: Dict[str, Any]) -> List[Any]:
+    requires: List[Any] = []
+    if isinstance(preproc.get("requires_preproc"), list):
+        requires.extend(preproc.get("requires_preproc", []))
+    if isinstance(variant.get("requires_preproc"), list):
+        requires.extend(variant.get("requires_preproc", []))
+    return requires
+
+
+def _resolve_requirement(
+    requirement: Any,
+    name_map: Dict[str, Dict[str, Any]],
+    group_map: Dict[str, List[Dict[str, Any]]],
+) -> Tuple[str, str]:
+    if isinstance(requirement, dict):
+        if "name" in requirement:
+            return ("preproc", str(requirement["name"]))
+        if "group" in requirement:
+            return ("group", str(requirement["group"]))
+        raise ValueError(f"Invalid requires_preproc dict: {requirement}")
+
+    if not isinstance(requirement, str):
+        raise ValueError(f"Invalid requires_preproc entry: {requirement!r}")
+
+    if requirement in name_map:
+        return ("preproc", requirement)
+    if requirement in group_map:
+        return ("group", requirement)
+
+    # Unknown requirement string
+    raise ValueError(f"Unknown requires_preproc target: '{requirement}'")
+
+
+def _resolve_requires(
+    selected_items: List[Dict[str, Any]],
+    group_map: Dict[str, List[Dict[str, Any]]],
+    name_map: Dict[str, Dict[str, Any]],
+    rng: random.Random,
+    reserved_groups: set,
+    eda_stats: Dict[str, Any] | None,
+) -> List[Dict[str, Any]]:
+    selected_by_group: Dict[str, Dict[str, Any]] = {}
+    selected_names: set[str] = set()
+
+    for item in selected_items:
+        preproc = item["preproc"]
+        group = preproc.get("group", preproc["name"])
+        selected_by_group[group] = item
+        selected_names.add(preproc["name"])
+
+    def add_preproc(preproc: Dict[str, Any]) -> Dict[str, Any]:
+        group = preproc.get("group", preproc["name"])
+        if preproc["name"] in selected_names:
+            return selected_by_group[group]
+        if group in selected_by_group:
+            existing = selected_by_group[group]
+            if existing["preproc"]["name"] != preproc["name"]:
+                raise ValueError(
+                    f"requires_preproc conflict: group '{group}' already has "
+                    f\"{existing['preproc']['name']}\" but requirement asked for '{preproc['name']}'"
+                )
+            return existing
+        if group in reserved_groups:
+            raise ValueError(
+                f"requires_preproc conflict: group '{group}' already present in base preprocess chain"
+            )
+        variant = _sample_variant(preproc, rng)
+        item = {"preproc": preproc, "variant": variant}
+        selected_items.append(item)
+        selected_by_group[group] = item
+        selected_names.add(preproc["name"])
+        return item
+
+    visiting: set[str] = set()
+    stack: List[str] = []
+
+    def _push(node: str) -> None:
+        if node in visiting:
+            cycle = " -> ".join(stack + [node])
+            raise ValueError(f"requires_preproc cycle detected: {cycle}")
+        visiting.add(node)
+        stack.append(node)
+
+    def _pop() -> None:
+        node = stack.pop()
+        visiting.discard(node)
+
+    def resolve_item(item: Dict[str, Any]) -> None:
+        preproc = item["preproc"]
+        variant = item["variant"]
+        group = preproc.get("group", preproc["name"])
+        _push(f"group:{group}")
+        _push(f"preproc:{preproc['name']}")
+
+        requirements = _collect_requires(preproc, variant)
+        for req in requirements:
+            req_kind, req_value = _resolve_requirement(req, name_map, group_map)
+
+            if req_kind == "group" and req_value == "imputer" and eda_stats is not None:
+                if not eda_stats.get("has_missing", False):
+                    continue
+
+            node_id = f"{req_kind}:{req_value}"
+            if node_id in visiting:
+                cycle = " -> ".join(stack + [node_id])
+                raise ValueError(f"requires_preproc cycle detected: {cycle}")
+
+            if req_kind == "preproc":
+                if req_value in selected_names:
+                    continue
+                if req_value not in name_map:
+                    raise ValueError(f"requires_preproc unknown preproc: '{req_value}'")
+                dep_item = add_preproc(name_map[req_value])
+                resolve_item(dep_item)
+            else:
+                if req_value in selected_by_group or req_value in reserved_groups:
+                    continue
+                if req_value not in group_map:
+                    raise ValueError(f"requires_preproc unknown group: '{req_value}'")
+                weighted_items = [
+                    (item, float(item.get("weight", 1.0))) for item in group_map[req_value]
+                ]
+                chosen = _weighted_choice(weighted_items, rng)
+                dep_item = add_preproc(chosen)
+                resolve_item(dep_item)
+
+        _pop()
+        _pop()
+
+    for item in list(selected_items):
+        resolve_item(item)
+
+    return selected_items
+
+
 def _merge_configs(*configs: Dict[str, Any]) -> Dict[str, Any]:
     merged: Dict[str, Any] = {}
     for cfg in configs:
@@ -417,11 +552,13 @@ def main() -> int:
         print("Error: no enabled preprocessors in config")
         return 1
 
-    # Build group map
+    # Build group/name maps
     group_map: Dict[str, List[Dict[str, Any]]] = {}
+    name_map: Dict[str, Dict[str, Any]] = {}
     for preproc in preprocessors:
         group = preproc.get("group", preproc["name"])
         group_map.setdefault(group, []).append(preproc)
+        name_map[preproc["name"]] = preproc
 
     # Resolve base chain groups to avoid duplicates
     reserved_groups = set()
@@ -474,20 +611,32 @@ def main() -> int:
         ]
         selected_groups = _weighted_sample_without_replacement(group_weights, preprocess_per_exp, rng)
 
-        selected_preprocs = []
+        selected_items: List[Dict[str, Any]] = []
         for group in selected_groups:
             group_items = group_map[group]
             weighted_items = [
                 (item, float(item.get("weight", 1.0))) for item in group_items
             ]
-            selected_preprocs.append(_weighted_choice(weighted_items, rng))
+            preproc = _weighted_choice(weighted_items, rng)
+            variant = _sample_variant(preproc, rng)
+            selected_items.append({"preproc": preproc, "variant": variant})
+
+        selected_items = _resolve_requires(
+            selected_items=selected_items,
+            group_map=group_map,
+            name_map=name_map,
+            rng=rng,
+            reserved_groups=reserved_groups,
+            eda_stats=eda_stats,
+        )
 
         module_payloads = {}
         module_signature_configs = {}
         module_template_names = []
 
-        for preproc in selected_preprocs:
-            variant = _sample_variant(preproc, rng)
+        for item in selected_items:
+            preproc = item["preproc"]
+            variant = item["variant"]
             payload, signature_config = _build_module_payload(
                 preproc,
                 variant,

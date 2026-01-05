@@ -15,7 +15,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, Grid
 from textual.widgets import (
     Header, Footer, Static, DataTable, TabbedContent, TabPane, 
-    Button, Label, RichLog, Select, Markdown
+    Button, Label, RichLog, Select, Markdown, ProgressBar
 )
 from textual.screen import Screen
 from textual.coordinate import Coordinate
@@ -50,7 +50,7 @@ class LogModal(Screen):
     def on_mount(self) -> None:
         self.query_one(RichLog).write(self.log_content)
 
-class QueueDashboard(Container):
+class QueueDashboard(Vertical):
     def compose(self) -> ComposeResult:
         yield Label("Queue Statistics", classes="panel-header")
         with Container(classes="stats-container"):
@@ -68,6 +68,10 @@ class QueueDashboard(Container):
         with Container(classes="status-container"):
             yield Static("Idle", id="status-message")
             
+        yield Label("Queue Progress", classes="panel-header")
+        with Container(classes="progress-container"):
+             yield ProgressBar(total=100, show_percentage=True, id="queue-progress")
+
         with Container(classes="controls-container"):
             yield Button("Run Queue", id="btn-run-queue", variant="success")
             yield Button("Stop Queue", id="btn-stop-queue", variant="error")
@@ -124,6 +128,10 @@ class TaskQueueApp(App):
     }
 
     /* Dashboard Styles */
+    QueueDashboard {
+        width: 100%;
+    }
+
     .panel-header {
         margin-top: 1;
         margin-left: 1;
@@ -132,6 +140,7 @@ class TaskQueueApp(App):
     }
 
     .stats-container {
+        width: 100%;
         height: auto;
         background: $boost;
         border: solid $secondary;
@@ -158,6 +167,7 @@ class TaskQueueApp(App):
     }
     
     .status-container {
+        width: 100%;
         height: auto;
         background: $surface;
         border: solid $accent;
@@ -167,6 +177,27 @@ class TaskQueueApp(App):
     
     #status-message {
         color: $text;
+    }
+
+    .progress-container {
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border: solid $accent;
+        margin: 0 1 1 1;
+        padding: 1 1;
+    }
+    
+    ProgressBar {
+        width: 100%;
+    }
+    
+    #queue-progress {
+        width: 100%;
+    }
+
+    #queue-progress > Bar {
+        width: 1fr;
     }
 
     .controls-container {
@@ -288,6 +319,15 @@ class TaskQueueApp(App):
         self.query_one("#stat-completed", Static).update(str(counts["completed"]))
         self.query_one("#stat-failed", Static).update(str(counts["failed"]))
         
+        # Update Progress Bar
+        total_tasks = len(tasks)
+        completed_tasks = counts["completed"] + counts["failed"]
+        if total_tasks > 0:
+            pb = self.query_one("#queue-progress", ProgressBar)
+            pb.update(total=total_tasks, progress=completed_tasks)
+            # Only show ETA if a task is actually running
+            pb.show_eta = (running_task is not None)
+
         status_msg = f"Running Task #{running_task['id']}: {running_task['command']}" if running_task else "Idle"
         if self.is_running_queue and not running_task:
             status_msg = "Queue Runner Active - Waiting for task..."

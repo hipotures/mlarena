@@ -296,6 +296,14 @@ def _resolve_requirement(
     raise ValueError(f"Unknown requires_preproc target: '{requirement}'")
 
 
+def _is_imputer_requirement(requirement: Any) -> bool:
+    if isinstance(requirement, str):
+        return requirement == "imputer"
+    if isinstance(requirement, dict):
+        return requirement.get("group") == "imputer" or requirement.get("name") == "imputer"
+    return False
+
+
 def _resolve_requires(
     selected_items: List[Dict[str, Any]],
     group_map: Dict[str, List[Dict[str, Any]]],
@@ -359,6 +367,9 @@ def _resolve_requires(
 
         requirements = _collect_requires(preproc, variant)
         for req in requirements:
+            if eda_stats is not None and not eda_stats.get("has_missing", False):
+                if _is_imputer_requirement(req):
+                    continue
             req_kind, req_value = _resolve_requirement(req, name_map, group_map)
 
             if req_kind == "group" and req_value == "imputer" and eda_stats is not None:
@@ -403,6 +414,7 @@ def _order_by_requires(
     name_map: Dict[str, Dict[str, Any]],
     group_map: Dict[str, List[Dict[str, Any]]],
     reserved_groups: set,
+    eda_stats: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     item_by_name = {item["preproc"]["name"]: item for item in selected_items}
     group_to_name = {
@@ -420,6 +432,10 @@ def _order_by_requires(
         current_name = preproc["name"]
         requirements = _collect_requires(preproc, variant)
         for req in requirements:
+            if eda_stats is not None and not eda_stats.get("has_missing", False):
+                if _is_imputer_requirement(req):
+                    continue
+
             req_kind, req_value = _resolve_requirement(req, name_map, group_map)
             if req_kind == "group":
                 if req_value in reserved_groups:
@@ -667,8 +683,6 @@ def main() -> int:
             return 1
 
         exp_id = f"{prefix}{current_index:0{id_width}d}"
-        current_index += 1
-        attempt_count += 1
 
         # Sample groups
         group_weights = [
@@ -700,6 +714,7 @@ def main() -> int:
             name_map=name_map,
             group_map=group_map,
             reserved_groups=reserved_groups,
+            eda_stats=eda_stats,
         )
 
         module_payloads = {}
@@ -727,6 +742,7 @@ def main() -> int:
         signature = _compute_signature(base_chain, module_signature_configs)
 
         if signature in used_signatures:
+            attempt_count += 1
             continue
 
         # Check for existing files
@@ -766,6 +782,8 @@ def main() -> int:
             }
         )
         used_signatures.add(signature)
+        current_index += 1
+        attempt_count = 0
 
     if signature_path and not args.dry_run:
         _save_signature_registry(signature_path, used_signatures)

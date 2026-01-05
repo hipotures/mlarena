@@ -2,7 +2,7 @@ project: playground-series-s6e1
 experiment_prefix: test
 start_index: 1
 id_width: 4
-experiments: 5
+experiments: 100
 random_seed: 42
 model_template: mcts
 preprocess_template: null
@@ -155,7 +155,7 @@ preprocessors:
       - name: ordinal
         params:
           encoding_method: {type: choice, values: [ordinal]}
-        requires_preproc: [imputer]
+        requires_preproc: [{group: imputer}]
       - name: target_mean
         params:
           encoding_method: {type: choice, values: [target_mean]}
@@ -234,6 +234,7 @@ preprocessors:
           interaction_types: {type: fixed, value: []}
           poly_degree: {type: int_range, min: 2, max: 3}
           max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+        requires_preproc: [{group: imputer}]
       - name: mixed
         params:
           interaction_types:
@@ -244,6 +245,7 @@ preprocessors:
             sort: true
           poly_degree: {type: int_range, min: 2, max: 3}
           max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+        requires_preproc: [{group: imputer}]
 
   - name: feature_selector
     group: feature_selector
@@ -269,12 +271,12 @@ preprocessors:
         params:
           selection_method: {type: choice, values: [correlation]}
           n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
-        requires_preproc: [imputer]
+        requires_preproc: [{group: imputer}]
       - name: mi
         params:
           selection_method: {type: choice, values: [mi]}
           n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
-        requires_preproc: [imputer]
+        requires_preproc: [{group: imputer}]
       - name: model_importance
         params:
           selection_method: {type: choice, values: [model_importance]}

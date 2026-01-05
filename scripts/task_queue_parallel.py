@@ -140,13 +140,18 @@ class TaskQueueApp(App):
 
     #global-stats-overlay {
         position: absolute;
-        top: 1;
-        right: 2;
-        width: auto;
-        height: 3;
-        z-index: 100;
-        align-vertical: middle;
-        padding: 0 1;
+        offset: 100% 1;
+        margin-left: -42;
+        width: 40;
+        height: 1;
+        content-align: right middle;
+        background: transparent;
+        layer: top;
+        padding-right: 2;
+    }
+
+    TabbedContent {
+        height: 1fr;
     }
 
     .panel-header {

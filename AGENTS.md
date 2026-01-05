@@ -25,6 +25,15 @@
 -   **Artifacts**: Always use `self.context.artifact_dir`. Never hardcode paths.
 -   **State**: `self.context.state` contains the `state.json` data.
 
+## 🖥️ Compute & Storage Architecture (NFS Workflow)
+
+Środowisko pracuje w modelu rozproszonym, co wpływa na lokalizację plików:
+- **Local Dev Server**: Środowisko pracy agenta (`~/ml/kaggle`). Tu modyfikujemy kod, szablony i skrypty.
+- **Computing Server**: Zdalna maszyna wykonująca obliczenia. Eksportuje ona swój folder roboczy `/home/xai/ml/mlarena` przez NFS.
+- **NFS Mount**: Zasób ze zdalnego serwera jest zamontowany lokalnie w `/mnt/mlarena`.
+- **Rsync Sync**: Lokalne zmiany z `~/ml/kaggle` są synchronizowane na serwer obliczeniowy przez NFS (struktura 1:1).
+- **Path Mapping**: Eksperymenty i ich stan (`state.json`) znajdują się fizycznie na NFS. Agent musi mapować lokalne ścieżki projektów na `/mnt/mlarena/...`, aby analizować wyniki.
+
 ## 🤖 Abstract Task Examples
 
 ### Task 1: "Create 32 experiments based on EDA"
@@ -61,6 +70,7 @@
 2.  **Do NOT import project code globally**. Use `importlib` or local imports inside functions to avoid breaking CLI discovery.
 3.  **ALWAYS check `projects/kaggle/<proj>/code/utils/config.py`** before assuming column names (e.g., `TARGET_COLUMN`).
 4.  **Respect `mla_retention`**. If disk space is low, suggest using this flag for AutoGluon models.
+5.  **Always check `/mnt/mlarena` for experiment results** if the local `experiments/` folder is empty. Use 1:1 path mapping between the local repository and the NFS mount point.
 
 ## 📚 Documentation Index
 -   **Workflow**: `docs/MLA_WORKFLOW_GUIDE.md`

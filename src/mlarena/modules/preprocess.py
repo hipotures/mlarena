@@ -280,6 +280,7 @@ class PreprocessModule(BaseModule):
                     "id_column": getattr(config, "ID_COLUMN", "id"),
                     "target": getattr(config, "TARGET_COLUMN", None),
                     "ignored_columns": getattr(config, "IGNORED_COLUMNS", []),
+                    "problem_type": getattr(config, "AUTOGLUON_PROBLEM_TYPE", "binary"),
                 }
 
                 # Call fit_transform with orig_df only if supported (backward compatible).

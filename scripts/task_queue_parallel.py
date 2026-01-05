@@ -170,6 +170,7 @@ class TaskQueueApp(App):
 
     .status-container {
         width: 100%;
+        min-height: 10;
         height: auto;
         background: $surface;
         border: solid $accent;
@@ -382,19 +383,6 @@ class TaskQueueApp(App):
         
         # 2. Update Tasks Table
         self.update_tasks_table(tasks)
-        
-        # 3. Update Log File Target
-        if running_task:
-            log_path = self.project_root / running_task["log_file"]
-            if str(log_path) != self.current_log_file:
-                # New task running, switch log file
-                self.current_log_file = str(log_path)
-                self.log_offset = 0
-                self.query_one("#log-status", Label).update(f"Monitoring: Task #{running_task['id']} ({log_path.name})")
-                self.query_one(RichLog).clear()
-        elif not running_task:
-             if self.current_log_file:
-                 self.query_one("#log-status", Label).update("Task finished. Waiting for next...")
 
     def update_tasks_table(self, tasks: list) -> None:
         table = self.query_one(DataTable)

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from rich.console import Console
+from rich.align import Align
 from rich.panel import Panel
 from rich.table import Table
 
@@ -94,6 +95,24 @@ def _format_status_icon(status: str) -> str:
     return status or "-"
 
 
+def _module_icon(module: str) -> str:
+    if not module:
+        return "-"
+    key = module.lower().replace("_", "-")
+    icon_map = {
+        "preprocess": "🔧",
+        "model": "🧠",
+        "eda": "🔍",
+        "predict": "🎯",
+        "submit": "📨",
+        "fetch-score": "📈",
+        "init": "⏻",
+        "blend": "🧬",
+        "ensemble": "🧬",
+    }
+    return icon_map.get(key, "-")
+
+
 @ModuleRegistry.register
 class ExperimentsModule(BaseModule):
     name = "experiments"
@@ -128,15 +147,15 @@ class ExperimentsModule(BaseModule):
         table = Table(title=f"Experiments for {project_label}", show_lines=False)
         if view_table or view_table_compact:
             table.add_column("Experiment", style="cyan", no_wrap=True)
-            table.add_column("State", style="white", justify="center")
+            table.add_column("State", style="white")
             table.add_column("Module", style="cyan")
             table.add_column("Template", style="magenta")
             if view_table:
                 table.add_column("Preset", style="magenta")
-                table.add_column("GPU", justify="right")
-                table.add_column("TimeLimit", justify="right")
-            table.add_column("Local CV", justify="right")
-            table.add_column("Public", justify="right")
+                table.add_column("GPU")
+                table.add_column("TimeLimit")
+            table.add_column("Local CV")
+            table.add_column("Public")
             table.add_column("Started", style="dim")
             table.add_column("Elapsed", style="dim")
             if view_table:
@@ -260,7 +279,8 @@ class ExperimentsModule(BaseModule):
             experiments_list.append({
                 "id": data.get("experiment_id", "-"),
                 "status": _format_status_icon(last_status),
-                "module": last_module,
+                "module": _module_icon(last_module),
+                "module_name": last_module,
                 "template": template,
                 "preset": preset_str,
                 "gpu": use_gpu_str,
@@ -282,7 +302,7 @@ class ExperimentsModule(BaseModule):
             if use_vertical:
                 lines = [
                     f"[cyan]{item['id']}[/cyan]",
-                    f"  [dim]state[/dim]: [white]{item['status']}[/white] ([white]{item['module']}[/white])",
+                    f"  [dim]state[/dim]: [white]{item['status']}[/white] ([white]{item['module_name']}[/white])",
                     f"  [dim]template[/dim]: [white]{item['template']}[/white]",
                     f"  [dim]preset[/dim]: [white]{item['preset']}[/white]",
                     f"  [dim]gpu[/dim]: [white]{item['gpu']}[/white]",
@@ -304,16 +324,20 @@ class ExperimentsModule(BaseModule):
             else:
                 row = [
                     item['id'],
-                    item['status'],
-                    item['module'],
+                    Align.center(item['status']),
+                    Align.center(item['module']),
                     item['template'],
                 ]
                 if view_table:
-                    row.extend([item['preset'], item['gpu'], item['time']])
+                    row.extend([
+                        item['preset'],
+                        Align.right(item['gpu']),
+                        Align.right(item['time']),
+                    ])
                 row.extend(
                     [
-                        item['local'],
-                        item['public'],
+                        Align.right(item['local']),
+                        Align.right(item['public']),
                         item['started'],
                         item['elapsed'],
                     ]
@@ -326,5 +350,9 @@ class ExperimentsModule(BaseModule):
 
         if not use_vertical:
             console.print(table)
+            console.print(
+                "[dim]Legend: 🔧 preprocess | 🧠 model | 🔍 eda | 🎯 predict | 📨 submit | "
+                "📈 fetch-score | ⏻ init | 🧬 blend/ensemble[/dim]"
+            )
 
         return ModuleResult(success=True, payload={"count": count})

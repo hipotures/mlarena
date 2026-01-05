@@ -297,14 +297,17 @@ class TaskQueue:
         console.print(f"\n[dim]Total: {len(tasks)} tasks[/dim]")
 
     def clean_queue(self, status: str = "completed") -> int:
-        """Remove tasks with specified status."""
+        """Remove tasks with specified status (or all)."""
         queue_data = self._load_queue()
         original_len = len(queue_data["queue"])
 
-        queue_data["queue"] = [
-            t for t in queue_data["queue"]
-            if t["status"] != status
-        ]
+        if status == "all":
+            queue_data["queue"] = []
+        else:
+            queue_data["queue"] = [
+                t for t in queue_data["queue"]
+                if t["status"] != status
+            ]
 
         removed = original_len - len(queue_data["queue"])
         self._save_queue(queue_data)
@@ -326,6 +329,43 @@ class TaskQueue:
             raise ValueError(f"Task #{task_id} not found")
 
         self._save_queue(queue_data)
+
+    def reset_tasks(self, status: str | None = None, task_id: int | None = None) -> int:
+        """Reset task(s) back to pending state."""
+        if status is None and task_id is None:
+            raise ValueError("Either status or task_id is required")
+
+        queue_data = self._load_queue()
+
+        def _reset_task(task: dict) -> None:
+            task["status"] = "pending"
+            task["started_at"] = None
+            task["finished_at"] = None
+            task["last_error"] = None
+            task["experiment_id"] = None
+
+        if task_id is not None:
+            found = False
+            for task in queue_data["queue"]:
+                if task["id"] == task_id:
+                    _reset_task(task)
+                    found = True
+                    break
+            if not found:
+                raise ValueError(f"Task #{task_id} not found")
+            self._save_queue(queue_data)
+            return 1
+
+        if status == "all":
+            targets = queue_data["queue"]
+        else:
+            targets = [t for t in queue_data["queue"] if t["status"] == status]
+
+        for task in targets:
+            _reset_task(task)
+
+        self._save_queue(queue_data)
+        return len(targets)
 
     def run_queue(
         self,

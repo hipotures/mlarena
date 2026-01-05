@@ -151,7 +151,7 @@ Examples:
     clean_parser.add_argument(
         "--status",
         default="completed",
-        choices=["completed", "failed", "pending"],
+        choices=["completed", "failed", "pending", "all"],
         help="Status to clean (default: completed)"
     )
 
@@ -167,6 +167,19 @@ Examples:
         type=int,
         required=True,
         help="New priority value (1=highest)"
+    )
+
+    # Reset command
+    reset_parser = subparsers.add_parser("reset", help="Reset task(s) to pending")
+    reset_parser.add_argument(
+        "--status",
+        choices=["completed", "failed", "pending", "running", "all"],
+        help="Reset all tasks with this status"
+    )
+    reset_parser.add_argument(
+        "--id",
+        type=int,
+        help="Reset a single task by ID"
     )
 
     args = parser.parse_args()
@@ -240,6 +253,18 @@ Examples:
         elif args.command == "priority":
             queue.update_priority(args.task_id, args.priority)
             console.print(f"[green]✓ Updated task #{args.task_id} priority to {args.priority}[/green]")
+            return 0
+
+        elif args.command == "reset":
+            if args.id is None and args.status is None:
+                console.print("[red]Error: Provide --id or --status[/red]")
+                return 1
+
+            count = queue.reset_tasks(status=args.status, task_id=args.id)
+            if args.id is not None:
+                console.print(f"[green]✓ Task #{args.id} reset to pending[/green]")
+            else:
+                console.print(f"[green]✓ Reset {count} task(s) with status '{args.status}'[/green]")
             return 0
 
         else:

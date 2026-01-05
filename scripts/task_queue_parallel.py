@@ -50,22 +50,24 @@ class LogModal(Screen):
     def on_mount(self) -> None:
         self.query_one(RichLog).write(self.log_content)
 
+class TopStats(Horizontal):
+    """Global statistics bar."""
+    def compose(self) -> ComposeResult:
+        yield Label("Max Jobs:", id="jobs-label")
+        yield Select.from_values([str(i) for i in range(1, 17)], value="4", id="max-jobs-select")
+        yield Label(" P:", classes="stat-label-short")
+        yield Static("0", id="stat-pending", classes="stat-value-short")
+        yield Label("R:", classes="stat-label-short")
+        yield Static("0", id="stat-running", classes="stat-value-short")
+        yield Label("C:", classes="stat-label-short")
+        yield Static("0", id="stat-completed", classes="stat-value-short")
+        yield Label("F:", classes="stat-label-short")
+        yield Static("0", id="stat-failed", classes="stat-value-short")
+        yield Label("Avg:", classes="stat-label-short")
+        yield Static("-", id="stat-avg-duration", classes="stat-value-short")
+
 class QueueDashboard(Vertical):
     def compose(self) -> ComposeResult:
-        with Horizontal(classes="stats-container-horizontal"):
-            yield Label("P:", classes="stat-label-short")
-            yield Static("0", id="stat-pending", classes="stat-value-short")
-            yield Label("R:", classes="stat-label-short")
-            yield Static("0", id="stat-running", classes="stat-value-short")
-            yield Label("C:", classes="stat-label-short")
-            yield Static("0", id="stat-completed", classes="stat-value-short")
-            yield Label("F:", classes="stat-label-short")
-            yield Static("0", id="stat-failed", classes="stat-value-short")
-            yield Label("Avg:", classes="stat-label-short")
-            yield Static("-", id="stat-avg-duration", classes="stat-value-short")
-            yield Label("Max Jobs:", id="jobs-label")
-            yield Select.from_values([str(i) for i in range(1, 17)], value="4", id="max-jobs-select")
-        
         yield Label("Current Status", classes="panel-header")
         with Container(classes="status-container"):
             yield Static("Idle", id="status-message")
@@ -129,6 +131,14 @@ class TaskQueueApp(App):
         width: 100%;
     }
 
+    #top-stats-bar {
+        height: 3;
+        background: $boost;
+        border-bottom: solid $secondary;
+        padding: 0 1;
+        align-vertical: middle;
+    }
+
     .panel-header {
         margin-top: 1;
         margin-left: 1;
@@ -136,16 +146,6 @@ class TaskQueueApp(App):
         text-style: bold;
     }
 
-    .stats-container-horizontal {
-        width: 100%;
-        height: auto;
-        background: $boost;
-        border: solid $secondary;
-        margin: 0 1 1 1;
-        padding: 1;
-        align-vertical: middle;
-    }
-    
     .stat-label-short {
         color: $text-muted;
         margin-left: 1;
@@ -155,16 +155,16 @@ class TaskQueueApp(App):
         color: $accent;
         text-style: bold;
         margin-right: 1;
-        min-width: 3;
+        min-width: 2;
     }
 
     #jobs-label {
-        margin-left: 4;
+        margin-left: 1;
         color: $secondary;
     }
 
     #max-jobs-select {
-        width: 12;
+        width: 10;
         height: 3;
     }
 
@@ -288,6 +288,7 @@ class TaskQueueApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield TopStats(id="top-stats-bar")
         with TabbedContent():
             with TabPane("Dashboard", id="tab-dashboard"):
                 yield QueueDashboard()

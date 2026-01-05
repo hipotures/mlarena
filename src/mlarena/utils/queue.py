@@ -224,7 +224,7 @@ class TaskQueue:
             title="Task Queue", 
             show_header=True, 
             expand=True,
-            row_styles=["", "reverse"]
+            row_styles=["", "on grey11"]
         )
         table.add_column("#", style="cyan", width=4)
         table.add_column("Priority", width=8)

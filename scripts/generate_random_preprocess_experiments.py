@@ -463,11 +463,15 @@ def _save_signature_registry(path: Path, signatures: set) -> None:
     path.write_text(json.dumps(payload, indent=2))
 
 
-def _confirm_overwrite(exp_id: str, paths: List[Path]) -> bool:
+def _confirm_overwrite(exp_id: str, paths: List[Path], overwrite_all: bool | None) -> bool | None:
+    if overwrite_all is not None:
+        return overwrite_all
     print(f"\nFiles already exist for experiment '{exp_id}':")
     for path in paths:
         print(f"  - {path}")
-    reply = input("Overwrite these files? [y/N]: ").strip().lower()
+    reply = input("Overwrite these files? [y/N/a]: ").strip().lower()
+    if reply in {"a", "all"}:
+        return None
     return reply in {"y", "yes"}
 
 
@@ -594,6 +598,7 @@ def main() -> int:
     template_cache: Dict[str, Dict[str, Any]] = {}
     attempt_count = 0
     current_index = start_index
+    overwrite_all: bool | None = None
 
     while len(generated) < count:
         if attempt_count >= max_unique_attempts:
@@ -664,7 +669,10 @@ def main() -> int:
         existing_paths = [p for p in [model_path, chain_path, *module_paths] if p.exists()]
 
         if existing_paths:
-            if not _confirm_overwrite(exp_id, existing_paths):
+            decision = _confirm_overwrite(exp_id, existing_paths, overwrite_all)
+            if decision is None:
+                overwrite_all = True
+            elif decision is False:
                 continue
 
         if not args.dry_run:

@@ -61,7 +61,9 @@ def _format_duration(start: Optional[datetime], end: Optional[datetime]) -> str:
     seconds = int(delta.total_seconds())
     minutes, sec = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
-    return f"{hours:02d}h {minutes:02d}m"
+    if hours > 0:
+        return f"{hours:02d}h {minutes:02d}m"
+    return f"{minutes:02d}m {sec:02d}s"
 
 
 def _format_ts(ts_str: Optional[str]) -> str:

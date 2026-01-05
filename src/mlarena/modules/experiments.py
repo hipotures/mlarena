@@ -107,7 +107,7 @@ class ExperimentsModule(BaseModule):
         view_table = bool(args.show_table)
         view_table_compact = bool(args.show_table_compact)
         if not view_table and not view_table_compact:
-            view_table = True
+            view_table_compact = True
         use_vertical = False
 
         status_filter = args.status

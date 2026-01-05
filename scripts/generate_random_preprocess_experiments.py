@@ -540,18 +540,6 @@ def _save_signature_registry(path: Path, signatures: set) -> None:
     path.write_text(json.dumps(payload, indent=2))
 
 
-def _confirm_overwrite(exp_id: str, paths: List[Path], overwrite_all: bool | None) -> bool | None:
-    if overwrite_all is not None:
-        return overwrite_all
-    print(f"\nFiles already exist for experiment '{exp_id}':")
-    for path in paths:
-        print(f"  - {path}")
-    reply = input("Overwrite these files? [y/N/a]: ").strip().lower()
-    if reply in {"a", "all"}:
-        return None
-    return reply in {"y", "yes"}
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate random preprocess experiment templates")
     parser.add_argument(
@@ -613,6 +601,22 @@ def main() -> int:
     preprocess_dir = project_root / "templates" / "preprocess"
     model_dir.mkdir(parents=True, exist_ok=True)
     preprocess_dir.mkdir(parents=True, exist_ok=True)
+
+    # Auto-detect next index if files exist
+    existing_indices = []
+    import re
+    index_pattern = re.compile(f"^{re.escape(prefix)}(\\d{{{id_width}}})\\.yaml$")
+    for p in preprocess_dir.glob(f"{prefix}*.yaml"):
+        match = index_pattern.match(p.name)
+        if match:
+            existing_indices.append(int(match.group(1)))
+    
+    if existing_indices:
+        next_index = max(existing_indices) + 1
+        print(f"Detected existing experiments. Starting from index {next_index:0{id_width}d}")
+        current_index = next_index
+    else:
+        current_index = start_index
 
     # Load base model template
     base_model_path = _resolve_template_path("model", model_template_name, project_root)
@@ -752,10 +756,22 @@ def main() -> int:
         existing_paths = [p for p in [model_path, chain_path, *module_paths] if p.exists()]
 
         if existing_paths:
-            decision = _confirm_overwrite(exp_id, existing_paths, overwrite_all)
-            if decision is None:
-                overwrite_all = True
-            elif decision is False:
+            print(f"\nFiles already exist for experiment '{exp_id}':")
+            for path in existing_paths:
+                print(f"  - {path}")
+            
+            if overwrite_all is None:
+                reply = input("Overwrite these files? [y/N/a]: ").strip().lower()
+                if reply in {"a", "all"}:
+                    overwrite_all = True
+                    decision = True
+                else:
+                    decision = reply in {"y", "yes"}
+            else:
+                decision = overwrite_all
+
+            if not decision:
+                current_index += 1
                 continue
 
         if not args.dry_run:

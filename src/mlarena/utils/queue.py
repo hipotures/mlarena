@@ -12,6 +12,7 @@ from typing import Optional, List
 
 from filelock import FileLock
 from rich.console import Console
+from rich.align import Align
 from rich.table import Table
 
 
@@ -228,8 +229,8 @@ class TaskQueue:
         )
         table.add_column("#", style="cyan", width=4)
         table.add_column("Priority", width=8)
-        table.add_column("Status", width=12)
-        table.add_column("Module", width=10)
+        table.add_column("Status", width=8)
+        table.add_column("Module", width=8)
         table.add_column("Template", width=20)
         table.add_column("Options", width=30)
         table.add_column("Experiment", style="dim", width=20)
@@ -240,19 +241,32 @@ class TaskQueue:
         for i, task in enumerate(sorted_tasks):
             status = task["status"]
             if status == "pending":
-                status_str = "[yellow]pending[/yellow]"
+                status_str = "[yellow]•[/yellow]"
             elif status == "running":
-                status_str = "[blue]running[/blue]"
+                status_str = "[blue]⟳[/blue]"
             elif status == "completed":
-                status_str = "[green]completed[/green]"
+                status_str = "[green]✓[/green]"
             else:
-                status_str = "[red]failed[/red]"
+                status_str = "[red]✗[/red]"
 
             # Parse command into module/template/options
             cmd_parts = task["command"].split()
 
             # Extract module (first element)
             module = cmd_parts[0] if cmd_parts else "-"
+            module_key = module.lower().replace("_", "-")
+            module_icon_map = {
+                "preprocess": "🔧",
+                "model": "🧠",
+                "eda": "🔍",
+                "predict": "🎯",
+                "submit": "📨",
+                "fetch-score": "📈",
+                "init": "⏻",
+                "blend": "🧬",
+                "ensemble": "🧬",
+            }
+            module_icon = module_icon_map.get(module_key, "-")
 
             # Extract template name
             template = "-"
@@ -286,14 +300,19 @@ class TaskQueue:
             table.add_row(
                 str(task["id"]),
                 str(task["priority"]),
-                status_str,
-                module,
+                Align.center(status_str),
+                Align.center(module_icon),
                 template,
                 options_str,
                 exp_id
             )
 
         console.print(table)
+        console.print(
+            "[dim]Legend: ✓ completed | ✗ failed | ⟳ running | • pending | "
+            "🔧 preprocess | 🧠 model | 🔍 eda | 🎯 predict | 📨 submit | 📈 fetch-score | "
+            "⏻ init | 🧬 blend/ensemble[/dim]"
+        )
         console.print(f"\n[dim]Total: {len(tasks)} tasks[/dim]")
 
     def clean_queue(self, status: str = "completed") -> int:

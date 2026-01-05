@@ -1,4 +1,0 @@
-# Chain test template for hierarchical hashing
-chain:
-  - test-simple
-  - test-rfe-lgbm

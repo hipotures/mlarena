@@ -1,7 +1,0 @@
-module: train_fraction
-cache: false
-config:
-  train_fraction: 0.6
-  valid_fraction: 0.3
-  eval_fraction: 0.3
-  random_state: 42

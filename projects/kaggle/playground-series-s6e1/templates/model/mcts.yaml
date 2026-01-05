@@ -1,6 +1,6 @@
 model: autogluon_baseline
-preprocess_template: train_p60
-preset: best #medium_quality_faster_train
+preprocess_template: mcts
+preset: medium_quality_faster_train
 time_limit: 600
 use_gpu: false
 seed: 42

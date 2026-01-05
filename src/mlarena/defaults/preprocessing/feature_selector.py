@@ -595,12 +595,12 @@ def _select_features(
         # Correlation with target
         correlations = np.array([
             abs(pearsonr(X_train[:, i], y_train)[0]) if len(np.unique(X_train[:, i])) > 1 else 0
-            for i in range(n_features)
+            for i in range(total_features)
         ])
         feature_scores = correlations
         _apply_cumulative_cutoff(correlations)
         top_indices = np.argsort(correlations)[::-1][:n_features_to_select]
-        selected_mask = np.zeros(n_features, dtype=bool)
+        selected_mask = np.zeros(total_features, dtype=bool)
         selected_mask[top_indices] = True
 
     elif method == "model_importance":
@@ -777,7 +777,7 @@ def _select_features(
         feature_scores = importances
         _apply_cumulative_cutoff(importances)
         top_indices = np.argsort(importances)[::-1][:n_features_to_select]
-        selected_mask = np.zeros(n_features, dtype=bool)
+        selected_mask = np.zeros(total_features, dtype=bool)
         selected_mask[top_indices] = True
 
     elif method == "rfe":

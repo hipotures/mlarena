@@ -416,9 +416,10 @@ class TaskQueue:
             # Sort by priority, then ID
             pending.sort(key=lambda t: (t["priority"], t["id"]))
             task = pending[0]
+            total_pending = len(pending)
 
             # Execute task
-            success = self._execute_task(task, console)
+            success = self._execute_task(task, console, total_pending=total_pending)
             results[task["id"]] = success
             executed += 1
 
@@ -435,7 +436,7 @@ class TaskQueue:
 
         return results
 
-    def _execute_task(self, task: dict, console: Console) -> bool:
+    def _execute_task(self, task: dict, console: Console, total_pending: int | None = None) -> bool:
         """
         Execute single task and update state.
 
@@ -446,7 +447,10 @@ class TaskQueue:
         log_file = self.project_root / task["log_file"]
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        console.print(f"\n[bold]Task #{task_id}[/bold] (priority: {task['priority']})")
+        if total_pending is not None:
+            console.print(f"\n[bold]Task #{task_id}/{total_pending}[/bold] (priority: {task['priority']})")
+        else:
+            console.print(f"\n[bold]Task #{task_id}[/bold] (priority: {task['priority']})")
 
         # Mark as running
         queue_data = self._load_queue()

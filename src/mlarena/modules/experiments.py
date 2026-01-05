@@ -82,6 +82,18 @@ def _format_time_limit(time_limit_val: Optional[float]) -> str:
     return f"{int(time_limit_val)}s"
 
 
+def _format_status_icon(status: str) -> str:
+    if status == "completed":
+        return "[green]✓[/green]"
+    if status == "failed":
+        return "[red]✗[/red]"
+    if status == "running":
+        return "[blue]⟳[/blue]"
+    if status == "pending":
+        return "[yellow]•[/yellow]"
+    return status or "-"
+
+
 @ModuleRegistry.register
 class ExperimentsModule(BaseModule):
     name = "experiments"
@@ -116,7 +128,7 @@ class ExperimentsModule(BaseModule):
         table = Table(title=f"Experiments for {project_label}", show_lines=False)
         if view_table or view_table_compact:
             table.add_column("Experiment", style="cyan", no_wrap=True)
-            table.add_column("Last State", style="green")
+            table.add_column("State", style="white", justify="center")
             table.add_column("Module", style="cyan")
             table.add_column("Template", style="magenta")
             if view_table:
@@ -247,7 +259,7 @@ class ExperimentsModule(BaseModule):
 
             experiments_list.append({
                 "id": data.get("experiment_id", "-"),
-                "status": last_status,
+                "status": _format_status_icon(last_status),
                 "module": last_module,
                 "template": template,
                 "preset": preset_str,

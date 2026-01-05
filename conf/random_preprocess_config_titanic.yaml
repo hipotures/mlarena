@@ -1,0 +1,364 @@
+project: Titanic
+experiment_prefix: titanic-test
+start_index: 1
+id_width: 4
+experiments: 50
+random_seed: 42
+model_template: baseline
+preprocess_template: null
+preprocessors_per_experiment: 1
+max_unique_attempts: 200
+signature_registry: .random_preprocess_signatures.json
+auto_filter_by_eda: true
+eda_summary_path: null
+
+queue:
+  enable: true
+  priority: null
+  submit: false
+  git: false
+  overrides: []
+
+preprocessors:
+  - name: outlier_handler
+    group: outlier
+    enabled: true
+    template: outlier_handler
+    base_config:
+      include_cols: null
+      exclude_cols: []
+      random_state: 42
+    variants:
+      - name: iqr
+        params:
+          outlier_method: {type: choice, values: [iqr]}
+          iqr_factor: {type: float_range, min: 1.0, max: 3.0, step: 0.1, round: 2}
+          action: {type: choice, values: [clip, set_na]}
+      - name: zscore
+        params:
+          outlier_method: {type: choice, values: [zscore]}
+          zscore_threshold: {type: float_range, min: 2.0, max: 4.0, step: 0.1, round: 2}
+          action: {type: choice, values: [clip, set_na]}
+      - name: quantile
+        params:
+          outlier_method: {type: choice, values: [quantile]}
+          lower_quantile: {type: float_range, min: 0.01, max: 0.05, step: 0.01, round: 2}
+          upper_quantile: {type: float_range, min: 0.95, max: 0.99, step: 0.01, round: 2}
+          action: {type: choice, values: [clip, set_na]}
+      - name: isolation_forest
+        params:
+          outlier_method: {type: choice, values: [isolation_forest]}
+          isoforest_contamination: {type: float_range, min: 0.01, max: 0.1, step: 0.01, round: 2}
+          action: {type: choice, values: [set_na, flag_only]}
+
+  - name: imputer
+    group: imputer
+    enabled: true
+    template: imputer
+    base_config:
+      categorical_strategy: most_frequent
+      column_strategies: {}
+      treat_outliers_as_na: false
+      outlier_method: iqr
+      outlier_threshold: null
+      fill_value: 0
+      knn_n_neighbors: 5
+      iterative_estimator: bayesian_ridge
+      iterative_max_iter: 10
+    variants:
+      - name: mean
+        params:
+          numeric_strategy: {type: choice, values: [mean]}
+      - name: median
+        params:
+          numeric_strategy: {type: choice, values: [median]}
+      - name: most_frequent
+        params:
+          numeric_strategy: {type: choice, values: [most_frequent]}
+      - name: constant
+        params:
+          numeric_strategy: {type: choice, values: [constant]}
+          fill_value: {type: choice, values: [0, -1, 1]}
+      - name: knn
+        params:
+          numeric_strategy: {type: choice, values: [knn]}
+          knn_n_neighbors: {type: int_range, min: 3, max: 15}
+      - name: iterative
+        params:
+          numeric_strategy: {type: choice, values: [iterative]}
+          iterative_max_iter: {type: int_range, min: 5, max: 20}
+          iterative_estimator: {type: choice, values: [bayesian_ridge]}
+
+  - name: missing_values_imputer
+    group: imputer
+    enabled: true
+    template: missing_impute
+    base_config:
+      numeric_strategy: median
+      categorical_strategy: most_frequent
+    variants:
+      - name: simple
+        params:
+          numeric_strategy: {type: choice, values: [mean, median, most_frequent, constant]}
+          categorical_strategy: {type: choice, values: [most_frequent, constant]}
+
+  - name: scaler
+    group: scaler
+    enabled: true
+    template: scaler
+    base_config:
+      numeric_include: null
+      numeric_exclude: []
+      log_transform: []
+      random_state: 42
+    variants:
+      - name: standard
+        params:
+          scaling_method: {type: choice, values: [standard]}
+      - name: minmax
+        params:
+          scaling_method: {type: choice, values: [minmax]}
+      - name: robust
+        params:
+          scaling_method: {type: choice, values: [robust]}
+      - name: quantile_normal
+        params:
+          scaling_method: {type: choice, values: [quantile_normal]}
+          n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+      - name: quantile_uniform
+        params:
+          scaling_method: {type: choice, values: [quantile_uniform]}
+          n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+
+  - name: encoder
+    group: encoding
+    enabled: true
+    template: encoder
+    base_config:
+      include_cols: null
+      exclude_cols: null
+      max_cardinality: 50
+      handle_unknown: ignore
+      unknown_value: -1
+      target_encoding_smoothing: 1.0
+      target_encoding_min_samples: 1
+      oof_folds: 5
+      oof_shuffle: true
+      oof_random_state: 42
+      oof_feature_prefix: mean_
+      keep_original: false
+    variants:
+      - name: one_hot
+        params:
+          encoding_method: {type: choice, values: [one_hot]}
+          drop_first: {type: bool}
+      - name: ordinal
+        params:
+          encoding_method: {type: choice, values: [ordinal]}
+      - name: target_mean
+        params:
+          encoding_method: {type: choice, values: [target_mean]}
+      - name: target_mean_oof
+        params:
+          encoding_method: {type: choice, values: [target_mean_oof]}
+          oof_folds: {type: int_range, min: 3, max: 8}
+      - name: catboost
+        params:
+          encoding_method: {type: choice, values: [catboost]}
+      - name: hashing
+        params:
+          encoding_method: {type: choice, values: [hashing]}
+          hash_dim: {type: int_range, min: 4, max: 16}
+
+  - name: categorical_encoder
+    group: encoding
+    enabled: true
+    template: categorical_auto
+    base_config:
+      enable_auto_detect: true
+    variants:
+      - name: auto
+        params:
+          max_cardinality: {type: int_range, min: 20, max: 100, step: 5}
+          exclude_text_type: {type: bool}
+          include_numeric_categories: {type: bool}
+          auto_detect_threshold: {type: int_range, min: 10, max: 50, step: 5}
+
+  - name: datetime_handler
+    group: datetime
+    enabled: true
+    template: datetime_handler
+    base_config:
+      datetime_cols: []
+      datetime_formats: {}
+      expand_datetime_cols: null
+      custom_features: []
+      cyclical_features: []
+      time_diff_pairs: []
+      time_diff_default_unit: days
+      drop_original_datetime: false
+    variants:
+      - name: basic
+        params:
+          time_features_set: {type: choice, values: [basic]}
+      - name: extended
+        params:
+          time_features_set: {type: choice, values: [extended]}
+      - name: none
+        params:
+          time_features_set: {type: choice, values: [none]}
+
+  - name: feature_engineer
+    group: feature_engineer
+    enabled: true
+    template: feature_engineer
+    base_config:
+      numeric_pairs: []
+      group_keys: []
+      group_value_cols: []
+      aggs: []
+    variants:
+      - name: interactions
+        params:
+          interaction_types:
+            type: subset
+            values: [add, sub, mul, div]
+            min_items: 1
+            max_items: 2
+            sort: true
+          poly_degree: {type: fixed, value: null}
+          max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+      - name: polynomial
+        params:
+          interaction_types: {type: fixed, value: []}
+          poly_degree: {type: int_range, min: 2, max: 3}
+          max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+      - name: mixed
+        params:
+          interaction_types:
+            type: subset
+            values: [add, mul]
+            min_items: 1
+            max_items: 2
+            sort: true
+          poly_degree: {type: int_range, min: 2, max: 3}
+          max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+
+  - name: feature_selector
+    group: feature_selector
+    enabled: true
+    template: feature_selector
+    base_config:
+      n_features: null
+      min_variance: 0.01
+      min_unique_per_million: 5.0
+      min_importance: 0.001
+      importance_model_type: lgbm
+      n_estimators: 100
+      max_depth: 5
+      random_state: 42
+      max_drop_fraction: 0.5
+      protect_cb_features: true
+    variants:
+      - name: variance
+        params:
+          selection_method: {type: choice, values: [variance]}
+          min_variance: {type: float_range, min: 0.0, max: 0.05, step: 0.005, round: 4}
+      - name: correlation
+        params:
+          selection_method: {type: choice, values: [correlation]}
+          n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+      - name: mi
+        params:
+          selection_method: {type: choice, values: [mi]}
+          n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+      - name: model_importance
+        params:
+          selection_method: {type: choice, values: [model_importance]}
+          n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+          importance_model_type: {type: choice, values: [lgbm, xgb, rf]}
+
+  - name: rare_category_handler
+    group: rare_category
+    enabled: true
+    template: rare_category_handler
+    base_config:
+      rare_label: __RARE__
+      detect_id_like_columns: true
+      id_unique_fraction_threshold: 0.95
+    variants:
+      - name: freq
+        params:
+          min_freq: {type: int_range, min: 2, max: 30}
+          min_freq_ratio: {type: float_range, min: 0.005, max: 0.05, step: 0.005, round: 3}
+          top_k: {type: fixed, value: null}
+      - name: top_k
+        params:
+          min_freq: {type: int_range, min: 2, max: 30}
+          min_freq_ratio: {type: float_range, min: 0.005, max: 0.05, step: 0.005, round: 3}
+          top_k: {type: int_range, min: 10, max: 100, step: 10}
+
+  - name: drift_detector
+    group: drift
+    enabled: true
+    template: drift_detector
+    base_config:
+      max_drop_fraction: 0.2
+      random_state: 42
+    variants:
+      - name: psi_flag
+        params:
+          drift_metric: {type: choice, values: [psi]}
+          max_psi: {type: float_range, min: 0.1, max: 0.4, step: 0.05, round: 2}
+          action: {type: choice, values: [flag_only]}
+      - name: psi_drop
+        params:
+          drift_metric: {type: choice, values: [psi]}
+          max_psi: {type: float_range, min: 0.1, max: 0.4, step: 0.05, round: 2}
+          action: {type: choice, values: [drop]}
+          max_drop_fraction: {type: float_range, min: 0.1, max: 0.5, step: 0.1, round: 2}
+      - name: ks
+        params:
+          drift_metric: {type: choice, values: [ks]}
+          max_ks: {type: float_range, min: 0.05, max: 0.2, step: 0.05, round: 2}
+          max_pvalue: {type: float_range, min: 0.001, max: 0.05, step: 0.01, round: 3}
+          action: {type: choice, values: [flag_only, drop]}
+      - name: model_auc
+        params:
+          drift_metric: {type: choice, values: [model_auc]}
+          min_auc: {type: float_range, min: 0.55, max: 0.75, step: 0.05, round: 2}
+          action: {type: choice, values: [flag_only, drop]}
+          max_drop_fraction: {type: float_range, min: 0.1, max: 0.5, step: 0.1, round: 2}
+
+  - name: sanity_check
+    group: sanity
+    enabled: true
+    template: sanity_check
+    base_config:
+      column_types_override: {}
+      ignore_columns: []
+    variants:
+      - name: default
+        params:
+          min_unique_fraction: {type: float_range, min: 0.0, max: 0.05, step: 0.005, round: 3}
+          max_missing_fraction: {type: float_range, min: 0.7, max: 0.99, step: 0.05, round: 2}
+          drop_duplicates: {type: bool}
+
+  - name: imbalance_handler
+    group: imbalance
+    enabled: false
+    template: imbalance_handler
+    base_config:
+      sampling_strategy: auto
+      use_sample_weights: true
+      random_state: 42
+    variants:
+      - name: class_weight
+        params:
+          imbalance_method: {type: choice, values: [class_weight]}
+      - name: random_over
+        params:
+          imbalance_method: {type: choice, values: [random_over]}
+      - name: random_under
+        params:
+          imbalance_method: {type: choice, values: [random_under]}

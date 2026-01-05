@@ -215,6 +215,18 @@ class TaskQueueApp(App):
         margin: 0 1;
     }
 
+    Button:disabled {
+        background: $surface;
+        color: $text-muted;
+        border: tall $background;
+        opacity: 0.6;
+    }
+
+    Button:disabled:hover {
+        background: $surface;
+        color: $text-muted;
+    }
+
     /* Tasks View Styles */
     .toolbar {
         height: auto;
@@ -362,7 +374,10 @@ class TaskQueueApp(App):
         self.query_one("#status-message", Static).update(status_msg)
         
         # Update button states
-        self.query_one("#btn-run-queue", Button).disabled = self.is_running_queue
+        # Disable Run Queue if it's already running OR if there are no pending tasks
+        no_pending = (counts["pending"] == 0)
+        self.query_one("#btn-run-queue", Button).disabled = self.is_running_queue or no_pending
+        self.query_one("#btn-stop-queue", Button).disabled = not self.is_running_queue
         
         # 2. Update Tasks Table
         self.update_tasks_table(tasks)

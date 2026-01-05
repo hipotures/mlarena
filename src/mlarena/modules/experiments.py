@@ -35,6 +35,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--show-table-compact", action="store_true")
     parser.add_argument("--status", default="completed", help="Filter by status (default: completed). Use 'all' for everything.")
     parser.add_argument("--show-submission-name", action="store_true", help="Show full submission filename instead of checkmark.")
+    parser.add_argument("--sort-by", choices=["id", "local", "public", "started", "template", "module"], default="started", help="Sort by column.")
+    parser.add_argument("--reverse", action="store_true", help="Reverse sort order.")
     return parser
 
 
@@ -294,10 +296,32 @@ class ExperimentsModule(BaseModule):
                 "submission": submission_display,
                 "git": (data.get("git") or {}).get("hash", (data.get("git") or {}).get("commit", "-"))[:7],
                 "started_dt": started_dt, # For sorting
+                "local_val": local_cv if isinstance(local_cv, (int, float)) else -float('inf'),
+                "public_val": public_score if isinstance(public_score, (int, float)) else -float('inf'),
             })
 
-        # Sort by started_at descending (newest first)
-        experiments_list.sort(key=lambda x: x["started_dt"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        # Dynamic sorting
+        sort_key_map = {
+            "id": lambda x: x["id"],
+            "local": lambda x: x["local_val"],
+            "public": lambda x: x["public_val"],
+            "started": lambda x: x["started_dt"] or datetime.min.replace(tzinfo=timezone.utc),
+            "template": lambda x: x["template"],
+            "module": lambda x: x["module_name"],
+        }
+        
+        sort_fn = sort_key_map.get(args.sort_by, sort_key_map["started"])
+        
+        # If user didn't specify --reverse, we use smart defaults:
+        # - started: newest first (reverse=True)
+        # - local/public: highest first (reverse=True) - assuming higher is better for now, or just consistent with scores
+        # - others: ascending
+        
+        is_reverse = args.reverse
+        if not is_reverse and args.sort_by in ["started", "local", "public"]:
+            is_reverse = True
+            
+        experiments_list.sort(key=sort_fn, reverse=is_reverse)
 
         count = 0
         for item in experiments_list:

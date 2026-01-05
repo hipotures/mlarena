@@ -1,12 +1,12 @@
 project: playground-series-s6e1
-experiment_prefix: test_01_
+experiment_prefix: test_03_
 start_index: 1
 id_width: 4
 experiments: 100
 random_seed: 42
 model_template: mcts
-preprocess_template: null
-preprocessors_per_experiment: 1
+preprocess_template: mcts
+preprocessors_per_experiment: 3
 max_unique_attempts: 200
 signature_registry: .random_preprocess_signatures.json
 auto_filter_by_eda: true
@@ -22,6 +22,7 @@ queue:
 preprocessors:
   - name: outlier_handler
     group: outlier
+    weight: 2.0
     enabled: true
     template: outlier_handler
     base_config:
@@ -33,23 +34,23 @@ preprocessors:
         params:
           outlier_method: {type: choice, values: [iqr]}
           iqr_factor: {type: float_range, min: 1.0, max: 3.0, step: 0.1, round: 2}
-          action: {type: choice, values: [clip, set_na]}
+          action: {type: choice, values: [clip]}
       - name: zscore
         params:
           outlier_method: {type: choice, values: [zscore]}
           zscore_threshold: {type: float_range, min: 2.0, max: 4.0, step: 0.1, round: 2}
-          action: {type: choice, values: [clip, set_na]}
+          action: {type: choice, values: [clip]}
       - name: quantile
         params:
           outlier_method: {type: choice, values: [quantile]}
           lower_quantile: {type: float_range, min: 0.01, max: 0.05, step: 0.01, round: 2}
           upper_quantile: {type: float_range, min: 0.95, max: 0.99, step: 0.01, round: 2}
-          action: {type: choice, values: [clip, set_na]}
+          action: {type: choice, values: [clip]}
       - name: isolation_forest
         params:
           outlier_method: {type: choice, values: [isolation_forest]}
           isoforest_contamination: {type: float_range, min: 0.01, max: 0.1, step: 0.01, round: 2}
-          action: {type: choice, values: [set_na, flag_only]}
+          action: {type: choice, values: [flag_only]}
 
   - name: imputer
     group: imputer
@@ -104,6 +105,7 @@ preprocessors:
 
   - name: scaler
     group: scaler
+    weight: 3.0
     enabled: true
     template: scaler
     base_config:
@@ -113,12 +115,14 @@ preprocessors:
       random_state: 42
     variants:
       - name: standard
+        weight: 2.0
         params:
           scaling_method: {type: choice, values: [standard]}
       - name: minmax
         params:
           scaling_method: {type: choice, values: [minmax]}
       - name: robust
+        weight: 2.0
         params:
           scaling_method: {type: choice, values: [robust]}
       - name: quantile_normal
@@ -132,6 +136,7 @@ preprocessors:
 
   - name: encoder
     group: encoding
+    weight: 5.0
     enabled: true
     template: encoder
     base_config:
@@ -160,6 +165,7 @@ preprocessors:
         params:
           encoding_method: {type: choice, values: [target_mean]}
       - name: target_mean_oof
+        weight: 3.0
         params:
           encoding_method: {type: choice, values: [target_mean_oof]}
           oof_folds: {type: int_range, min: 3, max: 8}
@@ -173,6 +179,7 @@ preprocessors:
 
   - name: categorical_encoder
     group: encoding
+    weight: 4.0
     enabled: true
     template: categorical_auto
     base_config:
@@ -249,6 +256,7 @@ preprocessors:
 
   - name: feature_selector
     group: feature_selector
+    weight: 2.0
     enabled: true
     template: feature_selector
     base_config:
@@ -285,6 +293,7 @@ preprocessors:
 
   - name: rare_category_handler
     group: rare_category
+    weight: 2.0
     enabled: true
     template: rare_category_handler
     base_config:

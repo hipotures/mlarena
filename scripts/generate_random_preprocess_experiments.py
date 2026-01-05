@@ -398,6 +398,67 @@ def _resolve_requires(
     return selected_items
 
 
+def _order_by_requires(
+    selected_items: List[Dict[str, Any]],
+    name_map: Dict[str, Dict[str, Any]],
+    group_map: Dict[str, List[Dict[str, Any]]],
+    reserved_groups: set,
+) -> List[Dict[str, Any]]:
+    item_by_name = {item["preproc"]["name"]: item for item in selected_items}
+    group_to_name = {
+        item["preproc"].get("group", item["preproc"]["name"]): item["preproc"]["name"]
+        for item in selected_items
+    }
+    order_index = {item["preproc"]["name"]: idx for idx, item in enumerate(selected_items)}
+
+    edges: Dict[str, set[str]] = {name: set() for name in item_by_name}
+    indegree: Dict[str, int] = {name: 0 for name in item_by_name}
+
+    for item in selected_items:
+        preproc = item["preproc"]
+        variant = item["variant"]
+        current_name = preproc["name"]
+        requirements = _collect_requires(preproc, variant)
+        for req in requirements:
+            req_kind, req_value = _resolve_requirement(req, name_map, group_map)
+            if req_kind == "group":
+                if req_value in reserved_groups:
+                    continue
+                req_name = group_to_name.get(req_value)
+                if not req_name:
+                    raise ValueError(f"requires_preproc group not selected: '{req_value}'")
+            else:
+                req_name = req_value
+                if req_name not in item_by_name:
+                    raise ValueError(f"requires_preproc preproc not selected: '{req_name}'")
+
+            if req_name == current_name:
+                raise ValueError(f"requires_preproc self-cycle: '{current_name}'")
+
+            if current_name not in edges[req_name]:
+                edges[req_name].add(current_name)
+                indegree[current_name] += 1
+
+    ready = [name for name, deg in indegree.items() if deg == 0]
+    ready.sort(key=lambda n: order_index.get(n, 0))
+    ordered_names: List[str] = []
+
+    while ready:
+        name = ready.pop(0)
+        ordered_names.append(name)
+        for dep in sorted(edges[name], key=lambda n: order_index.get(n, 0)):
+            indegree[dep] -= 1
+            if indegree[dep] == 0:
+                ready.append(dep)
+        ready.sort(key=lambda n: order_index.get(n, 0))
+
+    if len(ordered_names) != len(item_by_name):
+        remaining = [name for name, deg in indegree.items() if deg > 0]
+        raise ValueError(f"requires_preproc cycle detected among: {', '.join(remaining)}")
+
+    return [item_by_name[name] for name in ordered_names]
+
+
 def _merge_configs(*configs: Dict[str, Any]) -> Dict[str, Any]:
     merged: Dict[str, Any] = {}
     for cfg in configs:
@@ -633,6 +694,12 @@ def main() -> int:
             rng=rng,
             reserved_groups=reserved_groups,
             eda_stats=eda_stats,
+        )
+        selected_items = _order_by_requires(
+            selected_items=selected_items,
+            name_map=name_map,
+            group_map=group_map,
+            reserved_groups=reserved_groups,
         )
 
         module_payloads = {}

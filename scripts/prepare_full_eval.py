@@ -151,11 +151,19 @@ Examples:
             if "chain" in preproc_tmpl:
                 full_chain = []
                 for step in preproc_tmpl["chain"]:
-                    full_step = f"{step}_full"
-                    full_chain.append(full_step)
-                    # Copy module config
+                    # Load step to see if it's a data splitter
                     step_path = local_project_dir / "templates" / "preprocess" / f"{step}.yaml"
                     step_data = load_yaml(step_path)
+                    
+                    if step_data and step_data.get("module") == "train_fraction":
+                        # REMOVE data splitters for full evaluation (use 100% data)
+                        print(f"  - Removing data splitter: {step}")
+                        continue
+                    
+                    full_step = f"{step}_full"
+                    full_chain.append(full_step)
+                    
+                    # Copy module config
                     if step_data:
                         save_yaml(step_data, local_project_dir / "templates" / "preprocess" / f"{full_step}.yaml")
                 

@@ -906,11 +906,11 @@ def main(argv: List[str] | None = None) -> int:
                 return 1
             raise
 
-    # Special case: model with auto-preprocessing
-    # Resolve and run preprocessing chain before model execution (similar to auto-flow)
+    # Special case: modules requiring auto-preprocessing
+    # Resolve and run preprocessing chain before module execution
     final_preprocess_template = None
     final_preprocess_exp_dir = None
-    if command == "model":
+    if command in ["model", "predict", "submit", "fetch-score", "tune", "stack"]:
         from rich.console import Console
         console = Console(force_terminal=True)
 

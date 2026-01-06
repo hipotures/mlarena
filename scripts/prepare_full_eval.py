@@ -93,7 +93,13 @@ Examples:
                 # If submitted, track both ID and template name
                 if is_submitted:
                     if exp_id: submitted_exp_ids.add(exp_id)
-                    if model_template: submitted_templates.add(model_template)
+                    if model_template:
+                        submitted_templates.add(model_template)
+                        # If the submitted template is a '_full' version, 
+                        # also mark the base version as submitted.
+                        if model_template.endswith("_full"):
+                            base_tmpl = model_template[:-5]
+                            submitted_templates.add(base_tmpl)
                 
                 score = model_info.get("payload", {}).get("local_cv_score")
                 

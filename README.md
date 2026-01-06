@@ -47,6 +47,7 @@ uv run python scripts/mla.py eda --project <competition-slug>
 **Run auto-flow pipeline**:
 ```bash
 # Run the pipeline: preprocess → model → predict → submit → fetch-score
+# Note: This validates that 'init' and 'eda' have been completed manually.
 # This uses the "baseline" templates by default.
 uv run python scripts/mla.py --project <competition-slug>
 
@@ -92,6 +93,7 @@ The pipeline consists of the following modules:
 -   `feat`: Applies lightweight feature transformations (log1p, ratios, column drops) defined in feature templates.
 -   `tune`: Optuna-based hyperparameter search (experimental).
 -   `stack`: Averages multiple prediction files (experimental).
+-   `queue`: Manages task execution order for batch experiments (e.g., `mla queue add`).
 
 **Note**: AutoGluon native HPO is available through model templates with `hpo_preset`. See [HPO Guide](docs/MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 
@@ -424,21 +426,24 @@ Each experiment's `state.json` tracks module execution:
 ```json
 {
   "experiment_id": "exp-20251217-152730",
+  "project": "titanic",
   "modules": {
     "model": {
       "status": "completed",
+      "started_at": "2025-12-17T15:27:31Z",
+      "finished_at": "2025-12-17T15:28:15Z",
+      "invocation": {
+        "model_template": "cpu-fast-1m",
+        "time_limit": 60
+      },
       "payload": {
         "local_cv_score": 0.8234,
         "model_path": "artifacts/model/model"
-      },
-      "invocation": {
-        "model_template": "cpu-dev-5m",
-        "time_limit": 300
-      },
-      "error": null
+      }
     },
     "predict": {
       "status": "completed",
+      "invocation": {},
       "payload": {
         "submission_file": "artifacts/predict/submission-20251217152745.csv"
       }

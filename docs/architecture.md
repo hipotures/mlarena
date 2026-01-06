@@ -36,7 +36,7 @@ MLArena is organized into four layers: a thin CLI wrapper, a core orchestrator, 
 2. **CLI parsing** builds dynamic subcommands for each registered module plus the `modules` listing helper.
 3. **Pipeline orchestration** (`PipelineExecutor`) topo-sorts dependencies, prints standardized headers/footers, and updates state with file locking.
 4. **State handling** (`ExperimentState`) merges fixed setup runs (`init`, `eda`) into subsequent experiments and marks interrupted runs as failed on restart.
-5. **Auto-flow** (`run_auto_flow`) runs `init → eda → preprocess (chains) → model → predict → submit → fetch-score`, skipping completed setup modules unless `--force` is set. Successful runs optionally create a git commit summarizing local CV and public score.
+5. **Auto-flow** (`run_auto_flow`) executes the sequence `preprocess (chains) → model → predict → submit → fetch-score`. Note: `init` and `eda` must be completed manually beforehand as prerequisites; the auto-flow validates their completion before starting. Successful runs optionally create a git commit summarizing local CV and public score.
 
 ## Templates and resolution
 

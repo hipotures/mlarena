@@ -146,8 +146,8 @@ uv run python scripts/mla.py model \
 
 **Verify:**
 ```bash
-# Check model directory
-ls projects/kaggle/titanic/AutogluonModels/models/
+# Check model directory (replace 'eda' with your experiment-id if different)
+ls projects/kaggle/titanic/experiments/eda/artifacts/model/model/models/
 # Expected: LightGBM/, CatBoost/, WeightedEnsemble_L2/, etc.
 
 # Check CV score
@@ -303,6 +303,26 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq '.[-1].public_scor
 
 ---
 
+## Viewing History
+
+You can list all tracked submissions and experiments for a project using built-in modules:
+
+```bash
+# View all submissions for a project
+uv run python scripts/mla.py submissions --project titanic list
+
+# View all experiments for a project
+uv run python scripts/mla.py experiments --project titanic list
+
+# Filter experiments by status
+uv run python scripts/mla.py experiments --project titanic list --status failed
+
+# Sort experiments by public score
+uv run python scripts/mla.py experiments --project titanic list --sort-by public
+```
+
+---
+
 ## Auto-Flow Pipeline
 
 **Prerequisites** (one-time setup):
@@ -332,7 +352,7 @@ Run: mla init --project {project}
 
 **Note**: These modules must be run manually before auto-flow.
 
-**Auto-Flow**: Runs Preprocess → Model → Predict → Submit → Fetch Score automatically:
+**Auto-Flow**: Runs Preprocess → Model → Predict → Submit → Fetch Score automatically. Note that `init` and `eda` are manual prerequisites that must be run once per project.
 
 ```bash
 # Default: 30s countdown before auto-submit

@@ -27,6 +27,10 @@ Follow the template structure:
 2. Create artifact directory
 3. Perform transformation
 4. Save artifacts (fitted objects, reports)
+   - **`train_processed.csv.gz`**: Transformed training data.
+   - **`test_processed.csv.gz`**: Transformed test data.
+   - **`tuning_processed.csv.gz`**: (Optional) Validation data for HPO (typically from `train_fraction`).
+   - **`eval_processed.csv.gz`**: (Optional) Offline evaluation data, not used during training but shown in leaderboard (typically from `train_fraction`).
 5. Return (train_df, val_df, test_df, orig_df, state_dict)
 
 ### Step 3: Add to Templates

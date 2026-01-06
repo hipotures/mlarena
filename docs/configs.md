@@ -7,7 +7,7 @@
 | `lock` | bool | `false` | Create `overwrite.lock` after successful completion to prevent re-runs |
 | `skip_deps` | bool | `false` | Skip dependency resolution (run only target module) |
 | `show_payload` | bool | `false` | Display module output payload in console |
-| `model.mla_retention` | bool | `false` | Clean up AutoGluon intermediate models after training (saves disk space) |
+| `model.mla_retention` | bool | `false` | Clean up AutoGluon intermediate models after training (saves disk space). Can be set via CLI as `model.mla_retention=true`. |
 
 ## Built-in Profile Fallbacks
 

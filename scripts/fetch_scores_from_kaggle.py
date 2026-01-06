@@ -116,7 +116,7 @@ def main() -> int:
             "fetch-score",
             "--project",
             args.project,
-            "--experiment-id",
+            "--exp-id",
             exp_id,
             "--force",
         ]

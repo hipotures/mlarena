@@ -788,7 +788,7 @@ def main() -> int:
         chain = base_chain + module_template_names
         signature = _compute_signature(base_chain, module_signature_configs)
 
-        if signature in used_signatures:
+        if not args.force and signature in used_signatures:
             attempt_count += 1
             continue
 
@@ -818,8 +818,6 @@ def main() -> int:
                         current_index += 1
                         continue
 
-            if overwrite_all:
-
         if not args.dry_run:
             # Write model template
             model_payload = deepcopy(base_model_template)
@@ -835,12 +833,14 @@ def main() -> int:
                 module_path = preprocess_dir / f"{template_name}.yaml"
                 _save_yaml(module_path, payload)
 
+        command = f"model --model-template {exp_id} --exp-id exp-{exp_id} skip_submit=true skip_git=true"
         generated.append(
             {
                 "exp_id": exp_id,
                 "model_template": exp_id,
                 "chain_template": exp_id,
                 "modules": module_template_names,
+                "command": command,
             }
         )
         used_signatures.add(signature)
@@ -856,13 +856,9 @@ def main() -> int:
     if queue_cfg.get("enable", True) and not args.dry_run:
         queue = TaskQueue(project_root)
         for gen in generated:
-            task_id = queue.add_task_from_template(
-                model_template=gen["model_template"],
-                preprocess_template=None,
-                priority=queue_cfg.get("priority"),
-                submit=queue_cfg.get("submit"),
-                git=queue_cfg.get("git"),
-                overrides=queue_cfg.get("overrides"),
+            task_id = queue.add_task(
+                command=gen["command"],
+                priority=queue_cfg.get("priority", 10)
             )
             queue_ids.append(task_id)
 

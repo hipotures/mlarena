@@ -137,7 +137,7 @@ Trains AutoGluon model with specified template.
 ```bash
 uv run python scripts/mla.py model \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   model_template=cpu-fast-1m \
   skip_submit=true
 ```
@@ -157,7 +157,7 @@ uv run python scripts/mla.py model \
 
 **Verify:**
 ```bash
-# Check model directory (replace 'eda' with your experiment-id if different)
+# Check model directory (replace 'eda' with your exp-id if different)
 ls projects/kaggle/titanic/experiments/eda/artifacts/model/model/models/
 # Expected: LightGBM/, CatBoost/, WeightedEnsemble_L2/, etc.
 
@@ -178,7 +178,7 @@ Creates submission CSV from trained model.
 ```bash
 uv run python scripts/mla.py predict \
   --project titanic \
-  --experiment-id eda
+  --exp-id eda
 ```
 
 **What it does:**
@@ -212,24 +212,24 @@ Uploads submission via Kaggle CLI.
 # Default: 60s countdown before auto-submit
 uv run python scripts/mla.py submit \
   --project titanic \
-  --experiment-id eda
+  --exp-id eda
 
 # Disable confirmation (submit immediately)
 uv run python scripts/mla.py submit \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   submit.confirm_timeout=0
 
 # Skip submission (save CSV only)
 uv run python scripts/mla.py submit \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   skip_submit=true
 
 # Add to submission queue (for batch processing later)
 uv run python scripts/mla.py submit \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   submit.queue_submit=true
 ```
 
@@ -256,7 +256,7 @@ Queue submissions for later batch upload with duplicate detection.
 ```bash
 uv run python scripts/mla.py submit \
   --project titanic \
-  --experiment-id exp-20251226-103504 \
+  --exp-id exp-20251226-103504 \
   submit.queue_submit=true
 ```
 
@@ -265,7 +265,7 @@ uv run python scripts/mla.py submit \
 # List queued submissions
 python scripts/submission_queue.py --project titanic list
 
-# Submit from queue (by queue number, experiment-id, or filename)
+# Submit from queue (by queue number, exp-id, or filename)
 python scripts/submission_queue.py --project titanic submit 1
 python scripts/submission_queue.py --project titanic submit exp-20251226-103504
 python scripts/submission_queue.py --project titanic submit submission.csv
@@ -296,7 +296,7 @@ Scrapes public score from Kaggle submissions page.
 # Ensure Chrome with CDP is running first!
 uv run python scripts/mla.py fetch-score \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   --wait-seconds 45
 ```
 
@@ -428,13 +428,13 @@ uv run python scripts/mla.py eda --project titanic
 # Step 2: Preprocess
 uv run python scripts/mla.py preprocess \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   preprocess_template=my-preprocess
 
 # Step 3: Model (uses preprocessed data)
 uv run python scripts/mla.py model \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   preprocess_template=my-preprocess \
   model_template=cpu-dev-5m
 ```
@@ -445,7 +445,7 @@ uv run python scripts/mla.py model \
 # Force re-run model with different settings
 uv run python scripts/mla.py model \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   model_template=cpu-best-1h \
   --force
 ```
@@ -455,11 +455,11 @@ uv run python scripts/mla.py model \
 ```bash
 # Experiment 1: Fast baseline
 uv run python scripts/mla.py eda --project titanic
-uv run python scripts/mla.py model --project titanic --experiment-id eda model_template=cpu-fast-1m
+uv run python scripts/mla.py model --project titanic --exp-id eda model_template=cpu-fast-1m
 
 # Experiment 2: Best model (creates new exp)
 uv run python scripts/mla.py eda --project titanic
-uv run python scripts/mla.py model --project titanic --experiment-id eda model_template=cpu-best-1h
+uv run python scripts/mla.py model --project titanic --exp-id eda model_template=cpu-best-1h
 
 # Compare results
 uv run python scripts/submissions_tracker.py --project titanic list

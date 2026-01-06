@@ -65,7 +65,7 @@ class PredictModule(BaseModule):
         pp_template = self.invocation_params.get("preprocess_template")
         pp_exp_dir = self.invocation_params.get("preprocess_exp_dir")
 
-        # If not provided explicitly (common when running `predict` with `--experiment-id`),
+        # If not provided explicitly (common when running `predict` with `--exp-id`),
         # fall back to whatever preprocessing the model was trained with.
         if not pp_template:
             pp_template = (model_entry.payload or {}).get("preprocess_template") or (model_entry.invocation or {}).get("preprocess_template")  # type: ignore[union-attr]

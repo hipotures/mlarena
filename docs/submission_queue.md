@@ -27,7 +27,7 @@ During the submit step, use `submit.queue_submit=true` to add to queue instead o
 ```bash
 uv run python scripts/mla.py submit \
   --project <competition-slug> \
-  --experiment-id <exp-id> \
+  --exp-id <exp-id> \
   submit.queue_submit=true
 ```
 
@@ -207,9 +207,9 @@ submission_queue.py submit 2  # Process B (waits for lock)
 
 ```bash
 # During experiments:
-uv run python scripts/mla.py submit --project titanic --experiment-id exp1 submit.queue_submit=true
-uv run python scripts/mla.py submit --project titanic --experiment-id exp2 submit.queue_submit=true
-uv run python scripts/mla.py submit --project titanic --experiment-id exp3 submit.queue_submit=true
+uv run python scripts/mla.py submit --project titanic --exp-id exp1 submit.queue_submit=true
+uv run python scripts/mla.py submit --project titanic --exp-id exp2 submit.queue_submit=true
+uv run python scripts/mla.py submit --project titanic --exp-id exp3 submit.queue_submit=true
 
 # End of day: upload all at once
 python scripts/submission_queue.py --project titanic submit 1
@@ -223,7 +223,7 @@ python scripts/submission_queue.py --project titanic submit 3
 
 ```bash
 # Queue submissions during the day
-uv run python scripts/mla.py submit --project titanic --experiment-id exp1 submit.queue_submit=true
+uv run python scripts/mla.py submit --project titanic --exp-id exp1 submit.queue_submit=true
 # ... more experiments ...
 
 # Create overnight script: upload_all.sh
@@ -315,7 +315,7 @@ done
 
 **Fix:** Queue at least one submission:
 ```bash
-uv run python scripts/mla.py submit --project titanic --experiment-id eda submit.queue_submit=true
+uv run python scripts/mla.py submit --project titanic --exp-id eda submit.queue_submit=true
 ```
 
 ---
@@ -326,8 +326,8 @@ uv run python scripts/mla.py submit --project titanic --experiment-id eda submit
 
 **Fix:** Re-run predict and submit:
 ```bash
-uv run python scripts/mla.py predict --project titanic --experiment-id <exp-id>
-uv run python scripts/mla.py submit --project titanic --experiment-id <exp-id> submit.queue_submit=true
+uv run python scripts/mla.py predict --project titanic --exp-id <exp-id>
+uv run python scripts/mla.py submit --project titanic --exp-id <exp-id> submit.queue_submit=true
 ```
 
 ---

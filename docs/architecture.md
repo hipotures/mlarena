@@ -71,4 +71,4 @@ MLArena is organized into four layers: a thin CLI wrapper, a core orchestrator, 
 
 ## Experiment state snapshot
 
-`state.json` tracks module status, payload, invocation parameters, git metadata, and artifacts such as processed datasets and submission files. The file is guarded by a lock to avoid concurrent writes and is reused when resuming modules with `--experiment-id`.
+`state.json` tracks module status, payload, invocation parameters, git metadata, and artifacts such as processed datasets and submission files. The file is guarded by a lock to avoid concurrent writes and is reused when resuming modules with `--exp-id`.

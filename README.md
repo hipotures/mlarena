@@ -133,7 +133,7 @@ For managing multiple submissions efficiently, use the submission queue script. 
 # Add to queue
 uv run python scripts/mla.py submit \
   --project <competition-slug> \
-  --experiment-id <exp-id> \
+  --exp-id <exp-id> \
   submit.queue_submit=true
 
 # List queued submissions
@@ -210,7 +210,7 @@ uv run python scripts/mla.py model --project <competition-slug> model_template=h
 ### Common Flags
 
 -   `--project <name>` or `-p <name>`: Specifies the competition project.
--   `--experiment-id <id>` or `-e <id>`: Resumes or targets an existing experiment.
+-   `--exp-id <id>` or `-e <id>`: Resumes or targets an existing experiment.
 -   `--profile <name>` or `-s <name>`: Loads a config profile (e.g., `smoke`, `dev`).
 -   `--force` or `-f`: Forces re-execution of completed modules.
 

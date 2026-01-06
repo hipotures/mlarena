@@ -18,6 +18,6 @@ ${SCRIPT} model \
   --project "${PROJECT}" \
   --model-template "${MODEL_TEMPLATE}" \
   --preprocess-template "${PP_TEMPLATE}" \
-  --experiment-id "${EXP_ID}"
+  --exp-id "${EXP_ID}"
 
 echo "Done."

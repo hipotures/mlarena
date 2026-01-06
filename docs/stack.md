@@ -46,7 +46,7 @@ uv run python scripts/mla.py stack \
 # Stack using prediction from completed predict module
 uv run python scripts/mla.py stack \
   --project titanic \
-  --experiment-id exp-20251216-123045
+  --exp-id exp-20251216-123045
 ```
 
 ## CLI Overrides
@@ -174,7 +174,7 @@ uv run python scripts/mla.py stack \
 # Submit the stacked predictions
 uv run python scripts/mla.py submit \
   --project titanic \
-  --experiment-id <stack-experiment-id>
+  --exp-id <stack-exp-id>
 ```
 
 ## When Stacking Helps

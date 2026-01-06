@@ -76,13 +76,13 @@ uv run python scripts/mla.py --project titanic
 
 ## Common Parameter Variations
 
-### experiment_id vs experiment-id
+### experiment_id vs exp-id
 
 Both formats work in CLI due to automatic conversion:
 
 ```bash
 # Both are equivalent:
---experiment-id eda
+--exp-id eda
 experiment_id=eda
 ```
 
@@ -217,7 +217,7 @@ uv run python scripts/mla.py model --project titanic common.time_limit=600
 ### Best Practice
 
 **Use flags for:**
-- Core CLI arguments: `--project`, `--experiment-id`, `--profile`, `--force`
+- Core CLI arguments: `--project`, `--exp-id`, `--profile`, `--force`
 
 **Use dotted overrides for:**
 - All configuration parameters: `model_template=`, `common.seed=`, `model.hyperparameters.GBM.max_depth=`
@@ -226,7 +226,7 @@ uv run python scripts/mla.py model --project titanic common.time_limit=600
 ```bash
 uv run python scripts/mla.py model \
   --project titanic \
-  --experiment-id eda \
+  --exp-id eda \
   model_template=cpu-best-1h \
   common.time_limit=3600 \
   common.seed=42

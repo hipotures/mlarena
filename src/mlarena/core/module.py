@@ -138,7 +138,7 @@ def suggest_next_steps(
         cmd = (
             f"python scripts/mla.py {next_module} \\\n"
             f"  --project {project_name} \\\n"
-            f"  --experiment-id {experiment_id}"
+            f"  --exp-id {experiment_id}"
         )
         commands.append(cmd)
 

@@ -164,7 +164,7 @@ run_experiment() {
     log_info "Running ${exp_id}: ${template} → ${exp_name}"
 
     # Note: Removed skip_submit=true to enable submission as requested
-    if $SCRIPT --project $PROJECT --experiment-id "$exp_name" --model-template "$template"; then
+    if $SCRIPT --project $PROJECT --exp-id "$exp_name" --model-template "$template"; then
         log_success "${exp_id} completed successfully"
         ((++TOTAL_RUN))
         register_result "$exp_id" "$exp_name" "completed"

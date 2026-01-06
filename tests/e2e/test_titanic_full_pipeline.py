@@ -121,7 +121,7 @@ def test_titanic_preprocess_then_model(monkeypatch, titanic_e2e_setup, mock_auto
             "baseline",
             "--model-template",
             "gpu-dev-5m",
-            "--experiment-id",
+            "--exp-id",
             exp_id,
             "--force",
         ]
@@ -134,7 +134,7 @@ def test_titanic_preprocess_then_model(monkeypatch, titanic_e2e_setup, mock_auto
             "predict",
             "--project",
             "titanic",
-            "--experiment-id",
+            "--exp-id",
             exp_id,
             "--predict-suffix",
             "pre-e2e",
@@ -174,8 +174,8 @@ def test_titanic_reproducibility(monkeypatch, titanic_e2e_setup, mock_autogluon)
 
     monkeypatch.setattr(mock_autogluon, "leaderboard", _leaderboard_with_score, raising=False)
 
-    first = main(["model", "--project", "titanic", "--model-template", "gpu-dev-5m", "--experiment-id", "exp-repro-1", "--force"])
-    second = main(["model", "--project", "titanic", "--model-template", "gpu-dev-5m", "--experiment-id", "exp-repro-2", "--force"])
+    first = main(["model", "--project", "titanic", "--model-template", "gpu-dev-5m", "--exp-id", "exp-repro-1", "--force"])
+    second = main(["model", "--project", "titanic", "--model-template", "gpu-dev-5m", "--exp-id", "exp-repro-2", "--force"])
     assert first == 0 and second == 0
 
     state1 = project_root / "experiments" / "exp-repro-1" / "state.json"

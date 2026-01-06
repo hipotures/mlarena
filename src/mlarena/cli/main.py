@@ -140,7 +140,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner")
     # Command is handled manually to avoid greedy consumption of flag values
     parser.add_argument("--project", "-p", help="Project name (e.g., Titanic)")
-    parser.add_argument("--experiment-id", "-e", help="Experiment ID to resume")
+    parser.add_argument("--exp-id", "-e", help="Experiment ID to resume")
     parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
     parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
     return parser
@@ -793,8 +793,8 @@ def main(argv: List[str] | None = None) -> int:
             overrides.insert(0, f"profile={args.profile}")
         if args.force:
             overrides.append("force=true")
-        if args.experiment_id:
-            overrides.append(f"experiment_id={args.experiment_id}")
+        if args.exp_id:
+            overrides.append(f"experiment_id={args.exp_id}")
             
         config = get_config(project or "default", overrides)
     except Exception as e:

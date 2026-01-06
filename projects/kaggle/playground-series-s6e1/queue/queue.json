@@ -1,25 +1,18 @@
 {
-  "next_id": 5730,
+  "next_id": 5742,
   "queue": [
     {
-      "id": 5720,
-      "priority": 10,
-      "status": "failed",
-      "command": "fetch-score --model-template test_c_01_0306_full submit.confirm_timeout=0",
-      "added_at": "2026-01-06 15:45:06",
-      "started_at": "2026-01-06 15:49:57",
-      "finished_at": "2026-01-06 16:51:22",
-      "attempts": [
-        {
-          "timestamp": "2026-01-06 16:51:22",
-          "success": false,
-          "error": "Exit code: 1",
-          "exit_code": 1
-        }
-      ],
-      "last_error": "Exit code: 1",
-      "experiment_id": "exp-20260106-145003",
-      "log_file": "queue/logs/task-5720.log"
+      "id": 5741,
+      "priority": null,
+      "status": "pending",
+      "command": "model --model-template test_c_01_0001 --exp-id exp-test_c_01_0001 skip_submit=true skip_git=true",
+      "added_at": "2026-01-06 21:02:25",
+      "started_at": null,
+      "finished_at": null,
+      "attempts": [],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-5741.log"
     }
   ]
 }

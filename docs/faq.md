@@ -138,7 +138,7 @@ ls src/mlarena/templates/preprocess/
 **Fix:** Re-run the same module - stale "running" status is automatically marked as failed before execution.
 
 ```bash
-uv run python scripts/mla.py model --project titanic --experiment-id exp-20251217-152730
+uv run python scripts/mla.py model --project titanic --exp-id exp-20251217-152730
 ```
 
 ---
@@ -273,7 +273,7 @@ experiments/pre-{template}/{hash}/{step}-{name}/artifacts/preprocess/
 
 ```bash
 # During experiments - queue instead of upload
-uv run python scripts/mla.py submit --project titanic --experiment-id exp1 submit.queue_submit=true
+uv run python scripts/mla.py submit --project titanic --exp-id exp1 submit.queue_submit=true
 
 # Later - batch upload
 python scripts/submission_queue.py --project titanic submit 1 --continue-flow
@@ -331,14 +331,14 @@ print("Missing values:", sub.isnull().sum())
 
 ### How do I rerun predict/submit on existing experiment?
 
-Pass `--experiment-id` to reuse artifacts:
+Pass `--exp-id` to reuse artifacts:
 
 ```bash
 # Re-run predict
-uv run python scripts/mla.py predict --project titanic --experiment-id exp-20251217-152730
+uv run python scripts/mla.py predict --project titanic --exp-id exp-20251217-152730
 
 # Re-run submit
-uv run python scripts/mla.py submit --project titanic --experiment-id exp-20251217-152730
+uv run python scripts/mla.py submit --project titanic --exp-id exp-20251217-152730
 ```
 
 Pipeline automatically reuses model artifacts and skips dependencies.

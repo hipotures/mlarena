@@ -370,7 +370,7 @@ Add section after "Prerequisites" (line 45):
 | Term Variations | Files | Standard | Fix |
 |:----------------|:------|:---------|:----|
 | `preprocess_template` vs `preprocess-template` vs `--preprocess-template` | README, MLA_WORKFLOW_GUIDE, configs.md | `preprocess_template` (Python), `preprocess-template` (YAML keys) | Create terminology guide |
-| `experiment_id` vs `experiment-id` | Multiple | `experiment_id` (code), can use either in CLI | Document dash-underscore equivalence |
+| `experiment_id` vs `exp-id` | Multiple | `experiment_id` (code), can use either in CLI | Document dash-underscore equivalence |
 | `fetch-score` vs `fetch_score` | README, modules/ | `fetch-score` (CLI), `fetch_score` (Python) | Document naming convention |
 | `MLArena` vs `mlarena` vs `mla` | Multiple | `mlarena` (package), `mla` (CLI), `MLArena` (prose) | Establish brand guide |
 | `AutoGluon` vs `autogluon` | Multiple | `AutoGluon` (product name), `autogluon` (import) | Use proper casing |

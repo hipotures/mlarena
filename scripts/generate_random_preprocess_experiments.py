@@ -549,11 +549,42 @@ def main() -> int:
         help="Path to generator config YAML",
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing files")
+    
+    # Overrides
+    parser.add_argument("--project", help="Override project name")
+    parser.add_argument("--prefix", help="Override experiment_prefix")
+    parser.add_argument("--start-index", type=int, help="Override start_index")
+    parser.add_argument("--id-width", type=int, help="Override id_width")
+    parser.add_argument("--experiments", type=int, help="Override number of experiments to generate")
+    parser.add_argument("--seed", type=int, help="Override random_seed")
+    parser.add_argument("--model-template", help="Override base model template name")
+    parser.add_argument("--preprocess-template", help="Override base preprocess template name")
+    parser.add_argument("--preprocessors-per-exp", help="Override preprocessors_per_experiment (e.g. '1-5' or '3')")
+    parser.add_argument("--max-attempts", type=int, help="Override max_unique_attempts")
+    parser.add_argument("--signature-registry", help="Override signature_registry filename")
+    parser.add_argument("--auto-filter", action="store_true", default=None, help="Enable auto_filter_by_eda")
+    parser.add_argument("--no-auto-filter", action="store_false", dest="auto_filter", help="Disable auto_filter_by_eda")
+    parser.add_argument("--eda-summary", help="Override eda_summary_path")
 
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = _load_yaml(config_path)
+
+    # Apply overrides
+    if args.project: config["project"] = args.project
+    if args.prefix: config["experiment_prefix"] = args.prefix
+    if args.start_index is not None: config["start_index"] = args.start_index
+    if args.id_width is not None: config["id_width"] = args.id_width
+    if args.experiments is not None: config["experiments"] = args.experiments
+    if args.seed is not None: config["random_seed"] = args.seed
+    if args.model_template: config["model_template"] = args.model_template
+    if args.preprocess_template: config["preprocess_template"] = args.preprocess_template
+    if args.preprocessors_per_exp: config["preprocessors_per_experiment"] = args.preprocessors_per_exp
+    if args.max_attempts is not None: config["max_unique_attempts"] = args.max_attempts
+    if args.signature_registry: config["signature_registry"] = args.signature_registry
+    if args.auto_filter is not None: config["auto_filter_by_eda"] = args.auto_filter
+    if args.eda_summary: config["eda_summary_path"] = args.eda_summary
 
     project = config.get("project")
     if not project:

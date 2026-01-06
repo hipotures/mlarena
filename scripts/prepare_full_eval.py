@@ -72,12 +72,15 @@ def main():
     # 2. Sort by score (descending)
     results.sort(key=lambda x: x['score'], reverse=True)
     
-    # Deduplicate by model_template
+    # Deduplicate by model_template and skip existing _full templates
     seen_templates = set()
     unique_top = []
     for r in results:
         tmpl = r['model_template']
-        if tmpl and tmpl not in seen_templates:
+        if not tmpl: continue
+        if tmpl.endswith("_full"): continue
+        
+        if tmpl not in seen_templates:
             unique_top.append(r)
             seen_templates.add(tmpl)
         if len(unique_top) >= args.n: break
@@ -101,6 +104,11 @@ def main():
         full_model_tmpl["preset"] = "best"
         full_model_tmpl["time_limit"] = 3600
         full_model_tmpl["included_model_types"] = ["GBM", "XGB", "CAT"]
+        
+        # Remove fit_args to allow 'best' preset to use high-quality defaults
+        if "fit_args" in full_model_tmpl:
+            del full_model_tmpl["fit_args"]
+            
         save_yaml(full_model_tmpl, local_project_dir / "templates" / "model" / f"{full_model_name}.yaml")
 
         # Upgrade Preprocess Chain/Modules

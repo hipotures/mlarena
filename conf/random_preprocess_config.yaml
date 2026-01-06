@@ -1,14 +1,14 @@
 project: playground-series-s6e1
-experiment_prefix: test_b_01_
+experiment_prefix: test_c_01_
 start_index: 1
 id_width: 4
-experiments: 100
+experiments: 1000
 random_seed: 42
 model_template: mcts
 preprocess_template: mcts-chain
-preprocessors_per_experiment: 3
+preprocessors_per_experiment: "1-5"
 max_unique_attempts: 5000
-signature_registry: .random_preprocess_signatures_mcts.json
+signature_registry: .random_preprocess_signatures_mcts_15.json
 auto_filter_by_eda: true
 eda_summary_path: null
 

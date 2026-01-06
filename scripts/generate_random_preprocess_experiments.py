@@ -591,12 +591,23 @@ def main() -> int:
     start_index = int(config.get("start_index", 1))
     rng = random.Random(int(config.get("random_seed", 42)))
 
-    preprocess_per_exp = int(config.get("preprocessors_per_experiment", 1))
-    if preprocess_per_exp < 0:
+    raw_preprocess_per_exp = config.get("preprocessors_per_experiment", 1)
+    max_possible_preprocs = 0
+    if isinstance(raw_preprocess_per_exp, str) and "-" in raw_preprocess_per_exp:
+        try:
+            _, high = map(int, raw_preprocess_per_exp.split("-"))
+            max_possible_preprocs = high
+        except ValueError:
+            print(f"Error: invalid format for preprocessors_per_experiment: {raw_preprocess_per_exp}")
+            return 1
+    else:
+        max_possible_preprocs = int(raw_preprocess_per_exp)
+
+    if max_possible_preprocs < 0:
         print("Error: preprocessors_per_experiment must be >= 0")
         return 1
 
-    max_unique_attempts = int(config.get("max_unique_attempts", 10000))
+    max_unique_attempts = int(config.get("max_unique_attempts", 200))
 
     model_dir = project_root / "templates" / "model"
     preprocess_dir = project_root / "templates" / "preprocess"
@@ -618,10 +629,7 @@ def main() -> int:
     preprocessors = list(config.get("preprocessors", []))
     decisions = _apply_eda_filters(preprocessors, eda_stats, problem_type) if auto_filter_by_eda else []
     preprocessors = [p for p in preprocessors if p.get("enabled", True)]
-    if not preprocessors and preprocess_per_exp > 0:
-        print("Error: no enabled preprocessors in config")
-        return 1
-
+    
     # Build group/name maps
     group_map: Dict[str, List[Dict[str, Any]]] = {}
     name_map: Dict[str, Dict[str, Any]] = {}
@@ -646,9 +654,14 @@ def main() -> int:
                     break
 
     available_groups = [g for g in group_map.keys() if g not in reserved_groups]
-    if preprocess_per_exp > len(available_groups):
+    
+    if not preprocessors and max_possible_preprocs > 0:
+        print("Error: no enabled preprocessors in config")
+        return 1
+
+    if max_possible_preprocs > len(available_groups):
         print(
-            f"Error: preprocessors_per_experiment={preprocess_per_exp} exceeds available groups "
+            f"Error: preprocessors_per_experiment={max_possible_preprocs} exceeds available groups "
             f"({len(available_groups)}) after base chain"
         )
         return 1
@@ -677,12 +690,21 @@ def main() -> int:
 
         exp_id = f"{prefix}{current_index:0{id_width}d}"
 
+        # Sample number of preprocessors for this experiment
+        if isinstance(raw_preprocess_per_exp, str) and "-" in raw_preprocess_per_exp:
+            low, high = map(int, raw_preprocess_per_exp.split("-"))
+            current_preproc_count = rng.randint(low, high)
+        else:
+            current_preproc_count = int(raw_preprocess_per_exp)
+        
+        current_preproc_count = min(current_preproc_count, len(available_groups))
+
         # Sample groups
         group_weights = [
             (group, sum(float(p.get("weight", 1.0)) for p in group_map[group]))
             for group in available_groups
         ]
-        selected_groups = _weighted_sample_without_replacement(group_weights, preprocess_per_exp, rng)
+        selected_groups = _weighted_sample_without_replacement(group_weights, current_preproc_count, rng)
 
         selected_items: List[Dict[str, Any]] = []
         for group in selected_groups:
@@ -757,6 +779,11 @@ def main() -> int:
                 if reply in {"y", "yes"}:
                     overwrite_all = True
                     decision = True
+                    # Clear signature registry if overwriting all
+                    if signature_path and signature_path.exists():
+                        print(f"Clearing signature registry: {signature_path}")
+                        signature_path.unlink()
+                    used_signatures.clear()
                 else:
                     auto_append = True
                     current_index += 1

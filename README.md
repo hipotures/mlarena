@@ -76,24 +76,26 @@ MLArena uses a hybrid approach for maximum flexibility:
 
 ### Modules
 
-The pipeline consists of the following modules:
+The pipeline is organized into three categories:
 
-**Prerequisites (manual, one-time setup):**
+**1. Setup & Prerequisites (Manual, run once per project):**
 -   `init`: Initializes a new competition project structure and downloads data.
--   `eda`: Performs exploratory data analysis.
+-   `eda`: Performs exploratory data analysis (profiles train/test data).
 
-**Core modules (part of auto-flow):**
--   `preprocess`: Applies data preprocessing steps.
--   `model`: Trains a model using a specified template.
--   `predict`: Generates predictions from a trained model.
--   `submit`: Submits predictions to Kaggle.
--   `fetch-score`: Fetches the public score for a submission.
+**2. Auto-Flow Pipeline (Core modules executed in sequence):**
+-   `preprocess`: Applies data preprocessing steps (supports chains and caching).
+-   `model`: Trains a model using a specified template (AutoGluon by default).
+-   `predict`: Generates predictions from a trained model for the test set.
+-   `submit`: Submits predictions to Kaggle via CLI.
+-   `fetch-score`: Scrapes/fetches the latest public score from Kaggle.
 
-**Optional modules (manual use only):**
--   `feat`: Applies lightweight feature transformations (log1p, ratios, column drops) defined in feature templates.
+**3. Independent Utility Modules (Manual use only):**
+-   `experiments`: Lists experiment history, results, and local CV vs. public scores.
+-   `submissions`: Manages the local submission database and Kaggle scores.
+-   `queue`: Manages task execution order for batch experiments (`mla queue`).
+-   `feat`: Applies lightweight feature transformations defined in templates.
 -   `tune`: Optuna-based hyperparameter search (experimental).
--   `stack`: Averages multiple prediction files (experimental).
--   `queue`: Manages task execution order for batch experiments (e.g., `mla queue add`).
+-   `stack`: Averages multiple prediction files for blending (experimental).
 
 **Note**: AutoGluon native HPO is available through model templates with `hpo_preset`. See [HPO Guide](docs/MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 

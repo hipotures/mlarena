@@ -1,18 +1,29 @@
-# Manual MLArena Pipeline Guide
+# MLArena Workflow Guide
 
-Complete step-by-step guide for running ML experiments manually using MLArena CLI. Uses Titanic competition as reference example.
+MLArena uses a modular pipeline where each step can be run individually or as part of an automated flow.
 
-## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Detailed Walkthrough](#detailed-walkthrough)
-- [One-Command Pipeline](#one-command-pipeline)
-- [Advanced Workflows](#advanced-workflows)
-- [Verification Steps](#verification-steps)
-- [Troubleshooting](#troubleshooting)
-- [Expected Results](#expected-results)
+## Module Categories
+
+### 1. Setup Modules (Prerequisites)
+These modules prepare the environment and data. They must be run once per competition before any modeling.
+- `init`: Project scaffolding and data download.
+- `eda`: Exploratory data analysis and profiling.
+
+### 2. Auto-Flow Pipeline
+The core modeling loop. Can be run with a single command or step-by-step.
+- `preprocess` → `model` → `predict` → `submit` → `fetch-score`
+
+### 3. Utility & Admin Modules
+Helper modules for managing the project and advanced engineering.
+- `experiments`: View experiment history and leaderboards.
+- `submissions`: Track Kaggle submissions and scores.
+- `queue`: Sequential task management for batch runs.
+- `feat`: Quick feature transformations.
+- `tune`/`stack`: Advanced modeling utilities.
 
 ---
+
+## Detailed Walkthrough
 
 ## Prerequisites
 

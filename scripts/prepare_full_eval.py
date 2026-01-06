@@ -162,11 +162,20 @@ Examples:
         is_done = res["is_submitted_tmpl"]
         style = "dim" if is_done else "bold green"
         
+        # CV Score info
         score_info = f"CV: {res['score']:.5f}"
-        if res["final_public_score"] is not None:
-            score_info += f" | Public: {res['final_public_score']:.5f}"
         
-        status_tag = " [blue](SUBMITTED)[/blue]" if is_done else ""
+        # Status and Public Score info
+        status_parts = []
+        if is_done:
+            status_parts.append("SUBMITTED")
+        if res["final_public_score"] is not None:
+            status_parts.append(f"Public: {res['final_public_score']:.5f}")
+            
+        status_tag = ""
+        if status_parts:
+            tag_content = " | ".join(status_parts)
+            status_tag = f" [blue]({tag_content})[/blue]"
         
         console.print(f"  [{style}]{orig_model_name}[/{style}] ({score_info}) -> {full_model_name}{status_tag}")
 

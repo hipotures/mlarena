@@ -389,6 +389,7 @@ class PipelineExecutor:
         """
         results: Dict[str, ModuleResult] = {}
         execution_plan = [module_name] if skip_deps else self._resolve_execution_order(module_name)
+        executed_in_session = set()
 
         # Cleanup stale "running" states from interrupted executions
         for name in execution_plan:
@@ -411,6 +412,18 @@ class PipelineExecutor:
                 module.context.state.save()
                 results[name] = ModuleResult(success=False, error=reason)
                 break
+
+            # Handle wait time between submission and score fetching
+            if name == "fetch-score" and "submit" in executed_in_session:
+                wait_seconds = 30
+                if module.context.config:
+                    wait_seconds = getattr(module.context.config, "wait_seconds", 30)
+                
+                if wait_seconds > 0:
+                    console = Console(force_terminal=True)
+                    console.print(f"\n[dim]Waiting {wait_seconds}s for Kaggle processing (submit → fetch-score)...[/dim]")
+                    import time
+                    time.sleep(wait_seconds)
 
             # Check for overwrite lock when forcing completed module
             if already_completed and force and name == module_name:
@@ -799,6 +812,8 @@ class PipelineExecutor:
                     pass
 
                 results[name] = outcome
+                if outcome.success:
+                    executed_in_session.add(name)
             else:
                 module.context.state.fail_module(name, outcome.error or "unknown error")
                 if not defer_save or module.context.project_root.exists():

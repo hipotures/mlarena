@@ -44,6 +44,7 @@ Examples:
     parser.add_argument("--mask", help="Filter templates by prefix (e.g., test_c_01_)")
     parser.add_argument("--enqueue", action="store_true", help="Automatically add generated templates to queue")
     parser.add_argument("--module", default="model", help="Module to run in queue (default: model, use fetch-score for full flow)")
+    parser.add_argument("--include-submitted", action="store_true", help="Include experiments that have already been submitted to Kaggle")
     args = parser.parse_args()
 
     # Path to current repo
@@ -61,7 +62,9 @@ Examples:
         Path("/mnt/mlarena") / project_rel_path / "experiments"
     ]
     
-    results = []
+    raw_results = []
+    submitted_exp_ids = set()
+    submitted_templates = set()
     scanned_dirs = []
     
     for d in exp_dirs:
@@ -77,27 +80,62 @@ Examples:
                 with open(state_path, 'r') as f:
                     state = json.load(f)
                 
-                model_info = state.get("modules", {}).get("model", {})
+                exp_id = state.get("experiment_id")
+                modules = state.get("modules", {})
+                
+                # Check if this experiment has a completed submission
+                submit_info = modules.get("submit", {})
+                is_submitted = submit_info.get("status") == "completed"
+                
+                model_info = modules.get("model", {})
+                model_template = model_info.get("invocation", {}).get("model_template")
+                
+                # If submitted, track both ID and template name
+                if is_submitted:
+                    if exp_id: submitted_exp_ids.add(exp_id)
+                    if model_template: submitted_templates.add(model_template)
+                
                 score = model_info.get("payload", {}).get("local_cv_score")
                 
                 if score is not None:
-                    model_template = model_info.get("invocation", {}).get("model_template")
-                    
                     # Apply mask filter if provided
                     if args.mask and model_template and not model_template.startswith(args.mask):
                         continue
 
-                    results.append({
+                    raw_results.append({
                         "score": score,
                         "model_template": model_template,
-                        "exp_id": state.get("experiment_id")
+                        "exp_id": exp_id
                     })
             except Exception:
                 continue
 
-    if not results:
+    if not raw_results:
         print(f"Error: No experiments with scores found.")
         print(f"Checked directories: {', '.join(scanned_dirs) if scanned_dirs else 'None found'}")
+        return
+
+    # Filter out submitted experiments if not requested
+    results = []
+    if args.include_submitted:
+        results = raw_results
+    else:
+        for r in raw_results:
+            # Skip if THIS specific experiment (exp-id) was submitted
+            if r['exp_id'] in submitted_exp_ids:
+                continue
+            # Skip if ANY experiment using this template was submitted
+            if r['model_template'] in submitted_templates:
+                continue
+            # Skip if the upgraded version (_full) of this template was already submitted
+            if f"{r['model_template']}_full" in submitted_templates:
+                continue
+            results.append(r)
+
+    if not results:
+        print(f"No new experiments to process (all top experiments already submitted).")
+        if submitted_templates:
+            print(f"Submitted templates: {', '.join(list(submitted_templates)[:10])}...")
         return
 
     # 2. Sort by score (descending)

@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description="Prepare full evaluation templates for top N experiments")
     parser.add_argument("--project", required=True, help="Project name")
     parser.add_argument("-n", type=int, default=5, help="Number of top experiments to process")
+    parser.add_argument("--mask", help="Filter templates by prefix (e.g., test_c_01_)")
     args = parser.parse_args()
 
     # Path to current repo
@@ -55,13 +56,18 @@ def main():
                 model_info = state.get("modules", {}).get("model", {})
                 score = model_info.get("payload", {}).get("local_cv_score")
                 
-                if score is not None:
-                    results.append({
-                        "score": score,
-                        "model_template": model_info.get("invocation", {}).get("model_template"),
-                        "exp_id": state.get("experiment_id")
-                    })
-            except Exception:
+                            if score is not None:
+                                model_template = model_info.get("invocation", {}).get("model_template")
+                                
+                                # Apply mask filter if provided
+                                if args.mask and model_template and not model_template.startswith(args.mask):
+                                    continue
+                
+                                results.append({
+                                    "score": score,
+                                    "model_template": model_template,
+                                    "exp_id": state.get("experiment_id")
+                                })            except Exception:
                 continue
 
     if not results:

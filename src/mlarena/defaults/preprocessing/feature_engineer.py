@@ -219,6 +219,27 @@ def _apply_polynomial_features(
             "input_columns": poly_cols,
         }
 
+    # Safety check: estimate number of features to avoid OOM
+    n = len(poly_cols)
+    from math import comb
+    if interaction_only:
+        num_expected = sum(comb(n, i) for i in range(1, degree + 1))
+    else:
+        num_expected = comb(n + degree, degree) - 1 # excluding bias if not requested, but close enough
+    
+    if num_expected > 10000:
+        warnings.warn(
+            f"Polynomial expansion (degree {degree}) for {n} columns would create ~{num_expected} features. "
+            f"Skipping to avoid OOM (limit: 10,000)."
+        )
+        return train_df, val_df, test_df, orig_df, [], {
+            "type": "polynomial",
+            "skipped": True,
+            "reason": "too_many_features",
+            "num_expected": num_expected,
+            "input_columns": poly_cols,
+        }
+
     poly = PolynomialFeatures(
         degree=degree,
         include_bias=include_bias,

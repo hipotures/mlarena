@@ -177,7 +177,8 @@ Examples:
         for res in unique_top:
             full_model_name = f"{res['model_template']}_full"
             # Command format: [module] --model-template [name]
-            cmd = f"{args.module} --model-template {full_model_name}"
+            # We also set submit.confirm_timeout=0 for non-interactive queue runs.
+            cmd = f"{args.module} --model-template {full_model_name} submit.confirm_timeout=0"
             
             task_id = queue.add_task(
                 command=cmd,

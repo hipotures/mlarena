@@ -102,4 +102,5 @@ argparse
 
 # Ignore generated test templates for playground-series-s6e1
 projects/kaggle/playground-series-s6e1/templates/preprocess/test*
+projects/kaggle/playground-series-s6e1/templates/preprocess/.*
 projects/kaggle/playground-series-s6e1/templates/model/test*

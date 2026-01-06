@@ -550,21 +550,21 @@ def main() -> int:
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing files")
     
-    # Overrides
+    # Overrides (support both snake_case from YAML and standard kebab-case)
     parser.add_argument("--project", help="Override project name")
-    parser.add_argument("--prefix", help="Override experiment_prefix")
-    parser.add_argument("--start-index", type=int, help="Override start_index")
-    parser.add_argument("--id-width", type=int, help="Override id_width")
+    parser.add_argument("--prefix", "--experiment_prefix", "--experiment-prefix", help="Override experiment_prefix")
+    parser.add_argument("--start_index", "--start-index", type=int, help="Override start_index")
+    parser.add_argument("--id_width", "--id-width", type=int, help="Override id_width")
     parser.add_argument("--experiments", type=int, help="Override number of experiments to generate")
-    parser.add_argument("--seed", type=int, help="Override random_seed")
-    parser.add_argument("--model-template", help="Override base model template name")
-    parser.add_argument("--preprocess-template", help="Override base preprocess template name")
-    parser.add_argument("--preprocessors-per-exp", help="Override preprocessors_per_experiment (e.g. '1-5' or '3')")
-    parser.add_argument("--max-attempts", type=int, help="Override max_unique_attempts")
-    parser.add_argument("--signature-registry", help="Override signature_registry filename")
-    parser.add_argument("--auto-filter", action="store_true", default=None, help="Enable auto_filter_by_eda")
-    parser.add_argument("--no-auto-filter", action="store_false", dest="auto_filter", help="Disable auto_filter_by_eda")
-    parser.add_argument("--eda-summary", help="Override eda_summary_path")
+    parser.add_argument("--seed", "--random_seed", "--random-seed", type=int, help="Override random_seed")
+    parser.add_argument("--model_template", "--model-template", help="Override base model template name")
+    parser.add_argument("--preprocess_template", "--preprocess-template", help="Override base preprocess template name")
+    parser.add_argument("--preprocessors_per_experiment", "--preprocessors-per-experiment", "--preprocessors-per-exp", help="Override preprocessors_per_experiment")
+    parser.add_argument("--max_unique_attempts", "--max-unique-attempts", "--max-attempts", type=int, help="Override max_unique_attempts")
+    parser.add_argument("--signature_registry", "--signature-registry", help="Override signature_registry filename")
+    parser.add_argument("--auto_filter_by_eda", "--auto-filter-by-eda", "--auto-filter", action="store_true", default=None, help="Enable auto_filter_by_eda")
+    parser.add_argument("--no_auto_filter", "--no-auto-filter", action="store_false", dest="auto_filter_by_eda", help="Disable auto_filter_by_eda")
+    parser.add_argument("--eda_summary_path", "--eda-summary-path", "--eda-summary", help="Override eda_summary_path")
 
     args = parser.parse_args()
 
@@ -580,11 +580,11 @@ def main() -> int:
     if args.seed is not None: config["random_seed"] = args.seed
     if args.model_template: config["model_template"] = args.model_template
     if args.preprocess_template: config["preprocess_template"] = args.preprocess_template
-    if args.preprocessors_per_exp: config["preprocessors_per_experiment"] = args.preprocessors_per_exp
-    if args.max_attempts is not None: config["max_unique_attempts"] = args.max_attempts
+    if args.preprocessors_per_experiment: config["preprocessors_per_experiment"] = args.preprocessors_per_experiment
+    if args.max_unique_attempts is not None: config["max_unique_attempts"] = args.max_unique_attempts
     if args.signature_registry: config["signature_registry"] = args.signature_registry
-    if args.auto_filter is not None: config["auto_filter_by_eda"] = args.auto_filter
-    if args.eda_summary: config["eda_summary_path"] = args.eda_summary
+    if args.auto_filter_by_eda is not None: config["auto_filter_by_eda"] = args.auto_filter_by_eda
+    if args.eda_summary_path: config["eda_summary_path"] = args.eda_summary_path
 
     project = config.get("project")
     if not project:

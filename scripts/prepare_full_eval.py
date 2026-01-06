@@ -4,6 +4,7 @@ import json
 import yaml
 from pathlib import Path
 import os
+import sys
 
 def load_yaml(path):
     if not path.exists(): return None
@@ -20,6 +21,8 @@ def main():
     parser.add_argument("--project", required=True, help="Project name")
     parser.add_argument("-n", type=int, default=5, help="Number of top experiments to process")
     parser.add_argument("--mask", help="Filter templates by prefix (e.g., test_c_01_)")
+    parser.add_argument("--enqueue", action="store_true", help="Automatically add generated templates to queue")
+    parser.add_argument("--module", default="model", help="Module to run in queue (default: model, use fetch-score for full flow)")
     args = parser.parse_args()
 
     # Path to current repo
@@ -56,18 +59,19 @@ def main():
                 model_info = state.get("modules", {}).get("model", {})
                 score = model_info.get("payload", {}).get("local_cv_score")
                 
-                            if score is not None:
-                                model_template = model_info.get("invocation", {}).get("model_template")
-                                
-                                # Apply mask filter if provided
-                                if args.mask and model_template and not model_template.startswith(args.mask):
-                                    continue
-                
-                                results.append({
-                                    "score": score,
-                                    "model_template": model_template,
-                                    "exp_id": state.get("experiment_id")
-                                })            except Exception:
+                if score is not None:
+                    model_template = model_info.get("invocation", {}).get("model_template")
+                    
+                    # Apply mask filter if provided
+                    if args.mask and model_template and not model_template.startswith(args.mask):
+                        continue
+
+                    results.append({
+                        "score": score,
+                        "model_template": model_template,
+                        "exp_id": state.get("experiment_id")
+                    })
+            except Exception:
                 continue
 
     if not results:
@@ -139,7 +143,28 @@ def main():
                 # Single module
                 save_yaml(preproc_tmpl, local_project_dir / "templates" / "preprocess" / f"{full_preproc}.yaml")
 
-    print("\nSuccess. Run 'mla queue add' for the new _full templates.")
+    print("\nSuccess. Full evaluation templates created in local project folder.")
+
+    if args.enqueue:
+        # Add to path to import TaskQueue
+        sys.path.insert(0, str(repo_root / "src"))
+        from mlarena.utils.queue import TaskQueue
+        
+        queue = TaskQueue(local_project_dir)
+        print(f"\nAdding {len(unique_top)} tasks to queue...")
+        
+        for res in unique_top:
+            full_model_name = f"{res['model_template']}_full"
+            # Command format: [module] --model-template [name]
+            cmd = f"{args.module} --model-template {full_model_name}"
+            
+            task_id = queue.add_task(
+                command=cmd,
+                priority=10
+            )
+            print(f"  + Added to Queue ({args.module}): {full_model_name} (Task #{task_id})")
+        
+        print("\nQueue updated. Run 'mla queue list' to verify.")
 
 if __name__ == "__main__":
     main()

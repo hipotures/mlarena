@@ -955,30 +955,31 @@ def main(argv: List[str] | None = None) -> int:
     for name in ModuleRegistry.available():
         module_cls = ModuleRegistry.get(name)
         module = module_cls(contexts[name])
-        if name == command:
-            # Bridging: provide a combined dict for modules still using invocation_params
-            params = getattr(config, name.replace("-", "_"), {})
-            if not isinstance(params, dict):
-                params = {}
-            else:
-                params = params.copy()
-            
-            # Inject top-level config fields that modules expect
-            for field in ["model_template", "preprocess_template", "force", "skip_submit", "lock"]:
-                if hasattr(config, field):
-                    params[field] = getattr(config, field)
+        
+        # Inject params into ALL modules so dependencies (like model) receive configuration
+        # Bridging: provide a combined dict for modules still using invocation_params
+        params = getattr(config, name.replace("-", "_"), {})
+        if not isinstance(params, dict):
+            params = {}
+        else:
+            params = params.copy()
+        
+        # Inject top-level config fields that modules expect
+        for field in ["model_template", "preprocess_template", "force", "skip_submit", "lock"]:
+            if hasattr(config, field):
+                params[field] = getattr(config, field)
 
-            # Also inject common fields (these override template defaults if explicitly set via CLI)
-            for field, value in config.common.model_dump().items():
-                if value is not None:
-                    params[field] = value
+        # Also inject common fields (these override template defaults if explicitly set via CLI)
+        for field, value in config.common.model_dump().items():
+            if value is not None:
+                params[field] = value
 
-            # Override with auto-resolved preprocessing params (for model command)
-            if name == "model" and final_preprocess_template:
-                params["preprocess_template"] = final_preprocess_template
-                params["preprocess_exp_dir"] = str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None
+        # Override with auto-resolved preprocessing params (for model command)
+        if name == "model" and final_preprocess_template:
+            params["preprocess_template"] = final_preprocess_template
+            params["preprocess_exp_dir"] = str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None
 
-            module.set_invocation_params(params)
+        module.set_invocation_params(params)
         modules[name] = module
 
     executor = PipelineExecutor(modules)

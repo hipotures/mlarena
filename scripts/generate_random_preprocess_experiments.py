@@ -549,6 +549,7 @@ def main() -> int:
         help="Path to generator config YAML",
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing files")
+    parser.add_argument("--force", "-f", action="store_true", help="Overwrite existing files without prompting")
     
     # Overrides (support both snake_case from YAML and standard kebab-case)
     parser.add_argument("--project", help="Override project name")
@@ -803,28 +804,21 @@ def main() -> int:
                 continue
 
             if overwrite_all is None:
-                print(f"\nFiles already exist for experiment '{exp_id}':")
-                for path in existing_paths:
-                    print(f"  - {path}")
-                reply = input("Overwrite all (Y) or append to existing (N)? [y/N]: ").strip().lower()
-                if reply in {"y", "yes"}:
+                if args.force:
                     overwrite_all = True
-                    decision = True
-                    # Clear signature registry if overwriting all
-                    if signature_path and signature_path.exists():
-                        print(f"Clearing signature registry: {signature_path}")
-                        signature_path.unlink()
-                    used_signatures.clear()
                 else:
-                    auto_append = True
-                    current_index += 1
-                    continue
-            else:
-                decision = overwrite_all
+                    print(f"\nFiles already exist for experiment '{exp_id}':")
+                    for path in existing_paths:
+                        print(f"  - {path}")
+                    reply = input("Overwrite all (Y) or append to existing (N)? [y/N]: ").strip().lower()
+                    if reply in {"y", "yes"}:
+                        overwrite_all = True
+                    else:
+                        auto_append = True
+                        current_index += 1
+                        continue
 
-            if not decision:
-                current_index += 1
-                continue
+            if overwrite_all:
 
         if not args.dry_run:
             # Write model template

@@ -44,8 +44,11 @@ Examples:
     parser.add_argument("--mask", help="Filter templates by prefix (e.g., test_c_01_)")
     parser.add_argument("--enqueue", action="store_true", help="Automatically add generated templates to queue")
     parser.add_argument("--module", default="model", help="Module to run in queue (default: model, use fetch-score for full flow)")
-    parser.add_argument("--include-submitted", action="store_true", help="Include experiments that have already been submitted to Kaggle")
+    parser.add_argument("--exp-dir", help="Custom experiments directory")
     args = parser.parse_args()
+
+    from rich.console import Console
+    console = Console()
 
     # Path to current repo
     repo_root = Path(__file__).resolve().parents[1]
@@ -53,25 +56,29 @@ Examples:
     local_project_dir = repo_root / project_rel_path
     
     if not local_project_dir.exists():
-        print(f"Error: Local project directory {local_project_dir} not found")
+        console.print(f"[bold red]Error:[/bold red] Local project directory {local_project_dir} not found")
         return
 
     # Potential experiment locations
-    exp_dirs = [
+    exp_dirs = []
+    if args.exp_dir:
+        exp_dirs.append(Path(args.exp_dir))
+    
+    exp_dirs.extend([
         local_project_dir / "experiments",
         Path("/mnt/mlarena") / project_rel_path / "experiments"
-    ]
+    ])
     
     raw_results = []
     submitted_exp_ids = set()
-    submitted_templates = set()
+    submitted_templates = {} # tmpl -> score
     scanned_dirs = []
     
     for d in exp_dirs:
         if not d.exists():
             continue
         
-        print(f"Scanning experiments in {d}...")
+        console.print(f"Scanning experiments in [dim]{d}[/dim]...")
         scanned_dirs.append(str(d))
         
         for state_path in d.glob("**/state.json"):
@@ -87,6 +94,9 @@ Examples:
                 submit_info = modules.get("submit", {})
                 is_submitted = submit_info.get("status") == "completed"
                 
+                fetch_info = modules.get("fetch-score", {}) or modules.get("fetch_score", {})
+                public_score = fetch_info.get("payload", {}).get("score")
+                
                 model_info = modules.get("model", {})
                 model_template = model_info.get("invocation", {}).get("model_template")
                 
@@ -94,12 +104,14 @@ Examples:
                 if is_submitted:
                     if exp_id: submitted_exp_ids.add(exp_id)
                     if model_template:
-                        submitted_templates.add(model_template)
-                        # If the submitted template is a '_full' version, 
-                        # also mark the base version as submitted.
+                        if model_template not in submitted_templates or public_score is not None:
+                            submitted_templates[model_template] = public_score
+                        
+                        # Handle _full version tracking
                         if model_template.endswith("_full"):
                             base_tmpl = model_template[:-5]
-                            submitted_templates.add(base_tmpl)
+                            if base_tmpl not in submitted_templates or submitted_templates[base_tmpl] is None:
+                                submitted_templates[base_tmpl] = public_score
                 
                 score = model_info.get("payload", {}).get("local_cv_score")
                 
@@ -111,60 +123,52 @@ Examples:
                     raw_results.append({
                         "score": score,
                         "model_template": model_template,
-                        "exp_id": exp_id
+                        "exp_id": exp_id,
+                        "is_submitted": is_submitted,
+                        "public_score": public_score
                     })
             except Exception:
                 continue
 
     if not raw_results:
-        print(f"Error: No experiments with scores found.")
-        print(f"Checked directories: {', '.join(scanned_dirs) if scanned_dirs else 'None found'}")
+        console.print(f"[bold red]Error:[/bold red] No experiments with scores found.")
         return
 
-    # Filter out submitted experiments if not requested
-    results = []
-    if args.include_submitted:
-        results = raw_results
-    else:
-        for r in raw_results:
-            # Skip if THIS specific experiment (exp-id) was submitted
-            if r['exp_id'] in submitted_exp_ids:
-                continue
-            # Skip if ANY experiment using this template was submitted
-            if r['model_template'] in submitted_templates:
-                continue
-            # Skip if the upgraded version (_full) of this template was already submitted
-            if f"{r['model_template']}_full" in submitted_templates:
-                continue
-            results.append(r)
-
-    if not results:
-        print(f"No new experiments to process (all top experiments already submitted).")
-        if submitted_templates:
-            print(f"Submitted templates: {', '.join(list(submitted_templates)[:10])}...")
-        return
-
-    # 2. Sort by score (descending)
-    results.sort(key=lambda x: x['score'], reverse=True)
+    # Sort all by score (descending)
+    raw_results.sort(key=lambda x: x['score'], reverse=True)
     
     # Deduplicate by model_template and skip existing _full templates
     seen_templates = set()
     unique_top = []
-    for r in results:
+    for r in raw_results:
         tmpl = r['model_template']
         if not tmpl: continue
         if tmpl.endswith("_full"): continue
         
         if tmpl not in seen_templates:
+            # Re-check submission status from the aggregated maps
+            r["is_submitted_tmpl"] = (tmpl in submitted_templates or f"{tmpl}_full" in submitted_templates)
+            r["final_public_score"] = submitted_templates.get(tmpl) or submitted_templates.get(f"{tmpl}_full")
+            
             unique_top.append(r)
             seen_templates.add(tmpl)
         if len(unique_top) >= args.n: break
 
-    print(f"Top {len(unique_top)} templates to upgrade:")
+    console.print(f"\n[bold]Top {len(unique_top)} templates to upgrade:[/bold]")
     for res in unique_top:
         orig_model_name = res['model_template']
         full_model_name = f"{orig_model_name}_full"
-        print(f"  {orig_model_name} ({res['score']:.5f}) -> {full_model_name}")
+        
+        is_done = res["is_submitted_tmpl"]
+        style = "dim" if is_done else "bold green"
+        
+        score_info = f"CV: {res['score']:.5f}"
+        if res["final_public_score"] is not None:
+            score_info += f" | Public: {res['final_public_score']:.5f}"
+        
+        status_tag = " [blue](SUBMITTED)[/blue]" if is_done else ""
+        
+        console.print(f"  [{style}]{orig_model_name}[/{style}] ({score_info}) -> {full_model_name}{status_tag}")
 
         # Upgrade Model Template
         model_tmpl_path = local_project_dir / "templates" / "model" / f"{orig_model_name}.yaml"
@@ -201,7 +205,6 @@ Examples:
                     
                     if step_data and step_data.get("module") == "train_fraction":
                         # REMOVE data splitters for full evaluation (use 100% data)
-                        print(f"  - Removing data splitter: {step}")
                         continue
                     
                     full_step = f"{step}_full"
@@ -216,29 +219,36 @@ Examples:
                 # Single module
                 save_yaml(preproc_tmpl, local_project_dir / "templates" / "preprocess" / f"{full_preproc}.yaml")
 
-    print("\nSuccess. Full evaluation templates created in local project folder.")
+    console.print("\n[bold green]Success.[/bold green] Full evaluation templates created in local project folder.")
 
     if args.enqueue:
         # Add to path to import TaskQueue
         sys.path.insert(0, str(repo_root / "src"))
-        from mlarena.utils.queue import TaskQueue
-        
-        queue = TaskQueue(local_project_dir)
-        print(f"\nAdding {len(unique_top)} tasks to queue...")
-        
-        for res in unique_top:
-            full_model_name = f"{res['model_template']}_full"
-            # Command format: [module] --model-template [name]
-            # We also set submit.confirm_timeout=0 for non-interactive queue runs.
-            cmd = f"{args.module} --model-template {full_model_name} submit.confirm_timeout=0"
+        try:
+            from mlarena.utils.queue import TaskQueue
+            queue = TaskQueue(local_project_dir)
             
-            task_id = queue.add_task(
-                command=cmd,
-                priority=10
-            )
-            print(f"  + Added to Queue ({args.module}): {full_model_name} (Task #{task_id})")
-        
-        print("\nQueue updated. Run 'mla queue list' to verify.")
+            to_enqueue = [r for r in unique_top if not r["is_submitted_tmpl"]]
+            
+            if not to_enqueue:
+                console.print("\n[yellow]No new tasks to enqueue (all top experiments already submitted).[/yellow]")
+                return
+
+            console.print(f"\nAdding {len(to_enqueue)} tasks to queue...")
+            
+            for res in to_enqueue:
+                full_model_name = f"{res['model_template']}_full"
+                cmd = f"{args.module} --model-template {full_model_name} submit.confirm_timeout=0"
+                
+                task_id = queue.add_task(
+                    command=cmd,
+                    priority=10
+                )
+                console.print(f"  [green]+ Added to Queue ({args.module}):[/green] {full_model_name} (Task #{task_id})")
+            
+            console.print("\nQueue updated. Run 'mla queue list' to verify.")
+        except ImportError:
+            console.print("\n[red]Error:[/red] Could not import TaskQueue. Ensure MLArena source is in path.")
 
 if __name__ == "__main__":
     main()

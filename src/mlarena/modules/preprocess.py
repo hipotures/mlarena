@@ -199,6 +199,7 @@ class PreprocessModule(BaseModule):
 
         # Load input data (from previous preprocessing step or raw data)
         prev_custom_state = {}
+        eval_path = None
         if input_source:
             # Load from previous preprocessing step (within same chain)
             # input_source already contains index (e.g., "0-noop")
@@ -207,6 +208,7 @@ class PreprocessModule(BaseModule):
             test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
             orig_path = prev_exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
             tuning_path = prev_exp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
+            eval_path = prev_exp_dir / "artifacts" / "preprocess" / "eval_processed.csv.gz"
 
             if not train_path.exists():
                 raise FileNotFoundError(
@@ -232,6 +234,7 @@ class PreprocessModule(BaseModule):
             train_path, test_path = data_paths(config)
             orig_path = None  # No orig at start of chain
             tuning_path = None  # No tuning at start of chain
+            eval_path = None  # No eval at start of chain
 
             if not train_path.exists() or not test_path.exists():
                 marker = artifact_dir / "preprocess_skipped.txt"
@@ -242,12 +245,21 @@ class PreprocessModule(BaseModule):
         test_df = pd.read_csv(test_path, compression='infer')
         orig_df = pd.read_csv(orig_path, compression='infer') if orig_path and orig_path.exists() else None
         tuning_df = pd.read_csv(tuning_path, compression='infer') if tuning_path and tuning_path.exists() else None
+        eval_df = pd.read_csv(eval_path, compression='infer') if eval_path and eval_path.exists() else None
 
         # Store original shapes
         orig_train_shape = train_df.shape
         orig_test_shape = test_df.shape
         orig_orig_shape = orig_df.shape if orig_df is not None else None
         orig_tuning_shape = tuning_df.shape if tuning_df is not None else None
+        orig_eval_shape = eval_df.shape if eval_df is not None else None
+
+        # If eval_df exists, temporarily merge it with test_df to ensure it receives 
+        # identical transformations (feature engineering, scaling, encoding, etc.)
+        combined_test_df = test_df
+        test_len = len(test_df)
+        if eval_df is not None:
+            combined_test_df = pd.concat([test_df, eval_df], axis=0).reset_index(drop=True)
 
         # Get ignored columns for later use
         ignored = getattr(config, "IGNORED_COLUMNS", []) or []
@@ -296,7 +308,7 @@ class PreprocessModule(BaseModule):
                     result = preprocess_module.fit_transform(
                         train_df=train_df,
                         val_df=tuning_df,
-                        test_df=test_df,
+                        test_df=combined_test_df,
                         config=preprocess_config,
                         orig_df=orig_df,
                     )
@@ -304,23 +316,31 @@ class PreprocessModule(BaseModule):
                     result = preprocess_module.fit_transform(
                         train_df=train_df,
                         val_df=tuning_df,
-                        test_df=test_df,
+                        test_df=combined_test_df,
                         config=preprocess_config,
                     )
 
                 # Handle both old (4-tuple) and new (5-tuple) return signatures
                 if len(result) == 5:
                     # New modules: return train, tuning, test, orig, state
-                    train_df, tuning_df, test_df, orig_df, custom_preprocess_state = result
+                    train_df, tuning_df, combined_test_df, orig_df, custom_preprocess_state = result
                 elif len(result) == 4:
                     # Old modules: return train, val (None), test, state (no orig)
-                    train_df, _, test_df, custom_preprocess_state = result
+                    train_df, _, combined_test_df, custom_preprocess_state = result
                     orig_df = None  # Old modules don't support orig
                     tuning_df = None  # Old modules don't support tuning
                 else:
                     raise ValueError(
                         f"Invalid fit_transform return signature: expected 4 or 5 values, got {len(result)}"
                     )
+                
+                # Split combined_test_df back into test_df and eval_df
+                if eval_df is not None:
+                    test_df = combined_test_df.iloc[:test_len].copy()
+                    eval_df = combined_test_df.iloc[test_len:].copy()
+                else:
+                    test_df = combined_test_df
+
             except Exception as e:
                 console.print(f"[red]Error in custom preprocessing:[/red] {e}")
                 raise
@@ -330,7 +350,7 @@ class PreprocessModule(BaseModule):
             if ignored:
                 console.print(f"\n[bold]Dropping columns:[/bold] {', '.join(f'[yellow]{c}[/yellow]' for c in ignored)}")
                 train_df = self._drop_columns(train_df, ignored)
-                test_df = self._drop_columns(test_df, ignored)
+                combined_test_df = self._drop_columns(combined_test_df, ignored)
 
             if template_cfg:
                 operations = []
@@ -342,10 +362,110 @@ class PreprocessModule(BaseModule):
                     console.print(f"[bold]Template operations:[/bold] {', '.join(operations)}")
 
                 train_df = self._apply_template(train_df, template_cfg)
-                test_df = self._apply_template(test_df, template_cfg)
+                combined_test_df = self._apply_template(combined_test_df, template_cfg)
+            
+            # Split combined_test_df back into test_df and eval_df
+            if eval_df is not None:
+                test_df = combined_test_df.iloc[:test_len].copy()
+                eval_df = combined_test_df.iloc[test_len:].copy()
+            else:
+                test_df = combined_test_df
 
         train_df.to_csv(processed_train, index=False, compression='infer')
         test_df.to_csv(processed_test, index=False, compression='infer')
+
+        # Save eval if present
+        processed_eval = None
+        if eval_df is not None:
+            processed_eval = artifact_dir / "eval_processed.csv.gz"
+            eval_df.to_csv(processed_eval, index=False, compression='infer')
+            # Important: update eval_path in custom_preprocess_state so model.py knows where to find the TRANSFORMED file
+            if custom_preprocess_state is not None:
+                custom_preprocess_state["eval_path"] = str(processed_eval)
+
+        # Save orig if present
+        processed_orig = None
+        if orig_df is not None:
+            processed_orig = artifact_dir / "orig_processed.csv.gz"
+            orig_df.to_csv(processed_orig, index=False, compression='infer')
+
+        # Save tuning if present
+        processed_tuning_final = None
+        if tuning_df is not None:
+            processed_tuning_final = artifact_dir / "tuning_processed.csv.gz"
+            tuning_df.to_csv(processed_tuning_final, index=False, compression='infer')
+
+        # Prepare payload with custom preprocessing state
+        # For pass-through modules, shapes before/after are the same (no modification)
+        if is_pass_through:
+            shapes_dict = {
+                "train_before": orig_train_shape,
+                "train_after": orig_train_shape,  # Same as input
+                "test_before": orig_test_shape,
+                "test_after": orig_test_shape,  # Same as input
+                "orig_before": orig_orig_shape,
+                "orig_after": orig_orig_shape,  # Same as input
+                "tuning_before": orig_tuning_shape,
+                "tuning_after": orig_tuning_shape,  # Same as input
+                "eval_before": orig_eval_shape,
+                "eval_after": orig_eval_shape,
+                "pass_through": True,  # Flag for display
+            }
+        else:
+            shapes_dict = {
+                "train_before": orig_train_shape,
+                "train_after": train_df.shape,
+                "test_before": orig_test_shape,
+                "test_after": test_df.shape,
+                "orig_before": orig_orig_shape,
+                "orig_after": orig_df.shape if orig_df is not None else None,
+                "tuning_before": orig_tuning_shape,
+                "tuning_after": tuning_df.shape if tuning_df is not None else None,
+                "eval_before": orig_eval_shape,
+                "eval_after": eval_df.shape if eval_df is not None else None,
+                "pass_through": False,
+            }
+
+        payload = {
+            "train_processed": str(processed_train),
+            "test_processed": str(processed_test),
+            "orig_processed": str(processed_orig) if processed_orig else None,
+            "tuning_processed": str(processed_tuning_final) if processed_tuning_final else None,
+            "eval_processed": str(processed_eval) if processed_eval else None,
+            "ignored_columns": ignored,
+            "template": template_name,
+            "input_source": input_source,  # Track previous step in chain
+            "cached": False,
+            "shapes": shapes_dict,
+        }
+
+        # Add custom module state (e.g., av_weights_path)
+        # Merge previous custom state with current (current takes precedence)
+        final_custom_state = prev_custom_state.copy()
+        if custom_preprocess_state:
+            final_custom_state.update(custom_preprocess_state)
+
+        if final_custom_state:
+            payload["custom_module_state"] = final_custom_state
+
+        # Next steps will be printed by pipeline after footer (only for last in chain)
+
+        # Build artifacts list (include orig, tuning, and eval if present)
+        artifacts_list = [processed_train, processed_test]
+        if processed_orig:
+            artifacts_list.append(processed_orig)
+        if processed_tuning_final:
+            artifacts_list.append(processed_tuning_final)
+        if processed_eval:
+            artifacts_list.append(processed_eval)
+
+        return ModuleResult(
+            success=True,
+            payload=payload,
+            artifacts=artifacts_list,
+        )
+
+
 
         # Save orig if present
         processed_orig = None

@@ -17,7 +17,28 @@ def save_yaml(data, path):
         yaml.dump(data, f, sort_keys=False)
 
 def main():
-    parser = argparse.ArgumentParser(description="Prepare full evaluation templates for top N experiments")
+    examples = """
+Examples:
+  # 1. Just generate _full templates for the top 5 experiments:
+  python3 scripts/prepare_full_eval.py --project playground-series-s6e1 -n 5
+
+  # 2. Filter top experiments from a specific series (mask) and generate templates:
+  python3 scripts/prepare_full_eval.py --project playground-series-s6e1 --mask test_c_01_ -n 3
+
+  # 3. Generate and automatically add to queue for model training (Model + Preproc):
+  python3 scripts/prepare_full_eval.py --project playground-series-s6e1 -n 5 --enqueue
+
+  # 4. Generate and automatically add to queue for the WHOLE FLOW (Preproc + Model + Predict + Submit + Score):
+  python3 scripts/prepare_full_eval.py --project playground-series-s6e1 -n 5 --enqueue --module fetch-score
+
+  # 5. Run on a server where experiments are in a custom directory:
+  python3 scripts/prepare_full_eval.py --project playground-series-s6e1 --exp-dir /mnt/mlarena/my_custom_path
+    """
+    parser = argparse.ArgumentParser(
+        description="Prepare full evaluation templates for top N experiments",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=examples
+    )
     parser.add_argument("--project", required=True, help="Project name")
     parser.add_argument("-n", type=int, default=5, help="Number of top experiments to process")
     parser.add_argument("--mask", help="Filter templates by prefix (e.g., test_c_01_)")

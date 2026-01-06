@@ -238,12 +238,12 @@ class TaskQueue:
             row_styles=["", "on grey11"]
         )
         table.add_column("#", style="cyan", width=4)
-        table.add_column("Priority", width=8)
-        table.add_column("Status", width=8)
-        table.add_column("Module", width=8)
-        table.add_column("Template", width=20)
-        table.add_column("Options", width=30)
-        table.add_column("Experiment", style="dim", width=20)
+        table.add_column("Priority", justify="center")
+        table.add_column("Status", justify="center")
+        table.add_column("Module", justify="center")
+        table.add_column("Template", style="magenta")
+        table.add_column("Options")
+        table.add_column("Experiment", style="dim")
 
         # Sort by priority (ascending), then by ID (ascending)
         sorted_tasks = sorted(tasks, key=lambda t: (t["priority"], t["id"]))
@@ -299,10 +299,8 @@ class TaskQueue:
                     continue
                 options.append(part)
 
-            # Format options - each on new line if multiple
-            options_str = "\n".join(options[:3]) if options else "-"
-            if len(options) > 3:
-                options_str += "\n..."
+            # Format options - use space to save vertical space
+            options_str = " ".join(options) if options else "-"
 
             # Show experiment ID if available
             exp_id = task.get("experiment_id") or "-"

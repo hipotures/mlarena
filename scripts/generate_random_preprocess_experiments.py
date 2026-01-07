@@ -583,6 +583,14 @@ def _infer_variant_from_config(
 def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, Any]]) -> int:
     print(f"Starting Phase 2 (Fine-tuning) | Parents: {args.top_n} | Children per parent: {args.children}")
     
+    # Signature registry setup for Phase 2
+    preprocess_dir = project_root / "templates" / "preprocess"
+    registry_name = config.get("signature_registry", ".random_preprocess_signatures.json")
+    signature_path = preprocess_dir / registry_name if registry_name else None
+    used_signatures = set()
+    if signature_path:
+        used_signatures.update(_load_signature_registry(signature_path))
+
     # 1. Scan for Top N parents
     exp_dirs = [
         project_root / "experiments",
@@ -610,10 +618,6 @@ def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, 
                 prefix_filter = args.mask
                 if prefix_filter and not tmpl.startswith(prefix_filter):
                     continue
-                
-                # Check if baseline (shortest chain) - rough heuristic or skip
-                # For Phase 2, we just take top N by score. 
-                # Ideally, we should skip pure baselines if requested, but let's stick to score.
                 
                 candidates.append({"score": score, "template": tmpl, "exp_id": state.get("experiment_id")})
             except: pass
@@ -694,13 +698,22 @@ def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, 
             continue
 
         # Generate K children
-        for i in range(args.children):
+        attempts = 0
+        created_for_parent = 0
+        
+        while created_for_parent < args.children:
+            if attempts > config.get("max_unique_attempts", 200):
+                print(f"  [Warning] Max unique attempts reached for parent {parent_tmpl_name}")
+                break
+            
+            attempts += 1
+            
             # New naming convention: prefix + counter
             child_id = f"{prefix}{current_index:0{id_width}d}"
-            current_index += 1
             
             new_chain_names = ["mcts"] # Start with baseline
             child_modules_payloads = {}
+            child_modules_configs = {} # Need this for signature
             
             # Recreate chain with mutated parameters
             for pm in parent_modules:
@@ -708,7 +721,7 @@ def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, 
                 if not preproc_def: continue
                 
                 # Mutate: generate new payload using identified variant
-                payload, _ = _build_module_payload(
+                payload, sig_config = _build_module_payload(
                     preproc_def,
                     pm["variant"],
                     project_root,
@@ -719,6 +732,17 @@ def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, 
                 new_step_name = f"{child_id}-{pm['name']}"
                 new_chain_names.append(new_step_name)
                 child_modules_payloads[new_step_name] = payload
+                child_modules_configs[pm['name']] = sig_config
+
+            # Compute signature
+            signature = _compute_signature(["mcts"], child_modules_configs)
+            # Check uniqueness (force only applies to file overwriting, not logical duplicates)
+            if signature in used_signatures:
+                continue
+            
+            # It's unique! Proceed to save.
+            used_signatures.add(signature)
+            current_index += 1
 
             if not args.dry_run:
                 # Save child modules
@@ -737,11 +761,18 @@ def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, 
                 # Enqueue
                 cmd = f"model --model-template {child_id} --exp-id exp-{child_id} skip_submit=true skip_git=true"
                 if config.get("queue", {}).get("enable", True):
-                    tid = queue.add_task(command=cmd, priority=config.get("queue", {}).get("priority", 10))
+                    prio = config.get("queue", {}).get("priority")
+                    if prio is None: prio = 10
+                    tid = queue.add_task(command=cmd, priority=prio)
                     queue_ids.append(tid)
             
             print(f"  [Generated] {child_id}: model={child_id} parent={parent_tmpl_name}")
+            created_for_parent += 1
             generated_count += 1
+
+    # Save registry
+    if signature_path and not args.dry_run:
+        _save_signature_registry(signature_path, used_signatures)
             
     print(f"\nPhase 2 completed. Generated {generated_count} new experiments.")
     return 0

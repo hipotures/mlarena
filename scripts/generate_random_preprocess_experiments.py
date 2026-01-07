@@ -541,6 +541,212 @@ def _save_signature_registry(path: Path, signatures: set) -> None:
     path.write_text(json.dumps(payload, indent=2))
 
 
+def _infer_variant_from_config(
+    module_name: str,
+    module_config: Dict[str, Any],
+    preprocessors: List[Dict[str, Any]]
+) -> Dict[str, Any] | None:
+    """Infer which variant generated this module config."""
+    preproc_def = next((p for p in preprocessors if p["name"] == module_name), None)
+    if not preproc_def:
+        return None
+    
+    variants = preproc_def.get("variants", [])
+    if not variants:
+        return {"name": "default", "params": preproc_def.get("params", {})}
+
+    # Heuristic: Find variant where fixed/single-choice values match
+    for variant in variants:
+        match = True
+        params = variant.get("params", {})
+        for k, spec in params.items():
+            if k not in module_config:
+                continue
+            
+            # Check fixed constraints
+            if isinstance(spec, dict):
+                if spec.get("type") == "fixed":
+                    if module_config[k] != spec["value"]:
+                        match = False
+                        break
+                elif spec.get("type") == "choice" and len(spec.get("values", [])) == 1:
+                    if module_config[k] != spec["values"][0]:
+                        match = False
+                        break
+        
+        if match:
+            return variant
+            
+    # Fallback: return first variant or default
+    return variants[0]
+
+def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, Any]]) -> int:
+    print(f"Starting Phase 2 (Fine-tuning) | Parents: {args.top_n} | Children per parent: {args.children}")
+    
+    # 1. Scan for Top N parents
+    exp_dirs = [
+        project_root / "experiments",
+        Path("/mnt/mlarena") / "projects" / "kaggle" / config.get("project") / "experiments"
+    ]
+    
+    candidates = []
+    for d in exp_dirs:
+        if not d.exists(): continue
+        for state_path in d.glob("**/state.json"):
+            if "artifacts" in state_path.parts: continue
+            try:
+                with open(state_path) as f:
+                    state = json.load(f)
+                score = state.get("modules", {}).get("model", {}).get("payload", {}).get("local_cv_score")
+                if score is None: continue
+                
+                tmpl = state.get("modules", {}).get("model", {}).get("invocation", {}).get("model_template")
+                if not tmpl: continue
+                
+                # Exclude _full templates from being parents
+                if tmpl.endswith("_full"): continue
+                
+                # Filter by prefix/mask if provided (using --mask CLI arg)
+                prefix_filter = args.mask
+                if prefix_filter and not tmpl.startswith(prefix_filter):
+                    continue
+                
+                # Check if baseline (shortest chain) - rough heuristic or skip
+                # For Phase 2, we just take top N by score. 
+                # Ideally, we should skip pure baselines if requested, but let's stick to score.
+                
+                candidates.append({"score": score, "template": tmpl, "exp_id": state.get("experiment_id")})
+            except: pass
+            
+    candidates.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Deduplicate
+    unique_parents = []
+    seen = set()
+    for c in candidates:
+        if c['template'] not in seen:
+            unique_parents.append(c)
+            seen.add(c['template'])
+        if len(unique_parents) >= args.top_n: break
+        
+    print(f"Found {len(unique_parents)} unique parents:")
+    for p in unique_parents:
+        print(f"  - {p['template']} (CV: {p['score']:.5f})")
+
+    # 2. Generate Children
+    rng = random.Random(config.get("random_seed", 42) + 1000) # Offset seed for phase 2
+    generated_count = 0
+    queue_ids = []
+    
+    if config.get("queue", {}).get("enable", True) and not args.dry_run:
+        queue = TaskQueue(project_root)
+    
+    # Prepare counter
+    current_index = int(config.get("start_index", 1))
+    id_width = int(config.get("id_width", 4))
+    prefix = str(config.get("experiment_prefix", "exp"))
+    
+    template_cache = {}
+
+    for parent in unique_parents:
+        parent_tmpl_name = parent['template']
+        print(f"\nProcessing parent: {parent_tmpl_name}")
+        
+        # Load parent model template
+        try:
+            model_path = _resolve_template_path("model", parent_tmpl_name, project_root)
+            model_data = _load_yaml(model_path)
+            
+            # Load parent preprocess chain
+            pp_name = model_data.get("preprocess_template")
+            pp_path = _resolve_template_path("preprocess", pp_name, project_root)
+            pp_data = _load_yaml(pp_path)
+            chain = pp_data.get("chain", [])
+        except FileNotFoundError:
+            print(f"  [Skipped] Could not find templates for {parent_tmpl_name}")
+            continue
+
+        # Analyze chain modules
+        parent_modules = []
+        for step_name in chain:
+            if step_name == "mcts": continue # Skip baseline/static modules
+            
+            try:
+                step_path = _resolve_template_path("preprocess", step_name, project_root)
+                step_data = _load_yaml(step_path)
+                
+                module_name = step_data.get("module")
+                module_config = step_data.get("config", {})
+                
+                # Identify variant
+                variant = _infer_variant_from_config(module_name, module_config, preprocessors)
+                
+                parent_modules.append({
+                    "name": module_name,
+                    "variant": variant,
+                    "original_config": module_config
+                })
+            except Exception as e:
+                print(f"  [Warning] Failed to analyze step {step_name}: {e}")
+
+        if not parent_modules:
+            print("  [Skipped] No tunable modules found in chain (likely baseline)")
+            continue
+
+        # Generate K children
+        for i in range(args.children):
+            # New naming convention: prefix + counter
+            child_id = f"{prefix}{current_index:0{id_width}d}"
+            current_index += 1
+            
+            new_chain_names = ["mcts"] # Start with baseline
+            child_modules_payloads = {}
+            
+            # Recreate chain with mutated parameters
+            for pm in parent_modules:
+                preproc_def = next((p for p in preprocessors if p["name"] == pm["name"]), None)
+                if not preproc_def: continue
+                
+                # Mutate: generate new payload using identified variant
+                payload, _ = _build_module_payload(
+                    preproc_def,
+                    pm["variant"],
+                    project_root,
+                    template_cache,
+                    rng
+                )
+                
+                new_step_name = f"{child_id}-{pm['name']}"
+                new_chain_names.append(new_step_name)
+                child_modules_payloads[new_step_name] = payload
+
+            if not args.dry_run:
+                # Save child modules
+                for name, payload in child_modules_payloads.items():
+                    _save_yaml(project_root / "templates/preprocess" / f"{name}.yaml", payload)
+                
+                # Save child chain
+                _save_yaml(project_root / "templates/preprocess" / f"{child_id}.yaml", {"chain": new_chain_names})
+                
+                # Save child model
+                child_model = deepcopy(model_data)
+                child_model["preprocess_template"] = child_id
+                child_model["parent_experiment"] = parent_tmpl_name
+                _save_yaml(project_root / "templates/model" / f"{child_id}.yaml", child_model)
+                
+                # Enqueue
+                cmd = f"model --model-template {child_id} --exp-id exp-{child_id} skip_submit=true skip_git=true"
+                if config.get("queue", {}).get("enable", True):
+                    tid = queue.add_task(command=cmd, priority=config.get("queue", {}).get("priority", 10))
+                    queue_ids.append(tid)
+            
+            print(f"  [Generated] {child_id}: model={child_id} parent={parent_tmpl_name}")
+            generated_count += 1
+            
+    print(f"\nPhase 2 completed. Generated {generated_count} new experiments.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate random preprocess experiment templates")
     parser.add_argument(
@@ -566,6 +772,12 @@ def main() -> int:
     parser.add_argument("--auto_filter_by_eda", "--auto-filter-by-eda", "--auto-filter", action="store_true", default=None, help="Enable auto_filter_by_eda")
     parser.add_argument("--no_auto_filter", "--no-auto-filter", action="store_false", dest="auto_filter_by_eda", help="Disable auto_filter_by_eda")
     parser.add_argument("--eda_summary_path", "--eda-summary-path", "--eda-summary", help="Override eda_summary_path")
+    
+    # Phase 2 arguments
+    parser.add_argument("--phase", type=int, default=1, choices=[1, 2], help="Generation phase (1=Random, 2=Fine-tuning)")
+    parser.add_argument("--top_n", "--top-n", type=int, default=5, help="[Phase 2] Number of top experiments to use as parents")
+    parser.add_argument("--children", type=int, default=10, help="[Phase 2] Number of children to generate per parent")
+    parser.add_argument("--mask", help="[Phase 2] Filter parent templates by prefix (e.g., test_c_01_)")
 
     args = parser.parse_args()
 
@@ -596,6 +808,12 @@ def main() -> int:
     if not project_root.exists():
         print(f"Error: project not found: {project_root}")
         return 1
+
+    # Preprocessor registry setup (common for both phases)
+    preprocessors = list(config.get("preprocessors", []))
+
+    if args.phase == 2:
+        return run_phase_2(args, config, project_root, preprocessors)
 
     model_template_name = config.get("model_template")
     if not model_template_name:

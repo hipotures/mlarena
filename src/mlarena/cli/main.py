@@ -761,7 +761,20 @@ def main(argv: List[str] | None = None) -> int:
         # First override is a plain value (potential command)
         potential_command = overrides[0]
         # Check if it's a valid module or 'modules' command or 'queue' command
-        if potential_command in ("modules", "queue") or potential_command in ModuleRegistry.available():
+        potential_command = overrides[0]
+        
+        # Resolve aliases
+        if potential_command == "exp":
+            command = "experiments"
+            overrides.pop(0)
+            if "exp" in argv:
+                argv[argv.index("exp")] = "experiments"
+        elif potential_command == "sub":
+            command = "submissions"
+            overrides.pop(0)
+            if "sub" in argv:
+                argv[argv.index("sub")] = "submissions"
+        elif potential_command in ("modules", "queue") or potential_command in ModuleRegistry.available():
             command = overrides.pop(0)
         else:
             available = ", ".join(sorted(ModuleRegistry.available()))

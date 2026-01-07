@@ -3,18 +3,40 @@ import numpy as np
 from scipy import stats
 import argparse
 import os
+import subprocess
+from io import StringIO
 from pathlib import Path
 
-def analyze_correlation(project_path, prefix, show_plot=False):
-    csv_path = Path(project_path) / "my_submissions.csv"
-    if not csv_path.exists():
-        print(f"Error: File {csv_path} not found.")
+def analyze_correlation(project_name, prefix, show_plot=False):
+    print(f"Fetching submissions for competition: {project_name}...")
+    
+    # Run the kaggle CLI command directly to get the CSV output
+    try:
+        result = subprocess.run(
+            ["kaggle", "competitions", "submissions", project_name, "--csv"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        csv_data = result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Error running kaggle command: {e}")
+        print(f"Stderr: {e.stderr}")
         return
 
-    df = pd.read_csv(csv_path)
+    # Load the CSV data into pandas
+    try:
+        df = pd.read_csv(StringIO(csv_data))
+    except Exception as e:
+        print(f"Error parsing CSV data: {e}")
+        return
     
     data = []
     for _, row in df.iterrows():
+        # Check status if column exists
+        if 'status' in row and 'complete' not in str(row['status']).lower():
+            continue
+            
         desc = str(row['description'])
         parts = [p.strip() for p in desc.split('|')]
         
@@ -25,11 +47,13 @@ def analyze_correlation(project_path, prefix, show_plot=False):
         try:
             cv_score = abs(float(parts[0]))
             model_template = parts[3]
+            
+            # Use publicScore from CSV
+            if 'publicScore' not in row or pd.isna(row['publicScore']):
+                continue
+                
             public_score = float(row['publicScore'])
             
-            if pd.isna(public_score):
-                continue
-
             if model_template.startswith(prefix):
                 data.append({
                     'template': model_template,
@@ -103,7 +127,6 @@ def analyze_correlation(project_path, prefix, show_plot=False):
             print(f"Plot saved as: {plot_name}")
             
             if show_plot:
-                import subprocess
                 try:
                     subprocess.run(["kitten", "icat", plot_name])
                 except Exception as e:
@@ -124,18 +147,15 @@ Examples of usage:
 
   # Analyze test_02_ models without showing the plot
   python3 scripts/analyze_correlation.py -p playground-series-s6e1 --prefix test_02_
-
-  # Use a different project folder
-  python3 scripts/analyze_correlation.py -p titanic --prefix baseline_
         """
     )
-    parser.add_argument("-p", "--project", required=True, help="Project name (folder in projects/kaggle/)")
+    parser.add_argument("-p", "--project", required=True, help="Competition slug (e.g. playground-series-s6e1)")
     parser.add_argument("--prefix", required=True, help="Template prefix to filter (e.g., 'test_c_')")
     parser.add_argument("--show", action="store_true", help="Show plot in terminal using kitty graphics protocol")
     args = parser.parse_args()
     
-    project_dir = Path("projects/kaggle") / args.project
-    analyze_correlation(project_dir, args.prefix, show_plot=args.show)
+    # args.project is treated as the competition slug
+    analyze_correlation(args.project, args.prefix, show_plot=args.show)
 
 if __name__ == "__main__":
     main()

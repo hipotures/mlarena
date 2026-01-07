@@ -778,6 +778,9 @@ def main() -> int:
     parser.add_argument("--top_n", "--top-n", type=int, default=5, help="[Phase 2] Number of top experiments to use as parents")
     parser.add_argument("--children", type=int, default=10, help="[Phase 2] Number of children to generate per parent")
     parser.add_argument("--mask", help="[Phase 2] Filter parent templates by prefix (e.g., test_c_01_)")
+    
+    # Queue control
+    parser.add_argument("--enqueue", action="store_true", help="Force enqueue generated tasks")
 
     args = parser.parse_args()
 
@@ -786,6 +789,15 @@ def main() -> int:
 
     # Apply overrides
     if args.project: config["project"] = args.project
+    
+    # Queue logic: Default to FALSE. Only enable if --enqueue is explicit.
+    if "queue" not in config: config["queue"] = {}
+    
+    if args.enqueue:
+        config["queue"]["enable"] = True
+    else:
+        config["queue"]["enable"] = False # Default disabled
+        
     if args.prefix: config["experiment_prefix"] = args.prefix
     if args.start_index is not None: config["start_index"] = args.start_index
     if args.id_width is not None: config["id_width"] = args.id_width

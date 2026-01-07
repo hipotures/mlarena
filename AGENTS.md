@@ -44,8 +44,8 @@
 2.  **Create Templates**: Generate YAML files in `projects/kaggle/<proj>/templates/model/` and `preprocess/`.
     *   *Naming*: `run1-lgbm-imputed.yaml`, `run2-xgb-scaled.yaml`.
 3.  **Queue Tasks**: Use the Task Queue to schedule them.
-    *   `mla queue add -p <proj> --model-template run1-lgbm-imputed`
-    *   `mla queue add -p <proj> --model-template run2-xgb-scaled`
+    *   `python scripts/mla.py queue add -p <proj> --model-template run1-lgbm-imputed`
+    *   `python scripts/mla.py queue add -p <proj> --model-template run2-xgb-scaled`
 
 ### Task 2: "Fix bug in submission validation"
 **Goal**: Submission fails because column order is wrong.

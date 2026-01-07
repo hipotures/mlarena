@@ -809,6 +809,7 @@ def main(argv: List[str] | None = None) -> int:
 
     # Handle 'queue' command - delegate to standalone script
     if command == "queue":
+        # Note: Task Queue manages computation. For submissions, see scripts/submission_queue.py
         # Build arguments for task_queue.py (expects --project before subcommand)
         # Format: task_queue.py --project PROJECT subcommand [args]
         queue_args = ["--project", project] + [arg for arg in sys.argv[1:] if arg != "queue" and arg not in ["-p", "--project", project]]

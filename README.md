@@ -31,6 +31,13 @@ mkdir -p ~/.kaggle
 chmod 600 ~/.kaggle/kaggle.json
 ```
 
+### Optional: Setup 'mla' Alias
+
+To use the shorter `mla` command as seen in some guides:
+```bash
+alias mla="uv run python scripts/mla.py"
+```
+
 ### 2. Auto-Flow (Recommended)
 
 The recommended way to run a full experiment is using the auto-flow, which orchestrates the preprocessing and modeling pipeline.
@@ -213,6 +220,7 @@ uv run python scripts/mla.py model --project <competition-slug> model_template=h
 -   `--exp-id <id>` or `-e <id>`: Resumes or targets an existing experiment.
 -   `--profile <name>` or `-s <name>`: Loads a config profile (e.g., `smoke`, `dev`).
 -   `--force` or `-f`: Forces re-execution of completed modules.
+-   `model.mla_retention=true`: Clean up intermediate AutoGluon models after training.
 
 ### Configuration Overrides
 

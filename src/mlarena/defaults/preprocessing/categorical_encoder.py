@@ -40,10 +40,15 @@ def _read_eda_metadata(project_root: Path) -> Dict[str, Any]:
     eda_summary_path = project_root / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
 
     if not eda_summary_path.exists():
-        raise FileNotFoundError(
-            f"EDA summary not found: {eda_summary_path}\n"
-            f"Run: uv run python scripts/mla.py eda --project <project-name> --force"
-        )
+        # Fallback to current working directory (useful for local runs)
+        fallback_path = Path("experiments") / "eda" / "artifacts" / "eda" / "eda_summary.json"
+        if fallback_path.exists():
+            eda_summary_path = fallback_path
+        else:
+            raise FileNotFoundError(
+                f"EDA summary not found: {eda_summary_path} (Fallback: {fallback_path.absolute()})\n"
+                f"Run: uv run python scripts/mla.py eda --project <project-name> --force"
+            )
 
     with open(eda_summary_path) as f:
         return json.load(f)

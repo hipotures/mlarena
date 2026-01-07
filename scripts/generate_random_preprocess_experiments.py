@@ -1094,7 +1094,7 @@ def main() -> int:
                 module_path = preprocess_dir / f"{template_name}.yaml"
                 _save_yaml(module_path, payload)
 
-        command = f"model --model-template {exp_id} --exp-id exp-{exp_id} skip_submit=true skip_git=true"
+        command = f"model --model-template {exp_id} --exp-id exp-{exp_id} skip_submit=true skip_git=true mla_retention=true"
         generated.append(
             {
                 "exp_id": exp_id,

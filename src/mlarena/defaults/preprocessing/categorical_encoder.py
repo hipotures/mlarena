@@ -40,13 +40,26 @@ def _read_eda_metadata(project_root: Path) -> Dict[str, Any]:
     eda_summary_path = project_root / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
 
     if not eda_summary_path.exists():
-        # Fallback to current working directory (useful for local runs)
+        # Fallback 1: Current working directory (if mla is run from project root)
         fallback_path = Path("experiments") / "eda" / "artifacts" / "eda" / "eda_summary.json"
+        
+        if not fallback_path.exists():
+            # Fallback 2: Check in common project location relative to repo root
+            # This handles runs from repo root
+            potential_project_dirs = list(Path("projects/kaggle").glob("*"))
+            for p_dir in potential_project_dirs:
+                p_path = p_dir / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
+                if p_path.exists() and project_root.name in str(p_path):
+                    fallback_path = p_path
+                    break
+
         if fallback_path.exists():
+            console.print(f"  [yellow]⚠[/yellow] Path not found: {eda_summary_path}")
+            console.print(f"  [green]✓[/green] Fallback to: {fallback_path}")
             eda_summary_path = fallback_path
         else:
             raise FileNotFoundError(
-                f"EDA summary not found: {eda_summary_path} (Fallback: {fallback_path.absolute()})\n"
+                f"EDA summary not found: {eda_summary_path}\n"
                 f"Run: uv run python scripts/mla.py eda --project <project-name> --force"
             )
 

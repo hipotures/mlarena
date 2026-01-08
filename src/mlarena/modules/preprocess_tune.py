@@ -793,8 +793,29 @@ class PreprocessTuneModule(BaseModule):
             load_if_exists=True,
             sampler=sampler,
         )
+        stop_state = {"requested": False}
+        prev_sigint = signal.getsignal(signal.SIGINT)
+        prev_sigterm = signal.getsignal(signal.SIGTERM)
+
+        def _handle_stop(signum, frame):  # type: ignore[override]
+            if stop_state["requested"]:
+                raise KeyboardInterrupt
+            stop_state["requested"] = True
+            try:
+                study.stop()
+            except Exception:
+                pass
+            console.print(
+                "[yellow]⚠ Stop requested (Ctrl-C). No new trials will be started; waiting for running trials to finish.[/yellow]"
+            )
+            console.print("[yellow]⚠ Press Ctrl-C again to force stop.[/yellow]")
+
+        signal.signal(signal.SIGINT, _handle_stop)
+        signal.signal(signal.SIGTERM, _handle_stop)
 
         def objective(trial: optuna.Trial) -> float:
+            if stop_state["requested"]:
+                raise optuna.TrialPruned("stop requested")
             if trial.number == 0:
                 pipeline, meta = _build_baseline_pipeline(
                     super_chain,
@@ -968,13 +989,17 @@ class PreprocessTuneModule(BaseModule):
 
         if optuna_workers < 1:
             optuna_workers = 1
-        study.optimize(
-            objective,
-            n_trials=n_trials,
-            n_jobs=optuna_workers,
-            show_progress_bar=False,
-            callbacks=[_on_trial_complete],
-        )
+        try:
+            study.optimize(
+                objective,
+                n_trials=n_trials,
+                n_jobs=optuna_workers,
+                show_progress_bar=False,
+                callbacks=[_on_trial_complete],
+            )
+        finally:
+            signal.signal(signal.SIGINT, prev_sigint)
+            signal.signal(signal.SIGTERM, prev_sigterm)
 
         best_payload = {}
         try:

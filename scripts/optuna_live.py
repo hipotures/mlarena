@@ -81,10 +81,18 @@ def _duration_str(start: Optional[str], end: Optional[str]) -> str:
     dt_end = _parse_dt(end)
     if not dt_start:
         return "-"
+    
+    is_running = False
     if not dt_end:
-        return "running"
+        dt_end = datetime.now()
+        is_running = True
+
     delta = dt_end - dt_start
     seconds = max(0, int(delta.total_seconds()))
+    
+    if is_running:
+        return f"{seconds}s"
+
     if seconds < 60:
         return f"{seconds}s"
     minutes = seconds // 60

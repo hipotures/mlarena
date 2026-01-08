@@ -91,8 +91,8 @@ class TasksView(Container):
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="toolbar"):
-            yield Button("Status: all", id="btn-status-cycle")
-            yield Button("Mod: all", id="btn-module-cycle")
+            yield Button("OK: ∗", id="btn-status-cycle")
+            yield Button("Mod: ∗", id="btn-module-cycle")
             yield Static("", classes="spacer")
             yield Button("Previous", id="btn-prev")
             yield Label("Page 1/1", id="page-label")
@@ -258,13 +258,15 @@ class TaskQueueApp(App):
     }
 
     #btn-status-cycle {
-        width: 20;
+        width: auto;
+        min-width: 8;
         background: $primary;
         color: white;
     }
 
     #btn-module-cycle {
-        width: 20;
+        width: auto;
+        min-width: 8;
         background: $primary;
         color: white;
     }
@@ -324,6 +326,7 @@ class TaskQueueApp(App):
         self.log_offset = 0
         self.auto_run = auto_run
         self.is_running_queue = False
+        self.exp_info_cache = {} # Cache for state.json info: {exp_id: (mtime, mod_name)}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -435,6 +438,70 @@ class TaskQueueApp(App):
              if self.current_log_file:
                  self.query_one("#log-status", Label).update("Task finished. Waiting for next...")
 
+    def _get_live_module_info(self, exp_id: str) -> str:
+        """
+        Get the currently active or last completed module from state.json.
+        Uses pipeline-aware ordering to ensure logical progression display.
+        """
+        import os
+        state_path = self.project_root / "experiments" / exp_id / "state.json"
+        if not state_path.exists():
+            return None
+
+        # Logical order of ML pipeline
+        ORDER = {
+            "init": 1, "eda": 2, "preprocess": 3, "model": 4, 
+            "predict": 5, "submit": 6, "fetch-score": 7, "fetch_score": 7
+        }
+
+        try:
+            mtime = os.path.getmtime(state_path)
+            cached_mtime, cached_mod = self.exp_info_cache.get(exp_id, (0, None))
+
+            if mtime <= cached_mtime:
+                return cached_mod
+
+            with open(state_path) as f:
+                data = json.load(f)
+            
+            modules = data.get("modules", {})
+            active_mod = None
+            max_rank = -1
+            
+            # 1. First priority: Any module that is currently 'running'
+            for name, mod in modules.items():
+                if mod.get("status") == "running":
+                    # If multiple (unlikely in sequential), take the one further in pipeline
+                    rank = ORDER.get(name, 0)
+                    if rank >= max_rank:
+                        max_rank = rank
+                        active_mod = name
+            
+            # 2. Second priority: If nothing running, find the furthest COMPLETED module
+            if not active_mod:
+                for name, mod in modules.items():
+                    if mod.get("status") == "completed":
+                        rank = ORDER.get(name, 0)
+                        if rank > max_rank:
+                            max_rank = rank
+                            active_mod = name
+            
+            # 3. Fallback: Last updated (existing logic)
+            if not active_mod:
+                last_ts = None
+                for name, mod in modules.items():
+                    ts = mod.get("updated_at") or mod.get("finished_at") or mod.get("started_at")
+                    if ts and (last_ts is None or ts > last_ts):
+                        last_ts = ts
+                        active_mod = name
+            
+            if active_mod:
+                self.exp_info_cache[exp_id] = (mtime, active_mod)
+                return active_mod
+        except:
+            pass
+        return None
+
     def update_tasks_table(self, tasks: list) -> None:
         table = self.query_one(DataTable)
         view = self.query_one(TasksView)
@@ -498,10 +565,13 @@ class TaskQueueApp(App):
         # DYNAMIC SORTING
         if view.sort_column == "default":
             def sort_key(t):
-                s = t["status"]
+                s = str(t.get("status") or "")
+                prio = t.get("priority")
+                if prio is None: prio = 10
+                
                 if s == "running": return (0, 0)
-                if s == "pending": return (1, t["priority"])
-                return (2, -t["id"]) # Descending ID for others
+                if s == "pending": return (1, int(prio))
+                return (2, -int(t.get("id") or 0)) # Descending ID for others
             filtered.sort(key=sort_key)
         else:
             def _get_cv(t):
@@ -519,19 +589,23 @@ class TaskQueueApp(App):
 
             def _get_sort_val(t):
                 col = view.sort_column
-                if col == "ID": return int(t["id"])
-                if col == "Prio": return int(t["priority"])
-                if col == "OK": return t["status"]
-                if col == "Mod": return t["command"]
+                if col == "ID": return int(t.get("id") or 0)
+                if col == "Prio": 
+                    p = t.get("priority")
+                    return int(p) if p is not None else 10
+                if col == "OK": return str(t.get("status") or "")
+                if col == "Mod": return str(t.get("command") or "")
                 if col == "CV": return _get_cv(t)
-                if col == "Template": return t["command"] # Extracting template would be better but complex here
-                if col == "Added": return t["added_at"]
+                if col == "Template": return str(t.get("command") or "")
+                if col == "Added": return str(t.get("added_at") or "")
                 if col == "Duration": 
-                    if t["started_at"] and t["finished_at"]:
-                        try: return (datetime.strptime(t["finished_at"], "%Y-%m-%d %H:%M:%S") - 
-                                      datetime.strptime(t["started_at"], "%Y-%m-%d %H:%M:%S")).total_seconds()
+                    start = t.get("started_at")
+                    end = t.get("finished_at")
+                    if start and end:
+                        try: return (datetime.strptime(end, "%Y-%m-%d %H:%M:%S") - 
+                                      datetime.strptime(start, "%Y-%m-%d %H:%M:%S")).total_seconds()
                         except: pass
-                    return 0
+                    return 0.0
                 return 0
 
             filtered.sort(key=_get_sort_val, reverse=view.sort_reverse)
@@ -612,29 +686,8 @@ class TaskQueueApp(App):
                          except IndexError:
                              pass
             
-            module_key = module_name.lower().replace("_", "-")
-            module_icon = icon_map.get(module_key, "📄")
-
-            duration = "-"
-            if t["started_at"] and t["finished_at"]:
-                try:
-                    start_dt = datetime.strptime(t["started_at"], "%Y-%m-%d %H:%M:%S")
-                    end_dt = datetime.strptime(t["finished_at"], "%Y-%m-%d %H:%M:%S")
-                    duration = str(end_dt - start_dt)
-                except ValueError:
-                    pass
-            
-            status_map = {
-                "running": ("[blue]⟳[/blue]", "bold blue"),
-                "completed": ("[green]✓[/green]", "green"),
-                "failed": ("[red]✗[/red]", "bold red"),
-                "pending": ("[yellow]•[/yellow]", "yellow")
-            }
-            status_icon, status_style = status_map.get(t["status"], (t["status"], "white"))
-
-            # Robust CV/Public score discovery
+            # Robust CV/Public score discovery AND Live Module tracking
             cv_score = "-"
-            pub_score = None
             exp_id = t.get("experiment_id")
             
             # 1. Discovery: If exp_id missing, try to find it in command or LOG file
@@ -648,16 +701,26 @@ class TaskQueueApp(App):
                     log_path = self.project_root / t.get("log_file", "")
                     if log_path.exists():
                         try:
-                            log_tail = log_path.read_text()
+                            # Read only the last part of the log for speed
+                            with open(log_path, "rb") as f:
+                                f.seek(0, 2)
+                                size = f.tell()
+                                f.seek(max(0, size - 4096))
+                                log_tail = f.read().decode('utf-8', errors='ignore')
                             match = re.search(r'(exp-\d{8}-\d{6})', log_tail)
                             if match:
                                 exp_id = match.group(1)
                         except: pass
 
+            live_mod = None
             if exp_id:
+                # Try to get currently active module from state.json
+                live_mod = self._get_live_module_info(exp_id)
+
                 state_path = self.project_root / "experiments" / exp_id / "state.json"
                 if state_path.exists():
                     try:
+                        # Use already cached data if possible, or read for score
                         with open(state_path) as f:
                             state_data = json.load(f)
                         
@@ -679,7 +742,27 @@ class TaskQueueApp(App):
                             cv_score = f"{abs(score_val):.4f}"
                     except: pass
             
-            # Display only CV score
+            display_mod_name = live_mod if live_mod else module_name
+            module_key = display_mod_name.lower().replace("_", "-")
+            module_icon = icon_map.get(module_key, "📄")
+
+            duration = "-"
+            if t["started_at"] and t["finished_at"]:
+                try:
+                    start_dt = datetime.strptime(t["started_at"], "%Y-%m-%d %H:%M:%S")
+                    end_dt = datetime.strptime(t["finished_at"], "%Y-%m-%d %H:%M:%S")
+                    duration = str(end_dt - start_dt)
+                except ValueError:
+                    pass
+            
+            status_map = {
+                "running": ("[blue]⟳[/blue]", "bold blue"),
+                "completed": ("[green]✓[/green]", "green"),
+                "failed": ("[red]✗[/red]", "bold red"),
+                "pending": ("[yellow]•[/yellow]", "yellow")
+            }
+            status_icon, status_style = status_map.get(t["status"], (t["status"], "white"))
+            
             display_score = cv_score
             
             # Format log file cell - hide for pending tasks
@@ -786,18 +869,23 @@ class TaskQueueApp(App):
         view = self.query_one(TasksView)
         if event.button.id == "btn-status-cycle":
             statuses = ["all", "pending", "running", "completed", "failed"]
+            status_icons = {"all": "∗", "pending": "•", "running": "⟳", "completed": "✓", "failed": "✗"}
             current = view.status_filter
             next_idx = (statuses.index(current) + 1) % len(statuses)
             view.status_filter = statuses[next_idx]
-            event.button.label = f"Status: {view.status_filter}"
+            event.button.label = f"OK: {status_icons[view.status_filter]}"
             view.current_page = 1
             self.refresh_data()
         elif event.button.id == "btn-module-cycle":
             modules = ["all", "init", "eda", "preprocess", "model", "predict", "submit", "fetch-score"]
+            module_icons = {
+                "all": "∗", "init": "⏻", "eda": "🔍", "preprocess": "🔧", 
+                "model": "🧠", "predict": "🎯", "submit": "📨", "fetch-score": "📈"
+            }
             current = view.module_filter
             next_idx = (modules.index(current) + 1) % len(modules)
             view.module_filter = modules[next_idx]
-            event.button.label = f"Mod: {view.module_filter}"
+            event.button.label = f"Mod: {module_icons[view.module_filter]}"
             view.current_page = 1
             self.refresh_data()
         elif event.button.id == "btn-prev":

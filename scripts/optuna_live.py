@@ -300,9 +300,9 @@ def _render_dashboard(
 
     if error:
         body = Panel(Text(error, style="red"), title="Error", border_style="red")
-        return Panel(Group(header, body), border_style="bright_blue")
+        return Panel(Group(header, body), border_style="bright_blue", expand=False)
 
-    studies_table = Table(title="Studies", box=box.SIMPLE, expand=True)
+    studies_table = Table(title="Studies", box=box.SIMPLE, expand=False)
     studies_table.add_column("Name", style="cyan", no_wrap=True)
     studies_table.add_column("Dir", style="magenta", width=6)
     studies_table.add_column("Trials", justify="right")
@@ -359,20 +359,29 @@ def _render_dashboard(
                 return 0.0
 
         completed_trials = sorted(completed_trials, key=_val_sort_key, reverse=is_max)[:10]
+        
+        # Always try to find trial #0 and add it if not already in top 10
+        trial_zero = next((t for t in all_trials if t.get("number") == 0 and _normalize_state(t.get("state")) == 1), None)
+        if trial_zero and not any(t.get("number") == 0 for t in completed_trials):
+            completed_trials.append(trial_zero)
 
     def _make_trial_table(title: str, trials: List[Dict[str, Any]], color: str = "yellow") -> Table:
-        table = Table(title=title, box=box.SIMPLE, expand=True)
+        table = Table(title=title, box=box.SIMPLE, expand=False)
         table.add_column("#", justify="right", width=6, no_wrap=True)
         table.add_column("State", style=color, width=10, no_wrap=True)
-        table.add_column("Value", justify="right", ratio=1) # Proportional expansion
+        table.add_column("Value", justify="right", width=8, no_wrap=True)
         table.add_column("Duration", justify="right", width=12, no_wrap=True)
         table.add_column("Start", style="dim", width=20, no_wrap=True)
         return table
 
     def _fill_rows(table: Table, trials: List[Dict[str, Any]]):
         for t in trials:
+            is_baseline = t.get("number") == 0
+            cell_style = "reverse" if is_baseline else None
+            
             state_key = _normalize_state(t.get("state"))
             state_name = STATE_MAP.get(state_key, str(t.get("state")))
+            
             val = t.get("value")
             if val is None:
                 val_str = "-"
@@ -384,6 +393,10 @@ def _render_dashboard(
                         val_str = f"{float(val):.5f}"
                 except:
                     val_str = str(val)
+
+            num_renderable = str(t.get("number", "-"))
+            state_renderable = state_name
+            val_renderable = Text(val_str, style="reverse" if is_baseline else None)
             
             # Truncate microseconds for cleaner alignment
             start_time = str(t.get("datetime_start") or "-")
@@ -391,11 +404,11 @@ def _render_dashboard(
                 start_time = start_time[:19]
 
             table.add_row(
-                str(t.get("number", "-")),
-                state_name,
-                val_str,
+                num_renderable,
+                state_renderable,
+                val_renderable,
                 _duration_str(t.get("datetime_start"), t.get("datetime_complete")),
-                start_time,
+                start_time
             )
 
     running_table = _make_trial_table("Running Trials (max 8)", running_trials, "cyan")
@@ -405,7 +418,7 @@ def _render_dashboard(
     _fill_rows(top_table, completed_trials)
 
     group = Group(header, studies_table, running_table, top_table)
-    return Panel(group, border_style="bright_blue")
+    return Panel(group, border_style="bright_blue", expand=False)
 
 
 def main() -> int:

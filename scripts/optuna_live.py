@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import select
 import sqlite3
 import sys
 import time
@@ -17,6 +18,13 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+
+try:
+    import termios
+    import tty
+except ImportError:
+    termios = None
+    tty = None
 
 STATE_MAP = {
     0: "RUNNING",
@@ -155,11 +163,11 @@ def _fetch_studies(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
             if has_trial_values:
                 order = "DESC" if directions and directions[0] == 1 else "ASC"
                 sql = (
-                    "SELECT t.number AS number, tv.value AS value "
+                    "SELECT t.number AS number, ABS(tv.value) AS value "
                     "FROM trials t "
                     "JOIN trial_values tv ON tv.trial_id = t.trial_id "
                     "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
-                    f"ORDER BY tv.value {order} "
+                    f"ORDER BY ABS(tv.value) {order} "
                     "LIMIT 1"
                 )
                 best_row = conn.execute(sql, (study_id,)).fetchone()
@@ -169,9 +177,9 @@ def _fetch_studies(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
             elif has_value_col:
                 order = "DESC" if directions and directions[0] == 1 else "ASC"
                 sql = (
-                    "SELECT number, value FROM trials "
+                    "SELECT number, ABS(value) AS value FROM trials "
                     "WHERE study_id=? AND (state=1 OR UPPER(CAST(state AS TEXT))='COMPLETE') "
-                    f"ORDER BY value {order} "
+                    f"ORDER BY ABS(value) {order} "
                     "LIMIT 1"
                 )
                 best_row = conn.execute(sql, (study_id,)).fetchone()
@@ -207,7 +215,7 @@ def _fetch_recent_trials(
     if has_trial_values:
         sql = (
             "SELECT t.number, t.state, t.datetime_start, t.datetime_complete, "
-            "GROUP_CONCAT(tv.value) AS values_concat "
+            "GROUP_CONCAT(ABS(tv.value)) AS values_concat "
             "FROM trials t "
             "LEFT JOIN trial_values tv ON tv.trial_id = t.trial_id "
             "WHERE t.study_id=? "
@@ -231,7 +239,7 @@ def _fetch_recent_trials(
 
     if has_value_col:
         sql = (
-            "SELECT number, state, datetime_start, datetime_complete, value "
+            "SELECT number, state, datetime_start, datetime_complete, ABS(value) AS value "
             "FROM trials "
             "WHERE study_id=? "
             "ORDER BY number DESC "
@@ -271,10 +279,11 @@ def _choose_study(studies: List[Dict[str, Any]], name: Optional[str]) -> Optiona
 def _render_dashboard(
     db_path: Path,
     studies: List[Dict[str, Any]],
-    recent_trials: List[Dict[str, Any]],
+    all_trials: List[Dict[str, Any]],
     *,
     interval: int,
     study_filter: Optional[str],
+    active_study: Optional[Dict[str, Any]] = None,
     error: Optional[str],
 ) -> Panel:
     header = Text()
@@ -286,6 +295,8 @@ def _render_dashboard(
     header.append(f"  interval={interval}s", style="dim")
     if study_filter:
         header.append(f"  study={study_filter}", style="dim")
+    header.append("  ")
+    header.append("[q/Esc/Ctrl-C to quit]", style="bold magenta")
 
     if error:
         body = Panel(Text(error, style="red"), title="Error", border_style="red")
@@ -305,7 +316,7 @@ def _render_dashboard(
     for s in studies:
         counts = s["counts"]
         total = sum(counts.values())
-        best_val = "-" if s["best_value"] is None else f"{s['best_value']:.6g}"
+        best_val = "-" if s["best_value"] is None else f"{s['best_value']:.5f}"
         best_trial = "-" if s["best_trial"] is None else str(s["best_trial"])
         studies_table.add_row(
             s["name"],
@@ -319,34 +330,81 @@ def _render_dashboard(
             best_trial,
         )
 
-    trials_table = Table(title="Recent Trials", box=box.SIMPLE, expand=True)
-    trials_table.add_column("#", justify="right")
-    trials_table.add_column("State", style="yellow")
-    trials_table.add_column("Value", justify="right")
-    trials_table.add_column("Duration", justify="right")
-    trials_table.add_column("Start", style="dim")
-    trials_table.add_column("End", style="dim")
-
-    for t in recent_trials:
+    # Filter and Sort Trials
+    running_trials = []
+    completed_trials = []
+    
+    for t in all_trials:
         state_key = _normalize_state(t.get("state"))
-        state_name = STATE_MAP.get(state_key, str(t.get("state")))
-        val = t.get("value")
-        if isinstance(val, float):
-            val_str = f"{val:.6g}"
-        elif val is None:
-            val_str = "-"
-        else:
-            val_str = str(val)
-        trials_table.add_row(
-            str(t.get("number", "-")),
-            state_name,
-            val_str,
-            _duration_str(t.get("datetime_start"), t.get("datetime_complete")),
-            str(t.get("datetime_start") or "-"),
-            str(t.get("datetime_complete") or "-"),
-        )
+        if state_key == 0: # RUNNING
+            running_trials.append(t)
+        elif state_key == 1: # COMPLETE
+            completed_trials.append(t)
 
-    group = Group(header, studies_table, trials_table)
+    # Sort Running by number DESC, limit 8
+    running_trials = sorted(running_trials, key=lambda x: x.get("number", 0), reverse=True)[:8]
+
+    # Sort Top by value
+    if active_study:
+        direction = active_study.get("direction", "min")
+        is_max = "max" in direction.lower()
+
+        def _val_sort_key(t: Dict[str, Any]) -> float:
+            v = t.get("value")
+            try:
+                if isinstance(v, str) and "," in v:
+                    return float(v.split(",")[0])
+                return float(v)
+            except (ValueError, TypeError):
+                return 0.0
+
+        completed_trials = sorted(completed_trials, key=_val_sort_key, reverse=is_max)[:10]
+
+    def _make_trial_table(title: str, trials: List[Dict[str, Any]], color: str = "yellow") -> Table:
+        table = Table(title=title, box=box.SIMPLE, expand=True)
+        table.add_column("#", justify="right", width=6, no_wrap=True)
+        table.add_column("State", style=color, width=10, no_wrap=True)
+        table.add_column("Value", justify="right", ratio=1) # Proportional expansion
+        table.add_column("Duration", justify="right", width=12, no_wrap=True)
+        table.add_column("Start", style="dim", width=20, no_wrap=True)
+        return table
+
+    def _fill_rows(table: Table, trials: List[Dict[str, Any]]):
+        for t in trials:
+            state_key = _normalize_state(t.get("state"))
+            state_name = STATE_MAP.get(state_key, str(t.get("state")))
+            val = t.get("value")
+            if val is None:
+                val_str = "-"
+            else:
+                try:
+                    if isinstance(val, str) and "," in val:
+                        val_str = ",".join(f"{float(x):.5f}" for x in val.split(","))
+                    else:
+                        val_str = f"{float(val):.5f}"
+                except:
+                    val_str = str(val)
+            
+            # Truncate microseconds for cleaner alignment
+            start_time = str(t.get("datetime_start") or "-")
+            if len(start_time) > 19:
+                start_time = start_time[:19]
+
+            table.add_row(
+                str(t.get("number", "-")),
+                state_name,
+                val_str,
+                _duration_str(t.get("datetime_start"), t.get("datetime_complete")),
+                start_time,
+            )
+
+    running_table = _make_trial_table("Running Trials (max 8)", running_trials, "cyan")
+    _fill_rows(running_table, running_trials)
+
+    top_table = _make_trial_table("Top Trials (max 10)", completed_trials, "green")
+    _fill_rows(top_table, completed_trials)
+
+    group = Group(header, studies_table, running_table, top_table)
     return Panel(group, border_style="bright_blue")
 
 
@@ -355,7 +413,7 @@ def main() -> int:
     parser.add_argument("--db", required=True, help="Path to Optuna sqlite file")
     parser.add_argument("--interval", type=int, default=5, help="Refresh interval in seconds")
     parser.add_argument("--study", default=None, help="Study name to focus on")
-    parser.add_argument("--limit", type=int, default=10, help="Number of recent trials to show")
+    parser.add_argument("--limit", type=int, default=100, help="Trial buffer size for sorting")
     args = parser.parse_args()
 
     db_path = Path(args.db).expanduser()
@@ -365,34 +423,66 @@ def main() -> int:
 
     console = Console()
 
-    def _poll() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
+    def _poll() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Optional[Dict[str, Any]], Optional[str]]:
         try:
             with _connect_read_only(db_path) as conn:
                 studies = _fetch_studies(conn)
                 study = _choose_study(studies, args.study)
-                recent = []
+                all_trials = []
                 if study:
-                    recent = _fetch_recent_trials(conn, study["study_id"], args.limit)
-                return studies, recent, None
+                    all_trials = _fetch_recent_trials(conn, study["study_id"], args.limit)
+                return studies, all_trials, study, None
         except sqlite3.OperationalError as exc:
-            return [], [], f"SQLite error: {exc}"
+            return [], [], None, f"SQLite error: {exc}"
         except Exception as exc:
-            return [], [], f"Error: {exc}"
+            return [], [], None, f"Error: {exc}"
 
-    with Live(console=console, refresh_per_second=4) as live:
-        while True:
-            studies, recent, err = _poll()
-            live.update(
-                _render_dashboard(
-                    db_path,
-                    studies,
-                    recent,
-                    interval=args.interval,
-                    study_filter=args.study,
-                    error=err,
+    def _wait_for_exit(timeout: int) -> bool:
+        """Returns True if exit key (q/Esc) pressed."""
+        if not sys.stdin.isatty():
+            time.sleep(timeout)
+            return False
+        
+        start = time.time()
+        while time.time() - start < timeout:
+            dr, _, _ = select.select([sys.stdin], [], [], 0.1)
+            if dr:
+                key = sys.stdin.read(1)
+                if key.lower() == "q" or key == "\x1b":
+                    return True
+            # Short sleep to prevent busy waiting if select returns instantly for some reason
+            time.sleep(0.01)
+        return False
+
+    old_settings = None
+    if sys.stdin.isatty() and termios and tty:
+        old_settings = termios.tcgetattr(sys.stdin)
+        tty.setcbreak(sys.stdin.fileno())
+
+    try:
+        with Live(console=console, refresh_per_second=4) as live:
+            while True:
+                studies, all_trials, active_study, err = _poll()
+                live.update(
+                    _render_dashboard(
+                        db_path,
+                        studies,
+                        all_trials,
+                        interval=args.interval,
+                        study_filter=args.study,
+                        active_study=active_study,
+                        error=err,
+                    )
                 )
-            )
-            time.sleep(max(1, int(args.interval)))
+                if _wait_for_exit(max(1, int(args.interval))):
+                    break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if old_settings:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+    
+    return 0
 
 
 if __name__ == "__main__":

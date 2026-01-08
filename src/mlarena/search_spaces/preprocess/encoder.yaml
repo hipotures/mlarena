@@ -1,0 +1,41 @@
+group: encoding
+template: encoder
+
+base_config:
+  include_cols: null
+  exclude_cols: null
+  max_cardinality: 50
+  handle_unknown: ignore
+  unknown_value: -1
+  target_encoding_smoothing: 1.0
+  target_encoding_min_samples: 1
+  oof_folds: 5
+  oof_shuffle: true
+  oof_random_state: 42
+  oof_feature_prefix: mean_
+  keep_original: false
+
+variants:
+  - name: one_hot
+    params:
+      encoding_method: {type: choice, values: [one_hot]}
+      drop_first: {type: bool}
+  - name: ordinal
+    params:
+      encoding_method: {type: choice, values: [ordinal]}
+    requires_preproc: [{group: imputer}]
+  - name: target_mean
+    params:
+      encoding_method: {type: choice, values: [target_mean]}
+  - name: target_mean_oof
+    weight: 3.0
+    params:
+      encoding_method: {type: choice, values: [target_mean_oof]}
+      oof_folds: {type: int_range, min: 3, max: 8}
+  - name: catboost
+    params:
+      encoding_method: {type: choice, values: [catboost]}
+  - name: hashing
+    params:
+      encoding_method: {type: choice, values: [hashing]}
+      hash_dim: {type: int_range, min: 4, max: 16}

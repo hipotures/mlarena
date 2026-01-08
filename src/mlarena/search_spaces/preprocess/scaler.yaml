@@ -1,0 +1,29 @@
+group: scaler
+template: scaler
+
+base_config:
+  numeric_include: null
+  numeric_exclude: []
+  log_transform: []
+  random_state: 42
+
+variants:
+  - name: standard
+    weight: 2.0
+    params:
+      scaling_method: {type: choice, values: [standard]}
+  - name: minmax
+    params:
+      scaling_method: {type: choice, values: [minmax]}
+  - name: robust
+    weight: 2.0
+    params:
+      scaling_method: {type: choice, values: [robust]}
+  - name: quantile_normal
+    params:
+      scaling_method: {type: choice, values: [quantile_normal]}
+      n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+  - name: quantile_uniform
+    params:
+      scaling_method: {type: choice, values: [quantile_uniform]}
+      n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}

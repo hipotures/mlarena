@@ -1,0 +1,19 @@
+group: rare_category
+template: rare_category_handler
+
+base_config:
+  rare_label: __RARE__
+  detect_id_like_columns: true
+  id_unique_fraction_threshold: 0.95
+
+variants:
+  - name: freq
+    params:
+      min_freq: {type: int_range, min: 2, max: 30}
+      min_freq_ratio: {type: float_range, min: 0.005, max: 0.05, step: 0.005, round: 3}
+      top_k: {type: fixed, value: null}
+  - name: top_k
+    params:
+      min_freq: {type: int_range, min: 2, max: 30}
+      min_freq_ratio: {type: float_range, min: 0.005, max: 0.05, step: 0.005, round: 3}
+      top_k: {type: int_range, min: 10, max: 100, step: 10}

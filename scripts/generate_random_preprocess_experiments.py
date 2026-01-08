@@ -580,6 +580,49 @@ def _infer_variant_from_config(
     # Fallback: return first variant or default
     return variants[0]
 
+
+def _load_search_spaces() -> List[Dict[str, Any]]:
+    search_space_dir = REPO_ROOT / "src" / "mlarena" / "search_spaces" / "preprocess"
+    if not search_space_dir.exists():
+        return []
+
+    spaces = []
+    for f in search_space_dir.glob("*.yaml"):
+        try:
+            data = _load_yaml(f)
+            # Inject name from filename if not present
+            if "name" not in data:
+                data["name"] = f.stem
+            # Ensure defaults for compatibility
+            if "weight" not in data:
+                data["weight"] = 1.0
+            if "enabled" not in data:
+                data["enabled"] = True
+            spaces.append(data)
+        except Exception as e:
+            print(f"Warning: Failed to load search space {f}: {e}")
+    return spaces
+
+
+def _merge_search_spaces_with_config(definitions: List[Dict[str, Any]], config_overrides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    merged = []
+    for definition in definitions:
+        name = definition["name"]
+        # Find matching config
+        override = next((c for c in config_overrides if c.get("name") == name), None)
+        
+        if override:
+            if "weight" in override:
+                definition["weight"] = override["weight"]
+            if "enabled" in override:
+                definition["enabled"] = override["enabled"]
+            if "group" in override:
+                definition["group"] = override["group"]
+        
+        merged.append(definition)
+    return merged
+
+
 def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, Any]]) -> int:
     print(f"Starting Phase 2 (Fine-tuning) | Parents: {args.top_n} | Children per parent: {args.children}")
     
@@ -782,7 +825,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate random preprocess experiment templates")
     parser.add_argument(
         "--config",
-        default=str(REPO_ROOT / "conf" / "random_preprocess_config.yaml"),
+        default=str(REPO_ROOT / "conf" / "generator_config.yaml"),
         help="Path to generator config YAML",
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing files")
@@ -853,7 +896,9 @@ def main() -> int:
         return 1
 
     # Preprocessor registry setup (common for both phases)
-    preprocessors = list(config.get("preprocessors", []))
+    definitions = _load_search_spaces()
+    config_preprocessors = list(config.get("preprocessors", []))
+    preprocessors = _merge_search_spaces_with_config(definitions, config_preprocessors)
 
     if args.phase == 2:
         return run_phase_2(args, config, project_root, preprocessors)
@@ -919,7 +964,10 @@ def main() -> int:
         base_chain = list(base_chain_payload.get("chain", []))
 
     # Preprocessor registry
-    preprocessors = list(config.get("preprocessors", []))
+    definitions = _load_search_spaces()
+    config_preprocessors = list(config.get("preprocessors", []))
+    preprocessors = _merge_search_spaces_with_config(definitions, config_preprocessors)
+    
     decisions = _apply_eda_filters(preprocessors, eda_stats, problem_type) if auto_filter_by_eda else []
     preprocessors = [p for p in preprocessors if p.get("enabled", True)]
     

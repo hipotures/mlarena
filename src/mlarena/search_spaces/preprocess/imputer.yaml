@@ -1,0 +1,37 @@
+group: imputer
+template: imputer
+
+base_config:
+  categorical_strategy: most_frequent
+  column_strategies: {}
+  treat_outliers_as_na: false
+  outlier_method: iqr
+  outlier_threshold: null
+  fill_value: 0
+  knn_n_neighbors: 5
+  iterative_estimator: bayesian_ridge
+  iterative_max_iter: 10
+
+variants:
+  - name: mean
+    params:
+      numeric_strategy: {type: choice, values: [mean]}
+  - name: median
+    params:
+      numeric_strategy: {type: choice, values: [median]}
+  - name: most_frequent
+    params:
+      numeric_strategy: {type: choice, values: [most_frequent]}
+  - name: constant
+    params:
+      numeric_strategy: {type: choice, values: [constant]}
+      fill_value: {type: choice, values: [0, -1, 1]}
+  - name: knn
+    params:
+      numeric_strategy: {type: choice, values: [knn]}
+      knn_n_neighbors: {type: int_range, min: 3, max: 15}
+  - name: iterative
+    params:
+      numeric_strategy: {type: choice, values: [iterative]}
+      iterative_max_iter: {type: int_range, min: 5, max: 20}
+      iterative_estimator: {type: choice, values: [bayesian_ridge]}

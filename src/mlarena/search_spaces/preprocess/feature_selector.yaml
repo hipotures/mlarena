@@ -1,0 +1,35 @@
+group: feature_selector
+template: feature_selector
+
+base_config:
+  n_features: null
+  min_variance: 0.01
+  min_unique_per_million: 5.0
+  min_importance: 0.001
+  importance_model_type: lgbm
+  n_estimators: 100
+  max_depth: 5
+  random_state: 42
+  max_drop_fraction: 0.5
+  protect_cb_features: true
+
+variants:
+  - name: variance
+    params:
+      selection_method: {type: choice, values: [variance]}
+      min_variance: {type: float_range, min: 0.0, max: 0.05, step: 0.005, round: 4}
+  - name: correlation
+    params:
+      selection_method: {type: choice, values: [correlation]}
+      n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+    requires_preproc: [{group: imputer}]
+  - name: mi
+    params:
+      selection_method: {type: choice, values: [mi]}
+      n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+    requires_preproc: [{group: imputer}]
+  - name: model_importance
+    params:
+      selection_method: {type: choice, values: [model_importance]}
+      n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+      importance_model_type: {type: choice, values: [lgbm, xgb, rf]}

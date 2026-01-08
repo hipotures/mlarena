@@ -1,0 +1,12 @@
+group: imputer
+template: missing_impute
+
+base_config:
+  numeric_strategy: median
+  categorical_strategy: most_frequent
+
+variants:
+  - name: simple
+    params:
+      numeric_strategy: {type: choice, values: [mean, median, most_frequent, constant]}
+      categorical_strategy: {type: choice, values: [most_frequent, constant]}

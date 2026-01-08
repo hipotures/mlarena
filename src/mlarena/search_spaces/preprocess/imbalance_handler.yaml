@@ -1,0 +1,18 @@
+group: imbalance
+template: imbalance_handler
+
+base_config:
+  sampling_strategy: auto
+  use_sample_weights: true
+  random_state: 42
+
+variants:
+  - name: class_weight
+    params:
+      imbalance_method: {type: choice, values: [class_weight]}
+  - name: random_over
+    params:
+      imbalance_method: {type: choice, values: [random_over]}
+  - name: random_under
+    params:
+      imbalance_method: {type: choice, values: [random_under]}

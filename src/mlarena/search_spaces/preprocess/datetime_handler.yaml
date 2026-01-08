@@ -1,0 +1,23 @@
+group: datetime
+template: datetime_handler
+
+base_config:
+  datetime_cols: []
+  datetime_formats: {}
+  expand_datetime_cols: null
+  custom_features: []
+  cyclical_features: []
+  time_diff_pairs: []
+  time_diff_default_unit: days
+  drop_original_datetime: false
+
+variants:
+  - name: basic
+    params:
+      time_features_set: {type: choice, values: [basic]}
+  - name: extended
+    params:
+      time_features_set: {type: choice, values: [extended]}
+  - name: none
+    params:
+      time_features_set: {type: choice, values: [none]}

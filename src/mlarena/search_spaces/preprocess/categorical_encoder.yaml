@@ -1,0 +1,13 @@
+group: encoding
+template: categorical_auto
+
+base_config:
+  enable_auto_detect: true
+
+variants:
+  - name: auto
+    params:
+      max_cardinality: {type: int_range, min: 20, max: 100, step: 5}
+      exclude_text_type: {type: bool}
+      include_numeric_categories: {type: bool}
+      auto_detect_threshold: {type: int_range, min: 10, max: 50, step: 5}

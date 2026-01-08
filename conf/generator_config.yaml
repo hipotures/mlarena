@@ -1,0 +1,67 @@
+project: playground-series-s6e1
+experiment_prefix: test_c_01_
+start_index: 1
+id_width: 4
+experiments: 1000
+random_seed: 42
+model_template: mcts
+preprocess_template: mcts-chain
+preprocessors_per_experiment: "1-5"
+max_unique_attempts: 5000
+signature_registry: .random_preprocess_signatures_mcts_15.json
+auto_filter_by_eda: true
+eda_summary_path: null
+
+queue:
+  enable: false
+  priority: null
+  submit: false
+  git: false
+  overrides: []
+
+preprocessors:
+  - name: outlier_handler
+    group: outlier
+    weight: 2.0
+    enabled: true
+  - name: imputer
+    group: imputer
+    enabled: true
+  - name: missing_values_imputer
+    group: imputer
+    enabled: true
+  - name: scaler
+    group: scaler
+    weight: 3.0
+    enabled: true
+  - name: encoder
+    group: encoding
+    weight: 5.0
+    enabled: true
+  - name: categorical_encoder
+    group: encoding
+    weight: 4.0
+    enabled: true
+  - name: datetime_handler
+    group: datetime
+    enabled: true
+  - name: feature_engineer
+    group: feature_engineer
+    enabled: true
+  - name: feature_selector
+    group: feature_selector
+    weight: 2.0
+    enabled: true
+  - name: rare_category_handler
+    group: rare_category
+    weight: 2.0
+    enabled: true
+  - name: drift_detector
+    group: drift
+    enabled: true
+  - name: sanity_check
+    group: sanity
+    enabled: true
+  - name: imbalance_handler
+    group: imbalance
+    enabled: false

@@ -1,5 +1,16 @@
 # Configuration System
 
+## Magic Flags (CLI Shortcuts)
+
+Certain top-level flags are automatically mapped to the `common` section for convenience. You can use them interchangeably with their full dotted paths.
+
+| CLI Flag | Unified Config Path | Default | Description |
+|:---------|:--------------------|:--------|:------------|
+| `--seed` | `common.seed` | 42 | Global random seed |
+| `--time-limit` | `common.time_limit` | None | Model training time limit (seconds) |
+| `--use-gpu` | `common.use_gpu` | False | Enable/disable GPU acceleration |
+| `--preset` | `common.preset` | medium | AutoGluon quality preset |
+
 ## Complete Parameter Reference
 
 | Parameter | Type | Default | Description |
@@ -8,6 +19,17 @@
 | `skip_deps` | bool | `false` | Skip dependency resolution (run only target module) |
 | `show_payload` | bool | `false` | Display module output payload in console |
 | `model.mla_retention` | bool | `false` | Clean up AutoGluon intermediate models after training (saves disk space). Can be set via CLI as `model.mla_retention=true`. |
+
+## Experiment Locking (`lock=true`)
+
+To protect high-value results from accidental overwriting, use the `lock=true` parameter.
+
+**How it works:**
+1. Upon successful completion of a module, a file named `overwrite.lock` is created in the experiment directory (e.g., `experiments/exp-ID/overwrite.lock`).
+2. Any subsequent attempt to run this module (even with `--force`) will fail with an `OverwriteLockedError`.
+3. **To unlock:** You must manually delete the `overwrite.lock` file from the disk.
+
+---
 
 ## Built-in Profile Fallbacks
 

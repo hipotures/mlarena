@@ -54,16 +54,33 @@ uv run python scripts/mla.py eda --project <competition-slug>
 **Run auto-flow pipeline**:
 ```bash
 # Run the pipeline: preprocess → model → predict → submit → fetch-score
-# Note: This validates that 'init' and 'eda' have been completed manually.
-# This uses the "baseline" templates by default.
-uv run python scripts/mla.py --project <competition-slug>
-
-# Override the model template using dotted syntax
-uv run python scripts/mla.py --project <competition-slug> model_template=gpu-dev-5m
-
-# Run a quick smoke test using a profile
-uv run python scripts/mla.py --project <competition-slug> --profile smoke
+uv run python scripts/mla.py --project <competition-slug> model.mla_retention=true
 ```
+
+---
+
+## 🛠️ Key Features
+
+### Execution Profiles
+Profiles allow you to switch between predefined sets of parameters quickly:
+- `--profile smoke`: Fast verification (short time limits, medium quality).
+- `--profile dev`: Standard development settings.
+
+Usage:
+```bash
+uv run python scripts/mla.py --project titanic --profile smoke
+```
+
+### Magic Flags (CLI Shortcuts)
+Common parameters are automatically mapped for convenience:
+- `--seed 123` → `common.seed=123`
+- `--time-limit 300` → `common.time_limit=300`
+- `--use-gpu` → `common.use_gpu=true`
+
+### Disk Space Management
+Use `model.mla_retention=true` to delete intermediate AutoGluon models and save up to 98% of disk space while keeping the best model for predictions.
+
+---
 
 ## MLArena (`mla.py`) Workflow
 

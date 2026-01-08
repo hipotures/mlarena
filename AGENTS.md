@@ -21,7 +21,8 @@
 
 -   **Adding a Module**: Create file in `src/mlarena/modules/`, inherit `BaseModule`, decorate with `@ModuleRegistry.register`.
 -   **Adding a Preprocess Step**: Copy `src/mlarena/defaults/preprocessing/TEMPLATE.py` to `src/mlarena/defaults/preprocessing/`.
--   **Config System**: Uses `OmegaConf`. Project config (`code/utils/config.py`) is imported dynamically.
+-   **Config System**: Uses `OmegaConf` + `Pydantic`. Root config logic in `src/mlarena/core/conf.py`. Project config (`code/utils/config.py`) is imported dynamically.
+-   **Magic Flags**: Use shortcuts like `--seed`, `--time-limit`, `--use-gpu`, `--preset` for faster CLI command generation.
 -   **Artifacts**: Always use `self.context.artifact_dir`. Never hardcode paths.
 -   **State**: `self.context.state` contains the `state.json` data.
 
@@ -44,8 +45,8 @@
 2.  **Create Templates**: Generate YAML files in `projects/kaggle/<proj>/templates/model/` and `preprocess/`.
     *   *Naming*: `run1-lgbm-imputed.yaml`, `run2-xgb-scaled.yaml`.
 3.  **Queue Tasks**: Use the Task Queue to schedule them.
-    *   `python scripts/mla.py queue add -p <proj> --model-template run1-lgbm-imputed`
-    *   `python scripts/mla.py queue add -p <proj> --model-template run2-xgb-scaled`
+    *   `uv run python scripts/mla.py queue add -p <proj> --model-template run1-lgbm-imputed`
+    *   `uv run python scripts/mla.py queue add -p <proj> --model-template run2-xgb-scaled`
 
 ### Task 2: "Fix bug in submission validation"
 **Goal**: Submission fails because column order is wrong.

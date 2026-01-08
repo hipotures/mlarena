@@ -84,7 +84,38 @@ The documentation should include:
 - [ ] Logs shape changes and new columns created
 - [ ] **Documentation created** in `docs/submodules/{name}.md`
 
-## Available Sub-Modules
+# Preprocessing Submodules
+
+These submodules provide specific data transformations that can be combined in templates.
+
+## Preprocessing Chains
+
+MLArena supports multi-step preprocessing through the `chain` keyword in templates. This allows you to combine multiple submodules into a single execution flow.
+
+```yaml
+# Example: templates/preprocess/advanced_fe.yaml
+chain:
+  - imputer
+  - scaler
+  - categorical_encoder
+  - feature_polynomial
+```
+
+### Combined Hashing & Caching
+
+When a chain is executed, MLArena computes a **Combined Hash** based on:
+1. The **order** of submodules in the chain.
+2. The **configuration** of each individual submodule.
+3. The **content** (source code) of any custom modules used.
+
+This hash ensures strict isolation:
+- Changing a parameter in the 2nd step of a 5-step chain will result in a completely new experiment directory for steps 2 through 5.
+- Results are cached in `experiments/pre-<name>/<combined_hash>/`.
+- This mechanism prevents data leakage and ensures that preprocessing artifacts always match the configuration that produced them.
+
+---
+
+## Submodule Reference
 
 Detailed documentation for each sub-module:
 

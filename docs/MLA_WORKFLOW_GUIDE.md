@@ -41,7 +41,7 @@ mv ~/Downloads/kaggle.json ~/.kaggle/
 chmod 600 ~/.kaggle/kaggle.json
 ```
 
-### 3. Install Playwright (optional, for score scraping)
+### 3. Install Playwright (required for fetch-score)
 ```bash
 uv run playwright install chromium
 ```
@@ -51,6 +51,18 @@ uv run playwright install chromium
 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 # Login to Kaggle in this window
 ```
+
+---
+
+## Convenience Aliases
+
+For faster typing, you can add an alias to your shell profile (`.bashrc` or `.zshrc`):
+
+```bash
+alias mla='uv run python scripts/mla.py'
+```
+
+Throughout this guide, we use the full `uv run python scripts/mla.py` for maximum reliability and to ensure the latest code changes are always picked up from the `src/` directory.
 
 ---
 
@@ -64,11 +76,11 @@ uv run python scripts/mla.py init --project titanic
 # Step 2: Run EDA
 uv run python scripts/mla.py eda --project titanic
 
-# Step 3: Run auto-flow pipeline
-uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m wait_seconds=45
+# Step 3: Run auto-flow pipeline (with retention to save space)
+uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m wait_seconds=45 model.mla_retention=true
 
 # Check results
-uv run python scripts/submissions_tracker.py --project titanic list
+uv run python scripts/mla.py submissions --project titanic list
 ```
 
 ---
@@ -139,8 +151,12 @@ uv run python scripts/mla.py model \
   --project titanic \
   --exp-id eda \
   model_template=cpu-fast-1m \
-  skip_submit=true
+  skip_submit=true \
+  model.mla_retention=true
 ```
+
+**Disk Space Management (`model.mla_retention=true`):**
+AutoGluon can consume gigabytes of disk space by saving all intermediate models. By setting `model.mla_retention=true`, the framework will delete all non-essential models after training, keeping only the best ensemble. This typically saves ~98% of space while keeping prediction functional.
 
 **Available templates:**
 - `cpu-fast-1m`: 60s limit, quick test
@@ -248,43 +264,26 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq '.[-1]'
 open https://www.kaggle.com/competitions/titanic/submissions
 ```
 
-#### Submission Queue (Batch Processing)
+#### Task Queue & Batch Processing
 
-Queue submissions for later batch upload with duplicate detection.
+For sequential batch runs, use the `queue` command which delegatesto the task manager.
 
 **Add to queue:**
 ```bash
-uv run python scripts/mla.py submit \
-  --project titanic \
-  --exp-id exp-20251226-103504 \
-  submit.queue_submit=true
+uv run python scripts/mla.py queue --project titanic add "model_template=cpu-fast-1m model.mla_retention=true"
 ```
 
 **Manage queue:**
 ```bash
-# List queued submissions
-python scripts/submission_queue.py --project titanic list
+# List queued tasks
+uv run python scripts/mla.py queue --project titanic list
 
-# Submit from queue (by queue number, exp-id, or filename)
-python scripts/submission_queue.py --project titanic submit 1
-python scripts/submission_queue.py --project titanic submit exp-20251226-103504
-python scripts/submission_queue.py --project titanic submit submission.csv
+# Run pending tasks
+uv run python scripts/mla.py queue --project titanic run
 
-# Submit with auto fetch-score (waits 30s, then fetches score, removes on success)
-python scripts/submission_queue.py --project titanic submit 1 --continue-flow
-
-# Remove from queue
-python scripts/submission_queue.py --project titanic remove 1
+# For submission-specific queue (duplicate detection, scoring):
+uv run python scripts/submission_queue.py --project titanic list
 ```
-
-**Features:**
-- **Duplicate detection**: Checks Kaggle API before upload to prevent re-submission
-- **Error tracking**: Logs all submission attempts with timestamps
-- **Status tracking**: pending → submitted → completed (or failed)
-- **Auto-cleanup**: Removes from queue on successful fetch-score (with --continue-flow)
-- **Thread-safe**: Uses file locking for concurrent access
-
-**Queue file location:** `projects/kaggle/{project}/submissions/queue.json`
 
 ---
 
@@ -462,7 +461,7 @@ uv run python scripts/mla.py eda --project titanic
 uv run python scripts/mla.py model --project titanic --exp-id eda model_template=cpu-best-1h
 
 # Compare results
-uv run python scripts/submissions_tracker.py --project titanic list
+uv run python scripts/mla.py submissions --project titanic list
 ```
 
 ### Hyperparameter Optimization (HPO)

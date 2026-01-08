@@ -518,7 +518,8 @@ Training AV classifier doubles memory usage:
 ```yaml
 chain:
   - dataset_merger
-  - feature_engineering
+  - feature_interactions
+  - feature_polynomial
   - adversarial_validation  # LAST
 ```
 

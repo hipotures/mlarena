@@ -144,9 +144,9 @@ uv run python scripts/mla.py stack \
 uv run python scripts/mla.py model --project titanic --model-template baseline
 
 # Train with different preprocessing
-uv run python scripts/mla.py model --project titanic \
-  --model-template baseline \
-  --preprocess-template feature_engineer
+uv run python scripts/mla.py preprocess \
+    --project playground-series-s5e1 \
+    --preprocess-template feature_interactions
 
 # Train different model type
 uv run python scripts/mla.py model --project titanic --model-template cpu-xgb-8h

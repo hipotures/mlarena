@@ -238,10 +238,10 @@ predictor = TabularPredictor(label=TARGET_COLUMN)
 predictor.fit(train)
 ```
 
-### Przykład: Dodanie do feature engineering
+### Przykład: Dodanie do feature interactions
 
 ```python
-# code/feature_engineering/prepare_features.py
+# code/preprocessing/feature_interactions.py
 from code.utils.categorical_helper import convert_to_category
 
 def prepare_features(df):

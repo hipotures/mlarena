@@ -494,5 +494,7 @@ scaler:
 
 - **imputer** - Fill missing values before scaling
 - **outlier_handler** - Remove outlier rows (different from clipping)
-- **feature_engineer** - Create interactions (may need scaling after)
+- **feature_interactions** - Create arithmetic interactions (may need scaling after)
+- **feature_polynomial** - Create polynomial expansions (highly recommended to scale after)
+- **feature_group_agg** - Create group-based aggregations
 - **autogluon_booster** - AutoGluon-specific preprocessing

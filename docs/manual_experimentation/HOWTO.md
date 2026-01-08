@@ -24,8 +24,8 @@ Create new template files for each variant using a suffix (e.g., `_01`, `_02`).
 
 **CRITICAL**: You must isolate **every** file for the variant to avoid side effects.
 
-1.  **Duplicate Sub-modules**: Copy the specific preprocessing step you want to change (e.g., `feature_engineer`) AND all other steps in the chain, renaming them with the suffix.
-    *   `BASE_NAME_01-feature_engineer.yaml` (Modified)
+1.  **Duplicate Sub-modules**: Copy the specific preprocessing step you want to change (e.g., `feature_interactions`) AND all other steps in the chain, renaming them with the suffix.
+    *   `BASE_NAME_01-feature_interactions.yaml` (Modified)
     *   `BASE_NAME_01-scaler.yaml` (Copy of base, or modified)
     *   `...`
 
@@ -41,14 +41,16 @@ If Base is `test_c_02_0047`:
 *   **Variant 01**:
     *   Model: `templates/model/test_c_02_0047_01.yaml`
     *   Preprocess Chain: `templates/preprocess/test_c_02_0047_01.yaml`
-    *   Step: `templates/preprocess/test_c_02_0047_01-feature_engineer.yaml`
+    *   Step: `templates/preprocess/test_c_02_0047_01-feature_interactions.yaml`
 
 ## 3. Modifying Parameters
 
-Open your new suffix files (e.g., `..._01-feature_engineer.yaml`) and change specific parameters in the `config:` section.
+Open your new suffix files (e.g., `..._01-feature_interactions.yaml`) and change specific parameters in the `config:` section.
 
 **Common Tuning Targets:**
-*   **Feature Engineer**: `max_generated_features`, `interaction_types` (add, mul, sub, div), `poly_degree`.
+*   **Feature Interactions**: `interaction_types` (add, mul, sub, div), `max_generated_features`.
+*   **Feature Polynomial**: `poly_degree`, `poly_interaction_only`.
+*   **Feature Group Agg**: `group_keys`, `aggs`.
 *   **Outlier Handler**: `outlier_method` (isolation_forest vs zscore), `contamination`.
 *   **Scaler**: `scaling_method` (standard, quantile_normal, quantile_uniform).
 *   **Rare Category**: `min_freq`, `top_k`.

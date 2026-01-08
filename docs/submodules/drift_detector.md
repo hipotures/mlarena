@@ -229,7 +229,8 @@ pipeline:
     sanity_check,
     imputer,
     encoder,
-    feature_engineer,    # Create new features
+    feature_interactions, # Create new features
+    feature_polynomial,
     drift_detector,      # Remove unstable features ← HERE
     feature_selector,    # Select best remaining features
     scaler

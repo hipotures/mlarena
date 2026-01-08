@@ -98,7 +98,7 @@ def fit_transform(
 
 ## Integracja z innymi modułami
 
-### Przykład: feature_engineering.py
+### Przykład: feature_interactions.py
 
 ```python
 from categorical_utils import restore_categorical_types_from_chain
@@ -230,7 +230,7 @@ Types of features in processed data:
 A: Nie, konwersja na category jest bardzo szybka (<1s dla 700k rows).
 
 **Q: Czy muszę to dodać do KAŻDEGO preprocessing module?**
-A: Tylko do tych, które używasz w chain PO categorical_boost (np. av_weights, feature_engineering).
+A: Tylko do tych, które używasz w chain PO categorical_boost (np. av_weights, feature_interactions).
 
 **Q: Co jeśli zapominam dodać do jednego modułu?**
 A: Moduł będzie działał jak dotychczas (backward compatible), ale z błędnymi typami.

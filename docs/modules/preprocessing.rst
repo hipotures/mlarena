@@ -347,67 +347,26 @@ Path: ``src/mlarena/defaults/preprocessing/datetime_handler.py``
      - False
      - Drop raw datetime columns after expansion.
 
-Feature Engineer
-----------------
+Feature Interactions
+~~~~~~~~~~~~~~~~~~~~
 
-Path: ``src/mlarena/defaults/preprocessing/feature_engineer.py``
+Purpose: Create simple arithmetic interaction features.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 22 14 14 50
+Path: ``src/mlarena/defaults/preprocessing/feature_interactions.py``
 
-   * - Parameter
-     - Type
-     - Default
-     - Description
-   * - interaction_types
-     - list
-     - []
-     - Arithmetic interactions to build (add, sub, mul, div).
-   * - numeric_pairs
-     - list
-     - []
-     - Explicit column pairs for interactions.
-   * - auto_pair_numeric
-     - bool
-     - False
-     - Automatically create numeric pairs.
-   * - max_auto_pairs
-     - int
-     - 30
-     - Cap on automatically generated pairs.
-   * - poly_degree
-     - int | null
-     - null
-     - Degree for polynomial features (>=2).
-   * - poly_columns
-     - list | null
-     - null
-     - Columns to include in polynomial expansion.
-   * - poly_include_bias
-     - bool
-     - False
-     - Include bias term in polynomial features.
-   * - poly_interaction_only
-     - bool
-     - False
-     - Use interaction-only polynomial terms.
-   * - group_keys
-     - list
-     - []
-     - Columns to group by for aggregations.
-   * - group_value_cols
-     - list
-     - []
-     - Value columns for group aggregations.
-   * - aggs
-     - list
-     - []
-     - Aggregations to compute (mean, std, min, max, count, nunique, etc.).
-   * - max_generated_features
-     - int
-     - 200
-     - Safety cap on new features created.
+Feature Polynomial
+~~~~~~~~~~~~~~~~~~
+
+Purpose: Create polynomial and interaction features using sklearn.
+
+Path: ``src/mlarena/defaults/preprocessing/feature_polynomial.py``
+
+Feature Group Aggregations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Purpose: Create group-based aggregations (groupby + merge).
+
+Path: ``src/mlarena/defaults/preprocessing/feature_group_agg.py``
 
 Feature Selector
 ----------------

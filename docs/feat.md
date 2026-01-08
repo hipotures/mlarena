@@ -213,4 +213,6 @@ uv run python scripts/mla.py feat --project titanic --feat-template identity
 
 - [Preprocessing Guide](submodules/README.md) - For production-ready feature engineering
 - [Model Templates](model_templates.md) - How to pair features with models
-- [Feature Engineer Submodule](submodules/feature_engineer.md) - Advanced feature creation in preprocessing
+- [Feature Interactions Submodule](submodules/feature_interactions.md) - Arithmetic interactions
+- [Feature Polynomial Submodule](submodules/feature_polynomial.md) - Polynomial expansions
+- [Feature Group Aggregations Submodule](submodules/feature_group_agg.md) - Groupby statistics

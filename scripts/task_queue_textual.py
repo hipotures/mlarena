@@ -90,13 +90,7 @@ class TasksView(Container):
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="toolbar"):
-            yield Label("Filter Status:", classes="label")
-            yield Select.from_values(
-                ["all", "pending", "running", "completed", "failed"], 
-                value="all", 
-                id="status-select",
-                allow_blank=False
-            )
+            yield Button("Status: all", id="btn-status-cycle")
             yield Button("Previous", id="btn-prev")
             yield Label("Page 1/1", id="page-label")
             yield Button("Next", id="btn-next")
@@ -233,25 +227,54 @@ class TaskQueueApp(App):
 
     /* Tasks View Styles */
     .toolbar {
-        height: auto;
-        margin: 1;
+        height: 1;
+        margin: 0 1;
+        padding: 0;
         align-vertical: middle;
     }
     
-    #status-select {
-        width: 20;
-        height: 3;
-        margin-right: 2;
+    .toolbar Button {
+        height: 1;
+        border: none;
+        margin: 0 1;
+        min-width: 8;
+        padding: 0 1;
+        background: $primary;
+        color: white;
+        text-style: bold;
+    }
+
+    .toolbar Button:hover {
+        background: $accent;
+        color: black;
+    }
+
+    .toolbar Label {
+        height: 1;
+        content-align: center middle;
+    }
+
+    #btn-status-cycle {
+        width: 22;
+        background: $primary;
+        color: white;
+    }
+
+    #btn-status-cycle:hover {
+        background: $accent;
+        color: black;
     }
     
     #page-label {
-        margin: 0 2;
-        height: 3;
+        margin: 0 1;
+        height: 1;
         content-align: center middle;
+        color: $text-muted;
     }
     
     DataTable {
         height: 1fr;
+        margin-top: 0;
     }
     
     /* Log View Styles */
@@ -709,18 +732,21 @@ class TaskQueueApp(App):
         except Exception:
             pass
 
-    def on_select_changed(self, event: Select.Changed) -> None:
-        self.query_one(TasksView).status_filter = str(event.value)
-        self.query_one(TasksView).current_page = 1
-        self.refresh_data()
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-close":
             # Handled in LogModal
             return
             
         view = self.query_one(TasksView)
-        if event.button.id == "btn-prev":
+        if event.button.id == "btn-status-cycle":
+            statuses = ["all", "pending", "running", "completed", "failed"]
+            current = view.status_filter
+            next_idx = (statuses.index(current) + 1) % len(statuses)
+            view.status_filter = statuses[next_idx]
+            event.button.label = f"Status: {view.status_filter}"
+            view.current_page = 1
+            self.refresh_data()
+        elif event.button.id == "btn-prev":
             if view.current_page > 1:
                 view.current_page -= 1
             self.refresh_data()

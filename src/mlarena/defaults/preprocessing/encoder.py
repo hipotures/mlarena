@@ -39,7 +39,7 @@ def fit_transform(
         config: Configuration dictionary with keys:
             - _artifact_dir: Path to save artifacts
             - _dataset: {id_column, target, ignored_columns}
-            - encoding_method: "none|one_hot|ordinal|target_mean|catboost|hashing"
+            - encoding_method: "none|one_hot|ordinal|target_mean|target_mean_oof|catboost|hashing|count|frequency"
             - include_cols: List of columns to encode (None = all categorical)
             - exclude_cols: List of columns to exclude from encoding
             - drop_first: Drop first category in one-hot (default: False)
@@ -79,6 +79,10 @@ def fit_transform(
         "oof_shuffle": True,
         "oof_random_state": 42,
         "oof_feature_prefix": "mean_",
+        # Count/Frequency encoding
+        "normalize": False,  # If True, return relative frequency (0-1)
+        "add_log": False,    # If True, apply log1p to the count
+        "min_count": 1,      # Categories with fewer counts are grouped/ignored (treated as 0)
         "keep_original": False,
     }
     validation.validate_config(config, required_params, optional_params)
@@ -86,7 +90,7 @@ def fit_transform(
     # Validate encoding_method choice
     validation.validate_choice(
         config["encoding_method"],
-        ["none", "one_hot", "ordinal", "target_mean", "target_mean_oof", "catboost", "hashing"],
+        ["none", "one_hot", "ordinal", "target_mean", "target_mean_oof", "catboost", "hashing", "count", "frequency"],
         "encoding_method"
     )
 
@@ -99,6 +103,8 @@ def fit_transform(
 
     # 5. Determine columns to encode
     encoding_method = config["encoding_method"]
+    if encoding_method == "frequency":
+        config["normalize"] = True
 
     # If method is 'none', skip encoding
     if encoding_method == "none":
@@ -155,7 +161,7 @@ def fit_transform(
             warnings.warn(
                 f"Excluded {len(high_cardinality_cols)} high-cardinality columns from {encoding_method} encoding "
                 f"(>{max_cardinality} unique values): {high_card_names}. "
-                f"Consider using 'target_mean', 'catboost', or 'hashing' for these columns, "
+                f"Consider using 'target_mean', 'catboost', 'hashing', or 'count' for these columns, "
                 f"or increase 'max_cardinality' parameter."
             )
 
@@ -220,6 +226,12 @@ def fit_transform(
 
     elif encoding_method == "hashing":
         train_df, val_df, test_df, orig_df, encoder_info = _encode_hashing(
+            train_df, val_df, test_df, orig_df, categorical_cols, config, submodule_dir
+        )
+        encoded_columns_info = encoder_info
+
+    elif encoding_method in ["count", "frequency"]:
+        train_df, val_df, test_df, orig_df, encoder_info = _encode_count(
             train_df, val_df, test_df, orig_df, categorical_cols, config, submodule_dir
         )
         encoded_columns_info = encoder_info
@@ -618,4 +630,82 @@ def _encode_hashing(
         "encoded_feature_names": all_encoded_features,
     }
 
+    return train_df, val_df, test_df, orig_df, encoder_info
+
+
+def _encode_count(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame | None,
+    test_df: pd.DataFrame,
+    orig_df: pd.DataFrame | None,
+    categorical_cols: List[str],
+    config: Dict[str, Any],
+    submodule_dir: Path
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict]:
+    """Count (Frequency) Encoding."""
+    
+    normalize = config.get("normalize", False)
+    add_log = config.get("add_log", False)
+    min_count = config.get("min_count", 1)
+    
+    mapping_storage = {}
+    encoded_feature_names = []
+    
+    for col in categorical_cols:
+        # Calculate counts on TRAIN set only
+        if normalize:
+            counts = train_df[col].value_counts(normalize=True)
+        else:
+            counts = train_df[col].value_counts(normalize=False)
+            
+        # Handle min_count (replace rare with 0 or NaN?)
+        # Standard practice: unseen categories get 0 count.
+        # If we have min_count, we can filter mapping.
+        if min_count > 1 and not normalize:
+            # Only keep counts >= min_count
+            counts = counts[counts >= min_count]
+            
+        mapping = counts.to_dict()
+        mapping_storage[col] = {str(k): v for k, v in mapping.items()}
+        
+        # Apply mapping
+        suffix = "_freq" if normalize else "_count"
+        new_col = f"{col}{suffix}"
+        encoded_feature_names.append(new_col)
+        
+        # Function to apply mapping safely
+        def apply_map(series):
+            mapped = series.map(mapping).fillna(0)
+            if add_log:
+                return np.log1p(mapped)
+            return mapped
+
+        train_df[new_col] = apply_map(train_df[col])
+        test_df[new_col] = apply_map(test_df[col])
+        
+        if val_df is not None:
+            val_df[new_col] = apply_map(val_df[col])
+        if orig_df is not None and col in orig_df.columns:
+            orig_df[new_col] = apply_map(orig_df[col])
+
+    # Save artifacts
+    artifacts.save_report(
+        {
+            "method": "count" if not normalize else "frequency",
+            "normalize": normalize,
+            "add_log": add_log,
+            "min_count": min_count,
+            "mappings": mapping_storage
+        },
+        submodule_dir, 
+        "count_encodings.json"
+    )
+    
+    encoder_info = {
+        "n_features": len(categorical_cols),
+        "encoded_feature_names": encoded_feature_names,
+        "normalize": normalize,
+        "add_log": add_log
+    }
+    
     return train_df, val_df, test_df, orig_df, encoder_info

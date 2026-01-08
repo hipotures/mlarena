@@ -1,0 +1,9 @@
+module: categorical_cross
+config:
+  cross_pairs: []
+  max_pair_cardinality: 5000
+  separator: "__"
+  output: hashed
+  hash_dim: 12
+  oof_folds: 5
+  oof_random_state: 42

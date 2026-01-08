@@ -1,0 +1,29 @@
+group: missingness_features
+template: missingness_features
+
+base_config:
+  include_cols: null
+  exclude_cols: []
+  add_per_column_indicators: true
+  add_row_missing_count: true
+  add_row_missing_ratio: true
+  cap_row_missing_count: null
+
+variants:
+  - name: col_indicators_only
+    params:
+      add_per_column_indicators: {type: fixed, value: true}
+      add_row_missing_count: {type: fixed, value: false}
+      add_row_missing_ratio: {type: fixed, value: false}
+  - name: row_stats_only
+    params:
+      add_per_column_indicators: {type: fixed, value: false}
+      add_row_missing_count: {type: fixed, value: true}
+      add_row_missing_ratio: {type: bool}
+      cap_row_missing_count: {type: int_range, min: 5, max: 200, step: 5}
+  - name: both
+    params:
+      add_per_column_indicators: {type: fixed, value: true}
+      add_row_missing_count: {type: fixed, value: true}
+      add_row_missing_ratio: {type: bool}
+      cap_row_missing_count: {type: choice, values: [null, 50, 100, 200]}

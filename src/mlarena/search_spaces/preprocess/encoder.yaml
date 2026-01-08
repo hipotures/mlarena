@@ -14,6 +14,10 @@ base_config:
   oof_random_state: 42
   oof_feature_prefix: mean_
   keep_original: false
+  # Count encoding defaults
+  normalize: false
+  add_log: false
+  min_count: 1
 
 variants:
   - name: one_hot
@@ -39,3 +43,25 @@ variants:
     params:
       encoding_method: {type: choice, values: [hashing]}
       hash_dim: {type: int_range, min: 4, max: 16}
+  - name: count
+    params:
+      encoding_method: {type: choice, values: [count]}
+      normalize: {type: fixed, value: false}
+      add_log: {type: fixed, value: false}
+  - name: frequency
+    params:
+      encoding_method: {type: choice, values: [count]}
+      normalize: {type: fixed, value: true}
+      add_log: {type: fixed, value: false}
+  - name: log_count
+    params:
+      encoding_method: {type: choice, values: [count]}
+      normalize: {type: fixed, value: false}
+      add_log: {type: fixed, value: true}
+      min_count: {type: int_range, min: 1, max: 20}
+  - name: freq_log
+    params:
+      encoding_method: {type: choice, values: [count]}
+      normalize: {type: fixed, value: true}
+      add_log: {type: fixed, value: true}
+      min_count: {type: int_range, min: 1, max: 20}

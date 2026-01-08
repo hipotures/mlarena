@@ -1,0 +1,28 @@
+group: row_aggregates
+template: row_aggregates
+
+base_config:
+  include_cols: null
+  exclude_cols: []
+  stats: []
+  prefix: row_
+  nan_policy: omit
+
+variants:
+  - name: basic
+    params:
+      stats:
+        type: subset
+        values: [sum, mean, std, min, max, range]
+        min_items: 2
+        max_items: 6
+        sort: true
+  - name: extended
+    params:
+      stats:
+        type: subset
+        values: [sum, mean, std, min, max, range, mad, skew, kurt]
+        min_items: 3
+        max_items: 9
+        sort: true
+      nan_policy: {type: choice, values: [omit, fill_zero]}

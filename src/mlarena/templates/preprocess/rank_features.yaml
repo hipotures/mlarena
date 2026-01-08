@@ -1,0 +1,6 @@
+module: rank_features
+config:
+  mode: global
+  method: percentile
+  tie_method: average
+  add_original: true

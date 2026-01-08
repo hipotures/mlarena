@@ -1,0 +1,9 @@
+module: groupwise_normalizer
+config:
+  group_keys: []
+  value_cols: []
+  add_group_mean: true
+  add_centered: true
+  add_zscore: true
+  add_ratio: false
+  eps: 1.0e-6

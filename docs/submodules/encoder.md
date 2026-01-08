@@ -18,6 +18,7 @@ Provides flexible categorical encoding with support for:
 - **Target Mean Encoding (OOF)** - KFold out-of-fold target mean features (recommended to reduce leakage)
 - **CatBoost Encoding** - Ordered target statistics
 - **Feature Hashing** - Fixed-size hash space for high-cardinality features
+- **Count / Frequency Encoding** - Map categories to counts or relative frequencies
 
 ## Parameters
 
@@ -31,7 +32,7 @@ None - all parameters have defaults.
 
 Encoding strategy to use.
 
-**Choices**: `none` | `one_hot` | `ordinal` | `target_mean` | `target_mean_oof` | `catboost` | `hashing`
+**Choices**: `none` | `one_hot` | `ordinal` | `target_mean` | `target_mean_oof` | `catboost` | `hashing` | `count` | `frequency`
 
 - `none` - Keep categorical columns as-is (recommended for AutoGluon)
 - `one_hot` - One-hot encoding (sklearn)
@@ -40,6 +41,7 @@ Encoding strategy to use.
 - `target_mean_oof` - KFold out-of-fold target mean encoding (train is OOF; test/orig use full-train mapping)
 - `catboost` - CatBoost-style ordered target encoding (requires `category_encoders`)
 - `hashing` - Feature hashing for high-cardinality features
+- `count` / `frequency` - Count or relative frequency encoding (see parameters below)
 
 #### `include_cols` (list, default: `null`)
 
@@ -111,6 +113,20 @@ Value to assign to unknown categories when `handle_unknown="use_encoded_value"` 
 Hash space dimension for `hashing` method. Higher values reduce collisions but increase feature count.
 
 **Recommended**: 8-16 for moderate cardinality, 32-64 for high cardinality.
+
+#### `normalize` (bool, default: `false`)
+
+For `count`/`frequency` encoding:
+- `false` → raw counts
+- `true` → relative frequency in `[0, 1]`
+
+#### `add_log` (bool, default: `false`)
+
+For `count`/`frequency` encoding: apply `log1p` to the encoded values.
+
+#### `min_count` (int, default: `1`)
+
+For `count` encoding: categories with count < `min_count` are treated as 0.
 
 #### `target_encoding_smoothing` (float, default: `1.0`)
 
@@ -330,6 +346,34 @@ encoder:
 - Encoded: `Ticket_hash_0`, `Ticket_hash_1`, ..., `Ticket_hash_15` (16 features)
 
 **Note**: No artifact saved (hashing is deterministic and stateless).
+
+---
+
+### 8. Count / Frequency Encoding (`encoding_method: "count"` or `"frequency"`)
+
+**Best for**: High-cardinality categories when you want a lightweight, leakage-free encoding.
+
+Maps each category to:
+- **count**: number of occurrences in train
+- **frequency**: relative frequency in train
+
+**Example**:
+```yaml
+encoder:
+  module: encoder
+  cache: true
+  config:
+    encoding_method: "count"
+    normalize: false
+    add_log: false
+    min_count: 2
+```
+
+**Output**:
+- Original column: `Cabin = ["C85", "C123", "E46", ...]`
+- Encoded: `Cabin_count` (or `Cabin_freq` when `normalize: true`)
+
+**Artifacts**: `count_encodings.json` (category → count/frequency mapping)
 
 ---
 

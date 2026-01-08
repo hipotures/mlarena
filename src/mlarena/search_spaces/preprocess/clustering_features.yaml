@@ -1,0 +1,27 @@
+group: clustering_features
+template: clustering_features
+
+base_config:
+  numeric_include: null
+  numeric_exclude: []
+  algorithm: kmeans
+  n_clusters: 10
+  add_cluster_id: true
+  add_distances: false
+  random_state: 42
+  n_init: 10
+
+variants:
+  - name: kmeans_id
+    weight: 2.0
+    params:
+      n_clusters: {type: int_range, min: 5, max: 50, step: 5}
+      add_cluster_id: {type: fixed, value: true}
+      add_distances: {type: fixed, value: false}
+    requires_preproc: [{group: scaler}]
+  - name: kmeans_distances
+    params:
+      n_clusters: {type: int_range, min: 5, max: 30, step: 5}
+      add_cluster_id: {type: fixed, value: true}
+      add_distances: {type: fixed, value: true}
+    requires_preproc: [{group: scaler}]

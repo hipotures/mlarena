@@ -1,0 +1,35 @@
+group: groupwise_normalizer
+template: groupwise_normalizer
+
+base_config:
+  group_keys: []
+  value_cols: []
+  eps: 1.0e-6
+  add_group_mean: true
+  add_centered: true
+  add_ratio: false
+  add_zscore: true
+
+variants:
+  - name: centered_zscore
+    weight: 2.0
+    params:
+      add_group_mean: {type: bool}
+      add_centered: {type: fixed, value: true}
+      add_zscore: {type: fixed, value: true}
+      add_ratio: {type: fixed, value: false}
+    requires_preproc: [{group: imputer}]
+  - name: ratio_only
+    params:
+      add_group_mean: {type: fixed, value: false}
+      add_centered: {type: fixed, value: false}
+      add_zscore: {type: fixed, value: false}
+      add_ratio: {type: fixed, value: true}
+    requires_preproc: [{group: imputer}]
+  - name: full
+    params:
+      add_group_mean: {type: bool}
+      add_centered: {type: fixed, value: true}
+      add_zscore: {type: fixed, value: true}
+      add_ratio: {type: bool}
+    requires_preproc: [{group: imputer}]

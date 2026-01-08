@@ -1,0 +1,36 @@
+group: numeric_binner
+template: numeric_binner
+
+base_config:
+  numeric_include: null
+  numeric_exclude: []
+  drop_original: false
+  encode: ordinal
+  strategy: quantile
+  n_bins: 10
+
+variants:
+  - name: quantile_ordinal
+    params:
+      strategy: {type: choice, values: [quantile]}
+      encode: {type: choice, values: [ordinal]}
+      n_bins: {type: int_range, min: 5, max: 50, step: 5}
+    requires_preproc: [{group: imputer}]
+  - name: quantile_onehot
+    params:
+      strategy: {type: choice, values: [quantile]}
+      encode: {type: choice, values: [onehot]}
+      n_bins: {type: int_range, min: 5, max: 50, step: 5}
+    requires_preproc: [{group: imputer}]
+  - name: uniform_onehot
+    params:
+      strategy: {type: choice, values: [uniform]}
+      encode: {type: choice, values: [onehot]}
+      n_bins: {type: int_range, min: 5, max: 50, step: 5}
+    requires_preproc: [{group: imputer}]
+  - name: kmeans_ordinal
+    params:
+      strategy: {type: choice, values: [kmeans]}
+      encode: {type: choice, values: [ordinal]}
+      n_bins: {type: int_range, min: 5, max: 30, step: 5}
+    requires_preproc: [{group: imputer}]

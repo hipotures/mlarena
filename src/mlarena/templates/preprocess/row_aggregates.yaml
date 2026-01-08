@@ -1,0 +1,5 @@
+module: row_aggregates
+config:
+  stats: [mean, std, sum]
+  prefix: row_
+  nan_policy: omit

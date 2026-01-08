@@ -1,0 +1,27 @@
+group: rank_features
+template: rank_features
+
+base_config:
+  numeric_include: null
+  numeric_exclude: []
+  group_keys: []
+  mode: global
+  method: percentile
+  tie_method: average
+  add_original: true
+
+variants:
+  - name: global_percentile
+    params:
+      mode: {type: choice, values: [global]}
+      method: {type: choice, values: [percentile]}
+      tie_method: {type: choice, values: [average, min, max]}
+  - name: global_rank
+    params:
+      mode: {type: choice, values: [global]}
+      method: {type: choice, values: [rank]}
+      tie_method: {type: choice, values: [average, min, max]}
+  - name: group_percentile
+    params:
+      mode: {type: choice, values: [by_group]}
+      method: {type: choice, values: [percentile]}

@@ -1,0 +1,26 @@
+group: categorical_cross
+template: categorical_cross
+
+base_config:
+  cross_pairs: []
+  max_pair_cardinality: 5000
+  separator: "__"
+  handle_unknown: ignore
+  output: hashed
+  hash_dim: 12
+  oof_folds: 5
+  oof_random_state: 42
+
+variants:
+  - name: hashing_cross
+    params:
+      output: {type: choice, values: [hashed]}
+      hash_dim: {type: int_range, min: 8, max: 18}
+  - name: onehot_cross
+    params:
+      output: {type: choice, values: [onehot]}
+      max_pair_cardinality: {type: int_range, min: 200, max: 5000, step: 200}
+  - name: target_mean_oof_cross
+    params:
+      output: {type: choice, values: [target_mean_oof]}
+      oof_folds: {type: int_range, min: 3, max: 8}

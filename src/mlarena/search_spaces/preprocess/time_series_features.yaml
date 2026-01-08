@@ -1,0 +1,64 @@
+group: time_series_features
+template: time_series_features
+
+base_config:
+  entity_id_col: null
+  timestamp_col: null
+  sort_ascending: true
+  value_cols: []
+  lags: [1]
+  windows: []
+  rolling_aggs: []
+  fill_method: ffill
+  drop_original_value_cols: false
+
+variants:
+  - name: lags_only
+    weight: 2.0
+    params:
+      lags:
+        type: subset
+        values: [1, 2, 3, 5, 7, 14, 28]
+        min_items: 1
+        max_items: 4
+        sort: true
+      windows: {type: fixed, value: []}
+      rolling_aggs: {type: fixed, value: []}
+      fill_method: {type: choice, values: [ffill, zero]}
+  - name: rolling_only
+    params:
+      lags: {type: fixed, value: []}
+      windows:
+        type: subset
+        values: [3, 5, 7, 14, 28]
+        min_items: 1
+        max_items: 3
+        sort: true
+      rolling_aggs:
+        type: subset
+        values: [mean, std, sum, min, max]
+        min_items: 1
+        max_items: 3
+        sort: true
+      fill_method: {type: choice, values: [ffill, zero]}
+  - name: lags_and_rolling
+    params:
+      lags:
+        type: subset
+        values: [1, 2, 3, 5, 7, 14]
+        min_items: 1
+        max_items: 3
+        sort: true
+      windows:
+        type: subset
+        values: [3, 7, 14]
+        min_items: 1
+        max_items: 2
+        sort: true
+      rolling_aggs:
+        type: subset
+        values: [mean, std, sum]
+        min_items: 1
+        max_items: 2
+        sort: true
+      fill_method: {type: choice, values: [ffill, zero]}

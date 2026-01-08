@@ -1,0 +1,7 @@
+module: dimensionality_reducer
+config:
+  method: pca
+  n_components: 20
+  include_sparse: false
+  whiten: false
+  random_state: 42

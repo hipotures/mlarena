@@ -98,6 +98,15 @@ Detailed documentation for each sub-module:
 - **[feature_interactions.md](feature_interactions.md)**: Create simple arithmetic interaction features (add, sub, mul, div) between numeric pairs.
 - **[feature_polynomial.md](feature_polynomial.md)**: Create polynomial and interaction features using sklearn.
 - **[feature_group_agg.md](feature_group_agg.md)**: Create group-based aggregations (groupby + agg + merge).
+- **[missingness_features.md](missingness_features.md)**: Add missingness indicators and row-level missing stats.
+- **[row_aggregates.md](row_aggregates.md)**: Row-wise numeric summary features.
+- **[rank_features.md](rank_features.md)**: Rank/percentile features for numeric columns.
+- **[numeric_binner.md](numeric_binner.md)**: Discretize numeric features into bins.
+- **[categorical_cross.md](categorical_cross.md)**: Cross-product features for categorical pairs.
+- **[groupwise_normalizer.md](groupwise_normalizer.md)**: Group-relative normalization features.
+- **[dimensionality_reducer.md](dimensionality_reducer.md)**: PCA/SVD component features.
+- **[clustering_features.md](clustering_features.md)**: KMeans-based cluster features.
+- **[time_series_features.md](time_series_features.md)**: Lags and rolling-window features for time series.
 - **[feature_selector.md](feature_selector.md)**: Automated feature selection using multiple methods.
 - **[imbalance_handler.md](imbalance_handler.md)**: Handling class imbalance via weighting or resampling.
 - **[outlier_handler.md](outlier_handler.md)**: Detection and handling of numeric outliers.

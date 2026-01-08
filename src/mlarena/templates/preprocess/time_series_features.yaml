@@ -1,0 +1,11 @@
+module: time_series_features
+config:
+  entity_id_col: null
+  timestamp_col: null
+  sort_ascending: true
+  value_cols: []
+  lags: [1]
+  windows: []
+  rolling_aggs: []
+  fill_method: ffill
+  drop_original_value_cols: false

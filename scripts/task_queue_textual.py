@@ -82,6 +82,7 @@ class QueueDashboard(Vertical):
 
 class TasksView(Container):
     status_filter = reactive("all")
+    module_filter = reactive("all")
     current_page = reactive(1)
     total_pages = reactive(1)
     sort_column = reactive("default")
@@ -91,6 +92,8 @@ class TasksView(Container):
     def compose(self) -> ComposeResult:
         with Horizontal(classes="toolbar"):
             yield Button("Status: all", id="btn-status-cycle")
+            yield Button("Mod: all", id="btn-module-cycle")
+            yield Static("", classes="spacer")
             yield Button("Previous", id="btn-prev")
             yield Label("Page 1/1", id="page-label")
             yield Button("Next", id="btn-next")
@@ -255,14 +258,24 @@ class TaskQueueApp(App):
     }
 
     #btn-status-cycle {
-        width: 22;
+        width: 20;
         background: $primary;
         color: white;
     }
 
-    #btn-status-cycle:hover {
+    #btn-module-cycle {
+        width: 20;
+        background: $primary;
+        color: white;
+    }
+
+    #btn-module-cycle:hover {
         background: $accent;
         color: black;
+    }
+
+    .spacer {
+        width: 1fr;
     }
     
     #page-label {
@@ -442,13 +455,46 @@ class TaskQueueApp(App):
         # Store tasks data for lookup
         view.tasks_data = {str(t["id"]): t for t in tasks}
         
-        # Filter
+        # Filter Status
         filter_val = view.status_filter
         if filter_val != "all":
             filtered = [t for t in tasks if t["status"] == filter_val]
         else:
             filtered = tasks
             
+        # Filter Module
+        mod_filter = view.module_filter
+        if mod_filter != "all":
+            def _matches_mod(t, target):
+                cmd = t.get("command", "").lower()
+                # Simple check for module name in command
+                # More robust: check if it's the first word after mla.py or at the start
+                parts = cmd.split()
+                if not parts: return False
+                
+                # Find the module name
+                module_name = ""
+                if "mla.py" in cmd:
+                    try:
+                        idx = -1
+                        for i, p in enumerate(parts):
+                            if "mla.py" in p: idx = i; break
+                        if idx != -1 and idx + 1 < len(parts):
+                            # Skip flags
+                            curr = idx + 1
+                            while curr < len(parts) and parts[curr].startswith("-"):
+                                if "=" not in parts[curr] and curr + 1 < len(parts) and not parts[curr+1].startswith("-"):
+                                    curr += 2
+                                else: curr += 1
+                            if curr < len(parts): module_name = parts[curr]
+                    except: pass
+                else:
+                    module_name = parts[0]
+                
+                return module_name.replace("_", "-") == target.replace("_", "-")
+
+            filtered = [t for t in filtered if _matches_mod(t, mod_filter)]
+
         # DYNAMIC SORTING
         if view.sort_column == "default":
             def sort_key(t):
@@ -744,6 +790,14 @@ class TaskQueueApp(App):
             next_idx = (statuses.index(current) + 1) % len(statuses)
             view.status_filter = statuses[next_idx]
             event.button.label = f"Status: {view.status_filter}"
+            view.current_page = 1
+            self.refresh_data()
+        elif event.button.id == "btn-module-cycle":
+            modules = ["all", "init", "eda", "preprocess", "model", "predict", "submit", "fetch-score"]
+            current = view.module_filter
+            next_idx = (modules.index(current) + 1) % len(modules)
+            view.module_filter = modules[next_idx]
+            event.button.label = f"Mod: {view.module_filter}"
             view.current_page = 1
             self.refresh_data()
         elif event.button.id == "btn-prev":

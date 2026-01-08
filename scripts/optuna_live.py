@@ -108,15 +108,27 @@ def _fetch_studies(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
         return []
 
     studies_rows = conn.execute("SELECT study_id, study_name FROM studies").fetchall()
-    directions_map: Dict[int, List[int]] = {}
-    if "directions" in tables:
-        for row in conn.execute("SELECT study_id, direction FROM directions ORDER BY study_id, objective"):
-            directions_map.setdefault(row["study_id"], []).append(int(row["direction"]))
+    directions_map: Dict[int, List[str]] = {}
+    
+    # Try the standard Optuna 3.x+ table name first
+    target_table = None
+    if "study_directions" in tables:
+        target_table = "study_directions"
+    elif "directions" in tables:
+        target_table = "directions"
+        
+    if target_table:
+        for row in conn.execute(f"SELECT study_id, direction FROM {target_table} ORDER BY study_id, objective"):
+            d = str(row["direction"]).upper()
+            label = "max" if "MAX" in d else "min"
+            directions_map.setdefault(row["study_id"], []).append(label)
     else:
         study_cols = _table_columns(conn, "studies")
         if "direction" in study_cols:
             for row in studies_rows:
-                directions_map[row["study_id"]] = [int(row["direction"])]
+                d = str(row["direction"]).upper()
+                label = "max" if "MAX" in d else "min"
+                directions_map[row["study_id"]] = [label]
 
     trials_cols = _table_columns(conn, "trials")
     has_value_col = "value" in trials_cols
@@ -155,7 +167,7 @@ def _fetch_studies(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
         max_num = max_trial_row["max_num"] if max_trial_row else None
 
         directions = directions_map.get(study_id, [])
-        direction_label = ",".join("max" if d == 1 else "min" for d in directions) if directions else "-"
+        direction_label = ",".join(directions) if directions else "-"
 
         best_val = None
         best_trial = None
@@ -304,7 +316,7 @@ def _render_dashboard(
 
     studies_table = Table(title="Studies", box=box.SIMPLE, expand=False)
     studies_table.add_column("Name", style="cyan", no_wrap=True)
-    studies_table.add_column("Dir", style="magenta", width=6)
+  #  studies_table.add_column("Dir", style="magenta", width=6)
     studies_table.add_column("Trials", justify="right")
     studies_table.add_column("Complete", justify="right")
     studies_table.add_column("Pruned", justify="right")
@@ -320,7 +332,7 @@ def _render_dashboard(
         best_trial = "-" if s["best_trial"] is None else str(s["best_trial"])
         studies_table.add_row(
             s["name"],
-            s["direction"],
+  #          s["direction"],
             str(total),
             str(counts.get(1, 0)),
             str(counts.get(2, 0)),
@@ -358,7 +370,7 @@ def _render_dashboard(
             except (ValueError, TypeError):
                 return 0.0
 
-        completed_trials = sorted(completed_trials, key=_val_sort_key, reverse=is_max)[:10]
+        completed_trials = sorted(completed_trials, key=_val_sort_key, reverse=False)[:10]
         
         # Always try to find trial #0 and add it if not already in top 10
         trial_zero = next((t for t in all_trials if t.get("number") == 0 and _normalize_state(t.get("state")) == 1), None)

@@ -587,6 +587,12 @@ class ModelModule(BaseModule):
                 if key not in template_cfg:
                     template_cfg[key] = value
 
+        # Allow invocation param overrides for weight handling
+        if self.invocation_params.get("weight_evaluation") is not None:
+            template_cfg["weight_evaluation"] = self.invocation_params.get("weight_evaluation")
+        if self.invocation_params.get("sample_weight_strategy") is not None:
+            template_cfg["sample_weight_strategy"] = self.invocation_params.get("sample_weight_strategy")
+
         # 2. Override with template values
         preset = template_cfg.get("preset") or template_cfg.get("presets") or preset
         time_limit = template_cfg.get("time_limit") or time_limit

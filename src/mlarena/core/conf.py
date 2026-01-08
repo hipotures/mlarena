@@ -48,6 +48,7 @@ class GlobalConfig(BaseModel):
     init: Dict[str, Any] = Field(default_factory=dict)
     eda: Dict[str, Any] = Field(default_factory=dict)
     preprocess: Dict[str, Any] = Field(default_factory=dict)
+    preprocess_tune: Dict[str, Any] = Field(default_factory=dict, alias="preprocess-tune")
     feat: Dict[str, Any] = Field(default_factory=dict)
     tune: Dict[str, Any] = Field(default_factory=dict)
     model: Dict[str, Any] = Field(default_factory=dict)

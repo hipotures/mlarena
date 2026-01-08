@@ -35,6 +35,10 @@ class PreprocessModule(BaseModule):
         Returns:
             Tuple of (is_valid, message) where ``is_valid`` is False when validation fails.
         """
+        # Allow direct template config injection (used by Optuna/preprocess tuning)
+        if self.invocation_params.get("preprocess_template_config") or self.invocation_params.get("preprocess_template_path"):
+            return True, ""
+
         template_name = self.invocation_params.get("preprocess_template")
         if not template_name:
             return False, "Missing --preprocess-template argument"
@@ -159,7 +163,11 @@ class PreprocessModule(BaseModule):
         config = self.context.config_module or load_project_config(self.context.project_root)
         template_name = self.invocation_params.get("preprocess_template")
         if not template_name:
-            raise ValueError("--preprocess-template is required")
+            # Allow dynamic templates; keep a stable label for logging/state
+            if self.invocation_params.get("preprocess_template_config") or self.invocation_params.get("preprocess_template_path"):
+                template_name = "inline"
+            else:
+                raise ValueError("--preprocess-template is required")
         cache_ok = bool(self.invocation_params.get("cache"))
         input_source = self.invocation_params.get("input_source", None)
         chain_exp_id = self.invocation_params.get("chain_exp_id", f"pre-{template_name}")
@@ -264,15 +272,32 @@ class PreprocessModule(BaseModule):
         # Get ignored columns for later use
         ignored = getattr(config, "IGNORED_COLUMNS", []) or []
 
-        # Load template config using template_loader (same as can_run)
-        import sys
-        from pathlib import Path as P
-        REPO_ROOT = P(__file__).resolve().parents[3]
-        sys.path.insert(0, str(REPO_ROOT / "scripts"))
-        from template_loader import load_templates
+        # Load template config (supports override via invocation params)
+        template_cfg = None
+        template_cfg_override = self.invocation_params.get("preprocess_template_config")
+        template_path = self.invocation_params.get("preprocess_template_path")
 
-        templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
-        template_cfg = templates.get(template_name, {})
+        if template_cfg_override:
+            if not isinstance(template_cfg_override, dict):
+                raise ValueError("preprocess_template_config must be a dict")
+            template_cfg = template_cfg_override
+        elif template_path:
+            try:
+                import yaml
+                template_cfg = yaml.safe_load(Path(template_path).read_text()) or {}
+            except Exception as e:
+                raise RuntimeError(f"Failed to load preprocess_template_path: {template_path} ({e})")
+
+        if template_cfg is None:
+            import sys
+            from pathlib import Path as P
+            REPO_ROOT = P(__file__).resolve().parents[3]
+            sys.path.insert(0, str(REPO_ROOT / "scripts"))
+            from template_loader import load_templates
+
+            templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
+            template_cfg = templates.get(template_name, {})
+
         custom_module_name = template_cfg.get("module") if template_cfg else None
 
         # Use custom preprocessing module if specified (not None and not empty string)

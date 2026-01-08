@@ -8,6 +8,7 @@ Importing this package triggers module registration via decorators.
 from mlarena.modules.init import InitModule  # noqa: F401
 from mlarena.modules.eda import EDAModule  # noqa: F401
 from mlarena.modules.preprocess import PreprocessModule  # noqa: F401
+from mlarena.modules.preprocess_tune import PreprocessTuneModule  # noqa: F401
 from mlarena.modules.feat import FeatureModule  # noqa: F401
 from mlarena.modules.model import ModelModule  # noqa: F401
 from mlarena.modules.predict import PredictModule  # noqa: F401
@@ -22,6 +23,7 @@ __all__ = [
     "InitModule",
     "EDAModule",
     "PreprocessModule",
+    "PreprocessTuneModule",
     "FeatureModule",
     "ModelModule",
     "PredictModule",

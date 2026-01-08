@@ -279,6 +279,7 @@ def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:
     allowed = {
         "eda",
         "preprocess",
+        "preprocess-tune",
         "feat",
         "model",
         "predict",

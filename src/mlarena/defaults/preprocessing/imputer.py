@@ -143,11 +143,27 @@ def fit_transform(
     column_strategies_used = {}
     empty_columns_no_observed = []
 
+    def _coerce_numeric(col: str, to_float: bool) -> None:
+        if not to_float:
+            return
+        for df in (train_df, test_df, val_df, orig_df):
+            if df is not None and col in df.columns:
+                df[col] = df[col].astype("float64")
+
     # Impute numeric columns
     for col in numeric_cols:
         # Check for column-specific strategy
         strategy = config["column_strategies"].get(col, config["numeric_strategy"])
         column_strategies_used[col] = strategy
+
+        # Align dtypes across datasets to avoid sklearn casting errors
+        dtype_kinds = []
+        for df in (train_df, test_df, val_df, orig_df):
+            if df is not None and col in df.columns:
+                dtype_kinds.append(df[col].dtype.kind)
+        dtype_mismatch = len(set(dtype_kinds)) > 1
+        requires_float = strategy in {"mean", "median", "knn", "iterative"}
+        _coerce_numeric(col, dtype_mismatch or requires_float)
 
         if train_df[col].isna().all():
             empty_columns_no_observed.append(col)

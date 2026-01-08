@@ -133,6 +133,42 @@ def _validate_setup_modules(
     return True, None
 
 
+def _resolve_preprocess_tune_study_name(config: GlobalConfig, project_root: Path) -> str:
+    """Resolve study name for preprocess tuning (used for default exp-id)."""
+    section = getattr(config, "preprocess_tune", {}) or {}
+    if isinstance(section, dict):
+        if section.get("study_name"):
+            return str(section["study_name"])
+        if section.get("experiment_prefix"):
+            return str(section["experiment_prefix"])
+    if hasattr(config, "study_name") and getattr(config, "study_name"):
+        return str(getattr(config, "study_name"))
+
+    super_chain_path = None
+    if isinstance(section, dict):
+        super_chain_path = section.get("super_chain")
+    if not super_chain_path:
+        super_chain_path = REPO_ROOT / "conf" / "preprocess" / "super_chain_optuna.yaml"
+    else:
+        super_chain_path = Path(super_chain_path)
+        if not super_chain_path.is_absolute():
+            super_chain_path = REPO_ROOT / super_chain_path
+
+    try:
+        import yaml
+        if Path(super_chain_path).exists():
+            payload = yaml.safe_load(Path(super_chain_path).read_text()) or {}
+            tune_cfg = payload.get("tune", {}) or {}
+            if tune_cfg.get("study_name"):
+                return str(tune_cfg["study_name"])
+            if payload.get("experiment_prefix"):
+                return str(payload["experiment_prefix"])
+    except Exception:
+        pass
+
+    return "optuna_preprocess"
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """
     Build a simplified top-level CLI parser.
@@ -774,6 +810,11 @@ def main(argv: List[str] | None = None) -> int:
             overrides.pop(0)
             if "sub" in argv:
                 argv[argv.index("sub")] = "submissions"
+        elif potential_command == "pre":
+            command = "preprocess"
+            overrides.pop(0)
+            if "pre" in argv:
+                argv[argv.index("pre")] = "preprocess"
         elif potential_command in ("modules", "queue") or potential_command in ModuleRegistry.available():
             command = overrides.pop(0)
         else:
@@ -785,6 +826,11 @@ def main(argv: List[str] | None = None) -> int:
 
     # Detect project
     project = args.project
+
+    # Handle preprocess tune subcommand: "pre tune" or "pre ... tune"
+    if command == "preprocess" and "tune" in overrides:
+        overrides = [o for o in overrides if o != "tune"]
+        command = "preprocess-tune"
     
     # If project not in flags, try to find it in overrides (e.g., project=Titanic)
     if not project:
@@ -833,6 +879,11 @@ def main(argv: List[str] | None = None) -> int:
         return result.returncode
 
     project_root = REPO_ROOT / "projects" / "kaggle" / project
+
+    # Default experiment id for preprocess-tune
+    if command == "preprocess-tune" and not config.experiment_id:
+        study_name = _resolve_preprocess_tune_study_name(config, project_root)
+        config.experiment_id = f"optuna_{study_name}"
     
     # Auto-flow: no command provided
     if command is None:

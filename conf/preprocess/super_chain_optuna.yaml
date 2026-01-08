@@ -7,9 +7,10 @@ tune:
   allow_heavy_variants: false
   optuna_workers: 8
   optuna_storage_timeout: 100
+  model_cleanup: true
   max_trial_sec: 1800
   max_features_out: 5000
-  quiet_preprocess_panel: false
+  quiet_preprocess_panel: true
   quiet_model_panel: false
   model_verbosity: 2
 

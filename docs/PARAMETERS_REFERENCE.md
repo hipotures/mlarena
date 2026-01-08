@@ -65,6 +65,9 @@ Parameters used as fallback values by multiple modules (Model, Tune, Preprocess)
 | `preprocess_tune.optuna_workers` | int | `1` | Parallel Optuna workers (`n_jobs`). |
 | `preprocess_tune.max_trial_sec` | int | `1800` | Hard timeout per trial (seconds). |
 | `preprocess_tune.optuna_storage_timeout` | int | (optional) | SQLite connection timeout (seconds). |
+| `preprocess_tune.model_cleanup` | bool | `false` | Remove `model_fast` and `*_processed.csv.gz` files after each trial. |
+| `preprocess_tune.ag_cleanup` | bool | `false` | Alias for `model_cleanup`. |
+| `preprocess_tune.cleanup_processed` | bool | `false` | Remove `*_processed.csv.gz` after each trial (implied by `model_cleanup`). |
 | `preprocess_tune.allow_heavy_steps` | bool | `false` | Allow heavy steps in the super-chain. |
 | `preprocess_tune.allow_heavy_variants` | bool | `false` | Allow heavy variants within steps. |
 | `preprocess_tune.max_features_out` | int | `50000` | Hard cap on output features. |

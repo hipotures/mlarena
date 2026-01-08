@@ -33,6 +33,8 @@ Key parameters
 - ``preprocess_tune.quiet_preprocess_panel``: suppress PREPROCESS panels during tuning
 - ``preprocess_tune.quiet_model_panel``: suppress MODEL panels during tuning
 - ``preprocess_tune.model_verbosity``: AutoGluon verbosity override (default from ``model.verbosity``)
+- ``preprocess_tune.model_cleanup`` / ``preprocess_tune.ag_cleanup``: remove ``model_fast`` and ``*_processed.csv.gz`` after each trial
+- ``preprocess_tune.cleanup_processed``: remove only ``*_processed.csv.gz`` after each trial
 
 Quiet panels
 ------------

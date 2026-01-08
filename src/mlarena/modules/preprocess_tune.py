@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import os
 import signal
 import time
@@ -504,6 +505,49 @@ def _build_context(
     )
 
 
+def _cleanup_trial_artifacts(
+    trial_dir: Path,
+    project_root: Path,
+    *,
+    cleanup_model: bool,
+    cleanup_processed: bool,
+) -> Dict[str, Any]:
+    """Remove large trial artifacts safely (model_fast dir and *_processed.csv.gz files)."""
+    if not cleanup_model and not cleanup_processed:
+        return {"skipped": "cleanup disabled"}
+
+    try:
+        trial_dir_resolved = trial_dir.resolve()
+        experiments_root = (project_root / "experiments").resolve()
+        if experiments_root not in trial_dir_resolved.parents:
+            return {"skipped": "outside experiments"}
+        if not trial_dir_resolved.name.startswith("trial_"):
+            return {"skipped": "not a trial dir"}
+    except Exception:
+        return {"skipped": "resolve failed"}
+
+    removed = {"processed_files": 0, "model_dir_removed": False}
+
+    if cleanup_model:
+        model_dir = trial_dir_resolved / "model_fast"
+        if model_dir.exists() and model_dir.is_dir() and model_dir.parent == trial_dir_resolved:
+            shutil.rmtree(model_dir, ignore_errors=True)
+            removed["model_dir_removed"] = True
+
+    if cleanup_processed:
+        for path in trial_dir_resolved.rglob("*_processed.csv.gz"):
+            try:
+                path_resolved = path.resolve()
+                if not path_resolved.is_relative_to(trial_dir_resolved):
+                    continue
+                path_resolved.unlink(missing_ok=True)
+                removed["processed_files"] += 1
+            except Exception:
+                continue
+
+    return removed
+
+
 def _run_trial_worker(
     payload_path: Path,
     project_root: Path,
@@ -725,6 +769,15 @@ class PreprocessTuneModule(BaseModule):
         study_name = _param("study_name", tune_cfg.get("study_name") or super_chain.get("experiment_prefix") or "optuna_preprocess")
         n_trials = int(_param("n_trials", tune_cfg.get("n_trials", 10)))
         optuna_workers = int(_param("optuna_workers", tune_cfg.get("optuna_workers", 1)))
+        model_cleanup = bool(
+            _param("model_cleanup", tune_cfg.get("model_cleanup", False))
+            or _param("ag_cleanup", tune_cfg.get("ag_cleanup", False))
+        )
+        cleanup_processed = bool(
+            _param("cleanup_processed", tune_cfg.get("cleanup_processed", False))
+            or _param("model_cleanup", tune_cfg.get("model_cleanup", False))
+            or _param("ag_cleanup", tune_cfg.get("ag_cleanup", False))
+        )
         max_trial_sec = int(_param("max_trial_sec", tune_cfg.get("max_trial_sec", 1800)))
         allow_heavy_steps = bool(_param("allow_heavy_steps", tune_cfg.get("allow_heavy_steps", False)))
         allow_heavy_variants = bool(_param("allow_heavy_variants", tune_cfg.get("allow_heavy_variants", False)))
@@ -910,6 +963,12 @@ class PreprocessTuneModule(BaseModule):
                             indent=2,
                         )
                     )
+                _cleanup_trial_artifacts(
+                    trial_dir,
+                    self.context.project_root,
+                    cleanup_model=model_cleanup,
+                    cleanup_processed=cleanup_processed,
+                )
                 raise optuna.TrialPruned(f"timeout after {max_trial_sec}s")
 
             metrics_path = trial_dir / "metrics.json"
@@ -929,6 +988,12 @@ class PreprocessTuneModule(BaseModule):
                         },
                         indent=2,
                     )
+                )
+                _cleanup_trial_artifacts(
+                    trial_dir,
+                    self.context.project_root,
+                    cleanup_model=model_cleanup,
+                    cleanup_processed=cleanup_processed,
                 )
                 raise optuna.TrialPruned("trial failed (no metrics)")
 
@@ -956,7 +1021,19 @@ class PreprocessTuneModule(BaseModule):
             trial.set_user_attr("pipeline_path", str(pipeline_path))
 
             if score_fast is None:
+                _cleanup_trial_artifacts(
+                    trial_dir,
+                    self.context.project_root,
+                    cleanup_model=model_cleanup,
+                    cleanup_processed=cleanup_processed,
+                )
                 raise optuna.TrialPruned("no score")
+            _cleanup_trial_artifacts(
+                trial_dir,
+                self.context.project_root,
+                cleanup_model=model_cleanup,
+                cleanup_processed=cleanup_processed,
+            )
             return float(score_fast)
 
         best_written: set[int] = set()
@@ -1038,6 +1115,8 @@ class PreprocessTuneModule(BaseModule):
                     "model_verbosity": model_verbosity,
                     "storage_url": storage_url,
                     "optuna_storage_timeout": optuna_storage_timeout,
+                    "model_cleanup": model_cleanup,
+                    "cleanup_processed": cleanup_processed,
                     "model_template": model_template,
                     "best_chain_template": best_payload.get("best_chain_template"),
                 },

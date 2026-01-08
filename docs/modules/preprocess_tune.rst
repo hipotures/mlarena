@@ -4,7 +4,7 @@ preprocess-tune Module
 Optuna-driven preprocessing tuning (FAST evaluation only). Builds preprocessing pipelines from the super-chain + search spaces and evaluates them with a FAST model template.
 
 - **Depends on:** EDA summary (``experiments/eda/artifacts/eda/eda_summary.json`` must exist)
-- **Key overrides:** ``preprocess_tune.model_template=<name>``, ``preprocess_tune.n_trials=<int>``, ``preprocess_tune.study_name=<name>``
+- **Key overrides:** ``preprocess_tune.model_template=<name>``, ``preprocess_tune.n_trials=<int>``, ``preprocess_tune.optuna_workers=<int>``, ``preprocess_tune.study_name=<name>``
 - **Outputs:** trial artifacts under ``projects/kaggle/<slug>/experiments/optuna_<study>/trial_XXXX/`` and best-chain templates in ``projects/kaggle/<slug>/templates/preprocess/``
 
 Basic usage
@@ -22,6 +22,7 @@ Key parameters
 - ``preprocess_tune.super_chain``: path to super-chain YAML (default: ``conf/preprocess/super_chain_optuna.yaml``)
 - ``preprocess_tune.study_name``: Optuna study name
 - ``preprocess_tune.n_trials``: number of trials
+- ``preprocess_tune.optuna_workers``: parallel Optuna workers (`n_jobs`)
 - ``preprocess_tune.max_trial_sec``: hard timeout per trial
 - ``preprocess_tune.allow_heavy_steps`` / ``preprocess_tune.allow_heavy_variants``: heavy gating
 - ``preprocess_tune.max_features_out``: hard cap for feature count

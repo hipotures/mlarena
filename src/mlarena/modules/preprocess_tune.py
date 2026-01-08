@@ -724,6 +724,7 @@ class PreprocessTuneModule(BaseModule):
         tune_cfg = super_chain.get("tune", {}) or {}
         study_name = _param("study_name", tune_cfg.get("study_name") or super_chain.get("experiment_prefix") or "optuna_preprocess")
         n_trials = int(_param("n_trials", tune_cfg.get("n_trials", 10)))
+        optuna_workers = int(_param("optuna_workers", tune_cfg.get("optuna_workers", 1)))
         max_trial_sec = int(_param("max_trial_sec", tune_cfg.get("max_trial_sec", 1800)))
         allow_heavy_steps = bool(_param("allow_heavy_steps", tune_cfg.get("allow_heavy_steps", False)))
         allow_heavy_variants = bool(_param("allow_heavy_variants", tune_cfg.get("allow_heavy_variants", False)))
@@ -957,7 +958,15 @@ class PreprocessTuneModule(BaseModule):
             except Exception as exc:
                 console.print(f"[yellow]⚠ Failed to write best templates: {exc}[/yellow]")
 
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=False, callbacks=[_on_trial_complete])
+        if optuna_workers < 1:
+            optuna_workers = 1
+        study.optimize(
+            objective,
+            n_trials=n_trials,
+            n_jobs=optuna_workers,
+            show_progress_bar=False,
+            callbacks=[_on_trial_complete],
+        )
 
         best_payload = {}
         try:
@@ -987,6 +996,7 @@ class PreprocessTuneModule(BaseModule):
                 {
                     "study_name": study_name,
                     "n_trials": n_trials,
+                    "optuna_workers": optuna_workers,
                     "max_trial_sec": max_trial_sec,
                     "allow_heavy_steps": allow_heavy_steps,
                     "allow_heavy_variants": allow_heavy_variants,

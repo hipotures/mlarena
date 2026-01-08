@@ -1,18 +1,805 @@
 {
-  "next_id": 5742,
+  "next_id": 46,
   "queue": [
     {
-      "id": 5741,
-      "priority": null,
-      "status": "running",
-      "command": "model --model-template test_c_01_0001 --exp-id exp-test_c_01_0001 skip_submit=true skip_git=true",
-      "added_at": "2026-01-06 21:02:25",
-      "started_at": "2026-01-06 21:08:10",
-      "finished_at": null,
-      "attempts": [],
+      "id": 1,
+      "priority": 10,
+      "status": "completed",
+      "command": "fetch-score --model-template test_c_02_0012_full --exp-id exp-test_c_02_0012_full submit.confirm_timeout=0",
+      "added_at": "2026-01-07 05:50:05",
+      "started_at": "2026-01-07 05:53:13",
+      "finished_at": "2026-01-07 06:58:32",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 06:58:32",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
       "last_error": null,
       "experiment_id": null,
-      "log_file": "queue/logs/task-5741.log"
+      "log_file": "queue/logs/task-1.log"
+    },
+    {
+      "id": 2,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_01 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 12:40:21",
+      "started_at": "2026-01-07 12:40:37",
+      "finished_at": "2026-01-07 12:47:36",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 12:47:36",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-114421",
+      "log_file": "queue/logs/task-2.log"
+    },
+    {
+      "id": 3,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_02 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 12:40:21",
+      "started_at": "2026-01-07 12:47:36",
+      "finished_at": "2026-01-07 12:54:01",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 12:54:01",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-115114",
+      "log_file": "queue/logs/task-3.log"
+    },
+    {
+      "id": 4,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_03 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 12:40:22",
+      "started_at": "2026-01-07 12:54:01",
+      "finished_at": "2026-01-07 13:00:27",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 13:00:27",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-115737",
+      "log_file": "queue/logs/task-4.log"
+    },
+    {
+      "id": 5,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_04 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 12:40:23",
+      "started_at": "2026-01-07 13:00:27",
+      "finished_at": "2026-01-07 13:06:57",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 13:06:57",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-120407",
+      "log_file": "queue/logs/task-5.log"
+    },
+    {
+      "id": 6,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_05 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 12:40:23",
+      "started_at": "2026-01-07 13:06:57",
+      "finished_at": "2026-01-07 13:13:27",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 13:13:27",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-121036",
+      "log_file": "queue/logs/task-6.log"
+    },
+    {
+      "id": 7,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_06 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 13:36:25",
+      "started_at": "2026-01-07 13:37:26",
+      "finished_at": "2026-01-07 13:44:05",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 13:44:05",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-124112",
+      "log_file": "queue/logs/task-7.log"
+    },
+    {
+      "id": 8,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_07 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 13:36:25",
+      "started_at": "2026-01-07 13:44:05",
+      "finished_at": "2026-01-07 13:50:24",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 13:50:24",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-124743",
+      "log_file": "queue/logs/task-8.log"
+    },
+    {
+      "id": 9,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_08 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 13:36:26",
+      "started_at": "2026-01-07 13:50:24",
+      "finished_at": "2026-01-07 13:56:52",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 13:56:52",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-125402",
+      "log_file": "queue/logs/task-9.log"
+    },
+    {
+      "id": 10,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_09 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 13:36:27",
+      "started_at": "2026-01-07 13:56:52",
+      "finished_at": "2026-01-07 14:03:26",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:03:26",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-130031",
+      "log_file": "queue/logs/task-10.log"
+    },
+    {
+      "id": 11,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_10 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 13:36:27",
+      "started_at": "2026-01-07 14:03:26",
+      "finished_at": "2026-01-07 14:09:56",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:09:56",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-130707",
+      "log_file": "queue/logs/task-11.log"
+    },
+    {
+      "id": 12,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_11 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:13:53",
+      "started_at": "2026-01-07 14:14:09",
+      "finished_at": "2026-01-07 14:21:03",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:21:03",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-131748",
+      "log_file": "queue/logs/task-12.log"
+    },
+    {
+      "id": 13,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_12 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:13:54",
+      "started_at": "2026-01-07 14:21:03",
+      "finished_at": "2026-01-07 14:27:56",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:27:56",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-132445",
+      "log_file": "queue/logs/task-13.log"
+    },
+    {
+      "id": 14,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_13 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:13:54",
+      "started_at": "2026-01-07 14:27:56",
+      "finished_at": "2026-01-07 14:34:59",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:34:59",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-133139",
+      "log_file": "queue/logs/task-14.log"
+    },
+    {
+      "id": 15,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_14 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:13:55",
+      "started_at": "2026-01-07 14:34:59",
+      "finished_at": "2026-01-07 14:42:14",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:42:14",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-133845",
+      "log_file": "queue/logs/task-15.log"
+    },
+    {
+      "id": 16,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_15 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:13:55",
+      "started_at": "2026-01-07 14:42:14",
+      "finished_at": "2026-01-07 14:49:16",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 14:49:16",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-134559",
+      "log_file": "queue/logs/task-16.log"
+    },
+    {
+      "id": 17,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_16 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:52:28",
+      "started_at": "2026-01-07 15:00:19",
+      "finished_at": "2026-01-07 15:07:28",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 15:07:28",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-140409",
+      "log_file": "queue/logs/task-17.log"
+    },
+    {
+      "id": 18,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_17 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:52:29",
+      "started_at": "2026-01-07 15:07:28",
+      "finished_at": "2026-01-07 15:14:45",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 15:14:45",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-141113",
+      "log_file": "queue/logs/task-18.log"
+    },
+    {
+      "id": 19,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_18 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:52:29",
+      "started_at": "2026-01-07 15:14:45",
+      "finished_at": "2026-01-07 15:21:23",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 15:21:23",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-141828",
+      "log_file": "queue/logs/task-19.log"
+    },
+    {
+      "id": 20,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_19 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:52:30",
+      "started_at": "2026-01-07 15:21:23",
+      "finished_at": "2026-01-07 15:28:15",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 15:28:15",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-142505",
+      "log_file": "queue/logs/task-20.log"
+    },
+    {
+      "id": 21,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_20 skip_submit=true skip_git=true",
+      "added_at": "2026-01-07 14:52:31",
+      "started_at": "2026-01-07 15:28:15",
+      "finished_at": "2026-01-07 15:34:55",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 15:34:55",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-143158",
+      "log_file": "queue/logs/task-21.log"
+    },
+    {
+      "id": 22,
+      "priority": 10,
+      "status": "completed",
+      "command": "fetch-score --model-template test_c_02_0012_11_full --exp-id exp-test_c_02_0012_11_full submit.confirm_timeout=0",
+      "added_at": "2026-01-07 15:55:07",
+      "started_at": "2026-01-07 15:58:22",
+      "finished_at": "2026-01-07 17:03:46",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 17:03:46",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-22.log"
+    },
+    {
+      "id": 28,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_21 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 17:48:11",
+      "started_at": "2026-01-07 17:48:41",
+      "finished_at": "2026-01-07 17:55:44",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 17:55:44",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-165229",
+      "log_file": "queue/logs/task-28.log"
+    },
+    {
+      "id": 29,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_22 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 17:48:11",
+      "started_at": "2026-01-07 17:55:44",
+      "finished_at": "2026-01-07 18:02:26",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 18:02:26",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-165925",
+      "log_file": "queue/logs/task-29.log"
+    },
+    {
+      "id": 30,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_23 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 17:48:12",
+      "started_at": "2026-01-07 18:02:26",
+      "finished_at": "2026-01-07 18:09:16",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 18:09:16",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-170608",
+      "log_file": "queue/logs/task-30.log"
+    },
+    {
+      "id": 31,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_24 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 17:48:13",
+      "started_at": "2026-01-07 18:09:16",
+      "finished_at": "2026-01-07 18:20:47",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 18:20:47",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-171418",
+      "log_file": "queue/logs/task-31.log"
+    },
+    {
+      "id": 32,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0012_25 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 17:48:13",
+      "started_at": "2026-01-07 18:20:47",
+      "finished_at": "2026-01-07 18:28:06",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 18:28:06",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": "exp-20260107-172439",
+      "log_file": "queue/logs/task-32.log"
+    },
+    {
+      "id": 33,
+      "priority": 10,
+      "status": "completed",
+      "command": "fetch-score --model-template test_c_02_0012_12_full --exp-id exp-test_c_02_0012_12_full submit.confirm_timeout=0",
+      "added_at": "2026-01-07 19:10:40",
+      "started_at": "2026-01-07 19:10:58",
+      "finished_at": "2026-01-07 20:16:26",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 20:16:26",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-33.log"
+    },
+    {
+      "id": 34,
+      "priority": 10,
+      "status": "completed",
+      "command": "fetch-score --model-template test_c_02_0012_15_full --exp-id exp-test_c_02_0012_15_full submit.confirm_timeout=0",
+      "added_at": "2026-01-07 19:10:40",
+      "started_at": "2026-01-07 20:16:26",
+      "finished_at": "2026-01-07 21:21:44",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 21:21:44",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-34.log"
+    },
+    {
+      "id": 35,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_01 --exp-id test_c_02_0047_01 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:16:54",
+      "started_at": "2026-01-07 22:21:27",
+      "finished_at": "2026-01-07 22:28:18",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 22:28:18",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-35.log"
+    },
+    {
+      "id": 36,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_02 --exp-id test_c_02_0047_02 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:01",
+      "started_at": "2026-01-07 22:28:18",
+      "finished_at": "2026-01-07 22:34:51",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 22:34:51",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-36.log"
+    },
+    {
+      "id": 37,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_03 --exp-id test_c_02_0047_03 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:01",
+      "started_at": "2026-01-07 22:34:51",
+      "finished_at": "2026-01-07 22:41:24",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 22:41:24",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-37.log"
+    },
+    {
+      "id": 38,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_04 --exp-id test_c_02_0047_04 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:01",
+      "started_at": "2026-01-07 22:41:24",
+      "finished_at": "2026-01-07 22:55:11",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 22:55:11",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-38.log"
+    },
+    {
+      "id": 39,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_05 --exp-id test_c_02_0047_05 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:02",
+      "started_at": "2026-01-07 22:55:11",
+      "finished_at": "2026-01-07 23:01:38",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 23:01:38",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-39.log"
+    },
+    {
+      "id": 40,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_06 --exp-id test_c_02_0047_06 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:02",
+      "started_at": "2026-01-07 23:01:38",
+      "finished_at": "2026-01-07 23:08:16",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 23:08:16",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-40.log"
+    },
+    {
+      "id": 41,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_07 --exp-id test_c_02_0047_07 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:02",
+      "started_at": "2026-01-07 23:08:16",
+      "finished_at": "2026-01-07 23:14:46",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 23:14:46",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-41.log"
+    },
+    {
+      "id": 42,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_08 --exp-id test_c_02_0047_08 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:02",
+      "started_at": "2026-01-07 23:14:46",
+      "finished_at": "2026-01-07 23:19:58",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 23:19:58",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-42.log"
+    },
+    {
+      "id": 43,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_09 --exp-id test_c_02_0047_09 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:02",
+      "started_at": "2026-01-07 23:19:58",
+      "finished_at": "2026-01-07 23:27:05",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 23:27:05",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-43.log"
+    },
+    {
+      "id": 44,
+      "priority": 10,
+      "status": "completed",
+      "command": "model --model-template test_c_02_0047_10 --exp-id test_c_02_0047_10 skip_submit=true skip_git=true model.mla_retention=true",
+      "added_at": "2026-01-07 22:17:02",
+      "started_at": "2026-01-07 23:27:05",
+      "finished_at": "2026-01-07 23:32:53",
+      "attempts": [
+        {
+          "timestamp": "2026-01-07 23:32:53",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-44.log"
+    },
+    {
+      "id": 45,
+      "priority": 10,
+      "status": "completed",
+      "command": "fetch-score --model-template test_c_02_0047_09_full --exp-id exp-test_c_02_0047_09_full submit.confirm_timeout=0",
+      "added_at": "2026-01-07 23:37:09",
+      "started_at": "2026-01-07 23:37:19",
+      "finished_at": "2026-01-08 00:42:54",
+      "attempts": [
+        {
+          "timestamp": "2026-01-08 00:42:54",
+          "success": true,
+          "error": null,
+          "exit_code": 0
+        }
+      ],
+      "last_error": null,
+      "experiment_id": null,
+      "log_file": "queue/logs/task-45.log"
     }
   ]
 }

@@ -13,7 +13,7 @@ auto_filter_by_eda: true
 eda_summary_path: null
 
 queue:
-  enable: true
+  enable: false
   priority: null
   submit: false
   git: false

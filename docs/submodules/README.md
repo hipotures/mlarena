@@ -95,7 +95,9 @@ Detailed documentation for each sub-module:
 - **[categorical_encoder.md](categorical_encoder.md)**: Advanced pandas-native categorical conversion using EDA metadata.
 - **[scaler.md](scaler.md)**: Numerical scaling and distribution transformations.
 - **[drift_detector.md](drift_detector.md)**: Detection and removal of drifting features between train/test.
-- **[feature_engineer.md](feature_engineer.md)**: Automatic creation of interaction and polynomial features.
+- **[feature_interactions.md](feature_interactions.md)**: Create simple arithmetic interaction features (add, sub, mul, div) between numeric pairs.
+- **[feature_polynomial.md](feature_polynomial.md)**: Create polynomial and interaction features using sklearn.
+- **[feature_group_agg.md](feature_group_agg.md)**: Create group-based aggregations (groupby + agg + merge).
 - **[feature_selector.md](feature_selector.md)**: Automated feature selection using multiple methods.
 - **[imbalance_handler.md](imbalance_handler.md)**: Handling class imbalance via weighting or resampling.
 - **[outlier_handler.md](outlier_handler.md)**: Detection and handling of numeric outliers.

@@ -53,43 +53,43 @@ preprocessors:
     enabled: true
   - name: feature_group_agg
     group: feature_group_agg
-    enabled: false
+    enabled: true
   - name: missingness_features
     group: missingness_features
     weight: 2.0
-    enabled: false
+    enabled: true
   - name: row_aggregates
     group: row_aggregates
     weight: 2.0
-    enabled: false
+    enabled: true
   - name: rank_features
     group: rank_features
     weight: 1.5
-    enabled: false
+    enabled: true
   - name: numeric_binner
     group: numeric_binner
     weight: 2.0
-    enabled: false
+    enabled: true
   - name: categorical_cross
     group: categorical_cross
     weight: 2.0
-    enabled: false
+    enabled: true
   - name: groupwise_normalizer
     group: groupwise_normalizer
     weight: 2.0
-    enabled: false
+    enabled: true
   - name: dimensionality_reducer
     group: dimensionality_reducer
     weight: 1.5
-    enabled: false
+    enabled: true
   - name: clustering_features
     group: clustering_features
     weight: 1.5
-    enabled: false
+    enabled: true
   - name: time_series_features
     group: time_series_features
     weight: 2.0
-    enabled: false
+    enabled: true
   - name: feature_selector
     group: feature_selector
     weight: 2.0
@@ -106,4 +106,4 @@ preprocessors:
     enabled: true
   - name: imbalance_handler
     group: imbalance
-    enabled: false
+    enabled: true

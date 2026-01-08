@@ -1,5 +1,5 @@
 model: autogluon_baseline
-preprocess_template: mcts
+preprocess_template: mcts-chain
 preset: medium
 time_limit: 600
 use_gpu: false

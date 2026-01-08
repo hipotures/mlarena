@@ -21,7 +21,7 @@ To jest zgodne z posiadaną korelacją FAST↔FULL↔Kaggle i stabilizuje pętl�
 
 - Optuna dobiera warianty i parametry preprocessingu/FE.
 - Runner uruchamia preprocessing + AutoGluon(thin) i zwraca `score_fast`.
-- Trial-e działają równolegle (np. 8–16 procesów), aby wykorzystać CPU mimo jednowątkowych kroków preprocessingu.
+- Trial-e mogą działać równolegle (np. 8–16 procesów, defaultowo 1), aby wykorzystać CPU mimo jednowątkowych kroków preprocessingu.
 - Wyniki są porównywalne: stały seed, stałe splity/foldy, stała konfiguracja FAST.
 
 ---

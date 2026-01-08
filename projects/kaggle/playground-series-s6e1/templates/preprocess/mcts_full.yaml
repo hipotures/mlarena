@@ -1,6 +1,0 @@
-module: train_fraction
-config:
-  train_fraction: 0.6
-  valid_fraction: 0.1
-  eval_fraction: 0.1
-  random_state: 42

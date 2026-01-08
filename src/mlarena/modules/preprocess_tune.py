@@ -562,6 +562,8 @@ def _run_trial_worker(
                     "is_last_in_chain": idx == (len(pipeline) - 1),
                     "force": True,
                     "lock": False,
+                    "quiet_preprocess_panel": bool(payload.get("quiet_preprocess_panel")),
+                    "quiet_model_panel": bool(payload.get("quiet_model_panel")),
                 }
             )
 
@@ -609,6 +611,7 @@ def _run_trial_worker(
             "preprocess_template": "optuna_trial",
             "preprocess_exp_dir": str(last_step_dir) if last_step_dir else None,
             "force": True,
+            "quiet_model_panel": bool(payload.get("quiet_model_panel")),
         }
         # Enable weight_evaluation only if preprocessing produced weights
         weight_eval = False
@@ -718,6 +721,27 @@ class PreprocessTuneModule(BaseModule):
         allow_heavy_variants = bool(_param("allow_heavy_variants", tune_cfg.get("allow_heavy_variants", False)))
         max_features_out = int(_param("max_features_out", tune_cfg.get("max_features_out", 50000)))
         seed = int(_param("seed", getattr(cfg.common, "seed", 42)))
+        quiet_preprocess_panel = bool(
+            _param("quiet_preprocess_panel", tune_cfg.get("quiet_preprocess_panel", False))
+            or _param("quiet_preprocess_panels", tune_cfg.get("quiet_preprocess_panels", False))
+        )
+        quiet_model_panel = bool(
+            _param("quiet_model_panel", tune_cfg.get("quiet_model_panel", False))
+            or _param("quiet_model_panels", tune_cfg.get("quiet_model_panels", False))
+        )
+        preprocess_cfg = cfg.preprocess if isinstance(cfg.preprocess, dict) else {}
+        if not quiet_preprocess_panel:
+            quiet_preprocess_panel = bool(
+                preprocess_cfg.get("quiet_preprocess_panel")
+                or preprocess_cfg.get("quiet_preprocess_panels")
+                or preprocess_cfg.get("quiet_preprocess")
+            )
+        if not quiet_model_panel:
+            model_cfg = cfg.model if isinstance(cfg.model, dict) else {}
+            quiet_model_panel = bool(
+                model_cfg.get("quiet_model_panel")
+                or model_cfg.get("quiet_model_panels")
+            )
 
         model_template = _param("model_template", getattr(cfg, "model_template", None))
         if not model_template:
@@ -783,6 +807,8 @@ class PreprocessTuneModule(BaseModule):
                 "pipeline": pipeline,
                 "trial_dir": str(trial_dir),
                 "config": self.context.config.model_dump(),
+                "quiet_preprocess_panel": quiet_preprocess_panel,
+                "quiet_model_panel": quiet_model_panel,
             }
             payload_path = trial_dir / "trial_payload.json"
             payload_path.write_text(json.dumps(payload, indent=2, default=str))
@@ -945,6 +971,8 @@ class PreprocessTuneModule(BaseModule):
                     "max_trial_sec": max_trial_sec,
                     "allow_heavy_steps": allow_heavy_steps,
                     "allow_heavy_variants": allow_heavy_variants,
+                    "quiet_preprocess_panel": quiet_preprocess_panel,
+                    "quiet_model_panel": quiet_model_panel,
                     "storage_url": storage_url,
                     "model_template": model_template,
                     "best_chain_template": best_payload.get("best_chain_template"),
@@ -952,6 +980,25 @@ class PreprocessTuneModule(BaseModule):
                 indent=2,
             )
         )
+
+        if best_payload.get("best_chain_template"):
+            try:
+                from rich.panel import Panel
+
+                best_chain_path = Path(best_payload["best_chain_template"])
+                best_chain_name = best_chain_path.stem
+                project_name = self.context.project_name
+                next_steps = (
+                    f"[bold]1.[/] Run preprocess chain:\n"
+                    f"   • [cyan]uv run python scripts/mla.py preprocess --project {project_name} preprocess_template={best_chain_name}[/cyan]\n"
+                    f"[bold]2.[/] Run FAST model on best chain:\n"
+                    f"   • [cyan]uv run python scripts/mla.py model --project {project_name} model_template={model_template} preprocess_template={best_chain_name}[/cyan]\n"
+                    f"[bold]3.[/] Templates saved:\n"
+                    f"   • [dim]{best_chain_path}[/dim]"
+                )
+                console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
+            except Exception:
+                pass
 
         return ModuleResult(
             success=True,

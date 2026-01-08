@@ -611,6 +611,26 @@ def format_progress_message(message: str, project_root: Path) -> str:
     return message
 
 
+def _suppress_module_panels(
+    module_name: str,
+    cli_invocation: Optional[Dict[str, Any]],
+) -> bool:
+    if not cli_invocation:
+        return False
+    if module_name == "preprocess":
+        return bool(
+            cli_invocation.get("quiet_preprocess_panel")
+            or cli_invocation.get("quiet_preprocess_panels")
+            or cli_invocation.get("quiet_preprocess")
+        )
+    if module_name == "model":
+        return bool(
+            cli_invocation.get("quiet_model_panel")
+            or cli_invocation.get("quiet_model_panels")
+        )
+    return False
+
+
 def print_module_header(
     module_name: str,
     started_at: str,
@@ -628,6 +648,9 @@ def print_module_header(
     """Standardized module header panel."""
     if console is None:
         console = Console(force_terminal=True)
+
+    if _suppress_module_panels(module_name, cli_invocation):
+        return
 
     if project_root is None:
         project_root = Path.cwd()
@@ -785,6 +808,9 @@ def print_module_footer(
     """Standardized module footer panel."""
     if console is None:
         console = Console(force_terminal=True)
+
+    if _suppress_module_panels(module_name, cli_invocation):
+        return
 
     if project_root is None:
         project_root = Path.cwd()

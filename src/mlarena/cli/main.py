@@ -278,6 +278,12 @@ def run_preprocess_chain(
 
     results = {}
     force = config.force
+    preprocess_cfg = config.preprocess if isinstance(config.preprocess, dict) else {}
+    quiet_preprocess_panel = bool(
+        preprocess_cfg.get("quiet_preprocess_panel")
+        or preprocess_cfg.get("quiet_preprocess_panels")
+        or preprocess_cfg.get("quiet_preprocess")
+    )
 
     if len(preprocess_templates) > 1 or is_meta:
         console.print(f"\n[bold cyan]Preprocessing Chain:[/bold cyan] {' → '.join(preprocess_templates)}")
@@ -349,6 +355,7 @@ def run_preprocess_chain(
                 template_config=first_config,
                 project_root=project_root,
                 project_name=project_name,
+                cli_invocation={"quiet_preprocess_panel": quiet_preprocess_panel},
                 console=console
             )
 
@@ -366,6 +373,7 @@ def run_preprocess_chain(
             cli_invocation = {
                 "chain_exp_id": f"{chain_exp_id}/{combined_hash}",
                 "input_source": input_source,
+                "quiet_preprocess_panel": quiet_preprocess_panel,
             }
             if final_state_file.exists():
                 try:
@@ -435,6 +443,7 @@ def run_preprocess_chain(
             "is_last_in_chain": is_last_in_chain,
             "force": force,
             "lock": config.lock,
+            "quiet_preprocess_panel": quiet_preprocess_panel,
         })
 
         executor = PipelineExecutor({"preprocess": module})

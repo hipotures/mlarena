@@ -12,6 +12,7 @@ Command-line toolkit for running reproducible Kaggle experiments with modular pr
    modules/init
    modules/eda
    modules/preprocess
+   modules/preprocess_tune
    modules/model
    modules/predict
    modules/submit

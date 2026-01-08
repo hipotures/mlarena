@@ -47,11 +47,29 @@ Parameters used as fallback values by multiple modules (Model, Tune, Preprocess)
 | `model.use_gpu` | bool | (from common) | Override GPU usage. |
 | `model.hpo_preset` | string | None | Name of an HPO preset (e.g., `hpo_boost_medium`). |
 | `model.hyperparameters`| dict | {} | Nested model parameters (e.g., `model.hyperparameters.GBM.max_depth=5`). |
+| `model.quiet_model_panel` | bool | `false` | Suppress MODEL header/footer panels. |
 
 ### 2. Preprocessing (`preprocess.*`)
 | Parameter | Type | Default | Description |
 |:---|:---:|:---:|:---|
 | `preprocess.cache` | bool | `true` | Use cached artifacts if input data/config hasn't changed. |
+| `preprocess.quiet_preprocess_panel` | bool | `false` | Suppress PREPROCESS header/footer panels. |
+
+### 2b. Preprocess Tune (`preprocess_tune.*`)
+| Parameter | Type | Default | Description |
+|:---|:---:|:---:|:---|
+| `preprocess_tune.super_chain` | string | `conf/preprocess/super_chain_optuna.yaml` | Super-chain YAML used for tuning. |
+| `preprocess_tune.study_name` | string | `optuna_preprocess` | Optuna study name. |
+| `preprocess_tune.n_trials` | int | `10` | Number of trials to run. |
+| `preprocess_tune.max_trial_sec` | int | `1800` | Hard timeout per trial (seconds). |
+| `preprocess_tune.allow_heavy_steps` | bool | `false` | Allow heavy steps in the super-chain. |
+| `preprocess_tune.allow_heavy_variants` | bool | `false` | Allow heavy variants within steps. |
+| `preprocess_tune.max_features_out` | int | `50000` | Hard cap on output features. |
+| `preprocess_tune.storage_url` | string | `sqlite:///...` | Optuna storage URL. |
+| `preprocess_tune.model_template` | string | (required) | FAST model template for evaluation. |
+| `preprocess_tune.seed` | int | `common.seed` | Trial seed. |
+| `preprocess_tune.quiet_preprocess_panel` | bool | `false` | Suppress PREPROCESS panels during tuning. |
+| `preprocess_tune.quiet_model_panel` | bool | `false` | Suppress MODEL panels during tuning. |
 
 ### 3. Submission (`submit.*`)
 | Parameter | Type | Default | Description |

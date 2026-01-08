@@ -6,7 +6,9 @@ tune:
   allow_heavy_steps: false
   allow_heavy_variants: false
   max_trial_sec: 1800
-  max_features_out: 50000
+  max_features_out: 5000
+  quiet_preprocess_panel: true
+  quiet_model_panel: true
 
 preprocessors:
   - name: sanity_check

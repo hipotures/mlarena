@@ -218,6 +218,12 @@ def train(
             weight_evaluation_param = True
         else:
             weight_evaluation_param = False
+    elif weight_evaluation_param and not sample_weight_param:
+        console.print(
+            "[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] "
+            "weight_evaluation=True but no weights found; disabling."
+        )
+        weight_evaluation_param = False
 
     if sample_weight_param:
         console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] weight_evaluation=[magenta]{weight_evaluation_param}[/magenta]")

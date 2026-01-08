@@ -7,6 +7,7 @@ Displays queue dashboard, task list, and live logs.
 import sys
 import json
 import io
+import re
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -23,6 +24,7 @@ from textual.reactive import reactive
 from textual.worker import Worker
 from rich.text import Text
 from rich.console import Console
+from rich.align import Align
 
 # Add src to path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -298,7 +300,7 @@ class TaskQueueApp(App):
 
     def on_mount(self) -> None:
         self.query_one(DataTable).add_columns(
-            "ID", "Priority", "Status", "Module", "Template", "Added", "Duration", "Log File"
+            "ID", "Prio", "OK", "Mod", "CV", "Template", "Added", "Duration", "Log File"
         )
         self.set_interval(2.0, self.refresh_data)
         self.set_interval(1.0, self.update_log)
@@ -433,9 +435,26 @@ class TaskQueueApp(App):
         
         # Update Table
         table.clear()
+
+        icon_map = {
+            "preprocess": "🔧",
+            "model": "🧠",
+            "eda": "🔍",
+            "predict": "🎯",
+            "submit": "📨",
+            "fetch-score": "📈",
+            "fetch_score": "📈",
+            "init": "⏻",
+            "blend": "🧬",
+            "ensemble": "🧬",
+            "tune": "🧪",
+            "stack": "🥞",
+            "feat": "✨",
+        }
+
         for t in page_tasks:
             # Format columns
-            module = "-"
+            module_name = "-"
             template = "-"
             cmd_parts = t["command"].split()
             if cmd_parts:
@@ -443,13 +462,29 @@ class TaskQueueApp(App):
                 if "mla.py" in t["command"]:
                    # Try to find module after mla.py
                    try:
-                       mla_idx = cmd_parts.index("scripts/mla.py")
-                       cmd_parts = cmd_parts[mla_idx+1:]
+                       mla_idx = -1
+                       for idx, part in enumerate(cmd_parts):
+                           if "mla.py" in part:
+                               mla_idx = idx
+                               break
+                       if mla_idx != -1:
+                           cmd_parts = cmd_parts[mla_idx+1:]
                    except ValueError:
                        pass
                 
                 if cmd_parts:
-                    module = cmd_parts[0]
+                    # Skip top-level flags like --project
+                    idx = 0
+                    while idx < len(cmd_parts) and cmd_parts[idx].startswith("-"):
+                        # If it has a value, skip next too
+                        if "=" not in cmd_parts[idx] and idx + 1 < len(cmd_parts) and not cmd_parts[idx+1].startswith("-"):
+                            idx += 2
+                        else:
+                            idx += 1
+                    
+                    if idx < len(cmd_parts):
+                        module_name = cmd_parts[idx]
+                    
                     if "--model-template" in cmd_parts:
                          try:
                             template = cmd_parts[cmd_parts.index("--model-template") + 1]
@@ -461,6 +496,9 @@ class TaskQueueApp(App):
                          except IndexError:
                              pass
             
+            module_key = module_name.lower().replace("_", "-")
+            module_icon = icon_map.get(module_key, "📄")
+
             duration = "-"
             if t["started_at"] and t["finished_at"]:
                 try:
@@ -470,12 +508,63 @@ class TaskQueueApp(App):
                 except ValueError:
                     pass
             
-            status_style = {
-                "running": "bold blue",
-                "completed": "green",
-                "failed": "bold red",
-                "pending": "yellow"
-            }.get(t["status"], "white")
+            status_map = {
+                "running": ("[blue]⟳[/blue]", "bold blue"),
+                "completed": ("[green]✓[/green]", "green"),
+                "failed": ("[red]✗[/red]", "bold red"),
+                "pending": ("[yellow]•[/yellow]", "yellow")
+            }
+            status_icon, status_style = status_map.get(t["status"], (t["status"], "white"))
+
+            # Robust CV/Public score discovery
+            cv_score = "-"
+            pub_score = None
+            exp_id = t.get("experiment_id")
+            
+            # 1. Discovery: If exp_id missing, try to find it in command or LOG file
+            if not exp_id:
+                cmd = t.get("command", "")
+                match = re.search(r'--exp-id\s+([^\s]+)', cmd) or re.search(r'experiment_id=([^\s]+)', cmd)
+                if match:
+                    exp_id = match.group(1)
+                else:
+                    # Try scanning the log file for exp-YYYYMMDD-HHMMSS
+                    log_path = self.project_root / t.get("log_file", "")
+                    if log_path.exists():
+                        try:
+                            log_tail = log_path.read_text()
+                            match = re.search(r'(exp-\d{8}-\d{6})', log_tail)
+                            if match:
+                                exp_id = match.group(1)
+                        except: pass
+
+            if exp_id:
+                state_path = self.project_root / "experiments" / exp_id / "state.json"
+                if state_path.exists():
+                    try:
+                        with open(state_path) as f:
+                            state_data = json.load(f)
+                        
+                        modules = state_data.get("modules", {})
+                        
+                        # Find CV Score
+                        score_val = None
+                        model_mod = modules.get("model", {})
+                        p = model_mod.get("payload", {})
+                        score_val = p.get("local_cv_score") or p.get("local_cv")
+                        
+                        if score_val is None:
+                            for m in modules.values():
+                                p = m.get("payload", {})
+                                score_val = p.get("local_cv_score") or p.get("local_cv")
+                                if score_val is not None: break
+                        
+                        if score_val is not None:
+                            cv_score = f"{score_val:.4f}"
+                    except: pass
+            
+            # Display only CV score
+            display_score = cv_score
             
             # Format log file cell - hide for pending tasks
             if t["status"] == "pending":
@@ -486,8 +575,9 @@ class TaskQueueApp(App):
             table.add_row(
                 str(t["id"]),
                 str(t["priority"]),
-                Text(t["status"], style=status_style),
-                module,
+                Align.center(status_icon),
+                Align.center(module_icon),
+                Align.right(display_score),
                 template,
                 t["added_at"],
                 duration,

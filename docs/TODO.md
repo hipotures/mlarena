@@ -14,6 +14,7 @@
 - [ ] **Lazy config loading** - Defer project config.py loading until needed in `execute()`.
 - [ ] **Parallel module discovery** - Use ThreadPoolExecutor for importing modules.
 - [ ] **Bytecode compilation** - Pre-compile modules to .pyc for faster startup.
+- [ ] **Preprocess timing audit** - Analyze 100–200 Optuna trials’ `state.json` to rank slow steps (avg/median/p95), then decide if targeted Polars migration is worth it.
 
 ## Documentation (In Progress)
 

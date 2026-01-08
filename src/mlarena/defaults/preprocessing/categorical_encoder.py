@@ -24,47 +24,70 @@ from rich.table import Table
 console = Console()
 
 
-def _read_eda_metadata(project_root: Path) -> Dict[str, Any]:
+def _read_eda_metadata(project_root: Path, train_df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Read EDA metadata from experiments/eda/artifacts/eda/eda_summary.json.
+    Read EDA metadata with smart fallback.
 
     Args:
         project_root: Project root directory
+        train_df: Training dataframe for column validation
 
     Returns:
         Dictionary with EDA metadata
 
     Raises:
-        FileNotFoundError: If EDA summary not found
+        FileNotFoundError: If matching EDA summary not found
     """
+    # 1. Try standard path (from project_root)
     eda_summary_path = project_root / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
-
+    
+    # 2. Try current directory path (if running from project dir)
     if not eda_summary_path.exists():
-        # Fallback 1: Current working directory (if mla is run from project root)
-        fallback_path = Path("experiments") / "eda" / "artifacts" / "eda" / "eda_summary.json"
-        
-        if not fallback_path.exists():
-            # Fallback 2: Check in common project location relative to repo root
-            # This handles runs from repo root
-            potential_project_dirs = list(Path("projects/kaggle").glob("*"))
-            for p_dir in potential_project_dirs:
-                p_path = p_dir / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
-                if p_path.exists() and project_root.name in str(p_path):
-                    fallback_path = p_path
-                    break
+         cwd_path = Path("experiments") / "eda" / "artifacts" / "eda" / "eda_summary.json"
+         if cwd_path.exists():
+             eda_summary_path = cwd_path
 
-        if fallback_path.exists():
-            console.print(f"  [yellow]⚠[/yellow] Path not found: {eda_summary_path}")
-            console.print(f"  [green]✓[/green] Fallback to: {fallback_path}")
-            eda_summary_path = fallback_path
-        else:
-            raise FileNotFoundError(
-                f"EDA summary not found: {eda_summary_path}\n"
-                f"Run: uv run python scripts/mla.py eda --project <project-name> --force"
-            )
+    # 3. Verify if the file found so far matches the data
+    if eda_summary_path.exists():
+        try:
+            with open(eda_summary_path) as f:
+                data = json.load(f)
+                eda_cols = set(data.get("train", {}).get("summary", {}).get("variables", {}).keys())
+                df_cols = set(train_df.columns)
+                # Calculate overlap
+                common = eda_cols.intersection(df_cols)
+                if len(common) / len(df_cols) > 0.8: # >80% match
+                    return data
+                else:
+                    console.print(f"  [yellow]⚠[/yellow] Metadata at {eda_summary_path} does not match dataframe columns (overlap: {len(common)}/{len(df_cols)})")
+        except Exception:
+            pass # Continue to search
 
-    with open(eda_summary_path) as f:
-        return json.load(f)
+    # 4. Smart Fallback: Search all projects
+    console.print(f"  [yellow]⚠[/yellow] Searching for matching EDA metadata in projects/...")
+    potential_files = list(Path("projects/kaggle").glob("*/experiments/eda/artifacts/eda/eda_summary.json"))
+    
+    for p_path in potential_files:
+        try:
+            with open(p_path) as f:
+                data = json.load(f)
+                eda_cols = set(data.get("train", {}).get("summary", {}).get("variables", {}).keys())
+                df_cols = set(train_df.columns)
+                
+                # Check for strong match
+                common = eda_cols.intersection(df_cols)
+                match_ratio = len(common) / len(df_cols) if len(df_cols) > 0 else 0
+                
+                if match_ratio > 0.9: # >90% match found
+                    console.print(f"  [green]✓[/green] Found matching metadata: {p_path} (match: {match_ratio:.0%})")
+                    return data
+        except Exception:
+            continue
+
+    raise FileNotFoundError(
+        f"Could not find EDA summary matching the current dataframe columns.\n"
+        f"Run: uv run python scripts/mla.py eda --project <project-name> --force"
+    )
 
 
 def _extract_categorical_columns(
@@ -87,7 +110,7 @@ def _extract_categorical_columns(
     Returns:
         Tuple of (categorical_columns, eda_metadata)
     """
-    variables = eda_data.get("train", {}).get("variables", {})
+    variables = eda_data.get("train", {}).get("summary", {}).get("variables", {})
 
     categorical_cols = []
     eda_metadata = {}
@@ -414,7 +437,7 @@ def fit_transform(
     eda_cols = []
 
     try:
-        eda_data = _read_eda_metadata(project_root)
+        eda_data = _read_eda_metadata(project_root, train_df)
         console.print(f"  [green]✓[/green] EDA metadata loaded")
 
         # Extract categorical columns from EDA

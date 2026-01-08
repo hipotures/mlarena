@@ -1,6 +1,6 @@
 model: autogluon_baseline
 preset: medium
-time_limit: 600
+time_limit: 1800
 use_gpu: false
 seed: 42
 included_model_types:
@@ -14,4 +14,4 @@ fit_args:
   save_bag_folds: true
   num_bag_folds: 5
   num_bag_sets: 1
-  num_cpus: 4
+  num_cpus: 6

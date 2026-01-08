@@ -84,6 +84,8 @@ class TasksView(Container):
     status_filter = reactive("all")
     current_page = reactive(1)
     total_pages = reactive(1)
+    sort_column = reactive("default")
+    sort_reverse = reactive(False)
     tasks_data = {}
 
     def compose(self) -> ComposeResult:
@@ -401,6 +403,19 @@ class TaskQueueApp(App):
         table = self.query_one(DataTable)
         view = self.query_one(TasksView)
         
+        # SAVE CURSOR POSITION
+        old_cursor = table.cursor_coordinate
+        old_scroll = table.scroll_offset
+
+        # Update Column Headers with Sort Indicators
+        base_cols = ["ID", "Prio", "OK", "Mod", "CV", "Template", "Added", "Duration", "Log File"]
+        table.clear(columns=True)
+        for col in base_cols:
+            label = col
+            if view.sort_column == col:
+                label += " ▼" if view.sort_reverse else " ▲"
+            table.add_column(label)
+
         # Store tasks data for lookup
         view.tasks_data = {str(t["id"]): t for t in tasks}
         
@@ -411,14 +426,46 @@ class TaskQueueApp(App):
         else:
             filtered = tasks
             
-        # Sort: Running first, then Pending (by priority), then Completed/Failed (newest first)
-        def sort_key(t):
-            s = t["status"]
-            if s == "running": return (0, 0)
-            if s == "pending": return (1, t["priority"])
-            return (2, -t["id"]) # Descending ID for others
-            
-        filtered.sort(key=sort_key)
+        # DYNAMIC SORTING
+        if view.sort_column == "default":
+            def sort_key(t):
+                s = t["status"]
+                if s == "running": return (0, 0)
+                if s == "pending": return (1, t["priority"])
+                return (2, -t["id"]) # Descending ID for others
+            filtered.sort(key=sort_key)
+        else:
+            def _get_cv(t):
+                exp_id = t.get("experiment_id")
+                if not exp_id: return -1.0
+                try:
+                    p = self.project_root / "experiments" / exp_id / "state.json"
+                    if p.exists():
+                        d = json.loads(p.read_text())
+                        for m in d.get("modules", {}).values():
+                            score = m.get("payload", {}).get("local_cv_score") or m.get("payload", {}).get("local_cv")
+                            if score is not None: return abs(float(score))
+                except: pass
+                return -1.0
+
+            def _get_sort_val(t):
+                col = view.sort_column
+                if col == "ID": return int(t["id"])
+                if col == "Prio": return int(t["priority"])
+                if col == "OK": return t["status"]
+                if col == "Mod": return t["command"]
+                if col == "CV": return _get_cv(t)
+                if col == "Template": return t["command"] # Extracting template would be better but complex here
+                if col == "Added": return t["added_at"]
+                if col == "Duration": 
+                    if t["started_at"] and t["finished_at"]:
+                        try: return (datetime.strptime(t["finished_at"], "%Y-%m-%d %H:%M:%S") - 
+                                      datetime.strptime(t["started_at"], "%Y-%m-%d %H:%M:%S")).total_seconds()
+                        except: pass
+                    return 0
+                return 0
+
+            filtered.sort(key=_get_sort_val, reverse=view.sort_reverse)
         
         # Pagination
         page_size = 10
@@ -453,7 +500,7 @@ class TaskQueueApp(App):
         }
 
         for t in page_tasks:
-            # Format columns
+            # ... (logika wyciągania module_name i template pozostaje bez zmian)
             module_name = "-"
             template = "-"
             cmd_parts = t["command"].split()
@@ -560,7 +607,7 @@ class TaskQueueApp(App):
                                 if score_val is not None: break
                         
                         if score_val is not None:
-                            cv_score = f"{score_val:.4f}"
+                            cv_score = f"{abs(score_val):.4f}"
                     except: pass
             
             # Display only CV score
@@ -583,11 +630,33 @@ class TaskQueueApp(App):
                 duration,
                 log_cell
             )
+        
+        # RESTORE CURSOR POSITION
+        if old_cursor and old_cursor.row < len(table.rows):
+            table.move_cursor(row=old_cursor.row, column=old_cursor.column, animate=False)
+            if old_scroll:
+                table.scroll_to(old_scroll.x, old_scroll.y, animate=False)
             
         # Update Controls
         view.query_one("#page-label", Label).update(f"Page {view.current_page}/{view.total_pages}")
         view.query_one("#btn-prev", Button).disabled = (view.current_page == 1)
         view.query_one("#btn-next", Button).disabled = (view.current_page == view.total_pages)
+
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Handle clicking on column headers to sort."""
+        view = self.query_one(TasksView)
+        # Strip arrows from label to get base column name
+        col_label = str(event.label).replace(" ▲", "").replace(" ▼", "").strip()
+        
+        if view.sort_column == col_label:
+            # Toggle direction if same column
+            view.sort_reverse = not view.sort_reverse
+        else:
+            # New column, reset to ascending (or descending for CV)
+            view.sort_column = col_label
+            view.sort_reverse = (col_label in ["CV", "Added", "Duration"]) # Default descending for scores/dates
+            
+        self.refresh_data()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle row selection to open log modal."""

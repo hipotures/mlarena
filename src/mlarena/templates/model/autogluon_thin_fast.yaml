@@ -14,3 +14,4 @@ fit_args:
   save_bag_folds: true
   num_bag_folds: 5
   num_bag_sets: 1
+  num_cpus: 4

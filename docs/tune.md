@@ -20,6 +20,38 @@ The `tune` module was designed to:
 
 **Important**: For production use, prefer **AutoGluon native HPO** via model templates with `hpo_preset` and `hyperparameter_tune_kwargs`. See [HPO Guide](MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo) for details.
 
+## Monitoring
+
+The `mlarena` framework provides a dedicated CLI tool for real-time monitoring of Optuna studies stored in SQLite databases.
+
+### Optuna Live Monitor
+
+The `scripts/optuna_live.py` script provides a read-only, live-updating dashboard for tracking your HPO progress.
+
+#### Key Features
+- **Real-time Updates**: Automatically refreshes the dashboard at a configurable interval.
+- **Trial Tracking**:
+  - **Running Trials**: Shows the last 8 active trials with a live elapsed time counter.
+  - **Top Trials**: Shows the top 10 best results, automatically sorted by score.
+- **Baseline Reference**: Always displays Trial #0 (baseline) at the bottom for easy comparison.
+- **Read-Only Safety**: Uses SQLite URI `mode=ro` and `PRAGMA query_only = 1` to ensure it never locks or corrupts the database.
+- **Interactive**: Supports exit keys (`q`, `Esc`, `Ctrl-C`).
+
+#### Usage
+
+```bash
+python scripts/optuna_live.py --db path/to/study.sqlite --interval 5
+```
+
+| Argument | Description |
+|----------|-------------|
+| `--db` | Path to the Optuna SQLite file (required) |
+| `--interval` | Refresh interval in seconds (default: 5) |
+| `--study` | Study name to focus on (optional) |
+| `--limit` | Number of trials to buffer for sorting (default: 100) |
+
+---
+
 ## Prerequisites
 
 ### Installation
@@ -130,6 +162,8 @@ parameter_name:
 3. **Evaluation**: Model performance is evaluated using the leaderboard
 4. **Optimization**: Optuna maximizes the evaluation metric
 5. **Output**: Best parameters and score are saved to `tune_result.json`
+
+**Tip**: Use the [Optuna Live Monitor](#optuna-live-monitor) to track progress while the study is running.
 
 ### Trial Process
 

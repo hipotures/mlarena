@@ -360,6 +360,8 @@ class ModelModule(BaseModule):
             "time_limit": time_limit,
             "use_gpu": use_gpu_param if use_gpu_param is not None else False,
         }
+        if template_cfg.get("verbosity") is not None:
+            hyperparams_dict["verbosity"] = template_cfg.get("verbosity")
 
         # Add top-level fit args from template
         if "excluded_model_types" in template_cfg:
@@ -592,6 +594,8 @@ class ModelModule(BaseModule):
             template_cfg["weight_evaluation"] = self.invocation_params.get("weight_evaluation")
         if self.invocation_params.get("sample_weight_strategy") is not None:
             template_cfg["sample_weight_strategy"] = self.invocation_params.get("sample_weight_strategy")
+        if self.invocation_params.get("verbosity") is not None:
+            template_cfg["verbosity"] = self.invocation_params.get("verbosity")
 
         # 2. Override with template values
         preset = template_cfg.get("preset") or template_cfg.get("presets") or preset

@@ -321,6 +321,7 @@ def train(
         "excluded_models",
         "included_model_types",
         "preset",
+        "verbosity",
         "hyperparameter_tune_kwargs",  # NEW
         "search_space",  # NEW
         "fit_args",

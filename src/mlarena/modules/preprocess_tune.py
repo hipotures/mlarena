@@ -613,6 +613,11 @@ def _run_trial_worker(
             "force": True,
             "quiet_model_panel": bool(payload.get("quiet_model_panel")),
         }
+        if payload.get("model_verbosity") is not None:
+            try:
+                model_params["verbosity"] = int(payload.get("model_verbosity"))
+            except Exception:
+                model_params["verbosity"] = payload.get("model_verbosity")
         # Enable weight_evaluation only if preprocessing produced weights
         weight_eval = False
         if last_step_dir:
@@ -645,7 +650,10 @@ def _run_trial_worker(
         model_results = model_executor.run_module("model", force=True, skip_deps=False)
         model_result = model_results.get("model")
         if not model_result or not model_result.success:
-            raise RuntimeError("Model step failed")
+            detail = None
+            if model_result is not None:
+                detail = model_result.error or (model_result.payload or {}).get("error")
+            raise RuntimeError(f"Model step failed{f': {detail}' if detail else ''}")
 
         score_fast = None
         payload = model_result.payload or {}
@@ -742,8 +750,18 @@ class PreprocessTuneModule(BaseModule):
                 model_cfg.get("quiet_model_panel")
                 or model_cfg.get("quiet_model_panels")
             )
+        model_verbosity = _param("model_verbosity", tune_cfg.get("model_verbosity"))
+        if model_verbosity is None:
+            model_cfg = cfg.model if isinstance(cfg.model, dict) else {}
+            model_verbosity = model_cfg.get("verbosity")
 
-        model_template = _param("model_template", getattr(cfg, "model_template", None))
+        model_template = _param("model_template", None)
+        if not model_template:
+            eval_cfg = super_chain.get("evaluation", {}) or {}
+            if isinstance(eval_cfg, dict):
+                model_template = eval_cfg.get("model")
+        if not model_template:
+            model_template = getattr(cfg, "model_template", None)
         if not model_template:
             raise ValueError("model_template is required for preprocess tuning")
 
@@ -809,6 +827,7 @@ class PreprocessTuneModule(BaseModule):
                 "config": self.context.config.model_dump(),
                 "quiet_preprocess_panel": quiet_preprocess_panel,
                 "quiet_model_panel": quiet_model_panel,
+                "model_verbosity": model_verbosity,
             }
             payload_path = trial_dir / "trial_payload.json"
             payload_path.write_text(json.dumps(payload, indent=2, default=str))
@@ -973,6 +992,7 @@ class PreprocessTuneModule(BaseModule):
                     "allow_heavy_variants": allow_heavy_variants,
                     "quiet_preprocess_panel": quiet_preprocess_panel,
                     "quiet_model_panel": quiet_model_panel,
+                    "model_verbosity": model_verbosity,
                     "storage_url": storage_url,
                     "model_template": model_template,
                     "best_chain_template": best_payload.get("best_chain_template"),

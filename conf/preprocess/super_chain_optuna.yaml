@@ -7,8 +7,9 @@ tune:
   allow_heavy_variants: false
   max_trial_sec: 1800
   max_features_out: 5000
-  quiet_preprocess_panel: true
-  quiet_model_panel: true
+  quiet_preprocess_panel: false
+  quiet_model_panel: false
+  model_verbosity: 2
 
 preprocessors:
   - name: sanity_check

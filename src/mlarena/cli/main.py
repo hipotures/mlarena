@@ -169,6 +169,23 @@ def _resolve_preprocess_tune_study_name(config: GlobalConfig, project_root: Path
     return "optuna_preprocess"
 
 
+def _resolve_preprocess_tune_model_template(config: GlobalConfig, project_root: Path) -> Optional[str]:
+    section = getattr(config, "preprocess_tune", {}) or {}
+    super_chain_path = section.get("super_chain")
+    if not super_chain_path:
+        super_chain_path = REPO_ROOT / "conf" / "preprocess" / "super_chain_optuna.yaml"
+    try:
+        import yaml
+        payload = yaml.safe_load(Path(super_chain_path).read_text()) or {}
+        eval_cfg = payload.get("evaluation", {}) or {}
+        model_tpl = eval_cfg.get("model")
+        if model_tpl:
+            return str(model_tpl)
+    except Exception:
+        pass
+    return None
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """
     Build a simplified top-level CLI parser.
@@ -1041,6 +1058,8 @@ def main(argv: List[str] | None = None) -> int:
         # Inject top-level config fields that modules expect
         for field in ["model_template", "preprocess_template", "force", "skip_submit", "lock"]:
             if hasattr(config, field):
+                if name == "preprocess-tune" and field == "model_template":
+                    continue
                 params[field] = getattr(config, field)
 
         # Also inject common fields (these override template defaults if explicitly set via CLI)
@@ -1052,6 +1071,13 @@ def main(argv: List[str] | None = None) -> int:
         if name == "model" and final_preprocess_template:
             params["preprocess_template"] = final_preprocess_template
             params["preprocess_exp_dir"] = str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None
+
+        if name == "preprocess-tune":
+            section = getattr(config, "preprocess_tune", {}) or {}
+            if "model_template" not in section:
+                resolved_tpl = _resolve_preprocess_tune_model_template(config, project_root)
+                if resolved_tpl:
+                    params["model_template"] = resolved_tpl
 
         module.set_invocation_params(params)
         modules[name] = module

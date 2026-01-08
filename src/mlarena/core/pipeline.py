@@ -233,6 +233,14 @@ class PipelineExecutor:
             output_paths["model"] = f"experiments/{experiment_id}/artifacts/"
             output_paths["submission"] = "submissions/"
 
+        elif module_name == "preprocess-tune":
+            model_tpl = invocation.get("model_template")
+            if model_tpl:
+                input_paths["model_template"] = model_tpl
+            super_chain_path = invocation.get("super_chain")
+            if super_chain_path:
+                input_paths["super_chain"] = super_chain_path
+
         elif module_name == "eda":
             input_paths["train"] = "data/train.csv.gz"
             input_paths["test"] = "data/test.csv.gz"

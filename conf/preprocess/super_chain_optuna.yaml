@@ -5,7 +5,8 @@ filter_by_eda: true
 tune:
   allow_heavy_steps: false
   allow_heavy_variants: false
-  optuna_workers: 1
+  optuna_workers: 8
+  optuna_storage_timeout: 100
   max_trial_sec: 1800
   max_features_out: 5000
   quiet_preprocess_panel: false

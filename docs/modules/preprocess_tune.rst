@@ -27,6 +27,7 @@ Key parameters
 - ``preprocess_tune.allow_heavy_steps`` / ``preprocess_tune.allow_heavy_variants``: heavy gating
 - ``preprocess_tune.max_features_out``: hard cap for feature count
 - ``preprocess_tune.storage_url``: Optuna storage (SQLite by default)
+- ``preprocess_tune.optuna_storage_timeout``: SQLite connection timeout (seconds)
 - ``preprocess_tune.model_template``: FAST model template (if omitted, uses ``evaluation.model`` from the super-chain)
 - ``preprocess_tune.seed``: trial seed (default: ``common.seed``)
 - ``preprocess_tune.quiet_preprocess_panel``: suppress PREPROCESS panels during tuning

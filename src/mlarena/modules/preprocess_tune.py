@@ -774,14 +774,22 @@ class PreprocessTuneModule(BaseModule):
         db_dir = self.context.project_root / "experiments" / "db"
         db_dir.mkdir(parents=True, exist_ok=True)
         storage_url = _param("storage_url", f"sqlite:///{db_dir / f'optuna_{study_name}.sqlite'}")
+        optuna_storage_timeout = _param("optuna_storage_timeout", tune_cfg.get("optuna_storage_timeout"))
 
         search_spaces = _load_search_spaces()
 
         sampler = optuna.samplers.TPESampler(seed=seed)
+        if optuna_storage_timeout and str(storage_url).startswith("sqlite:///"):
+            storage = optuna.storages.RDBStorage(
+                url=storage_url,
+                engine_kwargs={"connect_args": {"timeout": int(optuna_storage_timeout)}},
+            )
+        else:
+            storage = storage_url
         study = optuna.create_study(
             study_name=study_name,
             direction="maximize",
-            storage=storage_url,
+            storage=storage,
             load_if_exists=True,
             sampler=sampler,
         )
@@ -1004,6 +1012,7 @@ class PreprocessTuneModule(BaseModule):
                     "quiet_model_panel": quiet_model_panel,
                     "model_verbosity": model_verbosity,
                     "storage_url": storage_url,
+                    "optuna_storage_timeout": optuna_storage_timeout,
                     "model_template": model_template,
                     "best_chain_template": best_payload.get("best_chain_template"),
                 },

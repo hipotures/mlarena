@@ -246,7 +246,8 @@ class TaskQueue:
         table.add_column("Experiment", style="dim")
 
         # Sort by priority (ascending), then by ID (ascending)
-        sorted_tasks = sorted(tasks, key=lambda t: (t["priority"], t["id"]))
+        # Handle None priority by defaulting to 10
+        sorted_tasks = sorted(tasks, key=lambda t: (t.get("priority") if t.get("priority") is not None else 10, t["id"]))
 
         for i, task in enumerate(sorted_tasks):
             status = task["status"]
@@ -441,7 +442,7 @@ class TaskQueue:
                 break
 
             # Sort by priority, then ID
-            pending.sort(key=lambda t: (t["priority"], t["id"]))
+            pending.sort(key=lambda t: (t.get("priority") if t.get("priority") is not None else 10, t["id"]))
             task = pending[0]
             total_pending = len(pending)
 

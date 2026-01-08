@@ -1,0 +1,6 @@
+module: feature_group_agg
+config:
+  group_keys: []
+  group_value_cols: []
+  aggs: [mean, std, min, max]
+  max_generated_features: 200

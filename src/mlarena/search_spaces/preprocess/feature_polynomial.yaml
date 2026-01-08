@@ -1,0 +1,19 @@
+group: feature_polynomial
+template: feature_polynomial
+
+base_config:
+  poly_columns: null
+
+variants:
+  - name: degree_2
+    params:
+      poly_degree: {type: fixed, value: 2}
+      poly_interaction_only: {type: bool}
+      max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+    requires_preproc: [{group: imputer}]
+  - name: degree_3
+    params:
+      poly_degree: {type: fixed, value: 3}
+      poly_interaction_only: {type: fixed, value: true}
+      max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+    requires_preproc: [{group: imputer}]

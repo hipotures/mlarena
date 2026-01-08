@@ -1,0 +1,11 @@
+group: feature_group_agg
+template: feature_group_agg
+
+base_config:
+  aggs: [mean, std, min, max, count]
+
+variants:
+  - name: manual
+    params:
+      group_keys: {type: fixed, value: []}
+      group_value_cols: {type: fixed, value: []}

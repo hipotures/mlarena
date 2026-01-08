@@ -45,9 +45,15 @@ preprocessors:
   - name: datetime_handler
     group: datetime
     enabled: true
-  - name: feature_engineer
-    group: feature_engineer
+  - name: feature_interactions
+    group: feature_interactions
     enabled: true
+  - name: feature_polynomial
+    group: feature_polynomial
+    enabled: true
+  - name: feature_group_agg
+    group: feature_group_agg
+    enabled: false
   - name: feature_selector
     group: feature_selector
     weight: 2.0

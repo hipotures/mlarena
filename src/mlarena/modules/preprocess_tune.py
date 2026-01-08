@@ -769,6 +769,10 @@ class PreprocessTuneModule(BaseModule):
         study_name = _param("study_name", tune_cfg.get("study_name") or super_chain.get("experiment_prefix") or "optuna_preprocess")
         n_trials = int(_param("n_trials", tune_cfg.get("n_trials", 10)))
         optuna_workers = int(_param("optuna_workers", tune_cfg.get("optuna_workers", 1)))
+        direction = _param("direction", tune_cfg.get("direction", "minimize"))
+        direction = str(direction).strip().lower()
+        if direction not in {"minimize", "maximize"}:
+            direction = "minimize"
         model_cleanup = bool(
             _param("model_cleanup", tune_cfg.get("model_cleanup", False))
             or _param("ag_cleanup", tune_cfg.get("ag_cleanup", False))
@@ -841,7 +845,7 @@ class PreprocessTuneModule(BaseModule):
             storage = storage_url
         study = optuna.create_study(
             study_name=study_name,
-            direction="maximize",
+            direction=direction,
             storage=storage,
             load_if_exists=True,
             sampler=sampler,
@@ -1105,6 +1109,7 @@ class PreprocessTuneModule(BaseModule):
             json.dumps(
                 {
                     "study_name": study_name,
+                    "direction": direction,
                     "n_trials": n_trials,
                     "optuna_workers": optuna_workers,
                     "max_trial_sec": max_trial_sec,

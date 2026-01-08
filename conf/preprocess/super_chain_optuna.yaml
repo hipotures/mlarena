@@ -8,6 +8,7 @@ tune:
   optuna_workers: 8
   optuna_storage_timeout: 100
   model_cleanup: true
+  direction: maximize
   max_trial_sec: 1800
   max_features_out: 5000
   quiet_preprocess_panel: true

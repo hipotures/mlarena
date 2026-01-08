@@ -61,6 +61,7 @@ Parameters used as fallback values by multiple modules (Model, Tune, Preprocess)
 |:---|:---:|:---:|:---|
 | `preprocess_tune.super_chain` | string | `conf/preprocess/super_chain_optuna.yaml` | Super-chain YAML used for tuning. |
 | `preprocess_tune.study_name` | string | `optuna_preprocess` | Optuna study name. |
+| `preprocess_tune.direction` | string | `minimize` | Optuna direction (`maximize` or `minimize`). |
 | `preprocess_tune.n_trials` | int | `10` | Number of trials to run. |
 | `preprocess_tune.optuna_workers` | int | `1` | Parallel Optuna workers (`n_jobs`). |
 | `preprocess_tune.max_trial_sec` | int | `1800` | Hard timeout per trial (seconds). |

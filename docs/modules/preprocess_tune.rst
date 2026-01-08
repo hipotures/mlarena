@@ -21,6 +21,7 @@ Key parameters
 
 - ``preprocess_tune.super_chain``: path to super-chain YAML (default: ``conf/preprocess/super_chain_optuna.yaml``)
 - ``preprocess_tune.study_name``: Optuna study name
+- ``preprocess_tune.direction``: Optuna direction (default: ``minimize``)
 - ``preprocess_tune.n_trials``: number of trials
 - ``preprocess_tune.optuna_workers``: parallel Optuna workers (`n_jobs`)
 - ``preprocess_tune.max_trial_sec``: hard timeout per trial

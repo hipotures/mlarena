@@ -92,6 +92,9 @@ def fit_transform(
     # Why? Because ranks are often used to normalize distribution regardless of shift.
     # If test has higher values, we want them to be 0.99, not 1.5.
     
+    # Suppress fragmentation warning
+    warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+    
     def process_df(df):
         if df is None: return None
         df_out = df.copy()

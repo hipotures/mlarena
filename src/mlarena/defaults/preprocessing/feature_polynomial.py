@@ -114,9 +114,12 @@ def _apply_polynomial_features(
         new_feature_names = new_feature_names[:remaining_slots]
 
     created_names: List[str] = []
+    # Use a local set for faster lookups and in-place updates
+    seen_names = existing_cols.copy()
     for name in new_feature_names:
-        unique_name = _unique_name(name, existing_cols.union(created_names))
+        unique_name = _unique_name(name, seen_names)
         created_names.append(unique_name)
+        seen_names.add(unique_name)
 
     if created_names:
         poly_train_sel = poly_train_df[new_feature_names].copy()

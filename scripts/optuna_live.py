@@ -183,7 +183,7 @@ def _fetch_studies(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
             if has_trial_values:
                 order = "DESC" if directions and directions[0] == 1 else "ASC"
                 sql = (
-                    "SELECT t.number AS number, ABS(tv.value) AS value "
+                    "SELECT t.trial_id AS number, ABS(tv.value) AS value "
                     "FROM trials t "
                     "JOIN trial_values tv ON tv.trial_id = t.trial_id "
                     "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
@@ -197,7 +197,7 @@ def _fetch_studies(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
             elif has_value_col:
                 order = "DESC" if directions and directions[0] == 1 else "ASC"
                 sql = (
-                    "SELECT number, ABS(value) AS value FROM trials "
+                    "SELECT trial_id AS number, ABS(value) AS value FROM trials "
                     "WHERE study_id=? AND (state=1 OR UPPER(CAST(state AS TEXT))='COMPLETE') "
                     f"ORDER BY ABS(value) {order} "
                     "LIMIT 1"
@@ -234,13 +234,13 @@ def _fetch_recent_trials(
     rows = []
     if has_trial_values:
         sql = (
-            "SELECT t.number, t.state, t.datetime_start, t.datetime_complete, "
+            "SELECT t.trial_id, t.state, t.datetime_start, t.datetime_complete, "
             "GROUP_CONCAT(ABS(tv.value)) AS values_concat "
             "FROM trials t "
             "LEFT JOIN trial_values tv ON tv.trial_id = t.trial_id "
             "WHERE t.study_id=? "
             "GROUP BY t.trial_id "
-            "ORDER BY t.number DESC "
+            "ORDER BY t.trial_id DESC "
             "LIMIT ?"
         )
         rows = conn.execute(sql, (study_id, limit)).fetchall()
@@ -248,7 +248,7 @@ def _fetch_recent_trials(
         for row in rows:
             result.append(
                 {
-                    "number": row["number"],
+                    "number": row["trial_id"],
                     "state": row["state"],
                     "datetime_start": row["datetime_start"],
                     "datetime_complete": row["datetime_complete"],
@@ -259,20 +259,20 @@ def _fetch_recent_trials(
 
     if has_value_col:
         sql = (
-            "SELECT number, state, datetime_start, datetime_complete, ABS(value) AS value "
+            "SELECT trial_id AS number, state, datetime_start, datetime_complete, ABS(value) AS value "
             "FROM trials "
             "WHERE study_id=? "
-            "ORDER BY number DESC "
+            "ORDER BY trial_id DESC "
             "LIMIT ?"
         )
         rows = conn.execute(sql, (study_id, limit)).fetchall()
         return [dict(row) for row in rows]
 
     sql = (
-        "SELECT number, state, datetime_start, datetime_complete "
+        "SELECT trial_id AS number, state, datetime_start, datetime_complete "
         "FROM trials "
         "WHERE study_id=? "
-        "ORDER BY number DESC "
+        "ORDER BY trial_id DESC "
         "LIMIT ?"
     )
     rows = conn.execute(sql, (study_id, limit)).fetchall()
@@ -446,7 +446,7 @@ def main() -> int:
     parser.add_argument("--db", required=True, help="Path to Optuna sqlite file")
     parser.add_argument("--interval", type=int, default=5, help="Refresh interval in seconds")
     parser.add_argument("--study", default=None, help="Study name to focus on")
-    parser.add_argument("--limit", type=int, default=100, help="Trial buffer size for sorting")
+    parser.add_argument("--limit", type=int, default=1000, help="Trial buffer size for sorting")
     args = parser.parse_args()
 
     db_path = Path(args.db).expanduser()

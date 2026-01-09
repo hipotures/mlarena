@@ -9,11 +9,11 @@ variants:
     params:
       poly_degree: {type: fixed, value: 2}
       poly_interaction_only: {type: bool}
-      max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+      max_generated_features: {type: int_range, min: 10, max: 50, step: 5}
     requires_preproc: [{group: imputer}]
   - name: degree_3
     params:
       poly_degree: {type: fixed, value: 3}
       poly_interaction_only: {type: fixed, value: true}
-      max_generated_features: {type: int_range, min: 50, max: 200, step: 25}
+      max_generated_features: {type: int_range, min: 10, max: 50, step: 5}
     requires_preproc: [{group: imputer}]

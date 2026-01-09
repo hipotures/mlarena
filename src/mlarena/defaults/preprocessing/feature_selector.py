@@ -580,10 +580,22 @@ def _select_features(
 
     elif method == "mi":
         # Mutual Information
-        if problem_type in ["binary", "multiclass"]:
-            mi_scores = mutual_info_classif(X_train, y_train, random_state=random_state)
-        else:
-            mi_scores = mutual_info_regression(X_train, y_train, random_state=random_state)
+        # Note: n_jobs added in sklearn 1.5. Fallback for older versions.
+        mi_kwargs = {"random_state": random_state}
+        try:
+            mi_kwargs["n_jobs"] = -1
+            if problem_type in ["binary", "multiclass"]:
+                mi_scores = mutual_info_classif(X_train, y_train, **mi_kwargs)
+            else:
+                mi_scores = mutual_info_regression(X_train, y_train, **mi_kwargs)
+        except (TypeError, ValueError):
+            # Fallback for sklearn < 1.5
+            if "n_jobs" in mi_kwargs:
+                del mi_kwargs["n_jobs"]
+            if problem_type in ["binary", "multiclass"]:
+                mi_scores = mutual_info_classif(X_train, y_train, **mi_kwargs)
+            else:
+                mi_scores = mutual_info_regression(X_train, y_train, **mi_kwargs)
 
         feature_scores = mi_scores
         _apply_cumulative_cutoff(mi_scores)
@@ -737,17 +749,19 @@ def _select_features(
         # Select features using threshold + strict top-K cap
         selected_mask = importances >= min_importance
 
-        if selected_mask.sum() >= n_features_to_select:
-            # Too many (or exact) -> trim to top-K among those above threshold
-            candidate_idx = np.where(selected_mask)[0]
-            top_idx = candidate_idx[np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]]
-            selected_mask = np.zeros(total_features, dtype=bool)
-            selected_mask[top_idx] = True
-        else:
-            # Too few above threshold -> backfill with top-K overall
-            top_idx = np.argsort(importances)[::-1][:n_features_to_select]
-            selected_mask = np.zeros(total_features, dtype=bool)
-            selected_mask[top_idx] = True
+        if select_features is not None:
+            if selected_mask.sum() >= n_features_to_select:
+                # Too many (or exact) -> trim to top-K among those above threshold
+                candidate_idx = np.where(selected_mask)[0]
+                top_idx = candidate_idx[np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+            else:
+                # Too few above threshold -> backfill with top-K overall
+                top_idx = np.argsort(importances)[::-1][:n_features_to_select]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+        # Threshold-only mode preserved when select_features is None
 
     elif method == "l1":
         # L1 regularization

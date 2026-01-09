@@ -98,6 +98,7 @@ def _apply_interactions(
     orig_new_cols: Dict[str, Any] = {}
     limit_reached = False
 
+    seen_names = existing_cols.copy()
     for col_a, col_b in pairs:
         if col_a not in train_df.columns or col_b not in train_df.columns:
             warnings.warn(f"Skipping pair ({col_a}, {col_b}) - column missing in train")
@@ -118,7 +119,8 @@ def _apply_interactions(
                 break
 
             base_name = f"{col_a}_{op}_{col_b}"
-            new_name = _unique_name(base_name, existing_cols.union(new_cols))
+            new_name = _unique_name(base_name, seen_names)
+            seen_names.add(new_name)
 
             if op == "add":
                 train_series = train_df[col_a] + train_df[col_b]

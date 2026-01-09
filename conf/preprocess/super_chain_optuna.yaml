@@ -174,8 +174,11 @@ preprocessors:
   - name: feature_selector
     group: feature_selector
     template: feature_selector
-    enabled: false
-    meta: {heavy_step: false, heavy_variants: ["mi","model_importance"]}
+    enabled: true
+    meta: {heavy_step: false, fixed: true}
+    fixed_config:
+      selection_method: mi
+      n_features: 0.5
 
   - name: imbalance_handler
     group: imbalance

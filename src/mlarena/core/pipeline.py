@@ -79,6 +79,18 @@ class PipelineExecutor:
                 cli_overrides = extract_template_overrides(template_config.get("config", {}), invocation)
             except Exception:
                 pass
+        # If preprocess provides an explicit template config (e.g., in preprocess-tune),
+        # merge it into the header so overrides like use_original_features_only are visible.
+        if module_name == "preprocess" and invocation.get("preprocess_template_config"):
+            override_tpl = invocation.get("preprocess_template_config") or {}
+            if isinstance(override_tpl, dict):
+                base_cfg = template_config.get("config", {}) if isinstance(template_config, dict) else {}
+                override_cfg = override_tpl.get("config", {}) if isinstance(override_tpl.get("config", {}), dict) else {}
+                merged_cfg = {**base_cfg, **override_cfg}
+                template_config = dict(template_config) if isinstance(template_config, dict) else {}
+                if override_tpl.get("module"):
+                    template_config["module"] = override_tpl.get("module")
+                template_config["config"] = merged_cfg
 
         input_paths = {}
         output_paths = {}

@@ -146,6 +146,45 @@ class PreprocessModule(BaseModule):
         spec.loader.exec_module(module)
         return module
 
+    def _resolve_original_features(
+        self,
+        train_df: "pd.DataFrame",
+        config_module,
+        prev_custom_state: Dict[str, Any],
+    ) -> List[str]:
+        """Resolve original feature list from prior state, init/EDA, or current train_df."""
+        orig_features = None
+        if isinstance(prev_custom_state, dict):
+            orig_features = prev_custom_state.get("original_features")
+
+        id_column = getattr(config_module, "ID_COLUMN", "id")
+        target_column = getattr(config_module, "TARGET_COLUMN", None)
+        ignored_columns = getattr(config_module, "IGNORED_COLUMNS", []) or []
+        exclude = {id_column, target_column, *ignored_columns}
+        exclude = {c for c in exclude if c}
+
+        if not orig_features:
+            init_state = self.context.project_root / "experiments" / "init" / "state.json"
+            if init_state.exists():
+                try:
+                    payload = json.loads(init_state.read_text())
+                    cols = (
+                        payload.get("modules", {})
+                        .get("eda", {})
+                        .get("profiles", {})
+                        .get("train", {})
+                        .get("columns")
+                    )
+                    if isinstance(cols, list) and cols:
+                        orig_features = [c for c in cols if c not in exclude]
+                except Exception:
+                    orig_features = None
+
+        if not orig_features:
+            orig_features = [c for c in train_df.columns if c not in exclude]
+
+        return orig_features
+
     def execute(self) -> ModuleResult:
         """
         Execute preprocessing for the provided template.
@@ -272,6 +311,9 @@ class PreprocessModule(BaseModule):
         # Get ignored columns for later use
         ignored = getattr(config, "IGNORED_COLUMNS", []) or []
 
+        # Resolve original feature set (used to avoid feature cascades)
+        original_features = self._resolve_original_features(train_df, config, prev_custom_state)
+
         # Load template config (supports override via invocation params)
         template_cfg = None
         template_cfg_override = self.invocation_params.get("preprocess_template_config")
@@ -319,6 +361,7 @@ class PreprocessModule(BaseModule):
                     "ignored_columns": getattr(config, "IGNORED_COLUMNS", []),
                     "problem_type": getattr(config, "AUTOGLUON_PROBLEM_TYPE", "binary"),
                 }
+                preprocess_config["_original_features"] = original_features
 
                 # Call fit_transform with orig_df only if supported (backward compatible).
                 import inspect
@@ -467,6 +510,8 @@ class PreprocessModule(BaseModule):
         # Add custom module state (e.g., av_weights_path)
         # Merge previous custom state with current (current takes precedence)
         final_custom_state = prev_custom_state.copy()
+        if original_features and "original_features" not in final_custom_state:
+            final_custom_state["original_features"] = original_features
         if custom_preprocess_state:
             final_custom_state.update(custom_preprocess_state)
 

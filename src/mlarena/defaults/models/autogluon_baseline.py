@@ -204,6 +204,11 @@ def train(
                     tuning_weight = float(weights.mean()) if weights.notna().any() else 1.0
                     tuning_data[sample_weight_param] = tuning_weight
                     console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{tuning_weight:.4f}[/green]) to tuning data")
+                # Apply neutral weight to eval data (leaderboard)
+                if eval_data is not None:
+                    eval_weight = float(weights.mean()) if weights.notna().any() else 1.0
+                    eval_data[sample_weight_param] = eval_weight
+                    console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{eval_weight:.4f}[/green]) to eval data")
             else:
                 console.print(
                     f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] [red]Ignoring weights[/red]: expected {expected_rows:,} rows, got {len(weights):,}"

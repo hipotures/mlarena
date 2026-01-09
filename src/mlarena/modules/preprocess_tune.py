@@ -557,6 +557,7 @@ def _run_trial_worker(
     max_features_out: int,
     config,
 ) -> None:
+    exit_code = 0
     try:
         # Make this process a session leader so parent can kill the group on timeout.
         try:
@@ -720,9 +721,12 @@ def _run_trial_worker(
 
         (trial_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
     except Exception as exc:
+        exit_code = 1
         error_path = Path(payload_path).parent / "trial_error.json"
         error_path.write_text(json.dumps({"error": str(exc), "traceback": traceback.format_exc()}, indent=2))
-        raise
+    finally:
+        # Ensure the worker exits even if background threads remain alive.
+        os._exit(exit_code)
 
 
 @ModuleRegistry.register
@@ -768,6 +772,7 @@ class PreprocessTuneModule(BaseModule):
         tune_cfg = super_chain.get("tune", {}) or {}
         study_name = _param("study_name", tune_cfg.get("study_name") or super_chain.get("experiment_prefix") or "optuna_preprocess")
         n_trials = int(_param("n_trials", tune_cfg.get("n_trials", 10)))
+        requested_n_trials = n_trials
         optuna_workers = int(_param("optuna_workers", tune_cfg.get("optuna_workers", 1)))
         direction = _param("direction", tune_cfg.get("direction", "minimize"))
         direction = str(direction).strip().lower()
@@ -850,6 +855,20 @@ class PreprocessTuneModule(BaseModule):
             load_if_exists=True,
             sampler=sampler,
         )
+        # Always include a baseline (trial 0) once per study.
+        # Interpret n_trials as "search trials", and add 1 if baseline is missing.
+        effective_n_trials = requested_n_trials
+        baseline_included = False
+        try:
+            existing_trials = study.get_trials(deepcopy=False)
+            has_baseline = any(t.number == 0 for t in existing_trials)
+        except Exception:
+            has_baseline = False
+        if not has_baseline:
+            effective_n_trials = requested_n_trials + 1
+            baseline_included = True
+        if effective_n_trials < 1:
+            effective_n_trials = 1
         stop_state = {"requested": False}
         prev_sigint = signal.getsignal(signal.SIGINT)
         prev_sigterm = signal.getsignal(signal.SIGTERM)
@@ -974,6 +993,13 @@ class PreprocessTuneModule(BaseModule):
                     cleanup_processed=cleanup_processed,
                 )
                 raise optuna.TrialPruned(f"timeout after {max_trial_sec}s")
+            else:
+                # Best-effort cleanup for any lingering subprocesses spawned by the worker.
+                try:
+                    if proc.pid:
+                        os.killpg(proc.pid, signal.SIGTERM)
+                except Exception:
+                    pass
 
             metrics_path = trial_dir / "metrics.json"
             if not metrics_path.exists():
@@ -1073,7 +1099,7 @@ class PreprocessTuneModule(BaseModule):
         try:
             study.optimize(
                 objective,
-                n_trials=n_trials,
+                n_trials=effective_n_trials,
                 n_jobs=optuna_workers,
                 show_progress_bar=False,
                 callbacks=[_on_trial_complete],
@@ -1091,6 +1117,47 @@ class PreprocessTuneModule(BaseModule):
             }
         except Exception:
             best_payload = {"best_value": None, "best_params": {}, "best_trial": None}
+
+        # Show best trial summary (params + key stats)
+        try:
+            from rich.panel import Panel
+
+            def _fmt_param_value(val: Any) -> str:
+                if isinstance(val, float):
+                    return f"{val:.6g}"
+                if isinstance(val, bool):
+                    return "true" if val else "false"
+                if isinstance(val, (int, str)):
+                    return str(val)
+                return str(val)
+
+            best_trial = study.best_trial
+            best_lines = []
+            best_lines.append(f"[bold]Best Trial:[/] {best_trial.number}")
+            try:
+                best_lines.append(f"[bold]Best Value:[/] {best_trial.value:.6g}")
+            except Exception:
+                best_lines.append(f"[bold]Best Value:[/] {best_trial.value}")
+
+            attrs = best_trial.user_attrs or {}
+            if "preprocess_sec" in attrs:
+                best_lines.append(f"[bold]Preprocess Sec:[/] {attrs.get('preprocess_sec')}")
+            if "n_features_out" in attrs:
+                best_lines.append(f"[bold]Features Out:[/] {attrs.get('n_features_out')}")
+            if "total_sec" in attrs:
+                best_lines.append(f"[bold]Total Sec:[/] {attrs.get('total_sec')}")
+
+            params = best_trial.params or {}
+            if params:
+                best_lines.append("")
+                best_lines.append("[bold]Params:[/]")
+                # Keep output compact and deterministic
+                for key in sorted(params.keys()):
+                    best_lines.append(f"  {key}: {_fmt_param_value(params[key])}")
+
+            console.print(Panel("\n".join(best_lines), title="Best Trial", border_style="green"))
+        except Exception:
+            pass
 
         # Ensure best templates exist at end
         try:
@@ -1110,7 +1177,9 @@ class PreprocessTuneModule(BaseModule):
                 {
                     "study_name": study_name,
                     "direction": direction,
-                    "n_trials": n_trials,
+                    "n_trials": requested_n_trials,
+                    "n_trials_effective": effective_n_trials,
+                    "baseline_included": baseline_included,
                     "optuna_workers": optuna_workers,
                     "max_trial_sec": max_trial_sec,
                     "allow_heavy_steps": allow_heavy_steps,

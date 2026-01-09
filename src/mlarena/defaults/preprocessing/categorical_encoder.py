@@ -21,6 +21,8 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
+from mlarena.preprocessing.utils import dataframe_utils
+
 console = Console()
 
 
@@ -416,6 +418,8 @@ def fit_transform(
     include_numeric_categories = config.get("include_numeric_categories", True)
     enable_auto_detect = config.get("enable_auto_detect", True)
     auto_detect_threshold = config.get("auto_detect_threshold", 25)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
 
     # Get project root and target column
     system_config = config.get("_system", {})
@@ -492,6 +496,8 @@ def fit_transform(
     # Step 3: Merge results (unique columns only)
     all_categorical_metadata = {**eda_metadata, **auto_detect_metadata}
     categorical_cols = list(dict.fromkeys(eda_cols + auto_detect_cols))  # Preserve order, remove duplicates
+    if use_orig_only and orig_features:
+        categorical_cols = dataframe_utils.filter_original_columns(categorical_cols, orig_features)
 
     console.print(f"\n[bold]Total categorical columns:[/bold] {len(categorical_cols)}")
     console.print(f"  From EDA: {len(eda_cols)}")

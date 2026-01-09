@@ -437,6 +437,7 @@ def fit_transform(
         "group_value_cols": [],
         "aggs": [],
         "max_generated_features": 200,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -470,6 +471,10 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns
     exclude_cols = [col for col in exclude_cols if col]
     numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
+    if use_orig_only:
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
 
     if not numeric_cols and (config["interaction_types"] or config["poly_degree"]):
         warnings.warn("No numeric columns available for interactions/polynomial features")
@@ -483,8 +488,19 @@ def fit_transform(
     max_new = config["max_generated_features"]
 
     # 6. Interaction features
+    numeric_pairs = config["numeric_pairs"]
+    if use_orig_only and orig_features:
+        orig_set = set(orig_features)
+        numeric_pairs = [
+            pair for pair in numeric_pairs
+            if isinstance(pair, (list, tuple))
+            and len(pair) == 2
+            and pair[0] in orig_set
+            and pair[1] in orig_set
+        ]
+
     pairs = _prepare_interaction_pairs(
-        numeric_pairs=config["numeric_pairs"],
+        numeric_pairs=numeric_pairs,
         numeric_cols=numeric_cols,
         auto_pair_numeric=config["auto_pair_numeric"],
         max_auto_pairs=config["max_auto_pairs"],
@@ -529,13 +545,19 @@ def fit_transform(
         warnings.warn("Target column included in group_value_cols - this may cause leakage.")
 
     if remaining_slots > 0:
+        group_keys = config["group_keys"]
+        group_value_cols = config["group_value_cols"]
+        if use_orig_only and orig_features:
+            orig_set = set(orig_features)
+            group_keys = [c for c in group_keys if c in orig_set]
+            group_value_cols = [c for c in group_value_cols if c in orig_set]
         train_df, val_df, test_df, orig_df, agg_cols_added, group_details = _apply_group_aggregations(
             train_df=train_df,
             val_df=val_df,
             test_df=test_df,
             orig_df=orig_df,
-            group_keys=config["group_keys"],
-            value_cols=config["group_value_cols"],
+            group_keys=group_keys,
+            value_cols=group_value_cols,
             aggs=config["aggs"],
             remaining_slots=remaining_slots,
             existing_cols=existing_cols.union(new_columns),

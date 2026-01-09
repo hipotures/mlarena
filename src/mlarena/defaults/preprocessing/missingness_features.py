@@ -50,6 +50,7 @@ def fit_transform(
         "add_row_missing_count": True,
         "add_row_missing_ratio": False,
         "cap_row_missing_count": None,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -62,10 +63,16 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns + config["exclude_cols"]
     exclude_cols = [c for c in exclude_cols if c]
     
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
+
     if config["include_cols"]:
         cols_to_check = [c for c in config["include_cols"] if c in train_df.columns and c not in exclude_cols]
     else:
         cols_to_check = [c for c in train_df.columns if c not in exclude_cols]
+
+    if use_orig_only:
+        cols_to_check = dataframe_utils.filter_original_columns(cols_to_check, orig_features)
 
     if not cols_to_check:
         warnings.warn("No columns selected for missingness features.")

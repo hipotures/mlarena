@@ -1,6 +1,6 @@
 """Common DataFrame operations for preprocessing sub-modules."""
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import pandas as pd
 import numpy as np
 
@@ -67,6 +67,23 @@ def get_boolean_columns(df: pd.DataFrame, exclude: List[str] = None) -> List[str
     exclude = exclude or []
     boolean_cols = df.select_dtypes(include=["bool"]).columns.tolist()
     return [col for col in boolean_cols if col not in exclude]
+
+
+def filter_original_columns(columns: List[str], original_features: Optional[List[str]] = None) -> List[str]:
+    """
+    Filter a column list to only those present in the original feature set.
+
+    Args:
+        columns: Candidate column list
+        original_features: Original feature list (or None to skip filtering)
+
+    Returns:
+        Filtered list limited to original_features when provided.
+    """
+    if not original_features:
+        return columns
+    orig_set = set(original_features)
+    return [col for col in columns if col in orig_set]
 
 
 def safe_drop_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:

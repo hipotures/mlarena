@@ -51,18 +51,27 @@ preprocessors:
     template: datetime_handler
     enabled: true
     meta: {heavy_step: false}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: time_series_features
     group: time_series_features
     template: time_series_features
     enabled: false
     meta: {heavy_step: true, default_enabled_fast: false, timeout_sec: 600}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: missingness_features
     group: missingness_features
     template: missingness_features
     enabled: true
     meta: {heavy_step: false}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: outlier_handler
     group: outlier
@@ -74,7 +83,7 @@ preprocessors:
     group: imputer
     template: imputer
     enabled: true
-    meta: {heavy_step: false, heavy_variants: ["knn","iterative"]}
+    meta: {heavy_step: false, heavy_variants: ["knn","iterative"], fixed: true}
 
   - name: rare_category_handler
     group: rare_category
@@ -87,18 +96,27 @@ preprocessors:
     template: feature_group_agg
     enabled: false
     meta: {heavy_step: false}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: groupwise_normalizer
     group: groupwise_normalizer
     template: groupwise_normalizer
     enabled: false
     meta: {heavy_step: false}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: categorical_cross
     group: categorical_cross
     template: categorical_cross
     enabled: false
     meta: {heavy_step: true, timeout_sec: 300}
+    overrides:
+      config:
+        use_original_features_only: true
 
   # --- OPTION B: rank pre/post ---
   - name: rank_features_pre
@@ -108,36 +126,53 @@ preprocessors:
     meta: {heavy_step: false}
     overrides:
       allow_group_mode: true
+      config:
+        use_original_features_only: true
 
   - name: numeric_binner
     group: numeric_binner
     template: numeric_binner
     enabled: false
     meta: {heavy_step: false, heavy_variants: ["kmeans"]}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: encoder
     group: encoding
     template: encoder
     enabled: true
     meta: {heavy_step: false, heavy_variants: ["target_mean_oof"]}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: row_aggregates
     group: row_aggregates
     template: row_aggregates
     enabled: false
     meta: {heavy_step: false}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: feature_interactions
     group: feature_interactions
     template: feature_interactions
     enabled: false
     meta: {heavy_step: false}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: feature_polynomial
     group: feature_polynomial
     template: feature_polynomial
     enabled: false
     meta: {heavy_step: true, timeout_sec: 600}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: rank_features_post
     group: rank_post
@@ -146,6 +181,8 @@ preprocessors:
     meta: {heavy_step: false}
     overrides:
       force_global_only: true
+      config:
+        use_original_features_only: true
 
   - name: scaler
     group: scaler
@@ -158,12 +195,18 @@ preprocessors:
     template: dimensionality_reducer
     enabled: false
     meta: {heavy_step: true, timeout_sec: 300}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: clustering_features
     group: clustering_features
     template: clustering_features
     enabled: false
     meta: {heavy_step: true, timeout_sec: 300}
+    overrides:
+      config:
+        use_original_features_only: true
 
   - name: drift_detector
     group: drift

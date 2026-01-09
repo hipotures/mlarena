@@ -52,6 +52,7 @@ def fit_transform(
         "method": "percentile",
         "tie_method": "average",
         "add_original": True,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["mode"], ["global", "by_group"], "mode")
@@ -66,11 +67,16 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns + config["numeric_exclude"]
     exclude_cols = [c for c in exclude_cols if c]
     all_numeric = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
     
     if config["numeric_include"]:
         numeric_cols = [c for c in config["numeric_include"] if c in all_numeric]
     else:
         numeric_cols = all_numeric
+
+    if use_orig_only:
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
 
     # 4. Processing
     new_features = []

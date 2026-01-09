@@ -49,6 +49,7 @@ def fit_transform(
         "stats": ["mean", "std", "sum"],
         "prefix": "row_",
         "nan_policy": "omit", # omit = ignore NaNs (pandas default), fill_zero = fill 0 before calc
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
     
@@ -66,11 +67,16 @@ def fit_transform(
     exclude_cols = [c for c in exclude_cols if c]
     
     all_numeric = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
     
     if config["include_cols"]:
         numeric_cols = [c for c in config["include_cols"] if c in all_numeric]
     else:
         numeric_cols = all_numeric
+
+    if use_orig_only:
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
 
     if not numeric_cols:
         warnings.warn("No numeric columns found for row aggregates.")

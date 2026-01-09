@@ -123,6 +123,7 @@ def fit_transform(
         "time_diff_pairs": [],
         "time_diff_default_unit": "days",
         "drop_original_datetime": False,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -154,10 +155,14 @@ def fit_transform(
     datetime_cols = config["datetime_cols"] or []
     datetime_formats = config.get("datetime_formats", {}) or {}
     expand_cols = config["expand_datetime_cols"] if config["expand_datetime_cols"] is not None else datetime_cols
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
 
     # Exclude id/target/ignored
     exclude_cols = [id_column, target_column] + ignored_columns
     datetime_cols = [col for col in datetime_cols if col not in exclude_cols and col in train_df.columns]
+    if use_orig_only:
+        datetime_cols = dataframe_utils.filter_original_columns(datetime_cols, orig_features)
     expand_cols = [col for col in expand_cols if col in datetime_cols]
 
     if not datetime_cols:

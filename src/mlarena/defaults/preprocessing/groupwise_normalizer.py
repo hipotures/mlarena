@@ -50,6 +50,7 @@ def fit_transform(
         "add_zscore": True,
         "add_ratio": False,
         "eps": 1e-6,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -60,6 +61,12 @@ def fit_transform(
     # 3. Compute Group Stats on Train
     keys = config["group_keys"]
     values = config["value_cols"]
+    if config.get("use_original_features_only"):
+        orig_features = config.get("_original_features")
+        if orig_features:
+            orig_set = set(orig_features)
+            keys = [c for c in keys if c in orig_set]
+            values = [c for c in values if c in orig_set]
     if isinstance(keys, str):
         keys = [keys]
     if isinstance(values, str):

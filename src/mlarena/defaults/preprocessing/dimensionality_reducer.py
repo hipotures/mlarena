@@ -49,6 +49,7 @@ def fit_transform(
         "include_sparse": False,
         "whiten": False,
         "random_state": 42,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["method"], ["pca", "svd"], "method")
@@ -64,6 +65,10 @@ def fit_transform(
     # If SVD and include_sparse=True, we might want all cols (if onehot)?
     # Standard practice: PCA on numeric.
     numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
+    if use_orig_only:
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
     
     if not numeric_cols:
         warnings.warn("No numeric columns found for dimensionality reduction.")

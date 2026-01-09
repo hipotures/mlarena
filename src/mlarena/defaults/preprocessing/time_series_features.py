@@ -49,6 +49,7 @@ def fit_transform(
         "rolling_aggs": ["mean"],
         "fill_method": "none", # none = leave NaN
         "drop_original_value_cols": False,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -60,6 +61,11 @@ def fit_transform(
     value_cols = config["value_cols"]
     if isinstance(value_cols, str):
         value_cols = [value_cols]
+
+    if config.get("use_original_features_only"):
+        orig_features = config.get("_original_features")
+        if orig_features:
+            value_cols = dataframe_utils.filter_original_columns(value_cols, orig_features)
 
     if not value_cols:
         warnings.warn("No value_cols provided for time_series_features. Skipping.")

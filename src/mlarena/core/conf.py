@@ -21,7 +21,11 @@ class CommonConfig(BaseModel):
 
 class GlobalConfig(BaseModel):
     """The root configuration tree."""
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        extra="allow",
+        arbitrary_types_allowed=True,
+        populate_by_name=True,
+    )
 
     # Core metadata
     project: str

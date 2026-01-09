@@ -211,6 +211,7 @@ def fit_transform(
         "auto_pair_numeric": False,
         "max_auto_pairs": 30,
         "max_generated_features": 200,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -236,6 +237,10 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns
     exclude_cols = [col for col in exclude_cols if col]
     numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
+    if use_orig_only:
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
 
     if not numeric_cols and config["interaction_types"]:
         warnings.warn("No numeric columns available for interactions")
@@ -247,8 +252,19 @@ def fit_transform(
     max_new = config["max_generated_features"]
 
     # 6. Interaction features
+    numeric_pairs = config["numeric_pairs"]
+    if use_orig_only and orig_features:
+        orig_set = set(orig_features)
+        numeric_pairs = [
+            pair for pair in numeric_pairs
+            if isinstance(pair, (list, tuple))
+            and len(pair) == 2
+            and pair[0] in orig_set
+            and pair[1] in orig_set
+        ]
+
     pairs = _prepare_interaction_pairs(
-        numeric_pairs=config["numeric_pairs"],
+        numeric_pairs=numeric_pairs,
         numeric_cols=numeric_cols,
         auto_pair_numeric=config["auto_pair_numeric"],
         max_auto_pairs=config["max_auto_pairs"],

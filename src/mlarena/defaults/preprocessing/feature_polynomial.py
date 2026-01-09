@@ -174,6 +174,7 @@ def fit_transform(
         "poly_include_bias": False,
         "poly_interaction_only": False,
         "max_generated_features": 200,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -203,6 +204,10 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns
     exclude_cols = [col for col in exclude_cols if col]
     numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
+    if use_orig_only:
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
 
     if not numeric_cols and config["poly_degree"]:
         warnings.warn("No numeric columns available for polynomial features")

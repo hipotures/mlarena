@@ -84,6 +84,7 @@ def fit_transform(
         "add_log": False,    # If True, apply log1p to the count
         "min_count": 1,      # Categories with fewer counts are grouped/ignored (treated as 0)
         "keep_original": False,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -134,12 +135,17 @@ def fit_transform(
         exclude_cols.extend(config["exclude_cols"])
 
     all_categorical = dataframe_utils.get_categorical_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
 
     # Filter by include_cols if specified
     if config["include_cols"]:
         categorical_cols = [col for col in config["include_cols"] if col in all_categorical]
     else:
         categorical_cols = all_categorical
+
+    if use_orig_only:
+        categorical_cols = dataframe_utils.filter_original_columns(categorical_cols, orig_features)
 
     # Auto-detect and exclude high-cardinality columns (unless explicitly included)
     # This prevents explosion of one-hot features for columns like Name, Ticket, etc.

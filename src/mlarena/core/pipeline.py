@@ -240,6 +240,18 @@ class PipelineExecutor:
             super_chain_path = invocation.get("super_chain")
             if super_chain_path:
                 input_paths["super_chain"] = super_chain_path
+            study_name = invocation.get("study_name")
+            if study_name:
+                input_paths["study_name"] = str(study_name)
+            n_trials = invocation.get("n_trials")
+            if n_trials is not None:
+                input_paths["n_trials"] = str(n_trials)
+            optuna_workers = invocation.get("optuna_workers")
+            if optuna_workers is not None:
+                input_paths["optuna_workers"] = str(optuna_workers)
+            max_trial_sec = invocation.get("max_trial_sec")
+            if max_trial_sec is not None:
+                input_paths["max_trial_sec"] = str(max_trial_sec)
 
         elif module_name == "eda":
             input_paths["train"] = "data/train.csv.gz"

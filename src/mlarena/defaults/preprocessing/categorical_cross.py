@@ -52,6 +52,7 @@ def fit_transform(
         # Params for target encoding
         "oof_folds": 5,
         "oof_random_state": 42,
+        "use_original_features_only": False,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["output"], ["hashed", "onehot", "target_mean_oof"], "output")
@@ -62,9 +63,22 @@ def fit_transform(
 
     exclude_cols = [id_column, target_column] + ignored_columns
     categorical_cols = dataframe_utils.get_categorical_columns(train_df, exclude=exclude_cols)
+    use_orig_only = bool(config.get("use_original_features_only"))
+    orig_features = config.get("_original_features") if use_orig_only else None
+    if use_orig_only:
+        categorical_cols = dataframe_utils.filter_original_columns(categorical_cols, orig_features)
 
     # 2. Determine pairs
     pairs = config["cross_pairs"]
+    if use_orig_only and orig_features:
+        orig_set = set(orig_features)
+        pairs = [
+            pair for pair in pairs
+            if isinstance(pair, (list, tuple))
+            and len(pair) == 2
+            and pair[0] in orig_set
+            and pair[1] in orig_set
+        ]
     
     # If no pairs provided, should we auto-generate?
     # Let's say yes, but with cardinality guard.

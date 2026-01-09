@@ -1,3 +1,4 @@
 module: datetime_handler
 cache: true
-config: {}
+config:
+  use_original_features_only: true

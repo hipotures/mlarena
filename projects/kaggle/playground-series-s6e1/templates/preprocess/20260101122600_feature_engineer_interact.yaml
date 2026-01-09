@@ -1,6 +1,7 @@
 module: feature_engineer
 cache: true
 config:
+  use_original_features_only: true
   interaction_types:
   - mul
   numeric_pairs:

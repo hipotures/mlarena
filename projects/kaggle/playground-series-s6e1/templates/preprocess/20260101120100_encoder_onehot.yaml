@@ -1,6 +1,7 @@
 module: encoder
 cache: true
 config:
+  use_original_features_only: true
   encoding_method: one_hot
   max_cardinality: 50
   drop_first: false

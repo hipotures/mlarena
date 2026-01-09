@@ -1,6 +1,7 @@
 module: encoder
 cache: true
 config:
+  use_original_features_only: true
   encoding_method: target_mean
   handle_unknown: ignore
   target_encoding_smoothing: 20.0

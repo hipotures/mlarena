@@ -381,8 +381,30 @@ def run_preprocess_chain(
     )
 
     if len(preprocess_templates) > 1 or is_meta:
-        console.print(f"\n[bold cyan]Preprocessing Chain:[/bold cyan] {' → '.join(preprocess_templates)}")
-        console.print(f"[dim]Chain: {chain_exp_id} | Hash: {combined_hash}[/dim]\n")
+        from rich.panel import Panel
+        from rich.text import Text
+        from rich.console import Group
+        from rich.align import Align
+
+        flow_items = []
+        for i, tpl in enumerate(preprocess_templates):
+            flow_items.append(Panel(f"[bold cyan]{tpl}[/]", expand=False, border_style="dim"))
+            if i < len(preprocess_templates) - 1:
+                flow_items.append(Text("↓", style="bold yellow"))
+
+        # Helper to align everything center
+        aligned_items = [Align.center(item) for item in flow_items]
+
+        console.print(Panel(
+            Group(
+                Align.center(f"[dim]Chain: {chain_exp_id} | Hash: {combined_hash}[/dim]"),
+                Text(""),
+                *aligned_items
+            ),
+            title="[bold cyan]Preprocessing Flow[/bold cyan]",
+            border_style="cyan",
+            expand=False
+        ))
 
     if not (chain_base_dir / "config").exists():
         from mlarena.utils.hash_utils import save_canonical_configs, compute_chain_hash

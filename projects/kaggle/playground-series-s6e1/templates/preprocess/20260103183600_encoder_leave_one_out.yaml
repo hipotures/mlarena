@@ -1,5 +1,6 @@
 module: encoder
 cache: true
 config:
+  use_original_features_only: true
   encoding_method: leave_one_out
   handle_unknown: ignore

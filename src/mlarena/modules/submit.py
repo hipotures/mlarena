@@ -278,6 +278,15 @@ class SubmitModule(BaseModule):
                 if csv_path.exists():
                     submission_file = csv_path
 
+        if not submission_file.exists():
+            marker = artifact_dir / "submit_failed.txt"
+            marker.write_text(f"Submission file not found: {submission_file}")
+            return ModuleResult(
+                success=False,
+                error=f"Submission file not found: {submission_file}",
+                artifacts=[marker]
+            )
+
         if skip:
             marker = artifact_dir / "submit_skipped.txt"
             marker.write_text("Skipped Kaggle submission.")

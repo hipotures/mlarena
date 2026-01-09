@@ -1,6 +1,7 @@
 module: feature_engineer
 cache: true
 config:
+  use_original_features_only: true
   poly_degree: 2
   poly_interaction_only: false
   poly_include_bias: false

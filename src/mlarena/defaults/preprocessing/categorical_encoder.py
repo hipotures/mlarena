@@ -18,8 +18,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table
+from rich.panel import Panel
+from rich import box
 
 from mlarena.preprocessing.utils import dataframe_utils
 
@@ -277,11 +279,7 @@ def _create_feature_summary_table(
         categorical_metadata: Metadata for all categorical columns
         target_column: Target column name (if any)
     """
-    console.print("\n" + "=" * 80)
-    console.print("[bold cyan]ALL FEATURES TYPE SUMMARY[/bold cyan]")
-    console.print("=" * 80 + "\n")
-
-    table = Table(show_header=True, box=None)
+    table = Table(show_header=True, box=box.SIMPLE, header_style="bold magenta")
     table.add_column("Column", style="cyan", width=30)
     table.add_column("Type", style="green", width=28)
     table.add_column("Distinct", style="yellow", justify="right", width=8)
@@ -321,7 +319,6 @@ def _create_feature_summary_table(
     for col in sorted_cols:
         n_distinct = train_df[col].nunique()
         dtype_str = str(train_df[col].dtype)
-        original_dtype_str = dtype_str  # Track original dtype before conversion
 
         if col in categorical_cols:
             meta = categorical_metadata[col]
@@ -361,15 +358,23 @@ def _create_feature_summary_table(
 
         table.add_row(col, col_type, str(n_distinct), dtype_display)
 
-    console.print(table)
-
     # Summary stats
-    console.print(f"\n[bold]Summary:[/bold]")
-    console.print(f"  Categorical features: [cyan]{cat_count}[/cyan]")
-    console.print(f"  Numeric features:     [yellow]{num_count}[/yellow]")
-    console.print(f"  Total features:       [green]{cat_count + num_count}[/green]")
+    summary_parts = [
+        f"Categorical features: [cyan]{cat_count}[/cyan]",
+        f"Numeric features:     [yellow]{num_count}[/yellow]",
+        f"Total features:       [green]{cat_count + num_count}[/green]"
+    ]
     if target_column:
-        console.print(f"  Target (excluded):    [red]{target_column}[/red]")
+        summary_parts.append(f"Target (excluded):    [red]{target_column}[/red]")
+    
+    summary_text = " | ".join(summary_parts)
+
+    console.print(Panel(
+        Group(table, summary_text),
+        title="[bold cyan]Feature Type Summary[/bold cyan]",
+        border_style="cyan",
+        expand=False
+    ))
     console.print()
 
 
@@ -428,13 +433,24 @@ def fit_transform(
     dataset_config = config.get("_dataset", {})
     target_column = dataset_config.get("target")
 
-    console.print(f"\n[bold cyan]Categorical Encoder:[/bold cyan]")
-    console.print(f"  Max cardinality (EDA): {max_cardinality}")
-    console.print(f"  Exclude text type: {exclude_text_type}")
-    console.print(f"  Include numeric categories (EDA): {include_numeric_categories}")
-    console.print(f"  Auto-detect enabled: {enable_auto_detect}")
+    # Header and Configuration
+    config_table = Table(box=None, show_header=False, padding=(0, 2))
+    config_table.add_column("Property", style="bold white")
+    config_table.add_column("Value", style="cyan")
+    
+    config_table.add_row("Max cardinality (EDA)", str(max_cardinality))
+    config_table.add_row("Exclude text type", "Yes" if exclude_text_type else "No")
+    config_table.add_row("Include numeric categories (EDA)", "Yes" if include_numeric_categories else "No")
+    config_table.add_row("Auto-detect enabled", "Yes" if enable_auto_detect else "No")
     if enable_auto_detect:
-        console.print(f"  Auto-detect threshold: {auto_detect_threshold}")
+        config_table.add_row("Auto-detect threshold", str(auto_detect_threshold))
+
+    console.print(Panel(
+        config_table,
+        title="[bold cyan]Categorical Encoder[/bold cyan]",
+        border_style="cyan",
+        expand=False
+    ))
 
     # Step 1: Read EDA metadata (optional)
     eda_metadata = {}
@@ -452,7 +468,7 @@ def fit_transform(
             include_numeric_categories,
             target_column,
         )
-        console.print(f"  [green]✓[/green] Found {len(eda_cols)} categorical columns from EDA")
+        console.print(f"  [green]✓[/green] Found [bold cyan]{len(eda_cols)}[/bold cyan] categorical columns from EDA")
 
     except FileNotFoundError as e:
         console.print(f"  [yellow]⚠[/yellow] EDA metadata not found")
@@ -472,26 +488,35 @@ def fit_transform(
             for col in eda_cols
         }
         if eda_cols:
-            console.print(f"  [green]✓[/green] Fallback: detected {len(eda_cols)} object columns")
+            console.print(f"  [green]✓[/green] Fallback: detected [bold cyan]{len(eda_cols)}[/bold cyan] object columns")
 
     # Step 2: Auto-detect integer/float-encoded categorical columns
     auto_detect_metadata = {}
     auto_detect_cols = []
 
     if enable_auto_detect:
-        console.print(f"\n[bold cyan]Auto-detecting numeric categorical columns...[/bold cyan]")
         auto_detect_cols, auto_detect_metadata = _auto_detect_categorical(
             train_df, test_df, auto_detect_threshold, target_column
         )
-        console.print(f"  [green]✓[/green] Found {len(auto_detect_cols)} numeric categorical columns")
-
-        # Show detected columns
+        
         if auto_detect_cols:
+            det_table = Table(box=box.SIMPLE, show_header=True, header_style="bold magenta", padding=(0, 2))
+            det_table.add_column("Column", style="cyan")
+            det_table.add_column("Type", style="green")
+            det_table.add_column("Distinct", style="yellow", justify="right")
+            
             for col in auto_detect_cols:
                 meta = auto_detect_metadata[col]
-                type_str = meta.get("type", "")
-                n_distinct = meta.get("n_distinct", "?")
-                console.print(f"    • {col:30s} | {type_str:28s} | {n_distinct} distinct")
+                det_table.add_row(col, meta.get("type", ""), str(meta.get("n_distinct", "")))
+            
+            console.print(Panel(
+                det_table,
+                title="[bold cyan]Auto-detected Numeric Categorical Columns[/bold cyan]",
+                border_style="cyan",
+                expand=False
+            ))
+        else:
+            console.print(f"\n[cyan]Auto-detect:[/cyan] [white]No numeric categorical columns found.[/white]")
 
     # Step 3: Merge results (unique columns only)
     all_categorical_metadata = {**eda_metadata, **auto_detect_metadata}
@@ -499,10 +524,14 @@ def fit_transform(
     if use_orig_only and orig_features:
         categorical_cols = dataframe_utils.filter_original_columns(categorical_cols, orig_features)
 
-    console.print(f"\n[bold]Total categorical columns:[/bold] {len(categorical_cols)}")
-    console.print(f"  From EDA: {len(eda_cols)}")
-    console.print(f"  From auto-detect: {len(auto_detect_cols)}")
-    console.print(f"  Overlap: {len(set(eda_cols) & set(auto_detect_cols))}")
+    # Summary of detection
+    summary_table = Table(box=None, show_header=False, padding=(0, 2))
+    summary_table.add_row("Total categorical columns", f"[bold cyan]{len(categorical_cols)}[/bold cyan]")
+    summary_table.add_row("  • From EDA", str(len(eda_cols)))
+    summary_table.add_row("  • From auto-detect", str(len(auto_detect_cols)))
+    summary_table.add_row("  • Overlap", str(len(set(eda_cols) & set(auto_detect_cols))))
+    
+    console.print(summary_table)
 
     # Step 4: Convert to dtype='category'
     train_df, train_converted = _convert_to_category(train_df, categorical_cols, "train")

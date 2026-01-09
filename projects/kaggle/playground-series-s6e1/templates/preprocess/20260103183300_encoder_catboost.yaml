@@ -1,6 +1,7 @@
 module: encoder
 cache: true
 config:
+  use_original_features_only: true
   encoding_method: catboost
   handle_unknown: ignore
   a: 1

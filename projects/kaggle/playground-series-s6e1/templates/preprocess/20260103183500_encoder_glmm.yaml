@@ -1,5 +1,6 @@
 module: encoder
 cache: true
 config:
+  use_original_features_only: true
   encoding_method: glmm
   handle_unknown: ignore

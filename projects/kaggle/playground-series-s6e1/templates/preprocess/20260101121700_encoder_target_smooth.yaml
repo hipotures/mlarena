@@ -1,6 +1,7 @@
 module: encoder
 cache: true
 config:
+  use_original_features_only: true
   encoding_method: target_mean
   target_encoding_smoothing: 10.0
   target_encoding_min_samples: 100

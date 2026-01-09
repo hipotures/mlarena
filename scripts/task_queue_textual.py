@@ -311,9 +311,9 @@ class TaskQueueApp(App):
     
     BINDINGS = [
         ("q", "quit", "Quit"), 
-        ("r", "refresh", "Refresh"), 
+        ("f", "refresh", "Refresh"), 
         ("s", "stop_queue", "Stop Queue"),
-        ("x", "run_queue", "Run Queue")
+        ("r", "run_queue", "Run Queue")
     ]
     
     def __init__(self, project: str, auto_run: bool = False):

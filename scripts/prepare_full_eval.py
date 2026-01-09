@@ -99,6 +99,10 @@ Examples:
                 
                 model_info = modules.get("model", {})
                 model_template = model_info.get("invocation", {}).get("model_template")
+                preproc_template = model_info.get("invocation", {}).get("preprocess_template")
+                if not preproc_template:
+                    preproc_info = modules.get("preprocess", {}) or modules.get("pre-process", {}) or {}
+                    preproc_template = preproc_info.get("invocation", {}).get("preprocess_template")
                 
                 # If submitted, track both ID and template name
                 if is_submitted:
@@ -123,6 +127,7 @@ Examples:
                     raw_results.append({
                         "score": score,
                         "model_template": model_template,
+                        "preprocess_template": preproc_template,
                         "exp_id": exp_id,
                         "is_submitted": is_submitted,
                         "public_score": public_score
@@ -182,21 +187,39 @@ Examples:
         # Upgrade Model Template
         model_tmpl_path = local_project_dir / "templates" / "model" / f"{orig_model_name}.yaml"
         model_tmpl = load_yaml(model_tmpl_path)
-        if not model_tmpl: continue
 
-        full_model_tmpl = model_tmpl.copy()
-        orig_preproc = model_tmpl.get("preprocess_template")
+        if model_tmpl:
+            full_model_tmpl = model_tmpl.copy()
+            orig_preproc = model_tmpl.get("preprocess_template")
+        else:
+            full_model_tmpl = {}
+            orig_preproc = res.get("preprocess_template")
         full_preproc = f"{orig_preproc}_full" if orig_preproc else None
         
-        full_model_tmpl["preprocess_template"] = full_preproc
-        full_model_tmpl["preset"] = "best"
-        full_model_tmpl["time_limit"] = 3600
-        full_model_tmpl["included_model_types"] = ["GBM", "XGB", "CAT"]
-        
-        # Remove fit_args to allow 'best' preset to use high-quality defaults
-        if "fit_args" in full_model_tmpl:
-            del full_model_tmpl["fit_args"]
+        if model_tmpl:
+            full_model_tmpl["preprocess_template"] = full_preproc
+            full_model_tmpl["preset"] = "best"
+            full_model_tmpl["time_limit"] = 3600
+            full_model_tmpl["included_model_types"] = ["GBM", "XGB", "CAT"]
             
+            # Remove fit_args to allow 'best' preset to use high-quality defaults
+            if "fit_args" in full_model_tmpl:
+                del full_model_tmpl["fit_args"]
+        else:
+            # Fallback: create a default full model template
+            full_model_tmpl = {
+                "model": "autogluon_baseline",
+                "preset": "high",
+                "time_limit": 600,
+                "included_model_types": ["GBM", "XGB", "CAT"],
+            }
+            if full_preproc:
+                full_model_tmpl["preprocess_template"] = full_preproc
+            console.print(
+                f"  [yellow]i[/yellow] Missing model template {orig_model_name}.yaml -> "
+                f"created default {full_model_name} (high, 10m, GBM+XGB+CAT)"
+            )
+        
         save_yaml(full_model_tmpl, local_project_dir / "templates" / "model" / f"{full_model_name}.yaml")
 
         # Upgrade Preprocess Chain/Modules

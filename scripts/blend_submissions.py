@@ -145,7 +145,7 @@ def is_ensemble_submission(filename: str, description: str) -> bool:
     return any(keyword in text_to_check for keyword in ensemble_keywords)
 
 
-def select_top_n(rows: List[Dict[str, Any]], top_n: int, exclude_ensembles: bool = True) -> List[Dict[str, Any]]:
+def select_top_n(rows: List[Dict[str, Any]], top_n: int, exclude_ensembles: bool = True, lower_is_better: bool = False) -> List[Dict[str, Any]]:
     """Select top-N submissions by score, optionally excluding ensemble submissions."""
     filtered = rows
     if exclude_ensembles:
@@ -154,25 +154,48 @@ def select_top_n(rows: List[Dict[str, Any]], top_n: int, exclude_ensembles: bool
         if excluded_count > 0:
             print(f"Excluded {excluded_count} ensemble submission(s) from blending")
 
+    # Sort logic: 
+    # If higher is better: score DESC, date DESC
+    # If lower is better: score ASC, date DESC
     rows_sorted = sorted(
         filtered,
-        key=lambda r: (r["public_score"], r["date"] or datetime.min),
+        key=lambda r: (r["public_score"] if not lower_is_better else -r["public_score"], r["date"] or datetime.min),
         reverse=True,
     )
     return rows_sorted[:top_n]
 
 
 def resolve_local_file(submissions_dir: Path, kaggle_filename: str) -> Path:
-    direct = submissions_dir / kaggle_filename
-    if direct.exists():
-        return direct
-    stem = Path(kaggle_filename).stem
-    # Support both .csv and .csv.gz files
-    matches = sorted(submissions_dir.glob(f"{stem}-*.csv*"))
+    """Resolve Kaggle filename to local file path, handling .gz and metadata suffixes."""
+    # 1. Direct match
+    path = submissions_dir / kaggle_filename
+    if path.exists(): return path
+
+    # 2. Try with/without .gz
+    if kaggle_filename.endswith(".gz"):
+        alt = submissions_dir / kaggle_filename[:-3]
+    else:
+        alt = submissions_dir / (kaggle_filename + ".gz")
+    if alt.exists(): return alt
+
+    # 3. Try matching by stem (timestamp part)
+    # Most submissions start with submission-YYYYMMDDHHMMSS
+    import re
+    match = re.search(r"submission-\d{14}", kaggle_filename)
+    stem = match.group(0) if match else Path(kaggle_filename).stem
+    
+    # Search for any file containing this stem
+    matches = sorted(submissions_dir.glob(f"*{stem}*"))
+    # Filter out manifest files
+    matches = [m for m in matches if not m.name.endswith(".json")]
+    
     if not matches:
-        raise FileNotFoundError(f"No local submission found for {kaggle_filename}")
+        raise FileNotFoundError(f"No local submission found for {kaggle_filename} (searched stem: {stem})")
+    
     if len(matches) > 1:
-        print(f"Warning: multiple matches for {kaggle_filename}, using {matches[0].name}")
+        # Prefer exact stem matches or shortest names
+        matches.sort(key=lambda x: len(x.name))
+        
     return matches[0]
 
 
@@ -183,24 +206,49 @@ def compute_weights(
     temp: float,
     eps: float,
     manual: List[float] | None,
+    lower_is_better: bool = False,
 ) -> List[float]:
+    """Compute normalized weights based on scores and strategy."""
     n = len(scores)
     if n == 0:
         raise ValueError("No scores provided for weight computation")
 
+    # For modes where higher value = more weight
+    # If lower_is_better (e.g. RMSE), we need to transform scores
     if mode == "public":
-        raw = scores[:]
+        if lower_is_better:
+            # Use inverse of score
+            raw = [1.0 / (max(float(s), eps)) for s in scores]
+        else:
+            raw = scores[:]
     elif mode == "rank":
+        # Assumes scores are already sorted BEST to WORST
         raw = [float(n - i) for i in range(n)]
     elif mode == "power":
-        raw = [float(s) ** power for s in scores]
+        if lower_is_better:
+            # Smallest score gets highest weight
+            raw = [(1.0 / max(float(s), eps)) ** power for s in scores]
+        else:
+            raw = [float(s) ** power for s in scores]
     elif mode == "softmax":
         if temp <= 0:
             raise ValueError("temp must be > 0 for softmax weighting")
-        raw = [math.exp(float(s) / temp) for s in scores]
+        
+        # Numerically stable softmax: exp(x - max(x))
+        if lower_is_better:
+            vals = [-float(s) for s in scores] # smaller score -> larger val -> more weight
+        else:
+            vals = [float(s) for s in scores]
+            
+        max_v = max(vals)
+        raw = [math.exp((v - max_v) / temp) for v in vals]
     elif mode == "offset":
-        min_score = min(scores)
-        raw = [max(float(s) - min_score + eps, 0.0) for s in scores]
+        if lower_is_better:
+            max_score = max(scores)
+            raw = [max(max_score - float(s) + eps, 0.0) for s in scores]
+        else:
+            min_score = min(scores)
+            raw = [max(float(s) - min_score + eps, 0.0) for s in scores]
     elif mode == "uniform":
         raw = [1.0] * n
     elif mode == "manual":
@@ -212,7 +260,10 @@ def compute_weights(
 
     total = sum(raw)
     if total <= 0:
-        raise ValueError("Weights sum to zero; adjust weighting settings")
+        # Fallback to uniform if weights collapse
+        raw = [1.0] * n
+        total = float(n)
+        
     return [float(w) / total for w in raw]
 
 
@@ -254,15 +305,21 @@ def blend_predictions(
 class InteractiveBlender:
     """Interactive CLI for blending Kaggle submissions using rich library."""
 
-    def __init__(self, project: str, submissions_dir: Optional[Path], console: Console):
+    def __init__(self, project: str, submissions_dir: Optional[Path], console: Console, lower_is_better: Optional[bool] = None):
         self.project = project
         repo_root = Path(__file__).resolve().parents[1]  # scripts/blend_submissions.py -> repo root
+        self.project_root = repo_root / "projects" / "kaggle" / project
         self.submissions_dir = (
             submissions_dir
             if submissions_dir
-            else repo_root / "projects" / "kaggle" / project / "submissions"
+            else self.project_root / "submissions"
         )
         self.console = console
+
+        # Metric direction
+        self.lower_is_better = lower_is_better
+        if self.lower_is_better is None:
+            self.lower_is_better = self._detect_metric_direction()
 
         # Data
         self.all_submissions: List[Dict] = []
@@ -285,16 +342,29 @@ class InteractiveBlender:
         # History
         self.history: List[Dict] = []
 
+    def _detect_metric_direction(self) -> bool:
+        """Try to detect if lower is better from project config."""
+        try:
+            from mlarena.utils.project import load_project_config
+            config = load_project_config(self.project_root)
+            metric = getattr(config, "AUTOGLUON_EVAL_METRIC", "").lower()
+            lower_better_metrics = ["rmse", "mae", "log_loss", "mse", "msle", "root_mean_squared_error", "mean_absolute_error"]
+            if any(m in metric for m in lower_better_metrics):
+                return True
+        except Exception:
+            pass
+        return False
+
     def fetch_and_parse(self) -> None:
         """Fetch submissions from Kaggle and load local scores."""
         # Fetch from Kaggle
         df = fetch_kaggle_submissions(self.project)
         self.all_submissions = parse_kaggle_csv(df)
 
-        # Sort by public score (descending), then by date (newer first)
+        # Sort by public score (respecting direction), then by date (newer first)
         self.all_submissions = sorted(
             self.all_submissions,
-            key=lambda r: (r["public_score"], r["date"] or datetime.min),
+            key=lambda r: (r["public_score"] if not self.lower_is_better else -r["public_score"], r["date"] or datetime.min),
             reverse=True,
         )
 
@@ -828,6 +898,7 @@ Ensembles: {ensemble_info}"""
                 self.strategy_params.get("temp", 0.001),
                 self.strategy_params.get("eps", 1e-6),
                 None,
+                lower_is_better=self.lower_is_better
             )
 
     def _preview_blend(self) -> Optional[tuple]:
@@ -1114,6 +1185,7 @@ Description:
                     strat_params.get("temp", 0.001),
                     strat_params.get("eps", 1e-6),
                     None,
+                    lower_is_better=self.lower_is_better
                 )
 
                 # Generate output name
@@ -1300,6 +1372,18 @@ def parse_args() -> argparse.Namespace:
         help="Include already blended/stacked submissions (default: exclude)",
     )
     parser.add_argument(
+        "--lower-is-better",
+        action="store_true",
+        default=None,
+        help="Sort by lowest public score (e.g., for RMSE/MAE)",
+    )
+    parser.add_argument(
+        "--higher-is-better",
+        action="store_false",
+        dest="lower_is_better",
+        help="Sort by highest public score (default for accuracy/AUC)",
+    )
+    parser.add_argument(
         "--weighting",
         choices=["public", "rank", "power", "softmax", "offset", "uniform", "manual"],
         default="public",
@@ -1325,7 +1409,7 @@ def main_interactive(args: argparse.Namespace) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         submissions_dir = repo_root / "projects" / "kaggle" / args.project / "submissions"
 
-    blender = InteractiveBlender(args.project, submissions_dir, console)
+    blender = InteractiveBlender(args.project, submissions_dir, console, lower_is_better=args.lower_is_better)
 
     # Fetch data
     try:
@@ -1405,13 +1489,26 @@ def main_non_interactive(args: argparse.Namespace) -> None:
     rows = parse_kaggle_csv(df)
     print(f"Found {len(rows)} submissions with public scores")
 
-    selected = select_top_n(rows, args.top_n, exclude_ensembles=not args.include_ensembles)
+    # Handle lower_is_better default if None
+    lower_is_better = args.lower_is_better
+    if lower_is_better is None:
+        try:
+            from mlarena.utils.project import load_project_config
+            project_root = repo_root / "projects" / "kaggle" / args.project
+            config = load_project_config(project_root)
+            metric = getattr(config, "AUTOGLUON_EVAL_METRIC", "").lower()
+            lower_better_metrics = ["rmse", "mae", "log_loss", "mse", "msle", "root_mean_squared_error", "mean_absolute_error"]
+            lower_is_better = any(m in metric for m in lower_better_metrics)
+        except Exception:
+            lower_is_better = False
+
+    selected = select_top_n(rows, args.top_n, exclude_ensembles=not args.include_ensembles, lower_is_better=lower_is_better)
     if not selected:
         raise RuntimeError("No submissions selected for blending")
 
     model_files = [resolve_local_file(submissions_dir, r["filename"]) for r in selected]
     scores = [r["public_score"] for r in selected]
-    weights = compute_weights(scores, args.weighting, args.power, args.temp, args.eps, args.weights)
+    weights = compute_weights(scores, args.weighting, args.power, args.temp, args.eps, args.weights, lower_is_better=lower_is_better)
 
     output_name = args.output_name or f"submission-blend-top{len(model_files)}-{args.weighting}.csv.gz"
     output_path = submissions_dir / output_name

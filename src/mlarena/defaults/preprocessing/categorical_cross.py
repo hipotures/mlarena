@@ -95,6 +95,9 @@ def fit_transform(
     sep = config["separator"]
     output_method = config["output"]
     
+    # Suppress fragmentation warning for wide creation
+    warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+    
     # We collect all crossed columns first
     temp_train = pd.DataFrame(index=train_df.index)
     temp_test = pd.DataFrame(index=test_df.index)

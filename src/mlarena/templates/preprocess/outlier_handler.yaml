@@ -11,3 +11,4 @@ config:
   include_cols: null
   exclude_cols: []
   random_state: 42
+  use_original_features_only: true

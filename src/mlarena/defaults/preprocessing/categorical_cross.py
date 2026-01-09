@@ -52,7 +52,7 @@ def fit_transform(
         # Params for target encoding
         "oof_folds": 5,
         "oof_random_state": 42,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["output"], ["hashed", "onehot", "target_mean_oof"], "output")

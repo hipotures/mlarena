@@ -49,7 +49,7 @@ def fit_transform(
         "include_sparse": False,
         "whiten": False,
         "random_state": 42,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["method"], ["pca", "svd"], "method")

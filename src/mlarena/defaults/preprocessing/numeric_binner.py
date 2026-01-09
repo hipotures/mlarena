@@ -51,7 +51,7 @@ def fit_transform(
         "n_bins": 5,
         "encode": "ordinal",
         "drop_original": False,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["strategy"], ["uniform", "quantile", "kmeans"], "strategy")

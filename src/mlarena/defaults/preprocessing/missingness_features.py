@@ -50,7 +50,7 @@ def fit_transform(
         "add_row_missing_count": True,
         "add_row_missing_ratio": False,
         "cap_row_missing_count": None,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

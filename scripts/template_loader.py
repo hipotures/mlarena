@@ -101,6 +101,30 @@ def _validate_templates(templates: Dict[str, Any], kind: str, *, source: str) ->
     return validated
 
 
+def _merge_template_payload(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge a project template into a global template.
+    - Meta-templates (chain) are not merged; the override replaces the base.
+    - Regular templates: shallow merge, with dict-merge for "config".
+    """
+    if "chain" in base or "chain" in override:
+        return dict(override)
+
+    merged = dict(base)
+    base_cfg = base.get("config", {})
+    override_cfg = override.get("config", {})
+    if isinstance(base_cfg, dict) and isinstance(override_cfg, dict):
+        merged["config"] = {**base_cfg, **override_cfg}
+    elif "config" in override:
+        merged["config"] = override_cfg
+
+    for key, value in override.items():
+        if key == "config":
+            continue
+        merged[key] = value
+    return merged
+
+
 def load_templates(kind: str, project_root: Path, *, suppress_warnings: bool | None = None) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
     """
     Load templates from global + project locations with project overrides.
@@ -130,16 +154,35 @@ def load_templates(kind: str, project_root: Path, *, suppress_warnings: bool | N
     warnings: List[str] = []
 
     for name, payload in local_templates.items():
-        if name in merged and not no_warn:
-            warnings.append(
-                f"Template '{name}' overridden by project/{project_root.name} template ({local_dir} > {global_dir})"
-            )
-        merged[name] = payload
+        if name in merged:
+            if not no_warn:
+                warnings.append(
+                    f"Template '{name}' overridden by project/{project_root.name} template ({local_dir} > {global_dir})"
+                )
+            base_payload = merged.get(name, {})
+            if isinstance(base_payload, dict) and isinstance(payload, dict):
+                merged[name] = _merge_template_payload(base_payload, payload)
+            else:
+                merged[name] = payload
+        else:
+            merged[name] = payload
 
     if not merged:
         raise TemplateValidationError(
             f"No {kind} templates found. Add entries to {global_dir} or {local_dir} before running."
         )
+
+    if kind == "preprocess":
+        module_bases = dict(merged)
+        for name, payload in list(merged.items()):
+            if not isinstance(payload, dict) or "chain" in payload:
+                continue
+            module_name = payload.get("module")
+            if not module_name or module_name == name:
+                continue
+            base_payload = module_bases.get(module_name)
+            if isinstance(base_payload, dict) and "chain" not in base_payload:
+                merged[name] = _merge_template_payload(base_payload, payload)
 
     validated = _validate_templates(merged, kind, source=f"{local_dir} or {global_dir}")
     return validated, warnings

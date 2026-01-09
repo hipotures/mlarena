@@ -49,7 +49,7 @@ def fit_transform(
         "rolling_aggs": ["mean"],
         "fill_method": "none", # none = leave NaN
         "drop_original_value_cols": False,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

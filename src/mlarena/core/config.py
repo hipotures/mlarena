@@ -223,22 +223,64 @@ class TemplateLoader:
 
         template_data = {}
 
-        # Load from global first
-        repo_root = Path(__file__).resolve().parents[3]
-        global_file = repo_root / "src" / "mlarena" / "templates" / self.template_type / f"{template_name}.yaml"
-        if global_file.exists():
-            try:
-                template_data = yaml.safe_load(global_file.read_text()) or {}
-            except Exception:
-                pass
+        def _merge_template_payload(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+            """
+            Merge a project template into a global template.
+            - Meta-templates (chain) are not merged; the override replaces the base.
+            - Regular templates: shallow merge, with dict-merge for "config".
+            """
+            if "chain" in base or "chain" in override:
+                return dict(override)
 
-        # Override with project-local if exists
-        local_file = self.project_root / "templates" / self.template_type / f"{template_name}.yaml"
-        if local_file.exists():
-            try:
-                template_data = yaml.safe_load(local_file.read_text()) or {}
-            except Exception:
-                pass
+            merged = dict(base)
+            base_cfg = base.get("config", {})
+            override_cfg = override.get("config", {})
+            if isinstance(base_cfg, dict) and isinstance(override_cfg, dict):
+                merged["config"] = {**base_cfg, **override_cfg}
+            elif "config" in override:
+                merged["config"] = override_cfg
+
+            for key, value in override.items():
+                if key == "config":
+                    continue
+                merged[key] = value
+            return merged
+
+        def _load_by_name(name: str) -> Dict[str, Any]:
+            repo_root = Path(__file__).resolve().parents[3]
+            data: Dict[str, Any] = {}
+            global_file = repo_root / "src" / "mlarena" / "templates" / self.template_type / f"{name}.yaml"
+            if global_file.exists():
+                try:
+                    data = yaml.safe_load(global_file.read_text()) or {}
+                except Exception:
+                    data = {}
+
+            local_file = self.project_root / "templates" / self.template_type / f"{name}.yaml"
+            if local_file.exists():
+                try:
+                    local_data = yaml.safe_load(local_file.read_text()) or {}
+                    if isinstance(data, dict) and isinstance(local_data, dict):
+                        data = _merge_template_payload(data, local_data)
+                    else:
+                        data = local_data
+                except Exception:
+                    pass
+            return data
+
+        template_data = _load_by_name(template_name)
+
+        # For preprocess templates, inherit defaults from the global template named after the module.
+        if (
+            self.template_type == "preprocess"
+            and isinstance(template_data, dict)
+            and "chain" not in template_data
+        ):
+            module_name = template_data.get("module")
+            if module_name and module_name != template_name:
+                base_data = _load_by_name(module_name)
+                if isinstance(base_data, dict) and "chain" not in base_data:
+                    template_data = _merge_template_payload(base_data, template_data)
 
         # Extract config from nested structure, preserving top-level fields
         if "config" in template_data:

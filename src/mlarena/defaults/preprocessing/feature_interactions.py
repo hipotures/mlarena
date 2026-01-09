@@ -211,7 +211,7 @@ def fit_transform(
         "auto_pair_numeric": False,
         "max_auto_pairs": 30,
         "max_generated_features": 200,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

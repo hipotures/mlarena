@@ -50,7 +50,7 @@ def fit_transform(
         "add_zscore": True,
         "add_ratio": False,
         "eps": 1e-6,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

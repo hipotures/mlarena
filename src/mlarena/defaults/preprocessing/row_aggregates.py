@@ -49,7 +49,7 @@ def fit_transform(
         "stats": ["mean", "std", "sum"],
         "prefix": "row_",
         "nan_policy": "omit", # omit = ignore NaNs (pandas default), fill_zero = fill 0 before calc
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
     

@@ -84,7 +84,7 @@ def fit_transform(
         "add_log": False,    # If True, apply log1p to the count
         "min_count": 1,      # Categories with fewer counts are grouped/ignored (treated as 0)
         "keep_original": False,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

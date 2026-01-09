@@ -53,7 +53,7 @@ def fit_transform(
         "random_state": 42,
         "n_init": 10,
         "algorithm": "kmeans", # Reserved for future GMM etc.
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

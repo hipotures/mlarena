@@ -52,7 +52,7 @@ def fit_transform(
         "method": "percentile",
         "tie_method": "average",
         "add_original": True,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["mode"], ["global", "by_group"], "mode")

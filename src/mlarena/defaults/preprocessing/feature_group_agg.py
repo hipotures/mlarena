@@ -132,7 +132,7 @@ def fit_transform(
         "group_value_cols": [],
         "aggs": [],
         "max_generated_features": 200,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

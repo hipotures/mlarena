@@ -174,7 +174,7 @@ def fit_transform(
         "poly_include_bias": False,
         "poly_interaction_only": False,
         "max_generated_features": 200,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

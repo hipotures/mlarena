@@ -12,6 +12,7 @@ Parameters:
   - action: clip|set_na|flag_only
   - include_cols / exclude_cols: column selection
   - random_state: int
+  - use_original_features_only: bool
 """
 
 from pathlib import Path
@@ -211,6 +212,7 @@ def fit_transform(
         "include_cols": None,
         "exclude_cols": [],
         "random_state": 42,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 
@@ -253,6 +255,10 @@ def fit_transform(
         numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
 
     numeric_cols = [col for col in numeric_cols if col in test_df.columns]
+    use_orig_only = bool(config.get("use_original_features_only"))
+    if use_orig_only:
+        orig_features = config.get("_original_features")
+        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
 
     if not numeric_cols or config["outlier_method"] == "none":
         transformation_summary = report.create_preprocessing_report(

@@ -123,7 +123,7 @@ def fit_transform(
         "time_diff_pairs": [],
         "time_diff_default_unit": "days",
         "drop_original_datetime": False,
-        "use_original_features_only": False,
+        "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
 

@@ -559,6 +559,35 @@ def _run_trial_worker(
 ) -> None:
     exit_code = 0
     try:
+        # Suppress loky resource_tracker warnings from forced process cleanup.
+        try:
+            import warnings
+            warnings.filterwarnings(
+                "ignore",
+                message=r"resource_tracker: There appear to be .* leaked .*",
+                category=UserWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The distribution is specified by .* and step=.* not divisible by `step`.*",
+                category=UserWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Bins whose width are too small .* Consider decreasing the number of bins\.",
+                category=UserWarning,
+            )
+            try:
+                from sklearn.exceptions import ConvergenceWarning
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"Number of distinct clusters .* smaller than n_clusters .*",
+                    category=ConvergenceWarning,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
         # Make this process a session leader so parent can kill the group on timeout.
         try:
             os.setsid()
@@ -740,6 +769,35 @@ class PreprocessTuneModule(BaseModule):
         console = Console(force_terminal=True)
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        # Suppress loky resource_tracker warnings from forced process cleanup.
+        try:
+            import warnings
+            warnings.filterwarnings(
+                "ignore",
+                message=r"resource_tracker: There appear to be .* leaked .*",
+                category=UserWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The distribution is specified by .* and step=.* not divisible by `step`.*",
+                category=UserWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Bins whose width are too small .* Consider decreasing the number of bins\.",
+                category=UserWarning,
+            )
+            try:
+                from sklearn.exceptions import ConvergenceWarning
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"Number of distinct clusters .* smaller than n_clusters .*",
+                    category=ConvergenceWarning,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
 
         try:
             import optuna

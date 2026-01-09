@@ -12,3 +12,4 @@ config:
   - mean
   - std
   max_generated_features: 200
+  use_original_features_only: true

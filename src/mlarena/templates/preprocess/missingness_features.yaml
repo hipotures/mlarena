@@ -6,3 +6,4 @@ config:
   add_row_missing_count: true
   add_row_missing_ratio: false
   cap_row_missing_count: null
+  use_original_features_only: true

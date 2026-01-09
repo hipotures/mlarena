@@ -4,3 +4,4 @@ config:
   method: percentile
   tie_method: average
   add_original: true
+  use_original_features_only: true

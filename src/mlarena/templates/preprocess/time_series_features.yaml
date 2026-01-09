@@ -9,3 +9,4 @@ config:
   rolling_aggs: []
   fill_method: ffill
   drop_original_value_cols: false
+  use_original_features_only: true

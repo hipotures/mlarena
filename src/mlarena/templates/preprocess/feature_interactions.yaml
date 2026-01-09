@@ -5,3 +5,4 @@ config:
   auto_pair_numeric: false
   max_auto_pairs: 30
   max_generated_features: 200
+  use_original_features_only: true

@@ -4,3 +4,4 @@ config:
   n_bins: 5
   encode: ordinal
   drop_original: false
+  use_original_features_only: true

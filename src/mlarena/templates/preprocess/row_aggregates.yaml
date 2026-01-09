@@ -3,3 +3,4 @@ config:
   stats: [mean, std, sum]
   prefix: row_
   nan_policy: omit
+  use_original_features_only: true

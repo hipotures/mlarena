@@ -5,3 +5,4 @@ config:
   include_sparse: false
   whiten: false
   random_state: 42
+  use_original_features_only: true

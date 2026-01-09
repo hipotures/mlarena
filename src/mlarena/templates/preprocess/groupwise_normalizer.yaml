@@ -7,3 +7,4 @@ config:
   add_zscore: true
   add_ratio: false
   eps: 1.0e-6
+  use_original_features_only: true

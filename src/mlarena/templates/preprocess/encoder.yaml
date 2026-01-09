@@ -5,3 +5,4 @@ config:
   max_cardinality: 50
   drop_first: false
   handle_unknown: ignore
+  use_original_features_only: true

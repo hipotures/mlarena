@@ -5,3 +5,4 @@ config:
   poly_include_bias: false
   poly_interaction_only: false
   max_generated_features: 200
+  use_original_features_only: true

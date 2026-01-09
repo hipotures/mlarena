@@ -10,3 +10,4 @@ config:
   time_diff_pairs: []
   time_diff_default_unit: days
   drop_original_datetime: false
+  use_original_features_only: true

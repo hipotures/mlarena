@@ -8,6 +8,8 @@ executes them through the PipelineExecutor with dependency handling.
 import argparse
 import hashlib
 import json
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -71,6 +73,82 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
     combined_hash, individual_hashes = compute_chain_hash(template_configs, project_root)
 
     return templates, template_configs, chain_exp_id, combined_hash, is_meta
+
+
+def _is_within_path(base: Path, target: Path) -> bool:
+    try:
+        target.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_clear_preprocess_chain_dir(chain_base_dir: Path, project_root: Path, console) -> None:
+    """
+    Clear prior preprocess step outputs for a chain when --force is used.
+
+    Safety rules:
+    - Only operates inside <project_root>/experiments/<chain>/<hash>
+    - Only removes step directories that match r"^\\d+-"
+    - Skips symlinks or paths that resolve outside the chain directory
+    """
+    if not chain_base_dir.exists():
+        return
+
+    experiments_root = (project_root / "experiments").resolve()
+    project_root_resolved = project_root.resolve()
+
+    try:
+        chain_resolved = chain_base_dir.resolve()
+    except FileNotFoundError:
+        console.print("[yellow]⚠ Cannot resolve preprocess chain directory; skipping cleanup.[/yellow]")
+        return
+
+    if not _is_within_path(experiments_root, chain_resolved):
+        console.print(
+            "[yellow]⚠ Refusing to clean preprocess chain outside experiments root.[/yellow]"
+        )
+        return
+
+    if chain_resolved == experiments_root:
+        console.print("[yellow]⚠ Refusing to clean experiments root directory.[/yellow]")
+        return
+
+    rel_parts = chain_resolved.relative_to(experiments_root).parts
+    if len(rel_parts) < 2:
+        console.print("[yellow]⚠ Refusing to clean path that is too shallow.[/yellow]")
+        return
+
+    step_dirs = []
+    for entry in chain_base_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        if not re.match(r"^\\d+-", entry.name):
+            continue
+        if entry.is_symlink():
+            console.print(f"[yellow]⚠ Skipping symlinked step dir: {entry}[/yellow]")
+            continue
+        entry_resolved = entry.resolve()
+        if not _is_within_path(chain_resolved, entry_resolved):
+            console.print(f"[yellow]⚠ Skipping suspicious step dir: {entry}[/yellow]")
+            continue
+        step_dirs.append(entry)
+
+    if not step_dirs:
+        return
+
+    if _is_within_path(project_root_resolved, chain_resolved):
+        rel_chain = chain_resolved.relative_to(project_root_resolved)
+    else:
+        rel_chain = chain_resolved
+    console.print(
+        f"[dim]Force mode: clearing previous preprocess chain outputs in {rel_chain}[/dim]"
+    )
+    for step_dir in step_dirs:
+        try:
+            shutil.rmtree(step_dir)
+        except Exception as exc:
+            console.print(f"[yellow]⚠ Failed to remove {step_dir.name}: {exc}[/yellow]")
 
 
 def _validate_setup_modules(
@@ -318,6 +396,9 @@ def run_preprocess_chain(
             individual_hashes,
             project_root
         )
+
+    if force and chain_base_dir.exists():
+        _safe_clear_preprocess_chain_dir(chain_base_dir, project_root, console)
 
     execution_start_idx = 0
 

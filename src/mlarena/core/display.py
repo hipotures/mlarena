@@ -447,7 +447,13 @@ def build_path_tree_for_chain(
                     filename = Path(eval_path_str).name
                     # Try to get row count from custom_module_state
                     eval_rows = custom_state.get("eval_rows")
-                    shape_annotation = f" ({eval_rows:,} rows)" if eval_rows else ""
+                    eval_cols = custom_state.get("eval_cols")
+
+                    if eval_rows and eval_cols:
+                        shape_annotation = f" ({eval_rows:,} × {eval_cols})"
+                    else:
+                        shape_annotation = f" ({eval_rows:,} rows)" if eval_rows else ""
+
                     file_label = _style_label(f"📄 {filename}{shape_annotation}", step_style, dim=not is_active)
                     preprocess_node.add(file_label)
 

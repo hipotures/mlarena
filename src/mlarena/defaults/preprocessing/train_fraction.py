@@ -93,6 +93,7 @@ def fit_transform(
         "train_rows": len(train_out),
         "tuning_rows": len(tuning_out) if tuning_out is not None else 0,
         "eval_rows": len(eval_out) if eval_out is not None else 0,
+        "eval_cols": eval_out.shape[1] if eval_out is not None else 0,
         "discarded_rows": n_total - len(train_out) - (len(tuning_out) if tuning_out is not None else 0) - (len(eval_out) if eval_out is not None else 0),
     }
 

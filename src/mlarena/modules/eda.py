@@ -165,7 +165,7 @@ class EDAModule(BaseModule):
 
         # Next steps
         from rich.panel import Panel
-        project_name = self.context.project
+        project_name = self.context.project_name
         next_steps = (
             f"[bold]1.[/] Run auto-flow pipeline: [cyan]uv run python scripts/mla.py --project {project_name}[/cyan]\n"
             f"[bold]2.[/] Or run individual steps:\n"

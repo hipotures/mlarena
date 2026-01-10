@@ -803,6 +803,18 @@ class PreprocessTuneModule(BaseModule):
             )
             warnings.filterwarnings(
                 "ignore",
+                message=r"Argument ``constant_liar`` is an experimental feature",
+                category=FutureWarning, # Optuna uses FutureWarning or UserWarning sometimes, let's catch generic
+            )
+            # Catch optuna ExperimentalWarning if possible
+            try:
+                import optuna
+                warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
+            except:
+                pass
+            
+            warnings.filterwarnings(
+                "ignore",
                 message=r"Bins whose width are too small .* Consider decreasing the number of bins\.",
                 category=UserWarning,
             )
@@ -912,394 +924,445 @@ class PreprocessTuneModule(BaseModule):
         # Storage path
         db_dir = self.context.project_root / "experiments" / "db"
         db_dir.mkdir(parents=True, exist_ok=True)
-        storage_url = _param("storage_url", f"sqlite:///{db_dir / f'optuna_{study_name}.sqlite'}")
+        storage_url = _param("storage_url", f"sqlite:///{db_dir / 'mla.db'}")
         optuna_storage_timeout = _param("optuna_storage_timeout", tune_cfg.get("optuna_storage_timeout"))
 
         search_spaces = _load_search_spaces()
 
-        sampler = optuna.samplers.TPESampler(seed=seed, constant_liar=True)
-        if optuna_storage_timeout and str(storage_url).startswith("sqlite:///"):
-            storage = optuna.storages.RDBStorage(
-                url=storage_url,
-                engine_kwargs={"connect_args": {"timeout": int(optuna_storage_timeout)}},
+        optuna_live = bool(_param("optuna_live", tune_cfg.get("optuna_live", False)))
+
+        if optuna_live and not os.environ.get("MLA_OPTIMIZATION_WORKER"):
+            import subprocess
+            import sys
+            
+            # Construct DB path for dashboard from storage_url
+            if str(storage_url).startswith("sqlite:///"):
+                db_path = Path(str(storage_url).replace("sqlite:///", ""))
+            else:
+                db_path = db_dir / "mla.db"
+            
+            ctx = get_context("spawn")
+            p = ctx.Process(target=run_optimization_loop, args=(
+                self.context.project_root, self.context.project_name,
+                study_name, direction, storage_url, seed, requested_n_trials,
+                optuna_workers, max_trial_sec, allow_heavy_steps,
+                allow_heavy_variants, max_features_out, problem_type, quiet_preprocess_panel,
+                quiet_model_panel, model_verbosity, model_template, model_cleanup,
+                cleanup_processed, super_chain, search_spaces, eda_info,
+                optuna_storage_timeout, artifact_dir, self.context.config.model_dump()
+            ))
+            p.start()
+            
+            dashboard_script = REPO_ROOT / "scripts" / "optuna_dashboard.py"
+            cmd = [
+                sys.executable,
+                str(dashboard_script),
+                "--db", str(db_path),
+                "--project-root", str(self.context.project_root),
+                "--study-name", study_name
+            ]
+            
+            try:
+                subprocess.run(cmd, check=False)
+            except KeyboardInterrupt:
+                pass
+            finally:
+                if p.is_alive():
+                    p.terminate()
+                    p.join()
+            
+            return ModuleResult(success=True, payload={"status": "dashboard_closed"})
+
+        return run_optimization_loop(
+            self.context.project_root, self.context.project_name,
+            study_name, direction, storage_url, seed, requested_n_trials,
+            optuna_workers, max_trial_sec, allow_heavy_steps,
+            allow_heavy_variants, max_features_out, problem_type, quiet_preprocess_panel,
+            quiet_model_panel, model_verbosity, model_template, model_cleanup,
+            cleanup_processed, super_chain, search_spaces, eda_info,
+            optuna_storage_timeout, artifact_dir, self.context.config.model_dump()
+        )
+
+def run_optimization_loop(
+    project_root, project_name,
+    study_name, direction, storage_url, seed, requested_n_trials,
+    optuna_workers, max_trial_sec, allow_heavy_steps,
+    allow_heavy_variants, max_features_out, problem_type, quiet_preprocess_panel,
+    quiet_model_panel, model_verbosity, model_template, model_cleanup,
+    cleanup_processed, super_chain, search_spaces, eda_info,
+    optuna_storage_timeout, artifact_dir, config_dict
+) -> ModuleResult:
+    console = Console(force_terminal=True)
+    import optuna
+
+    # Reconstruct minimal config object for worker context if needed, or just use dict
+    # We passed config_dict (model_dump)
+    from mlarena.core.conf import GlobalConfig
+    try:
+        config = GlobalConfig(**config_dict)
+    except:
+        config = config_dict # Fallback
+
+    sampler = optuna.samplers.TPESampler(seed=seed, constant_liar=True)
+    if optuna_storage_timeout and str(storage_url).startswith("sqlite:///"):
+        storage = optuna.storages.RDBStorage(
+            url=storage_url,
+            engine_kwargs={"connect_args": {"timeout": int(optuna_storage_timeout)}},
+        )
+    else:
+        storage = storage_url
+    study = optuna.create_study(
+        study_name=study_name,
+        direction=direction,
+        storage=storage,
+        load_if_exists=True,
+        sampler=sampler,
+    )
+    
+    effective_n_trials = requested_n_trials
+    baseline_included = False
+    try:
+        existing_trials = study.get_trials(deepcopy=False)
+        has_baseline = any(t.number == 0 for t in existing_trials)
+    except Exception:
+        has_baseline = False
+    if not has_baseline:
+        effective_n_trials = requested_n_trials + 1
+        baseline_included = True
+    if effective_n_trials < 1:
+        effective_n_trials = 1
+    
+    stop_state = {"requested": False}
+    prev_sigint = signal.getsignal(signal.SIGINT)
+    prev_sigterm = signal.getsignal(signal.SIGTERM)
+
+    def _handle_stop(signum, frame):
+        if stop_state["requested"]:
+            raise KeyboardInterrupt
+        stop_state["requested"] = True
+        try:
+            study.stop()
+        except Exception:
+            pass
+        console.print(
+            "[yellow]⚠ Stop requested (Ctrl-C). No new trials will be started; waiting for running trials to finish.[/yellow]"
+        )
+        console.print("[yellow]⚠ Press Ctrl-C again to force stop.[/yellow]")
+
+    signal.signal(signal.SIGINT, _handle_stop)
+    signal.signal(signal.SIGTERM, _handle_stop)
+
+    def objective(trial: optuna.Trial) -> float:
+        if stop_state["requested"]:
+            raise optuna.TrialPruned("stop requested")
+        if trial.number == 0:
+            pipeline, meta = _build_baseline_pipeline(
+                super_chain,
+                search_spaces,
+                eda_info,
+                allow_heavy_steps=allow_heavy_steps,
+                problem_type=problem_type,
             )
         else:
-            storage = storage_url
-        study = optuna.create_study(
-            study_name=study_name,
-            direction=direction,
-            storage=storage,
-            load_if_exists=True,
-            sampler=sampler,
+            pipeline, meta = _build_trial_pipeline(
+                trial,
+                super_chain,
+                search_spaces,
+                eda_info,
+                allow_heavy_steps=allow_heavy_steps,
+                allow_heavy_variants=allow_heavy_variants,
+                problem_type=problem_type,
+            )
+
+        trial_id = trial.number
+        trial_dir = project_root / "experiments" / f"optuna_{study_name}" / f"trial_{trial_id:04d}"
+        trial_dir.mkdir(parents=True, exist_ok=True)
+
+        pipeline_path = trial_dir / "trial_pipeline.yaml"
+        pipeline_payload = {
+            "pipeline": pipeline,
+            "meta": meta,
+            "study": study_name,
+            "trial_id": trial_id,
+        }
+        import yaml
+        pipeline_path.write_text(yaml.safe_dump(pipeline_payload, sort_keys=False))
+
+        payload = {
+            "pipeline": pipeline,
+            "trial_dir": str(trial_dir),
+            "config": config_dict,
+            "quiet_preprocess_panel": quiet_preprocess_panel,
+            "quiet_model_panel": quiet_model_panel,
+            "model_verbosity": model_verbosity,
+        }
+        payload_path = trial_dir / "trial_payload.json"
+        payload_path.write_text(json.dumps(payload, indent=2, default=str))
+
+        chain_exp_id = f"optuna_{study_name}/trial_{trial_id:04d}"
+        split_id = seed
+        for step in pipeline:
+            if step.get("template") == "train_fraction":
+                split_id = step.get("config", {}).get("random_state", split_id)
+                break
+
+        ctx = get_context("spawn")
+        proc = ctx.Process(
+            target=_run_trial_worker,
+            args=(
+                payload_path,
+                project_root,
+                project_name,
+                chain_exp_id,
+                model_template,
+                max_features_out,
+                config, 
+            ),
         )
-        # Always include a baseline (trial 0) once per study.
-        # Interpret n_trials as "search trials", and add 1 if baseline is missing.
-        effective_n_trials = requested_n_trials
-        baseline_included = False
-        try:
-            existing_trials = study.get_trials(deepcopy=False)
-            has_baseline = any(t.number == 0 for t in existing_trials)
-        except Exception:
-            has_baseline = False
-        if not has_baseline:
-            effective_n_trials = requested_n_trials + 1
-            baseline_included = True
-        if effective_n_trials < 1:
-            effective_n_trials = 1
-        stop_state = {"requested": False}
-        prev_sigint = signal.getsignal(signal.SIGINT)
-        prev_sigterm = signal.getsignal(signal.SIGTERM)
+        start_time = time.time()
+        proc.start()
+        proc.join(timeout=max_trial_sec)
 
-        def _handle_stop(signum, frame):  # type: ignore[override]
-            if stop_state["requested"]:
-                raise KeyboardInterrupt
-            stop_state["requested"] = True
+        if proc.is_alive():
             try:
-                study.stop()
+                os.killpg(proc.pid, signal.SIGTERM)
             except Exception:
-                pass
-            console.print(
-                "[yellow]⚠ Stop requested (Ctrl-C). No new trials will be started; waiting for running trials to finish.[/yellow]"
-            )
-            console.print("[yellow]⚠ Press Ctrl-C again to force stop.[/yellow]")
-
-        signal.signal(signal.SIGINT, _handle_stop)
-        signal.signal(signal.SIGTERM, _handle_stop)
-
-        def objective(trial: optuna.Trial) -> float:
-            if stop_state["requested"]:
-                raise optuna.TrialPruned("stop requested")
-            if trial.number == 0:
-                pipeline, meta = _build_baseline_pipeline(
-                    super_chain,
-                    search_spaces,
-                    eda_info,
-                    allow_heavy_steps=allow_heavy_steps,
-                    problem_type=problem_type,
-                )
-            else:
-                pipeline, meta = _build_trial_pipeline(
-                    trial,
-                    super_chain,
-                    search_spaces,
-                    eda_info,
-                    allow_heavy_steps=allow_heavy_steps,
-                    allow_heavy_variants=allow_heavy_variants,
-                    problem_type=problem_type,
-                )
-
-            trial_id = trial.number
-            trial_dir = self.context.project_root / "experiments" / f"optuna_{study_name}" / f"trial_{trial_id:04d}"
-            trial_dir.mkdir(parents=True, exist_ok=True)
-
-            # Save trial pipeline for reproducibility
-            pipeline_path = trial_dir / "trial_pipeline.yaml"
-            pipeline_payload = {
-                "pipeline": pipeline,
-                "meta": meta,
-                "study": study_name,
-                "trial_id": trial_id,
-            }
-            import yaml
-            pipeline_path.write_text(yaml.safe_dump(pipeline_payload, sort_keys=False))
-
-            # Prepare worker payload
-            payload = {
-                "pipeline": pipeline,
-                "trial_dir": str(trial_dir),
-                "config": self.context.config.model_dump(),
-                "quiet_preprocess_panel": quiet_preprocess_panel,
-                "quiet_model_panel": quiet_model_panel,
-                "model_verbosity": model_verbosity,
-            }
-            payload_path = trial_dir / "trial_payload.json"
-            payload_path.write_text(json.dumps(payload, indent=2, default=str))
-
-            chain_exp_id = f"optuna_{study_name}/trial_{trial_id:04d}"
-            split_id = seed
-            for step in pipeline:
-                if step.get("template") == "train_fraction":
-                    split_id = step.get("config", {}).get("random_state", split_id)
-                    break
-
-            ctx = get_context("spawn")
-            proc = ctx.Process(
-                target=_run_trial_worker,
-                args=(
-                    payload_path,
-                    self.context.project_root,
-                    self.context.project_name,
-                    chain_exp_id,
-                    model_template,
-                    max_features_out,
-                    self.context.config,
-                ),
-            )
-            start_time = time.time()
-            proc.start()
-            proc.join(timeout=max_trial_sec)
-
-            if proc.is_alive():
-                try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                except Exception:
-                    proc.terminate()
-                proc.join(timeout=10)
-                metrics_path = trial_dir / "metrics.json"
-                if not metrics_path.exists():
-                    metrics_path.write_text(
-                        json.dumps(
-                            {
-                                "score_fast": None,
-                                "total_sec": max_trial_sec,
-                                "preprocess_sec": None,
-                                "n_features_out": None,
-                                "seed": seed,
-                                "split_id": split_id,
-                                "enabled_steps": meta.get("enabled_steps"),
-                                "variant_map": meta.get("variant_map"),
-                                "error": f"timeout after {max_trial_sec}s",
-                            },
-                            indent=2,
-                        )
-                    )
-                _cleanup_trial_artifacts(
-                    trial_dir,
-                    self.context.project_root,
-                    cleanup_model=model_cleanup,
-                    cleanup_processed=cleanup_processed,
-                )
-                raise optuna.TrialPruned(f"timeout after {max_trial_sec}s")
-            else:
-                # Best-effort cleanup for any lingering subprocesses spawned by the worker.
-                try:
-                    if proc.pid:
-                        os.killpg(proc.pid, signal.SIGTERM)
-                except Exception:
-                    pass
-
+                proc.terminate()
+            proc.join(timeout=10)
             metrics_path = trial_dir / "metrics.json"
             if not metrics_path.exists():
-                metrics_path.write_text(
-                    json.dumps(
-                        {
-                            "score_fast": None,
-                            "total_sec": None,
-                            "preprocess_sec": None,
-                            "n_features_out": None,
-                            "seed": seed,
-                            "split_id": split_id,
-                            "enabled_steps": meta.get("enabled_steps"),
-                            "variant_map": meta.get("variant_map"),
-                            "error": "trial failed (no metrics)",
-                        },
-                        indent=2,
-                    )
-                )
-                _cleanup_trial_artifacts(
-                    trial_dir,
-                    self.context.project_root,
-                    cleanup_model=model_cleanup,
-                    cleanup_processed=cleanup_processed,
-                )
-                raise optuna.TrialPruned("trial failed (no metrics)")
-
-            metrics = json.loads(metrics_path.read_text())
-            score_fast = metrics.get("score_fast")
-            total_sec = time.time() - start_time
-
-            # Enrich metrics.json with additional metadata
-            metrics.update(
-                {
-                    "total_sec": total_sec,
+                metrics_path.write_text(json.dumps({
+                    "score_fast": None,
+                    "total_sec": max_trial_sec,
+                    "preprocess_sec": None,
+                    "n_features_out": None,
                     "seed": seed,
                     "split_id": split_id,
                     "enabled_steps": meta.get("enabled_steps"),
                     "variant_map": meta.get("variant_map"),
-                }
-            )
-            metrics_path.write_text(json.dumps(metrics, indent=2))
-
-            trial.set_user_attr("total_sec", total_sec)
-            trial.set_user_attr("preprocess_sec", metrics.get("preprocess_sec"))
-            trial.set_user_attr("n_features_out", metrics.get("n_features_out"))
-            trial.set_user_attr("enabled_steps", meta.get("enabled_steps"))
-            trial.set_user_attr("variant_map", meta.get("variant_map"))
-            trial.set_user_attr("pipeline_path", str(pipeline_path))
-
-            if score_fast is None:
-                _cleanup_trial_artifacts(
-                    trial_dir,
-                    self.context.project_root,
-                    cleanup_model=model_cleanup,
-                    cleanup_processed=cleanup_processed,
-                )
-                raise optuna.TrialPruned("no score")
+                    "error": f"timeout after {max_trial_sec}s",
+                }, indent=2))
             _cleanup_trial_artifacts(
-                trial_dir,
-                self.context.project_root,
-                cleanup_model=model_cleanup,
-                cleanup_processed=cleanup_processed,
+                trial_dir, project_root,
+                cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
             )
-            return float(score_fast)
-
-        best_written: set[int] = set()
-
-        def _on_trial_complete(study_obj, trial_obj):
+            raise optuna.TrialPruned(f"timeout after {max_trial_sec}s")
+        else:
             try:
-                import optuna
-                if trial_obj.state != optuna.trial.TrialState.COMPLETE:
-                    return
-                if study_obj.best_trial.number != trial_obj.number:
-                    return
-                if trial_obj.number in best_written:
-                    return
-                pipeline_path = trial_obj.user_attrs.get("pipeline_path")
-                if not pipeline_path:
-                    return
-                template_info = _write_best_templates(
-                    self.context.project_root,
-                    study_name,
-                    trial_obj.number,
-                    Path(pipeline_path),
-                )
-                trial_obj.set_user_attr("best_chain_template", template_info.get("chain_template"))
-                best_written.add(trial_obj.number)
-                console.print(
-                    f"[green]✓ New best trial {trial_obj.number} -> templates written ({template_info.get('base_name')})[/green]"
-                )
-            except Exception as exc:
-                console.print(f"[yellow]⚠ Failed to write best templates: {exc}[/yellow]")
-
-        if optuna_workers < 1:
-            optuna_workers = 1
-        try:
-            study.optimize(
-                objective,
-                n_trials=effective_n_trials,
-                n_jobs=optuna_workers,
-                show_progress_bar=False,
-                callbacks=[_on_trial_complete],
-            )
-        finally:
-            signal.signal(signal.SIGINT, prev_sigint)
-            signal.signal(signal.SIGTERM, prev_sigterm)
-
-        best_payload = {}
-        try:
-            best_payload = {
-                "best_value": study.best_value,
-                "best_params": study.best_params,
-                "best_trial": study.best_trial.number,
-            }
-        except Exception:
-            best_payload = {"best_value": None, "best_params": {}, "best_trial": None}
-
-        # Show best trial summary (params + key stats)
-        try:
-            from rich.panel import Panel
-
-            def _fmt_param_value(val: Any) -> str:
-                if isinstance(val, float):
-                    return f"{val:.6g}"
-                if isinstance(val, bool):
-                    return "true" if val else "false"
-                if isinstance(val, (int, str)):
-                    return str(val)
-                return str(val)
-
-            best_trial = study.best_trial
-            best_lines = []
-            best_lines.append(f"[bold]Best Trial:[/] {best_trial.number}")
-            try:
-                best_lines.append(f"[bold]Best Value:[/] {best_trial.value:.6g}")
-            except Exception:
-                best_lines.append(f"[bold]Best Value:[/] {best_trial.value}")
-
-            attrs = best_trial.user_attrs or {}
-            if "preprocess_sec" in attrs:
-                best_lines.append(f"[bold]Preprocess Sec:[/] {attrs.get('preprocess_sec')}")
-            if "n_features_out" in attrs:
-                best_lines.append(f"[bold]Features Out:[/] {attrs.get('n_features_out')}")
-            if "total_sec" in attrs:
-                best_lines.append(f"[bold]Total Sec:[/] {attrs.get('total_sec')}")
-
-            params = best_trial.params or {}
-            if params:
-                best_lines.append("")
-                best_lines.append("[bold]Params:[/]")
-                # Keep output compact and deterministic
-                for key in sorted(params.keys()):
-                    best_lines.append(f"  {key}: {_fmt_param_value(params[key])}")
-
-            console.print(Panel("\n".join(best_lines), title="Best Trial", border_style="green"))
-        except Exception:
-            pass
-
-        # Ensure best templates exist at end
-        try:
-            if study.best_trial and study.best_trial.user_attrs.get("pipeline_path"):
-                info = _write_best_templates(
-                    self.context.project_root,
-                    study_name,
-                    study.best_trial.number,
-                    Path(study.best_trial.user_attrs["pipeline_path"]),
-                )
-                best_payload["best_chain_template"] = info.get("chain_template")
-        except Exception:
-            pass
-        (artifact_dir / "study_best.json").write_text(json.dumps(best_payload, indent=2))
-        (artifact_dir / "study_config.json").write_text(
-            json.dumps(
-                {
-                    "study_name": study_name,
-                    "direction": direction,
-                    "n_trials": requested_n_trials,
-                    "n_trials_effective": effective_n_trials,
-                    "baseline_included": baseline_included,
-                    "optuna_workers": optuna_workers,
-                    "max_trial_sec": max_trial_sec,
-                    "allow_heavy_steps": allow_heavy_steps,
-                    "allow_heavy_variants": allow_heavy_variants,
-                    "quiet_preprocess_panel": quiet_preprocess_panel,
-                    "quiet_model_panel": quiet_model_panel,
-                    "model_verbosity": model_verbosity,
-                    "storage_url": storage_url,
-                    "optuna_storage_timeout": optuna_storage_timeout,
-                    "model_cleanup": model_cleanup,
-                    "cleanup_processed": cleanup_processed,
-                    "model_template": model_template,
-                    "best_chain_template": best_payload.get("best_chain_template"),
-                },
-                indent=2,
-            )
-        )
-
-        if best_payload.get("best_chain_template"):
-            try:
-                from rich.panel import Panel
-
-                best_chain_path = Path(best_payload["best_chain_template"])
-                best_chain_name = best_chain_path.stem
-                project_name = self.context.project_name
-                next_steps = (
-                    f"[bold]1.[/] Run preprocess chain:\n"
-                    f"   • [cyan]uv run python scripts/mla.py preprocess --project {project_name} preprocess_template={best_chain_name}[/cyan]\n"
-                    f"[bold]2.[/] Run FAST model on best chain:\n"
-                    f"   • [cyan]uv run python scripts/mla.py model --project {project_name} model_template={model_template} preprocess_template={best_chain_name}[/cyan]\n"
-                    f"[bold]3.[/] Templates saved:\n"
-                    f"   • [dim]{best_chain_path}[/dim]"
-                )
-                console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
+                if proc.pid:
+                    os.killpg(proc.pid, signal.SIGTERM)
             except Exception:
                 pass
 
-        return ModuleResult(
-            success=True,
-            payload={
+        metrics_path = trial_dir / "metrics.json"
+        if not metrics_path.exists():
+            metrics_path.write_text(json.dumps({
+                "score_fast": None,
+                "total_sec": None,
+                "preprocess_sec": None,
+                "n_features_out": None,
+                "seed": seed,
+                "split_id": split_id,
+                "enabled_steps": meta.get("enabled_steps"),
+                "variant_map": meta.get("variant_map"),
+                "error": "trial failed (no metrics)",
+            }, indent=2))
+            _cleanup_trial_artifacts(
+                trial_dir, project_root,
+                cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+            )
+            raise optuna.TrialPruned("trial failed (no metrics)")
+
+        metrics = json.loads(metrics_path.read_text())
+        score_fast = metrics.get("score_fast")
+        total_sec = time.time() - start_time
+
+        metrics.update({
+            "total_sec": total_sec,
+            "seed": seed,
+            "split_id": split_id,
+            "enabled_steps": meta.get("enabled_steps"),
+            "variant_map": meta.get("variant_map"),
+        })
+        metrics_path.write_text(json.dumps(metrics, indent=2))
+
+        trial.set_user_attr("total_sec", total_sec)
+        trial.set_user_attr("preprocess_sec", metrics.get("preprocess_sec"))
+        trial.set_user_attr("n_features_out", metrics.get("n_features_out"))
+        trial.set_user_attr("enabled_steps", meta.get("enabled_steps"))
+        trial.set_user_attr("variant_map", meta.get("variant_map"))
+        trial.set_user_attr("pipeline_path", str(pipeline_path))
+
+        if score_fast is None:
+            _cleanup_trial_artifacts(
+                trial_dir, project_root,
+                cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+            )
+            raise optuna.TrialPruned("no score")
+        
+        _cleanup_trial_artifacts(
+            trial_dir, project_root,
+            cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+        )
+        return float(score_fast)
+
+    best_written: set[int] = set()
+
+    def _on_trial_complete(study_obj, trial_obj):
+        try:
+            import optuna
+            if trial_obj.state != optuna.trial.TrialState.COMPLETE:
+                return
+            if study_obj.best_trial.number != trial_obj.number:
+                return
+            if trial_obj.number in best_written:
+                return
+            pipeline_path = trial_obj.user_attrs.get("pipeline_path")
+            if not pipeline_path:
+                return
+            template_info = _write_best_templates(
+                project_root,
+                study_name,
+                trial_obj.number,
+                Path(pipeline_path),
+            )
+            trial_obj.set_user_attr("best_chain_template", template_info.get("chain_template"))
+            best_written.add(trial_obj.number)
+            console.print(
+                f"[green]✓ New best trial {trial_obj.number} -> templates written ({template_info.get('base_name')})[/green]"
+            )
+        except Exception as exc:
+            console.print(f"[yellow]⚠ Failed to write best templates: {exc}[/yellow]")
+
+    if optuna_workers < 1:
+        optuna_workers = 1
+    try:
+        study.optimize(
+            objective,
+            n_trials=effective_n_trials,
+            n_jobs=optuna_workers,
+            show_progress_bar=False,
+            callbacks=[_on_trial_complete],
+        )
+    finally:
+        signal.signal(signal.SIGINT, prev_sigint)
+        signal.signal(signal.SIGTERM, prev_sigterm)
+
+    best_payload = {}
+    try:
+        best_payload = {
+            "best_value": study.best_value,
+            "best_params": study.best_params,
+            "best_trial": study.best_trial.number,
+        }
+    except Exception:
+        best_payload = {"best_value": None, "best_params": {}, "best_trial": None}
+
+    # Show best trial summary (params + key stats)
+    try:
+        from rich.panel import Panel
+
+        def _fmt_param_value(val: Any) -> str:
+            if isinstance(val, float):
+                return f"{val:.6g}"
+            if isinstance(val, bool):
+                return "true" if val else "false"
+            if isinstance(val, (int, str)):
+                return str(val)
+            return str(val)
+
+        best_trial = study.best_trial
+        best_lines = []
+        best_lines.append(f"[bold]Best Trial:[/] {best_trial.number}")
+        try:
+            best_lines.append(f"[bold]Best Value:[/] {best_trial.value:.6g}")
+        except Exception:
+            best_lines.append(f"[bold]Best Value:[/] {best_trial.value}")
+
+        attrs = best_trial.user_attrs or {}
+        if "preprocess_sec" in attrs:
+            best_lines.append(f"[bold]Preprocess Sec:[/] {attrs.get('preprocess_sec')}")
+        if "n_features_out" in attrs:
+            best_lines.append(f"[bold]Features Out:[/] {attrs.get('n_features_out')}")
+        if "total_sec" in attrs:
+            best_lines.append(f"[bold]Total Sec:[/] {attrs.get('total_sec')}")
+
+        params = best_trial.params or {}
+        if params:
+            best_lines.append("")
+            best_lines.append("[bold]Params:[/]")
+            # Keep output compact and deterministic
+            for key in sorted(params.keys()):
+                best_lines.append(f"  {key}: {_fmt_param_value(params[key])}")
+
+        console.print(Panel("\n".join(best_lines), title="Best Trial", border_style="green"))
+    except Exception:
+        pass
+
+    # Ensure best templates exist at end
+    try:
+        if study.best_trial and study.best_trial.user_attrs.get("pipeline_path"):
+            info = _write_best_templates(
+                project_root,
+                study_name,
+                study.best_trial.number,
+                Path(study.best_trial.user_attrs["pipeline_path"]),
+            )
+            best_payload["best_chain_template"] = info.get("chain_template")
+    except Exception:
+        pass
+    (artifact_dir / "study_best.json").write_text(json.dumps(best_payload, indent=2))
+    (artifact_dir / "study_config.json").write_text(
+        json.dumps(
+            {
                 "study_name": study_name,
-                "best_value": best_payload.get("best_value"),
+                "direction": direction,
+                "n_trials": requested_n_trials,
+                "n_trials_effective": effective_n_trials,
+                "baseline_included": baseline_included,
+                "optuna_workers": optuna_workers,
+                "max_trial_sec": max_trial_sec,
+                "allow_heavy_steps": allow_heavy_steps,
+                "allow_heavy_variants": allow_heavy_variants,
+                "quiet_preprocess_panel": quiet_preprocess_panel,
+                "quiet_model_panel": quiet_model_panel,
+                "model_verbosity": model_verbosity,
+                "storage_url": storage_url,
+                "optuna_storage_timeout": optuna_storage_timeout,
+                "model_cleanup": model_cleanup,
+                "cleanup_processed": cleanup_processed,
+                "model_template": model_template,
                 "best_chain_template": best_payload.get("best_chain_template"),
             },
-            artifacts=[artifact_dir / "study_best.json", artifact_dir / "study_config.json"],
+            indent=2,
         )
+    )
+
+    if best_payload.get("best_chain_template"):
+        try:
+            from rich.panel import Panel
+
+            best_chain_path = Path(best_payload["best_chain_template"])
+            best_chain_name = best_chain_path.stem
+            
+            next_steps = (
+                f"[bold]1.[/] Run preprocess chain:\n"
+                f"   • [cyan]uv run python scripts/mla.py preprocess --project {project_name} preprocess_template={best_chain_name}[/cyan]\n"
+                f"[bold]2.[/] Run FAST model on best chain:\n"
+                f"   • [cyan]uv run python scripts/mla.py model --project {project_name} model_template={model_template} preprocess_template={best_chain_name}[/cyan]\n"
+                f"[bold]3.[/] Templates saved:\n"
+                f"   • [dim]{best_chain_path}[/dim]"
+            )
+            console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
+        except Exception:
+            pass
+
+    return ModuleResult(
+        success=True,
+        payload={
+            "study_name": study_name,
+            "best_value": best_payload.get("best_value"),
+            "best_chain_template": best_payload.get("best_chain_template"),
+        },
+        artifacts=[artifact_dir / "study_best.json", artifact_dir / "study_config.json"],
+    )

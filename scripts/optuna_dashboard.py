@@ -1,0 +1,728 @@
+#!/usr/bin/env python3
+"""
+Optuna Live Dashboard using Textual.
+Monitors Optuna studies and allows drill-down into trial artifacts.
+"""
+
+import argparse
+import hashlib
+import json
+import sqlite3
+import sys
+import time
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Set
+
+import requests
+from dotenv import load_dotenv
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.reactive import reactive
+from textual.screen import Screen
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Header,
+    Label,
+    Static,
+    TabbedContent,
+    TabPane,
+    Tree,
+    Log,
+)
+from textual.widgets.tree import TreeNode
+
+import logging
+
+# Configure logging
+logging.basicConfig(
+    filename="dashboard.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    filemode="w"
+)
+
+# Load environment variables
+load_dotenv()
+
+# Telegram notification setup
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+API_BASE = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}" if TELEGRAM_TOKEN else None
+
+def send_telegram_notification(message: str) -> None:
+    """Send message to Telegram."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_notification": False,
+    }
+    try:
+        requests.post(f"{API_BASE}/sendMessage", json=payload, timeout=5)
+    except Exception:
+        pass
+
+
+STATE_MAP = {
+    0: "RUNNING",
+    1: "COMPLETE",
+    2: "PRUNED",
+    3: "FAIL",
+    4: "WAITING",
+}
+
+STATE_NAME_TO_CODE = {name: code for code, name in STATE_MAP.items()}
+
+
+def _normalize_state(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        raw = value.strip()
+        if raw.isdigit():
+            return int(raw)
+        key = raw.upper()
+        return STATE_NAME_TO_CODE.get(key, raw)
+    return value
+
+
+def _connect_read_only(db_path: Path) -> sqlite3.Connection:
+    uri = f"file:{db_path}?mode=ro&cache=shared"
+    conn = sqlite3.connect(uri, uri=True, timeout=1, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA query_only = 1")
+    except sqlite3.Error:
+        pass
+    return conn
+
+
+def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except Exception:
+        return None
+
+
+def _duration_str(start: Optional[str], end: Optional[str]) -> str:
+    dt_start = _parse_dt(start)
+    dt_end = _parse_dt(end)
+    if not dt_start:
+        return "-"
+    
+    is_running = False
+    if not dt_end:
+        dt_end = datetime.now()
+        is_running = True
+
+    delta = dt_end - dt_start
+    seconds = max(0, int(delta.total_seconds()))
+    
+    if is_running:
+        return f"{seconds}s"
+
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours}h{minutes:02d}m"
+
+
+class DashboardScreen(Screen):
+    BINDINGS = [("q", "app.quit", "Quit")]
+
+    def __init__(self, db_path: Path, project_root: Path, study_name: Optional[str] = None):
+        super().__init__()
+        self.db_path = db_path
+        self.project_root = project_root
+        self.target_study_name = study_name
+        self.active_study_name = study_name
+        self.last_best_val = None
+        self.first_run = True
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        yield Container(
+            Label(f"Database: {self.db_path}", id="db_label"),
+            Horizontal(
+                Static(id="study_stats", classes="box"),
+                Vertical(
+                    Label("Running Trials", classes="section-title"),
+                    DataTable(id="running_table", cursor_type="row"),
+                    id="running_container",
+                    classes="box"
+                ),
+                id="row1"
+            ),
+            Vertical(
+                Label("Top Trials (Click to Inspect)", classes="section-title"),
+                DataTable(id="top_table", cursor_type="row"),
+                id="row2",
+                classes="box"
+            ),
+            Vertical(
+                Label("Logs", classes="section-title"),
+                Log(id="error_log"),
+                id="row3",
+                classes="box",
+            ),
+            id="main_container"
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#running_table").add_columns("ID", "State", "Start", "Duration")
+        self.query_one("#top_table").add_columns("ID", "Value", "State", "Duration", "Params Hash")
+        self.set_interval(5, self.update_data)
+        self.update_data()
+
+    def update_data(self) -> None:
+        try:
+            if not self.db_path.exists():
+                msg = f"DB not found: {self.db_path}"
+                self.query_one("#study_stats").update(msg)
+                logging.warning(msg)
+                self.query_one("#error_log").write_line(msg)
+                return
+
+            with _connect_read_only(self.db_path) as conn:
+                studies = self._fetch_studies(conn)
+                logging.debug(f"Fetched {len(studies)} studies")
+                
+                study = self._choose_study(studies, self.target_study_name)
+                
+                if not study:
+                    msg = "No study found."
+                    if self.target_study_name:
+                        msg += f" Target: {self.target_study_name}"
+                    self.query_one("#study_stats").update(msg)
+                    logging.warning(msg)
+                    return
+
+                # Update active study name
+                self.active_study_name = study["name"]
+
+                logging.debug(f"Selected study: {study['name']} (ID: {study['study_id']})")
+                all_trials = self._fetch_recent_trials(conn, study["study_id"], 1000)
+                logging.debug(f"Fetched {len(all_trials)} trials")
+                
+                self._update_ui(study, all_trials)
+                self._check_best_score(study)
+        except Exception as e:
+            err_msg = f"Error in update_data: {e}"
+            self.query_one("#study_stats").update(err_msg)
+            logging.error(err_msg, exc_info=True)
+            try:
+                self.query_one("#error_log").write_line(err_msg)
+            except:
+                pass
+
+    def _update_ui(self, study: Dict[str, Any], trials: List[Dict[str, Any]]) -> None:
+        # Update Study Stats
+        stats_text = (
+            f"[bold]Study:[/bold] {study['name']}\n"
+            f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
+            f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
+            f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
+            f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}\n"
+            f"[bold]Best Value:[/bold] {study['best_value']}\n"
+            f"[bold]Best Trial:[/bold] {study['best_trial']}"
+        )
+        self.query_one("#study_stats").update(stats_text)
+
+        # Update Running Table
+        running_table = self.query_one("#running_table")
+        running_table.clear()
+        running_trials = [t for t in trials if _normalize_state(t.get("state")) == 0]
+        running_trials.sort(key=lambda x: x["number"], reverse=True)
+        
+        for t in running_trials[:8]:
+            running_table.add_row(
+                str(t["number"]),
+                "RUNNING",
+                str(t["datetime_start"])[11:19] if t["datetime_start"] else "-",
+                _duration_str(t["datetime_start"], None),
+                key=str(t["number"])
+            )
+
+        # Update Top Table
+        top_table = self.query_one("#top_table")
+        top_table.clear()
+        
+        completed_trials = [t for t in trials if _normalize_state(t.get("state")) == 1]
+        
+        # Sort based on direction (heuristic: min/max)
+        # We assume direction is available or default to min
+        # For simplicity, let's look at the best value in study to guess direction? 
+        # Or just use the 'best_value' field from study dict to confirm
+        
+        # Actually fetching direction from fetch_studies logic
+        # But here we just assume ascending for now or check header
+        
+        # Simple string sort for values might be wrong, need float
+        def _val(t):
+            v = t.get("value")
+            try:
+                return float(v)
+            except:
+                return float("inf")
+        
+        completed_trials.sort(key=_val) # Default min
+        
+        for t in completed_trials[:15]:
+            val_str = f"{float(t['value']):.5f}" if t['value'] is not None else "-"
+            top_table.add_row(
+                str(t["number"]),
+                val_str,
+                "COMPLETE",
+                _duration_str(t["datetime_start"], t["datetime_complete"]),
+                str(t.get("params_hash", "-")),
+                key=str(t["number"]) # Store ID in key for selection
+            )
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        if event.data_table.id in ("top_table", "running_table"):
+            trial_id = event.row_key.value
+            if trial_id:
+                self.app.push_screen(TrialInspector(self.project_root, self.active_study_name, trial_id))
+
+    def _check_best_score(self, study: Dict[str, Any]) -> None:
+        current_best = study.get("best_value")
+        if not self.first_run and current_best is not None and self.last_best_val is not None:
+            if current_best != self.last_best_val:
+                self.app.bell()
+                msg = (
+                    f"🚀 <b>New Best Score!</b>\n\n"
+                    f"<b>Study:</b> {study['name']}\n"
+                    f"<b>Score:</b> {current_best}\n"
+                    f"<b>Previous:</b> {self.last_best_val}"
+                )
+                send_telegram_notification(msg)
+        
+        if current_best is not None:
+            self.last_best_val = current_best
+        self.first_run = False
+
+    # --- Data Fetching Methods (Adapted from optuna_live.py) ---
+    def _table_columns(self, conn: sqlite3.Connection, table: str) -> set[str]:
+        cols = set()
+        for row in conn.execute(f"PRAGMA table_info({table})"):
+            cols.add(row["name"])
+        return cols
+
+    def _fetch_studies(self, conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "studies" not in tables or "trials" not in tables:
+            return []
+
+        studies_rows = conn.execute("SELECT study_id, study_name FROM studies").fetchall()
+        
+        trials_cols = self._table_columns(conn, "trials")
+        has_value_col = "value" in trials_cols
+        has_trial_values = "trial_values" in tables
+
+        studies: List[Dict[str, Any]] = []
+        for row in studies_rows:
+            study_id = row["study_id"]
+            counts = {state: 0 for state in STATE_MAP}
+            for c in conn.execute(
+                "SELECT state, COUNT(*) AS cnt FROM trials WHERE study_id=? GROUP BY state",
+                (study_id,),
+            ):
+                state_key = _normalize_state(c["state"])
+                if isinstance(state_key, int):
+                    counts[state_key] = int(c["cnt"])
+
+            best_val = None
+            best_trial = None
+            
+            if has_trial_values:
+                sql = (
+                    "SELECT t.trial_id, tv.value "
+                    "FROM trials t "
+                    "JOIN trial_values tv ON tv.trial_id = t.trial_id "
+                    "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
+                    "ORDER BY tv.value ASC "
+                    "LIMIT 1"
+                )
+                best_row = conn.execute(sql, (study_id,)).fetchone()
+                if best_row:
+                    best_trial = best_row["trial_id"]
+                    best_val = best_row["value"]
+            elif has_value_col:
+                sql = (
+                    "SELECT trial_id, value FROM trials "
+                    "WHERE study_id=? AND (state=1 OR UPPER(CAST(state AS TEXT))='COMPLETE') "
+                    "ORDER BY value ASC "
+                    "LIMIT 1"
+                )
+                best_row = conn.execute(sql, (study_id,)).fetchone()
+                if best_row:
+                    best_trial = best_row["trial_id"]
+                    best_val = best_row["value"]
+
+            studies.append(
+                {
+                    "study_id": study_id,
+                    "name": row["study_name"],
+                    "counts": counts,
+                    "best_value": best_val,
+                    "best_trial": best_trial,
+                }
+            )
+        return studies
+
+    def _choose_study(self, studies: List[Dict[str, Any]], name: Optional[str]) -> Optional[Dict[str, Any]]:
+        if not studies:
+            return None
+        if name:
+            for s in studies:
+                if s["name"] == name:
+                    return s
+            # Fallback to fuzzy match or first
+            for s in studies:
+                if name in s["name"]:
+                    return s
+        # Return last created/updated? Or just first
+        return studies[-1] if studies else None
+
+    def _fetch_recent_trials(self, conn: sqlite3.Connection, study_id: int, limit: int) -> List[Dict[str, Any]]:
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        trials_cols = self._table_columns(conn, "trials")
+        has_value_col = "value" in trials_cols
+        has_trial_values = "trial_values" in tables
+
+        result = []
+        if has_trial_values:
+            sql = (
+                "SELECT t.trial_id AS number, t.state, t.datetime_start, t.datetime_complete, "
+                "tv.value "
+                "FROM trials t "
+                "LEFT JOIN trial_values tv ON tv.trial_id = t.trial_id "
+                "WHERE t.study_id=? "
+                "ORDER BY t.trial_id DESC "
+                "LIMIT ?"
+            )
+            rows = conn.execute(sql, (study_id, limit)).fetchall()
+            seen = set()
+            for row in rows:
+                if row["number"] in seen: continue
+                seen.add(row["number"])
+                result.append(dict(row))
+                
+        elif has_value_col:
+            sql = (
+                "SELECT trial_id AS number, state, datetime_start, datetime_complete, value "
+                "FROM trials "
+                "WHERE study_id=? "
+                "ORDER BY trial_id DESC "
+                "LIMIT ?"
+            )
+            rows = conn.execute(sql, (study_id, limit)).fetchall()
+            result = [dict(row) for row in rows]
+        else:
+            sql = (
+                "SELECT trial_id AS number, state, datetime_start, datetime_complete, NULL as value "
+                "FROM trials "
+                "WHERE study_id=? "
+                "ORDER BY trial_id DESC "
+                "LIMIT ?"
+            )
+            rows = conn.execute(sql, (study_id, limit)).fetchall()
+            result = [dict(row) for row in rows]
+
+        # Enrich with params hash
+        if "trial_params" in tables and result:
+            trial_ids = [r["number"] for r in result]
+            if not trial_ids:
+                return result
+                
+            ids_str = ",".join(map(str, trial_ids))
+            try:
+                params_rows = conn.execute(
+                    f"SELECT trial_id, param_name, param_value FROM trial_params WHERE trial_id IN ({ids_str})"
+                ).fetchall()
+                
+                params_by_trial = {}
+                for pr in params_rows:
+                    tid = pr["trial_id"]
+                    if tid not in params_by_trial:
+                        params_by_trial[tid] = {}
+                    params_by_trial[tid][pr["param_name"]] = pr["param_value"]
+                
+                for r in result:
+                    tid = r["number"]
+                    p = params_by_trial.get(tid, {})
+                    if p:
+                        s = json.dumps(p, sort_keys=True)
+                        h = hashlib.md5(s.encode("utf-8")).hexdigest()[:8]
+                        r["params_hash"] = h
+                    else:
+                        r["params_hash"] = "-"
+            except Exception:
+                for r in result:
+                    r["params_hash"] = "-"
+        else:
+            for r in result:
+                r["params_hash"] = "-"
+
+        return result
+
+
+class TrialInspector(Screen):
+    BINDINGS = [("escape", "app.pop_screen", "Back")]
+
+    def __init__(self, project_root: Path, study_name: str, trial_id: str):
+        super().__init__()
+        self.project_root = project_root
+        self.study_name = study_name
+        self.trial_id = int(trial_id)
+        self.trial_dir = self._find_trial_dir()
+
+    def _find_trial_dir(self) -> Optional[Path]:
+        # Search pattern: experiments/optuna_<study_name>/trial_<id>
+        
+        # Try exact match first
+        base = self.project_root / "experiments" / f"optuna_{self.study_name}" / f"trial_{self.trial_id:04d}"
+        
+        try:
+            resolved = base.resolve()
+            logging.debug(f"Checking path: {base} -> {resolved} (Exists: {base.exists()})")
+        except Exception as e:
+            logging.debug(f"Resolution failed for {base}: {e}")
+
+        if base.exists():
+            return base
+            
+        # Try listing experiments dir and finding one that matches
+        exp_root = self.project_root / "experiments"
+        logging.debug(f"Searching in exp_root: {exp_root} (Exists: {exp_root.exists()})")
+        
+        if exp_root.exists():
+            for d in exp_root.iterdir():
+                if d.name.startswith("optuna_") and self.study_name in d.name:
+                    candidate = d / f"trial_{self.trial_id:04d}"
+                    try:
+                        res_cand = candidate.resolve()
+                        logging.debug(f"Checking candidate: {candidate} -> {res_cand} (Exists: {candidate.exists()})")
+                    except:
+                        pass
+                        
+                    if candidate.exists():
+                        return candidate
+        return None
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            Label(f"Trial {self.trial_id} Inspector", classes="title"),
+            Label(f"Path: {self.trial_dir}", classes="subtitle"),
+            Tree("Pipeline Flow", id="flow_tree"),
+            id="inspector_container"
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.set_interval(2, self._build_tree)
+        self._build_tree()
+
+    def _retry_find_dir(self) -> None:
+        self.trial_dir = self._find_trial_dir()
+        if self.trial_dir and self.trial_dir.exists():
+            self.query_one("#flow_tree").clear()
+            self._build_tree()
+            # Stop the retry timer if possible, or just let it be no-op (Textual timers are hard to cancel without storing ref)
+            # Actually on_mount set_interval is for the screen.
+            # We can just change the logic in build_tree to check every time if we refresh.
+            # But TrialInspector is static unless we add auto-refresh.
+            
+    # Better approach: Make TrialInspector auto-refresh content.
+    
+    def _build_tree(self) -> None:
+        tree = self.query_one("#flow_tree")
+        tree.clear()
+        root = tree.root
+        root.expand()
+        
+        if not self.trial_dir or not self.trial_dir.exists():
+             # Try finding it again
+             self.trial_dir = self._find_trial_dir()
+        
+        if not self.trial_dir or not self.trial_dir.exists():
+             root.add("[dim]⏳ Trial directory initializing...[/dim]")
+             return
+
+        # 1. Pipeline Steps (numbered dirs)
+        steps = sorted([d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()], key=lambda x: int(x.name.split("-")[0]))
+        
+        pre_node = root.add("📁 Preprocessing", expand=True)
+        
+        for step_dir in steps:
+            step_node = pre_node.add(f"📁 {step_dir.name}", expand=False)
+            self._add_step_details(step_node, step_dir)
+
+        # 2. Model
+        model_dir = self.trial_dir / "model" # Or model_fast
+        if not model_dir.exists():
+            model_dir = self.trial_dir / "model_fast"
+        
+        if model_dir.exists():
+            mod_node = root.add(f"📁 {model_dir.name}", expand=True)
+            self._add_step_details(mod_node, model_dir)
+            
+        # 3. Metrics
+        metrics_file = self.trial_dir / "metrics.json"
+        if metrics_file.exists():
+            try:
+                data = json.loads(metrics_file.read_text())
+                m_node = root.add("📊 Metrics", expand=True)
+                for k, v in data.items():
+                    if isinstance(v, float):
+                        if k in ["total_sec", "preprocess_sec"]:
+                            val_str = f"{v:.1f}"
+                        else:
+                            val_str = f"{v:.5f}"
+                    else:
+                        val_str = str(v)
+                    m_node.add(f"{k}: {val_str}")
+            except:
+                pass
+
+    def _add_step_details(self, node: TreeNode, step_dir: Path) -> None:
+        # Check state.json
+        state_path = step_dir / "state.json"
+        if state_path.exists():
+            try:
+                state = json.loads(state_path.read_text())
+                # Extract interesting info
+                # Status
+                mod_name = next(iter(state.get("modules", {}))) if state.get("modules") else "unknown"
+                mod_info = state.get("modules", {}).get(mod_name, {})
+                status = mod_info.get("status", "unknown")
+                
+                status_icon = "✅" if status == "completed" else "❌" if status == "failed" else "⏳"
+                node.set_label(f"{status_icon} {node.label}")
+                
+                payload = mod_info.get("payload", {})
+                shapes = payload.get("shapes", {})
+                
+                if shapes:
+                    s_node = node.add("📐 Shapes")
+                    if "train_before" in shapes and "train_after" in shapes:
+                        tb = shapes["train_before"]
+                        ta = shapes["train_after"]
+                        s_node.add(f"Train: {tb} -> {ta}")
+                    if "test_before" in shapes and "test_after" in shapes:
+                        tb = shapes["test_before"]
+                        ta = shapes["test_after"]
+                        s_node.add(f"Test: {tb} -> {ta}")
+
+                # Files
+                artifacts_dir = step_dir / "artifacts" / mod_name
+                if artifacts_dir.exists():
+                    f_node = node.add("📄 Artifacts")
+                    for f in artifacts_dir.iterdir():
+                        if f.is_file():
+                            size_kb = f.stat().st_size / 1024
+                            f_node.add(f"{f.name} ({size_kb:.1f} KB)")
+
+            except Exception as e:
+                node.add(f"Error reading state: {e}")
+        else:
+            node.add("No state.json found")
+
+
+class OptunaDashboard(App):
+    CSS = """
+    #db_label {
+        background: $primary;
+        color: $text;
+        padding: 1;
+        width: 100%;
+        height: auto;
+    }
+    .box {
+        border: solid $accent;
+        padding: 1;
+        margin: 1;
+    }
+    #row1 {
+        height: 30%;
+    }
+    #row2 {
+        height: 40%;
+    }
+    #row3 {
+        height: 30%;
+    }
+    #study_stats {
+        width: 30%;
+        height: 100%;
+    }
+    #running_container {
+        width: 70%;
+        height: 100%;
+    }
+    .section-title {
+        text-align: center;
+        text-style: bold;
+        background: $secondary;
+        color: $text;
+        margin-bottom: 1;
+    }
+    #running_table {
+        height: 1fr;
+    }
+    #top_table {
+        height: 1fr;
+    }
+    #error_log {
+        height: 1fr;
+        border: none;
+    }
+    .title {
+        text-align: center;
+        text-style: bold;
+    }
+    .subtitle {
+        text-align: center;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, db_path: str, project_root: str, study_name: str = None):
+        super().__init__()
+        self.db_path = Path(db_path)
+        self.project_root = Path(project_root)
+        self.study_name = study_name
+
+    def on_mount(self) -> None:
+        self.push_screen(DashboardScreen(self.db_path, self.project_root, self.study_name))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Optuna Live Dashboard")
+    parser.add_argument("--db", required=True, help="Path to Optuna sqlite DB")
+    parser.add_argument("--project-root", required=True, help="Project root directory")
+    parser.add_argument("--study-name", help="Specific study name to monitor")
+    args = parser.parse_args()
+
+    app = OptunaDashboard(args.db, args.project_root, args.study_name)
+    app.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -68,7 +68,8 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+    eval_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
     """
     Feature selection preprocessing.
 
@@ -104,9 +105,10 @@ def fit_transform(
             - optuna_study_name: Optuna study name
             - optuna_load_if_exists: Resume study if sqlite exists
         orig_df: External dataset (can be None)
+        eval_df: Evaluation dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
+        Tuple of (train_df, val_df, test_df, eval_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -259,7 +261,7 @@ def fit_transform(
             "message": "Feature selection skipped (method=none)",
             "config": {k: v for k, v in config.items() if not k.startswith("_")},
         }
-        return train_df, val_df, test_df, orig_df, state_dict
+        return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
     # 6. Get feature columns (exclude id, target, ignored)
     exclude_cols = [id_column, target_column] + ignored_columns
@@ -285,7 +287,7 @@ def fit_transform(
             "message": "No numeric columns to select from",
             "config": {k: v for k, v in config.items() if not k.startswith("_")},
         }
-        return train_df, val_df, test_df, orig_df, state_dict
+        return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
     # 7. Prepare data for selection
     if target_column and target_column in train_df.columns:
@@ -351,6 +353,8 @@ def fit_transform(
     test_df = test_df[[col for col in keep_cols if col in test_df.columns]]
     if val_df is not None:
         val_df = val_df[[col for col in keep_cols if col in val_df.columns]]
+    if eval_df is not None:
+        eval_df = eval_df[[col for col in keep_cols if col in eval_df.columns]]
     if orig_df is not None:
         orig_df = orig_df[[col for col in keep_cols if col in orig_df.columns]]
 
@@ -411,7 +415,7 @@ def fit_transform(
         },
     }
 
-    return train_df, val_df, test_df, orig_df, state_dict
+    return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
 
 def _select_features(

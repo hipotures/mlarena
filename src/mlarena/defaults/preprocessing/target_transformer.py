@@ -41,7 +41,8 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+    eval_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
     """
     Transform target column for regression tasks.
 
@@ -59,9 +60,10 @@ def fit_transform(
             - shift_value: Manual shift override (added before log/Box-Cox)
             - standardize: Whether to standardize PowerTransformer output
         orig_df: External dataset (can be None)
+        eval_df: Evaluation dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
+        Tuple of (train_df, val_df, test_df, eval_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -110,6 +112,7 @@ def fit_transform(
     # 5. Prepare target series and clipping
     train_target = train_df[target_column].astype(float)
     val_target = val_df[target_column].astype(float) if val_df is not None and target_column in val_df.columns else None
+    eval_target = eval_df[target_column].astype(float) if eval_df is not None and target_column in eval_df.columns else None
     orig_target = orig_df[target_column].astype(float) if orig_df is not None and target_column in orig_df.columns else None
 
     lower_q = config["clip_lower_quantile"]
@@ -120,6 +123,8 @@ def fit_transform(
     train_target = _clip_series(train_target, lower_bound, upper_bound)
     if val_target is not None:
         val_target = _clip_series(val_target, lower_bound, upper_bound)
+    if eval_target is not None:
+        eval_target = _clip_series(eval_target, lower_bound, upper_bound)
     if orig_target is not None:
         orig_target = _clip_series(orig_target, lower_bound, upper_bound)
 
@@ -133,6 +138,8 @@ def fit_transform(
             min_val = train_target.min()
             if val_target is not None:
                 min_val = min(min_val, val_target.min())
+            if eval_target is not None:
+                min_val = min(min_val, eval_target.min())
             if orig_target is not None:
                 min_val = min(min_val, orig_target.min())
             if min_val <= 0:
@@ -144,14 +151,17 @@ def fit_transform(
     if method == "none":
         transformed_train = train_target
         transformed_val = val_target
+        transformed_eval = eval_target
         transformed_orig = orig_target
     elif method == "log1p":
         transformed_train = np.log1p(train_target + shift_used)
         transformed_val = np.log1p(val_target + shift_used) if val_target is not None else None
+        transformed_eval = np.log1p(eval_target + shift_used) if eval_target is not None else None
         transformed_orig = np.log1p(orig_target + shift_used) if orig_target is not None else None
     elif method in ["boxcox", "yeo_johnson"]:
         adjusted_train = train_target + shift_used if method == "boxcox" else train_target
         adjusted_val = val_target + shift_used if (val_target is not None and method == "boxcox") else val_target
+        adjusted_eval = eval_target + shift_used if (eval_target is not None and method == "boxcox") else eval_target
         adjusted_orig = orig_target + shift_used if (orig_target is not None and method == "boxcox") else orig_target
 
         if method == "boxcox" and (adjusted_train <= 0).any():
@@ -168,6 +178,11 @@ def fit_transform(
             if adjusted_val is not None
             else None
         )
+        transformed_eval = (
+            power_transformer.transform(adjusted_eval.values.reshape(-1, 1)).ravel()
+            if adjusted_eval is not None
+            else None
+        )
         transformed_orig = (
             power_transformer.transform(adjusted_orig.values.reshape(-1, 1)).ravel()
             if adjusted_orig is not None
@@ -182,6 +197,8 @@ def fit_transform(
     train_df[target_column] = transformed_train
     if val_df is not None and transformed_val is not None:
         val_df[target_column] = transformed_val
+    if eval_df is not None and transformed_eval is not None:
+        eval_df[target_column] = transformed_eval
     if orig_df is not None and transformed_orig is not None:
         orig_df[target_column] = transformed_orig
 
@@ -219,4 +236,4 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 
-    return train_df, val_df, test_df, orig_df, state_dict
+    return train_df, val_df, test_df, eval_df, orig_df, state_dict

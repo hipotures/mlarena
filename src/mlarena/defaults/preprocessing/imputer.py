@@ -46,7 +46,8 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+    eval_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
     """
     Impute missing values with configurable strategies.
 
@@ -68,9 +69,10 @@ def fit_transform(
             - outlier_method: iqr|zscore (default: iqr)
             - outlier_threshold: Threshold for outliers (default: 3.0 for zscore, 1.5 for IQR)
         orig_df: External dataset (can be None)
+        eval_df: Evaluation dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
+        Tuple of (train_df, val_df, test_df, eval_df, orig_df, state_dict)
     """
     # 1. Extract config
     artifact_dir = Path(config.get("_artifact_dir", "."))
@@ -126,8 +128,8 @@ def fit_transform(
 
     # 6. Optional: Treat outliers as NA
     if config["treat_outliers_as_na"]:
-        train_df, test_df, val_df, orig_df, outlier_stats = _treat_outliers_as_na(
-            train_df, test_df, val_df, orig_df,
+        train_df, test_df, val_df, orig_df, eval_df, outlier_stats = _treat_outliers_as_na(
+            train_df, test_df, val_df, orig_df, eval_df,
             numeric_cols,
             method=config["outlier_method"],
             threshold=config["outlier_threshold"]
@@ -146,7 +148,7 @@ def fit_transform(
     def _coerce_numeric(col: str, to_float: bool) -> None:
         if not to_float:
             return
-        for df in (train_df, test_df, val_df, orig_df):
+        for df in (train_df, test_df, val_df, orig_df, eval_df):
             if df is not None and col in df.columns:
                 df[col] = df[col].astype("float64")
 
@@ -158,7 +160,7 @@ def fit_transform(
 
         # Align dtypes across datasets to avoid sklearn casting errors
         dtype_kinds = []
-        for df in (train_df, test_df, val_df, orig_df):
+        for df in (train_df, test_df, val_df, orig_df, eval_df):
             if df is not None and col in df.columns:
                 dtype_kinds.append(df[col].dtype.kind)
         dtype_mismatch = len(set(dtype_kinds)) > 1
@@ -174,6 +176,8 @@ def fit_transform(
                 val_df[col] = fill_value
             if orig_df is not None and col in orig_df.columns:
                 orig_df[col] = orig_df[col].fillna(fill_value)
+            if eval_df is not None:
+                eval_df[col] = eval_df[col].fillna(fill_value)
             continue
 
         # Fit and transform
@@ -195,6 +199,8 @@ def fit_transform(
             val_df[col] = imputer.transform(val_df[[col]]).ravel()
         if orig_df is not None and col in orig_df.columns:
             orig_df[col] = imputer.transform(orig_df[[col]]).ravel()
+        if eval_df is not None:
+            eval_df[col] = imputer.transform(eval_df[[col]]).ravel()
 
         imputers[col] = imputer
 
@@ -213,6 +219,8 @@ def fit_transform(
                 val_df[col] = fill_value
             if orig_df is not None and col in orig_df.columns:
                 orig_df[col] = orig_df[col].fillna(fill_value)
+            if eval_df is not None:
+                eval_df[col] = eval_df[col].fillna(fill_value)
             continue
 
         # Fit and transform
@@ -232,6 +240,8 @@ def fit_transform(
             val_df[col] = imputer.transform(val_df[[col]]).ravel()
         if orig_df is not None and col in orig_df.columns:
             orig_df[col] = imputer.transform(orig_df[[col]]).ravel()
+        if eval_df is not None:
+            eval_df[col] = imputer.transform(eval_df[[col]]).ravel()
 
         imputers[col] = imputer
 
@@ -277,7 +287,7 @@ def fit_transform(
         "column_strategies": column_strategies_used,
     }
 
-    return train_df, val_df, test_df, orig_df, state_dict
+    return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
 
 def _create_imputer(
@@ -323,10 +333,11 @@ def _treat_outliers_as_na(
     test_df: pd.DataFrame,
     val_df: pd.DataFrame | None,
     orig_df: pd.DataFrame | None,
+    eval_df: pd.DataFrame | None,
     numeric_cols: list,
     method: str = "iqr",
     threshold: float = None
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None, Dict]:
     """Convert outliers to NaN before imputation."""
     outlier_stats = {}
 
@@ -380,8 +391,15 @@ def _treat_outliers_as_na(
                 outlier_mask_orig = np.abs((orig_df[col] - mean) / std) > zscore_threshold
             outlier_stats[col]["orig_outliers"] = int(outlier_mask_orig.sum())
             orig_df.loc[outlier_mask_orig, col] = np.nan
+        if eval_df is not None and col in eval_df.columns:
+            if method == "iqr":
+                outlier_mask_eval = (eval_df[col] < lower_bound) | (eval_df[col] > upper_bound)
+            else:
+                outlier_mask_eval = np.abs((eval_df[col] - mean) / std) > zscore_threshold
+            outlier_stats[col]["eval_outliers"] = int(outlier_mask_eval.sum())
+            eval_df.loc[outlier_mask_eval, col] = np.nan
 
-    return train_df, test_df, val_df, orig_df, outlier_stats
+    return train_df, test_df, val_df, orig_df, eval_df, outlier_stats
 
 
 def _create_missing_report(df: pd.DataFrame, columns: list) -> Dict[str, int]:

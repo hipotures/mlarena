@@ -25,7 +25,8 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: Optional[pd.DataFrame] = None,
-) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Optional[pd.DataFrame], Dict[str, Any]]:
+    eval_df: Optional[pd.DataFrame] = None,
+) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Optional[pd.DataFrame], Optional[pd.DataFrame], Dict[str, Any]]:
     """
     Load and align external dataset with Kaggle data.
 
@@ -39,6 +40,7 @@ def fit_transform(
         - train_df: Kaggle train (unchanged, pass-through)
         - val_df: Unchanged (pass-through)
         - test_df: With source_flag if enabled (for feature consistency)
+        - eval_df: With source_flag if enabled (for feature consistency)
         - orig_df: External dataset (aligned, mapped, but NOT merged with train)
         - state_dict: Column alignment report and statistics
     """
@@ -129,6 +131,7 @@ def fit_transform(
         orig_aligned = orig_df_loaded[final_columns_train].copy()
         train_aligned = train_df[final_columns_train].copy()
         test_aligned = test_df[final_columns_test].copy()
+        eval_aligned = eval_df[final_columns_train].copy() if eval_df is not None else None
 
     elif mode == "union":
         # Keep all columns (union), fill missing with NA
@@ -151,6 +154,12 @@ def fit_transform(
         for col in orig_only:
             if col != target_col:
                 test_copy[col] = pd.NA
+        
+        # Add missing columns to eval (if exists)
+        eval_copy = eval_df.copy() if eval_df is not None else None
+        if eval_copy is not None:
+            for col in orig_only:
+                eval_copy[col] = pd.NA
 
         final_columns_train = sorted(train_cols_all)
         final_columns_test = sorted(test_cols_all)
@@ -158,6 +167,7 @@ def fit_transform(
         orig_aligned = orig_df_loaded[final_columns_train].copy()
         train_aligned = train_copy[final_columns_train].copy()
         test_aligned = test_copy[final_columns_test].copy()
+        eval_aligned = eval_copy[final_columns_train].copy() if eval_copy is not None else None
 
     else:
         raise ValueError(
@@ -175,6 +185,9 @@ def fit_transform(
 
         # CRITICAL: Add to test too (all test is kaggle=0)
         test_aligned[source_flag] = 0
+        
+        if eval_aligned is not None:
+            eval_aligned[source_flag] = 0
 
         console.print(f"\n[cyan]Source tracking enabled:[/cyan] '{source_flag}' (0=Kaggle, 1=External)")
 
@@ -247,8 +260,8 @@ def fit_transform(
         "match_rate": match_rate,
     }
 
-    # Return: train (with source_flag if enabled), val, test (with source_flag), orig (aligned), state
-    return train_aligned, val_df, test_aligned, orig_aligned, state_dict
+    # Return: train (with source_flag if enabled), val, test (with source_flag), eval, orig (aligned), state
+    return train_aligned, val_df, test_aligned, eval_aligned, orig_aligned, state_dict
 
 
 def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:

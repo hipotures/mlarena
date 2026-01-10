@@ -81,5 +81,5 @@ def test_load_project_config_fallback(tmp_path, monkeypatch):
 def test_data_paths_default_to_data_dir(tmp_path):
     cfg = types.SimpleNamespace(DATA_DIR=tmp_path, TRAIN_PATH=None, TEST_PATH=None)
     train, test = data_paths(cfg)
-    assert train == tmp_path / "train.csv"
+    assert train == tmp_path / "train.csv.gz"
     assert test == tmp_path / "test.csv"

@@ -8,7 +8,7 @@ from mlarena.defaults.preprocessing import external_dataset
 
 def _cfg(tmp_path, mode="align", mapping=None, source_flag=None):
     return {
-        "_artifact_dir": str(tmp_path / "experiments" / "chain" / "step" / "artifacts" / "preprocess"),
+        "_artifact_dir": str(tmp_path / "proj" / "experiments" / "chain" / "step" / "artifacts" / "preprocess"),
         "_dataset": {"id_column": "id", "target": "target", "ignored_columns": []},
         "orig_path": "data/external.csv",
         "mode": mode,
@@ -27,7 +27,7 @@ def test_external_dataset_align(tmp_path):
 
     cfg = _cfg(project_root, mode="align")
 
-    train_out, _, test_out, orig_out, state = external_dataset.fit_transform(
+    train_out, _, test_out, _, orig_out, state = external_dataset.fit_transform(
         train_df=pd.read_csv(data_dir / "train.csv"),
         val_df=None,
         test_df=pd.read_csv(data_dir / "test.csv"),
@@ -50,7 +50,7 @@ def test_external_dataset_union_with_mapping_and_source(tmp_path):
 
     cfg = _cfg(project_root, mode="union", mapping={"feat": "f1"}, source_flag="source")
 
-    train_out, _, test_out, orig_out, _ = external_dataset.fit_transform(
+    train_out, _, test_out, _, orig_out, _ = external_dataset.fit_transform(
         train_df=pd.read_csv(data_dir / "train.csv"),
         val_df=None,
         test_df=pd.read_csv(data_dir / "test.csv"),

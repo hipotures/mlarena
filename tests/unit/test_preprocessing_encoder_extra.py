@@ -23,7 +23,7 @@ def test_target_mean_respects_min_samples(tmp_path):
 
     cfg = _config(tmp_path)
     # Category C has only 1 sample, should fall back to global mean
-    train_out, _, test_out, _, state = encoder.fit_transform(
+    train_out, _, test_out, _, _, state = encoder.fit_transform(
         train_df=train,
         val_df=None,
         test_df=test,
@@ -62,7 +62,7 @@ def test_target_mean_oof_multiple_columns(tmp_path):
         "target_encoding_min_samples": 1,
     }
 
-    train_out, _, test_out, _, state = encoder.fit_transform(
+    train_out, _, test_out, _, _, state = encoder.fit_transform(
         train_df=train,
         val_df=None,
         test_df=test,

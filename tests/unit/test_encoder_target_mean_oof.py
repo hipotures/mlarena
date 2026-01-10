@@ -41,7 +41,7 @@ def test_target_mean_oof_no_leakage(tmp_path):
         "target_encoding_min_samples": 1,
     }
 
-    train_out, _, test_out, _, state = encoder.fit_transform(
+    train_out, _, test_out, _, _, state = encoder.fit_transform(
         train_df=train_df,
         val_df=None,
         test_df=test_df,

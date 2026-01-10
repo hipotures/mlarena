@@ -40,7 +40,8 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+    eval_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
     """
     Scale and transform numerical features.
 
@@ -60,9 +61,10 @@ def fit_transform(
             - n_quantiles: Number of quantiles for QuantileTransformer
             - random_state: Random state for QuantileTransformer
         orig_df: External dataset (can be None)
+        eval_df: Evaluation dataset (can be None)
 
     Returns:
-        Tuple of (train_df, val_df, test_df, orig_df, state_dict)
+        Tuple of (train_df, val_df, test_df, eval_df, orig_df, state_dict)
 
         state_dict contains:
         - version: str
@@ -157,7 +159,7 @@ def fit_transform(
             "clipped_columns": [],
             "message": "No numeric columns to process",
         }
-        return train_df, val_df, test_df, orig_df, state_dict
+        return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
     # 6. Apply log transformation (if specified)
     log_cols = [col for col in config["log_transform"] if col in numeric_cols]
@@ -182,6 +184,8 @@ def fit_transform(
                 val_df[new_col] = np.log1p(val_df[col] + shift)
             if orig_df is not None and col in orig_df.columns:
                 orig_df[new_col] = np.log1p(orig_df[col] + shift)
+            if eval_df is not None:
+                eval_df[new_col] = np.log1p(eval_df[col] + shift)
 
             log_transformed_cols.append(new_col)
             # Add to numeric_cols for potential scaling
@@ -216,6 +220,8 @@ def fit_transform(
                     val_df[col] = val_df[col].clip(lower=lower_bound, upper=upper_bound)
                 if orig_df is not None and col in orig_df.columns:
                     orig_df[col] = orig_df[col].clip(lower=lower_bound, upper=upper_bound)
+                if eval_df is not None:
+                    eval_df[col] = eval_df[col].clip(lower=lower_bound, upper=upper_bound)
 
                 clip_bounds[col] = {
                     "lower": float(lower_bound) if lower_bound is not None else None,
@@ -261,6 +267,8 @@ def fit_transform(
             orig_numeric_cols = [col for col in numeric_cols if col in orig_df.columns]
             if orig_numeric_cols:
                 orig_df[orig_numeric_cols] = scaler.transform(orig_df[orig_numeric_cols])
+        if eval_df is not None:
+            eval_df[numeric_cols] = scaler.transform(eval_df[numeric_cols])
 
         # Save scaler
         scaler_path = artifacts.save_fitted_object(scaler, submodule_dir, "scaler.pkl")
@@ -321,7 +329,7 @@ def fit_transform(
     if scaler_path:
         state_dict["scaler_path"] = str(scaler_path.relative_to(artifact_dir))
 
-    return train_df, val_df, test_df, orig_df, state_dict
+    return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
 
 def transform(

@@ -363,62 +363,101 @@ class PreprocessModule(BaseModule):
                 }
                 preprocess_config["_original_features"] = original_features
 
-                # Call fit_transform with orig_df only if supported (backward compatible).
+                # Inspect signature to determine supported arguments
                 import inspect
-
                 fit_sig = inspect.signature(preprocess_module.fit_transform)
-                supports_kwargs = any(
-                    p.kind == inspect.Parameter.VAR_KEYWORD for p in fit_sig.parameters.values()
-                )
-                supports_orig_df = "orig_df" in fit_sig.parameters or supports_kwargs
+                params = fit_sig.parameters
+                has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                
+                supports_eval_df = "eval_df" in params or has_kwargs
+                supports_orig_df = "orig_df" in params or has_kwargs
 
-                if supports_orig_df:
+                # Execute fit_transform
+                if supports_eval_df:
+                    # New interface: pass eval_df explicitly
                     result = preprocess_module.fit_transform(
                         train_df=train_df,
                         val_df=tuning_df,
-                        test_df=combined_test_df,
+                        test_df=test_df,
+                        eval_df=eval_df,
                         config=preprocess_config,
                         orig_df=orig_df,
                     )
                 else:
-                    result = preprocess_module.fit_transform(
-                        train_df=train_df,
-                        val_df=tuning_df,
-                        test_df=combined_test_df,
-                        config=preprocess_config,
-                    )
+                    # Legacy interface: combined test+eval
+                    # Create combined_test_df only if needed for legacy modules
+                    combined_test_df = test_df
+                    if eval_df is not None:
+                        combined_test_df = pd.concat([test_df, eval_df], axis=0).reset_index(drop=True)
 
-                # Handle both old (4-tuple) and new (5-tuple) return signatures
-                if len(result) == 5:
-                    # New modules: return train, tuning, test, orig, state
-                    train_df, tuning_df, combined_test_df, orig_df, custom_preprocess_state = result
+                    if supports_orig_df:
+                        result = preprocess_module.fit_transform(
+                            train_df=train_df,
+                            val_df=tuning_df,
+                            test_df=combined_test_df,
+                            config=preprocess_config,
+                            orig_df=orig_df,
+                        )
+                    else:
+                        result = preprocess_module.fit_transform(
+                            train_df=train_df,
+                            val_df=tuning_df,
+                            test_df=combined_test_df,
+                            config=preprocess_config,
+                        )
+
+                # Handle return values
+                # Expected signatures:
+                # 6-tuple: (train, val, test, eval, orig, state)  [New Standard]
+                # 5-tuple: (train, val, test, orig, state)        [Previous Standard]
+                # 4-tuple: (train, val, test, state)              [Old Legacy]
+
+                if len(result) == 6:
+                    train_df, tuning_df, test_df, eval_returned, orig_df, custom_preprocess_state = result
+                    if eval_returned is not None:
+                        eval_df = eval_returned
+                elif len(result) == 5:
+                    # Check if this is (train, val, test, orig, state) or (train, val, test, eval, state)?
+                    # Standard assumption for 5-tuple is the previous standard: (train, val, test, orig, state)
+                    train_df, tuning_df, combined_result, orig_df, custom_preprocess_state = result
+                    
+                    # If we used legacy mode (concat), we must split combined_result
+                    if not supports_eval_df and eval_df is not None:
+                        test_df = combined_result.iloc[:test_len].copy()
+                        eval_df = combined_result.iloc[test_len:].copy()
+                    else:
+                        test_df = combined_result
                 elif len(result) == 4:
-                    # Old modules: return train, val (None), test, state (no orig)
-                    train_df, _, combined_test_df, custom_preprocess_state = result
-                    orig_df = None  # Old modules don't support orig
-                    tuning_df = None  # Old modules don't support tuning
+                    train_df, _, combined_result, custom_preprocess_state = result
+                    orig_df = None
+                    tuning_df = None
+                    
+                    if not supports_eval_df and eval_df is not None:
+                        test_df = combined_result.iloc[:test_len].copy()
+                        eval_df = combined_result.iloc[test_len:].copy()
+                    else:
+                        test_df = combined_result
                 else:
                     raise ValueError(
-                        f"Invalid fit_transform return signature: expected 4 or 5 values, got {len(result)}"
+                        f"Invalid fit_transform return signature: expected 4, 5, or 6 values, got {len(result)}"
                     )
-                
-                # Split combined_test_df back into test_df and eval_df
-                if eval_df is not None:
-                    test_df = combined_test_df.iloc[:test_len].copy()
-                    eval_df = combined_test_df.iloc[test_len:].copy()
-                else:
-                    test_df = combined_test_df
 
             except Exception as e:
                 console.print(f"[red]Error in custom preprocessing:[/red] {e}")
                 raise
         else:
             # Fallback: basic template operations (no custom module)
+            # Combine for basic ops if needed, or handle separately?
+            # Basic ops use internal methods _drop_columns etc.
+            # We can apply to eval_df directly if it exists.
+            
             # Drop IGNORED_COLUMNS first for basic preprocessing
             if ignored:
                 console.print(f"\n[bold]Dropping columns:[/bold] {', '.join(f'[yellow]{c}[/yellow]' for c in ignored)}")
                 train_df = self._drop_columns(train_df, ignored)
-                combined_test_df = self._drop_columns(combined_test_df, ignored)
+                test_df = self._drop_columns(test_df, ignored)
+                if eval_df is not None:
+                    eval_df = self._drop_columns(eval_df, ignored)
 
             if template_cfg:
                 operations = []
@@ -430,14 +469,10 @@ class PreprocessModule(BaseModule):
                     console.print(f"[bold]Template operations:[/bold] {', '.join(operations)}")
 
                 train_df = self._apply_template(train_df, template_cfg)
-                combined_test_df = self._apply_template(combined_test_df, template_cfg)
-            
-            # Split combined_test_df back into test_df and eval_df
-            if eval_df is not None:
-                test_df = combined_test_df.iloc[:test_len].copy()
-                eval_df = combined_test_df.iloc[test_len:].copy()
-            else:
-                test_df = combined_test_df
+                test_df = self._apply_template(test_df, template_cfg)
+                if eval_df is not None:
+                    eval_df = self._apply_template(eval_df, template_cfg)
+
 
         train_df.to_csv(processed_train, index=False, compression='infer')
         test_df.to_csv(processed_test, index=False, compression='infer')

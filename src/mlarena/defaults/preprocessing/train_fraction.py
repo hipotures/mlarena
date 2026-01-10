@@ -26,7 +26,8 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+    eval_df: pd.DataFrame | None = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
     """
     Subsample training data with optional validation and evaluation splits.
 
@@ -37,12 +38,13 @@ def fit_transform(
         config: Configuration dict with:
             - train_fraction: Fraction for training (0, 1]
             - valid_fraction: Fraction for validation/tuning [0, 1)
-            - test_fraction: Fraction for offline evaluation [0, 1)
+            - eval_fraction: Fraction for offline evaluation [0, 1)
             - random_state: Seed for reproducibility
         orig_df: External/original dataset (passed through)
+        eval_df: Existing evaluation data (passed through or merged)
 
     Returns:
-        Tuple of (train_out, tuning_out, test_df, orig_df, state_dict)
+        Tuple of (train_out, tuning_out, test_df, eval_out, orig_df, state_dict)
     """
     train_fraction = float(config.get("train_fraction", 1.0))
     valid_fraction = float(config.get("valid_fraction", 0.0))
@@ -82,8 +84,16 @@ def fit_transform(
     if eval_fraction > 0:
         eval_out = shuffled.iloc[n_train + n_valid:n_train + n_valid + n_eval].reset_index(drop=True)
 
-    # Save eval data to artifacts and store path in state for model to access
-    # Eval data is NOT transformed by subsequent preprocessing steps (true holdout)
+    # If eval_df was passed in, merge or replace?
+    # Usually train_fraction is the generator. If eval_df exists, we append to it?
+    # For now, let's assume we append if both exist, or just use the new one.
+    if eval_df is not None:
+        if eval_out is not None:
+            eval_out = pd.concat([eval_df, eval_out], axis=0).reset_index(drop=True)
+        else:
+            eval_out = eval_df
+
+    # State update
     state = {
         "train_fraction": train_fraction,
         "valid_fraction": valid_fraction,
@@ -97,18 +107,11 @@ def fit_transform(
         "discarded_rows": n_total - len(train_out) - (len(tuning_out) if tuning_out is not None else 0) - (len(eval_out) if eval_out is not None else 0),
     }
 
-    if eval_out is not None:
-        # Save to artifacts and store path in state
-        artifact_dir = config.get("_artifact_dir")
-        if artifact_dir:
-            eval_path = Path(artifact_dir) / "eval_processed.csv.gz"
-            eval_out.to_csv(eval_path, index=False, compression='infer')
-            state["eval_path"] = str(eval_path)
-
     return (
         train_out,
         tuning_out,  # Return tuning data in val_df slot
         test_df.copy(),  # Original submission test data unchanged
+        eval_out,    # Return eval data explicitly
         None if orig_df is None else orig_df.copy(),
         state,
     )

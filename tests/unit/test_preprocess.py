@@ -151,9 +151,8 @@ def test_preprocess_uses_cache(monkeypatch, tmp_path):
     # Seed cached outputs
     processed_dir = ctx.artifact_dir
     processed_dir.mkdir(parents=True, exist_ok=True)
-    for name in ["train_processed.csv", "test_processed.csv"]:
+    for name in ["train_processed.csv.gz", "test_processed.csv.gz"]:
         (processed_dir / name).write_text("id,feat\n1,0")
-
     module = PreprocessModule(ctx)
     module.set_invocation_params({"preprocess_template": "cached", "cache": True})
     res = module.execute()

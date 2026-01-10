@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import time
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set
@@ -34,8 +35,6 @@ from textual.widgets import (
     Log,
 )
 from textual.widgets.tree import TreeNode
-
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -264,15 +263,6 @@ class DashboardScreen(Screen):
         
         completed_trials = [t for t in trials if _normalize_state(t.get("state")) == 1]
         
-        # Sort based on direction (heuristic: min/max)
-        # We assume direction is available or default to min
-        # For simplicity, let's look at the best value in study to guess direction? 
-        # Or just use the 'best_value' field from study dict to confirm
-        
-        # Actually fetching direction from fetch_studies logic
-        # But here we just assume ascending for now or check header
-        
-        # Simple string sort for values might be wrong, need float
         def _val(t):
             v = t.get("value")
             try:
@@ -290,7 +280,7 @@ class DashboardScreen(Screen):
                 "COMPLETE",
                 _duration_str(t["datetime_start"], t["datetime_complete"]),
                 str(t.get("params_hash", "-")),
-                key=str(t["number"]) # Store ID in key for selection
+                key=str(t["number"]) # Store number in key for selection
             )
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -351,7 +341,7 @@ class DashboardScreen(Screen):
             
             if has_trial_values:
                 sql = (
-                    "SELECT t.trial_id, tv.value "
+                    "SELECT t.number, tv.value "
                     "FROM trials t "
                     "JOIN trial_values tv ON tv.trial_id = t.trial_id "
                     "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
@@ -360,18 +350,18 @@ class DashboardScreen(Screen):
                 )
                 best_row = conn.execute(sql, (study_id,)).fetchone()
                 if best_row:
-                    best_trial = best_row["trial_id"]
+                    best_trial = best_row["number"]
                     best_val = best_row["value"]
             elif has_value_col:
                 sql = (
-                    "SELECT trial_id, value FROM trials "
+                    "SELECT number, value FROM trials "
                     "WHERE study_id=? AND (state=1 OR UPPER(CAST(state AS TEXT))='COMPLETE') "
                     "ORDER BY value ASC "
                     "LIMIT 1"
                 )
                 best_row = conn.execute(sql, (study_id,)).fetchone()
                 if best_row:
-                    best_trial = best_row["trial_id"]
+                    best_trial = best_row["number"]
                     best_val = best_row["value"]
 
             studies.append(
@@ -408,12 +398,12 @@ class DashboardScreen(Screen):
         result = []
         if has_trial_values:
             sql = (
-                "SELECT t.trial_id AS number, t.state, t.datetime_start, t.datetime_complete, "
+                "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, "
                 "tv.value "
                 "FROM trials t "
                 "LEFT JOIN trial_values tv ON tv.trial_id = t.trial_id "
                 "WHERE t.study_id=? "
-                "ORDER BY t.trial_id DESC "
+                "ORDER BY t.number DESC "
                 "LIMIT ?"
             )
             rows = conn.execute(sql, (study_id, limit)).fetchall()
@@ -425,20 +415,20 @@ class DashboardScreen(Screen):
                 
         elif has_value_col:
             sql = (
-                "SELECT trial_id AS number, state, datetime_start, datetime_complete, value "
+                "SELECT trial_id, number, state, datetime_start, datetime_complete, value "
                 "FROM trials "
                 "WHERE study_id=? "
-                "ORDER BY trial_id DESC "
+                "ORDER BY number DESC "
                 "LIMIT ?"
             )
             rows = conn.execute(sql, (study_id, limit)).fetchall()
             result = [dict(row) for row in rows]
         else:
             sql = (
-                "SELECT trial_id AS number, state, datetime_start, datetime_complete, NULL as value "
+                "SELECT trial_id, number, state, datetime_start, datetime_complete, NULL as value "
                 "FROM trials "
                 "WHERE study_id=? "
-                "ORDER BY trial_id DESC "
+                "ORDER BY number DESC "
                 "LIMIT ?"
             )
             rows = conn.execute(sql, (study_id, limit)).fetchall()
@@ -446,7 +436,7 @@ class DashboardScreen(Screen):
 
         # Enrich with params hash
         if "trial_params" in tables and result:
-            trial_ids = [r["number"] for r in result]
+            trial_ids = [r["trial_id"] for r in result]
             if not trial_ids:
                 return result
                 
@@ -464,7 +454,7 @@ class DashboardScreen(Screen):
                     params_by_trial[tid][pr["param_name"]] = pr["param_value"]
                 
                 for r in result:
-                    tid = r["number"]
+                    tid = r["trial_id"]
                     p = params_by_trial.get(tid, {})
                     if p:
                         s = json.dumps(p, sort_keys=True)
@@ -494,6 +484,7 @@ class TrialInspector(Screen):
 
     def _find_trial_dir(self) -> Optional[Path]:
         # Search pattern: experiments/optuna_<study_name>/trial_<id>
+        # trial_id here is actually the 0-based 'number'
         
         # Try exact match first
         base = self.project_root / "experiments" / f"optuna_{self.study_name}" / f"trial_{self.trial_id:04d}"
@@ -539,18 +530,6 @@ class TrialInspector(Screen):
         self.set_interval(2, self._build_tree)
         self._build_tree()
 
-    def _retry_find_dir(self) -> None:
-        self.trial_dir = self._find_trial_dir()
-        if self.trial_dir and self.trial_dir.exists():
-            self.query_one("#flow_tree").clear()
-            self._build_tree()
-            # Stop the retry timer if possible, or just let it be no-op (Textual timers are hard to cancel without storing ref)
-            # Actually on_mount set_interval is for the screen.
-            # We can just change the logic in build_tree to check every time if we refresh.
-            # But TrialInspector is static unless we add auto-refresh.
-            
-    # Better approach: Make TrialInspector auto-refresh content.
-    
     def _build_tree(self) -> None:
         tree = self.query_one("#flow_tree")
         tree.clear()

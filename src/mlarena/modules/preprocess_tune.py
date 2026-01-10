@@ -1074,8 +1074,8 @@ def run_optimization_loop(
                 problem_type=problem_type,
             )
 
-        trial_id = trial.number
-        trial_dir = project_root / "experiments" / f"optuna_{study_name}" / f"trial_{trial_id:04d}"
+        trial_number = trial.number
+        trial_dir = project_root / "experiments" / f"optuna_{study_name}" / f"trial_{trial_number:04d}"
         trial_dir.mkdir(parents=True, exist_ok=True)
 
         pipeline_path = trial_dir / "trial_pipeline.yaml"
@@ -1083,7 +1083,7 @@ def run_optimization_loop(
             "pipeline": pipeline,
             "meta": meta,
             "study": study_name,
-            "trial_id": trial_id,
+            "trial_number": trial_number,
         }
         import yaml
         pipeline_path.write_text(yaml.safe_dump(pipeline_payload, sort_keys=False))
@@ -1099,7 +1099,7 @@ def run_optimization_loop(
         payload_path = trial_dir / "trial_payload.json"
         payload_path.write_text(json.dumps(payload, indent=2, default=str))
 
-        chain_exp_id = f"optuna_{study_name}/trial_{trial_id:04d}"
+        chain_exp_id = f"optuna_{study_name}/trial_{trial_number:04d}"
         split_id = seed
         for step in pipeline:
             if step.get("template") == "train_fraction":

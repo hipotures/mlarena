@@ -33,6 +33,7 @@ from textual.widgets import (
     TabPane,
     Tree,
     Log,
+    LoadingIndicator,
 )
 from textual.widgets.tree import TreeNode
 
@@ -481,6 +482,7 @@ class TrialInspector(Screen):
         self.study_name = study_name
         self.trial_id = int(trial_id)
         self.trial_dir = self._find_trial_dir()
+        self.refresh_timer = None
 
     def _find_trial_dir(self) -> Optional[Path]:
         # Search pattern: experiments/optuna_<study_name>/trial_<id>
@@ -519,7 +521,11 @@ class TrialInspector(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Container(
-            Label(f"Trial {self.trial_id} Inspector", classes="title"),
+            Horizontal(
+                Label(f"Trial {self.trial_id} Inspector", classes="title"),
+                LoadingIndicator(id="loading_spinner"),
+                id="inspector_header"
+            ),
             Label(f"Path: {self.trial_dir}", classes="subtitle"),
             Tree("Pipeline Flow", id="flow_tree"),
             id="inspector_container"
@@ -527,7 +533,7 @@ class TrialInspector(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.set_interval(2, self._build_tree)
+        self.refresh_timer = self.set_interval(2, self._build_tree)
         self._build_tree()
 
     def _build_tree(self) -> None:
@@ -565,6 +571,17 @@ class TrialInspector(Screen):
         # 3. Metrics
         metrics_file = self.trial_dir / "metrics.json"
         if metrics_file.exists():
+            # Stop refreshing if metrics found
+            if self.refresh_timer:
+                self.refresh_timer.stop()
+                self.refresh_timer = None
+            
+            # Hide spinner
+            try:
+                self.query_one("#loading_spinner").display = False
+            except:
+                pass
+
             try:
                 data = json.loads(metrics_file.read_text())
                 m_node = root.add("📊 Metrics", expand=True)
@@ -576,7 +593,7 @@ class TrialInspector(Screen):
                             val_str = f"{v:.5f}"
                     else:
                         val_str = str(v)
-                    m_node.add(f"{k}: {val_str}")
+                    m_node.add(f"▶ {k}: {val_str}", allow_expand=False)
             except:
                 pass
 
@@ -592,8 +609,11 @@ class TrialInspector(Screen):
                 mod_info = state.get("modules", {}).get(mod_name, {})
                 status = mod_info.get("status", "unknown")
                 
-                status_icon = "✅" if status == "completed" else "❌" if status == "failed" else "⏳"
-                node.set_label(f"{status_icon} {node.label}")
+                if status == "failed":
+                    node.set_label(f"❌ {node.label}")
+                elif status == "running":
+                    node.set_label(f"⏳ {node.label}")
+                # "completed" state won't have an icon for a cleaner look
                 
                 payload = mod_info.get("payload", {})
                 shapes = payload.get("shapes", {})
@@ -672,6 +692,15 @@ class OptunaDashboard(App):
         height: 1fr;
         border: none;
     }
+    #inspector_header {
+        height: 2;
+        width: 100%;
+    }
+    #loading_spinner {
+        width: 1fr;
+        height: 1;
+        content-align: center middle;
+    }
     .title {
         text-align: center;
         text-style: bold;
@@ -679,6 +708,7 @@ class OptunaDashboard(App):
     .subtitle {
         text-align: center;
         color: $text-muted;
+        margin-bottom: 1;
     }
     """
 

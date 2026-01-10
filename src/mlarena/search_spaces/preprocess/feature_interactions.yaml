@@ -3,6 +3,8 @@ template: feature_interactions
 
 base_config:
   numeric_pairs: []
+  auto_pair_numeric: true
+  max_auto_pairs: 30
 
 variants:
   - name: arithmetic

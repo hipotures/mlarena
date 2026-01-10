@@ -316,6 +316,8 @@ def build_path_tree_for_chain(
                 "original": "orig_processed",
                 "tuning_processed": "tuning_processed",
                 "tuning": "tuning_processed",
+                "eval_processed": "eval_processed",
+                "eval": "eval_processed",
             }
             for key, value in paths.items():
                 if key == "__shapes__":
@@ -439,23 +441,28 @@ def build_path_tree_for_chain(
                         file_label = _style_label(f"📄 {filename}{shape_annotation}", step_style, dim=not is_active)
                         preprocess_node.add(file_label)
 
-            # Add eval_processed if present in custom_module_state
+            # Add eval_processed if present (prefer shapes metadata)
             custom_state = step_info.get("custom_module_state", {})
-            if "eval_path" in custom_state:
-                eval_path_str = custom_state["eval_path"]
-                if eval_path_str:
-                    filename = Path(eval_path_str).name
-                    # Try to get row count from custom_module_state
+            eval_path_str = custom_state.get("eval_path") or paths_dict.get("eval_processed")
+            if eval_path_str:
+                filename = Path(eval_path_str).name
+
+                shape_annotation = ""
+                eval_shape = None
+                if shapes_dict:
+                    eval_shape = shapes_dict.get("eval_after")
+                if eval_shape and isinstance(eval_shape, (list, tuple)) and len(eval_shape) == 2:
+                    shape_annotation = f" ({eval_shape[0]:,} × {eval_shape[1]})"
+                else:
                     eval_rows = custom_state.get("eval_rows")
                     eval_cols = custom_state.get("eval_cols")
-
                     if eval_rows and eval_cols:
                         shape_annotation = f" ({eval_rows:,} × {eval_cols})"
                     else:
                         shape_annotation = f" ({eval_rows:,} rows)" if eval_rows else ""
 
-                    file_label = _style_label(f"📄 {filename}{shape_annotation}", step_style, dim=not is_active)
-                    preprocess_node.add(file_label)
+                file_label = _style_label(f"📄 {filename}{shape_annotation}", step_style, dim=not is_active)
+                preprocess_node.add(file_label)
 
         return tree
 

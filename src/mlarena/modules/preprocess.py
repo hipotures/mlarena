@@ -448,8 +448,12 @@ class PreprocessModule(BaseModule):
             processed_eval = artifact_dir / "eval_processed.csv.gz"
             eval_df.to_csv(processed_eval, index=False, compression='infer')
             # Important: update eval_path in custom_preprocess_state so model.py knows where to find the TRANSFORMED file
-            if custom_preprocess_state is not None:
-                custom_preprocess_state["eval_path"] = str(processed_eval)
+            if custom_preprocess_state is None:
+                custom_preprocess_state = {}
+            custom_preprocess_state["eval_path"] = str(processed_eval)
+            # Keep eval metadata in sync for display/debugging
+            custom_preprocess_state["eval_rows"] = int(eval_df.shape[0])
+            custom_preprocess_state["eval_cols"] = int(eval_df.shape[1])
 
         # Save orig if present
         processed_orig = None
@@ -534,5 +538,4 @@ class PreprocessModule(BaseModule):
             payload=payload,
             artifacts=artifacts_list,
         )
-
 

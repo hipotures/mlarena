@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import select
 import sqlite3
 import sys
@@ -231,7 +233,7 @@ def _fetch_recent_trials(
     has_value_col = "value" in trials_cols
     has_trial_values = "trial_values" in tables
 
-    rows = []
+    result = []
     if has_trial_values:
         sql = (
             "SELECT t.trial_id, t.state, t.datetime_start, t.datetime_complete, "
@@ -244,7 +246,6 @@ def _fetch_recent_trials(
             "LIMIT ?"
         )
         rows = conn.execute(sql, (study_id, limit)).fetchall()
-        result = []
         for row in rows:
             result.append(
                 {
@@ -255,9 +256,7 @@ def _fetch_recent_trials(
                     "value": row["values_concat"],
                 }
             )
-        return result
-
-    if has_value_col:
+    elif has_value_col:
         sql = (
             "SELECT trial_id AS number, state, datetime_start, datetime_complete, ABS(value) AS value "
             "FROM trials "
@@ -266,17 +265,54 @@ def _fetch_recent_trials(
             "LIMIT ?"
         )
         rows = conn.execute(sql, (study_id, limit)).fetchall()
-        return [dict(row) for row in rows]
+        result = [dict(row) for row in rows]
+    else:
+        sql = (
+            "SELECT trial_id AS number, state, datetime_start, datetime_complete "
+            "FROM trials "
+            "WHERE study_id=? "
+            "ORDER BY trial_id DESC "
+            "LIMIT ?"
+        )
+        rows = conn.execute(sql, (study_id, limit)).fetchall()
+        result = [dict(row) for row in rows]
 
-    sql = (
-        "SELECT trial_id AS number, state, datetime_start, datetime_complete "
-        "FROM trials "
-        "WHERE study_id=? "
-        "ORDER BY trial_id DESC "
-        "LIMIT ?"
-    )
-    rows = conn.execute(sql, (study_id, limit)).fetchall()
-    return [dict(row) for row in rows]
+    # Enrich with params hash
+    if "trial_params" in tables and result:
+        trial_ids = [r["number"] for r in result]
+        # SQLite limit handling: chunk if necessary, but assuming limit=1000 is fine for now
+        ids_str = ",".join(map(str, trial_ids))
+        
+        try:
+            params_rows = conn.execute(
+                f"SELECT trial_id, param_name, param_value FROM trial_params WHERE trial_id IN ({ids_str})"
+            ).fetchall()
+            
+            params_by_trial = {}
+            for pr in params_rows:
+                tid = pr["trial_id"]
+                if tid not in params_by_trial:
+                    params_by_trial[tid] = {}
+                params_by_trial[tid][pr["param_name"]] = pr["param_value"]
+            
+            for r in result:
+                tid = r["number"]
+                p = params_by_trial.get(tid, {})
+                if p:
+                    # Sort by key to ensure stable hash
+                    s = json.dumps(p, sort_keys=True)
+                    h = hashlib.md5(s.encode("utf-8")).hexdigest()[:8]
+                    r["params_hash"] = h
+                else:
+                    r["params_hash"] = "-"
+        except Exception:
+            for r in result:
+                r["params_hash"] = "-"
+    else:
+        for r in result:
+            r["params_hash"] = "-"
+
+    return result
 
 
 def _choose_study(studies: List[Dict[str, Any]], name: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -391,6 +427,7 @@ def _render_dashboard(
         table.add_column("State", style=color, width=10, no_wrap=True)
         table.add_column("Value", justify="right", width=8, no_wrap=True)
         table.add_column("Duration", justify="right", width=12, no_wrap=True)
+        table.add_column("CfgHash", style="dim", width=10, no_wrap=True)
         table.add_column("Start", style="dim", width=20, no_wrap=True)
         return table
 
@@ -417,6 +454,7 @@ def _render_dashboard(
             num_renderable = str(t.get("number", "-"))
             state_renderable = state_name
             val_renderable = Text(val_str, style="reverse" if is_baseline else None)
+            params_hash = str(t.get("params_hash", "-"))
             
             # Truncate microseconds for cleaner alignment
             start_time = str(t.get("datetime_start") or "-")
@@ -428,6 +466,7 @@ def _render_dashboard(
                 state_renderable,
                 val_renderable,
                 _duration_str(t.get("datetime_start"), t.get("datetime_complete")),
+                params_hash,
                 start_time
             )
 

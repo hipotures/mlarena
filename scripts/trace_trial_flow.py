@@ -32,23 +32,36 @@ def get_detailed_shapes(module_dir: Path):
         # Lista wszystkich możliwych plików
         files = ["train", "test", "tuning", "eval", "orig"]
         
+        # Najpierw wyciągnijmy "wzorcową" liczbę kolumn po transformacji (z train_after)
+        target_cols = "??"
+        s_train_after = shapes.get("train_after")
+        if s_train_after and isinstance(s_train_after, list) and s_train_after[1] is not None:
+            target_cols = s_train_after[1]
+
         for f in files:
-            # 1. Próbujemy z shapes (after)
+            # 1. Próbujemy pobrać wiersze i kolumny z shapes_after
             s_after = shapes.get(f"{f}_after")
+            rows = None
+            cols = None
+            
             if s_after and isinstance(s_after, list) and len(s_after) == 2:
-                results[f] = s_after
-                continue
+                rows = s_after[0]
+                cols = s_after[1]
             
-            # 2. Próbujemy z shapes (before) jako fallback dla liczby kolumn
-            s_before = shapes.get(f"{f}_before")
+            # 2. Jeśli wierszy brakuje w shapes, sprawdźmy w custom_module_state
+            if rows is None:
+                rows = cms.get(f"{f}_rows")
             
-            # 3. Próbujemy wyciągnąć liczbę wierszy z custom_module_state
-            row_key = f"{f}_rows"
-            rows = cms.get(row_key)
-            
+            # 3. Jeśli kolumn brakuje, a mamy wiersze - używamy wzorca (target_cols)
+            # Wyjątek: dla 'test' nie pożyczamy od train, bo test może nie mieć targetu (wymiar -1)
             if rows is not None:
-                # Kolumny bierzemy z before jeśli po jest null
-                cols = s_before[1] if s_before else "??"
+                if cols is None:
+                    if f == "test":
+                        s_before = shapes.get("test_before")
+                        cols = s_before[1] if s_before else "??"
+                    else:
+                        cols = target_cols
+                
                 results[f] = [rows, cols]
         
         return results

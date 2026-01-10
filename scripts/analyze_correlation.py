@@ -281,10 +281,11 @@ def analyze_correlation(project_name, prefix, show_plot=False):
                 plt.legend()
                 plt.grid(True, linestyle='--', alpha=0.6)
                 
-                            plot_name = f"/tmp/correlation_{prefix.strip('_')}.png"
-                            plt.savefig(plot_name)
-                            print(f"Plot saved as: {plot_name}")
-                                if show_plot:
+                plot_name = f"/tmp/correlation_{prefix.strip('_')}.png"
+                plt.savefig(plot_name)
+                print(f"Plot saved as: {plot_name}")
+
+                if show_plot:
                     try:
                         subprocess.run(["kitten", "icat", plot_name])
                     except Exception as e:

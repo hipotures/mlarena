@@ -40,9 +40,12 @@ def main():
         "rare_category_handler.top_k.min_freq_ratio": 0.02,
         "rare_category_handler.top_k.top_k": 30,
 
-        "encoder.enabled": True,
-        "encoder.variant": "target_mean",
-        "encoder.target_mean.encoding_method": "target_mean",
+        "categorical_encoder.enabled": True,
+        "categorical_encoder.variant": "auto",
+        "categorical_encoder.auto.max_cardinality": 100,
+        "categorical_encoder.auto.exclude_text_type": False,
+        "categorical_encoder.auto.include_numeric_categories": True,
+        "categorical_encoder.auto.auto_detect_threshold": 35,
 
         "outlier_handler.enabled": True,
         "outlier_handler.variant": "isolation_forest",
@@ -77,7 +80,6 @@ def main():
         "feature_interactions.arithmetic.interaction_types": '["add", "mul"]',
         "feature_interactions.arithmetic.max_generated_features": 150,
         "feature_interactions.arithmetic.auto_pair_numeric": False,
-        "feature_interactions.arithmetic.use_original_features_only": False,
 
         # --- Explicitly Disable EVERYTHING Else ---
         "imputer.enabled": False, 
@@ -94,6 +96,7 @@ def main():
         "rank_features_post.enabled": False,
         "drift_detector.enabled": False,
         "feature_selector.enabled": False,
+        "encoder.enabled": False,
         "imbalance_handler.enabled": False,
         "adversarial_validation.enabled": False,
         "target_transformer.enabled": False,

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import select
 import sqlite3
 import sys
@@ -14,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import requests
+from dotenv import load_dotenv
 from rich import box
 from rich.console import Console, Group
 from rich.live import Live
@@ -27,6 +30,32 @@ try:
 except ImportError:
     termios = None
     tty = None
+
+# Load environment variables
+load_dotenv()
+
+# Telegram notification setup
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+API_BASE = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}" if TELEGRAM_TOKEN else None
+
+
+def send_telegram_notification(message: str) -> None:
+    """Send message to Telegram."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_notification": False,
+    }
+    try:
+        requests.post(f"{API_BASE}/sendMessage", json=payload, timeout=5)
+    except Exception:
+        pass  # Fail silently to not disrupt the dashboard
+
 
 STATE_MAP = {
     0: "RUNNING",
@@ -486,12 +515,18 @@ def main() -> int:
     parser.add_argument("--interval", type=int, default=5, help="Refresh interval in seconds")
     parser.add_argument("--study", default=None, help="Study name to focus on")
     parser.add_argument("--limit", type=int, default=1000, help="Trial buffer size for sorting")
+    parser.add_argument("--telegram-test-message", action="store_true", help="Send a test Telegram message on startup")
     args = parser.parse_args()
 
     db_path = Path(args.db).expanduser()
     if not db_path.exists():
         print(f"DB not found: {db_path}", file=sys.stderr)
         return 1
+        
+    if args.telegram_test_message:
+        print("Sending test Telegram message...", file=sys.stderr)
+        send_telegram_notification("🔔 <b>Test Message</b>\n\nOptuna Live Monitor is connected.")
+
 
     console = Console()
 
@@ -531,10 +566,39 @@ def main() -> int:
         old_settings = termios.tcgetattr(sys.stdin)
         tty.setcbreak(sys.stdin.fileno())
 
+    last_best_val = None
+    first_run = True
+
     try:
         with Live(console=console, refresh_per_second=4) as live:
             while True:
                 studies, all_trials, active_study, err = _poll()
+                
+                # Check for best score improvement to ring bell
+                if active_study:
+                    current_best = active_study.get("best_value")
+                    if not first_run and current_best is not None and last_best_val is not None:
+                        # Ring bell if best value has changed
+                        if current_best != last_best_val:
+                            print("\a", end="", flush=True)
+                            
+                            # Send Telegram notification
+                            study_name = active_study.get("name", "Unknown Study")
+                            score_fmt = f"{current_best:.5f}" if isinstance(current_best, (int, float)) else str(current_best)
+                            prev_fmt = f"{last_best_val:.5f}" if isinstance(last_best_val, (int, float)) else str(last_best_val)
+                            msg = (
+                                f"🚀 <b>New Best Score!</b>\n\n"
+                                f"<b>Study:</b> {study_name}\n"
+                                f"<b>Score:</b> {score_fmt}\n"
+                                f"<b>Previous:</b> {prev_fmt}"
+                            )
+                            send_telegram_notification(msg)
+                    
+                    if current_best is not None:
+                        last_best_val = current_best
+                
+                first_run = False
+
                 live.update(
                     _render_dashboard(
                         db_path,

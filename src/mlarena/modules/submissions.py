@@ -19,7 +19,7 @@ def _extract_module_argv(argv: List[str], module_name: str) -> List[str]:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--project")
     subparsers = parser.add_subparsers(dest="command")
 

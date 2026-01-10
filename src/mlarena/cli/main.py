@@ -264,11 +264,11 @@ def _resolve_preprocess_tune_model_template(config: GlobalConfig, project_root: 
     return None
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def _build_parser(add_help: bool = True) -> argparse.ArgumentParser:
     """
     Build a simplified top-level CLI parser.
     """
-    parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner")
+    parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner", add_help=add_help)
     # Command is handled manually to avoid greedy consumption of flag values
     parser.add_argument("--project", "-p", help="Project name (e.g., Titanic)")
     parser.add_argument("--exp-id", "-e", help="Experiment ID to resume")
@@ -914,7 +914,20 @@ def main(argv: List[str] | None = None) -> int:
     if not ModuleRegistry.available():
         ModuleRegistry.discover()
 
-    parser = _build_parser()
+    # Pre-scan for module help request
+    # Detect if user is asking for help on a specific module (e.g. "mla exp --help")
+    # In this case, we disable the main parser help so the module can show its own help.
+    aliases = {"exp": "experiments", "sub": "submissions", "pre": "preprocess"}
+    module_help_requested = False
+    
+    if "-h" in argv or "--help" in argv:
+        for arg in argv:
+            potential_cmd = aliases.get(arg, arg)
+            if potential_cmd in ("experiments", "submissions", "queue"):
+                module_help_requested = True
+                break
+
+    parser = _build_parser(add_help=not module_help_requested)
     args, overrides = parser.parse_known_args(argv)
 
     # Convert --flag value to key=value for OmegaConf
@@ -968,6 +981,10 @@ def main(argv: List[str] | None = None) -> int:
             if override.startswith("project="):
                 project = override.split("=", 1)[1]
                 break
+
+    # If help requested for a module, allow missing project (use dummy)
+    if not project and module_help_requested:
+        project = "_help_mode_dummy_"
 
     if not project and command != "modules":
         parser.print_help()
@@ -1042,7 +1059,7 @@ def main(argv: List[str] | None = None) -> int:
     if project_root.exists():
         config_module = load_project_config(project_root)
         pipeline_def, _ = load_pipeline_def("default", project_root=project_root)
-    elif command != "init":
+    elif command != "init" and project != "_help_mode_dummy_":
         console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init --project {project}[/cyan]")
         return 1
 

@@ -1,0 +1,4 @@
+module: imputer
+config:
+  numeric_strategy: mean
+  categorical_strategy: most_frequent

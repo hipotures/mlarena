@@ -276,7 +276,34 @@ def fit_transform(
     )
     artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
 
-    # 13. Create state dict
+    # 13. Print summary table of imputed values
+    from rich.console import Console
+    from rich.table import Table
+    
+    imputed_stats = []
+    for col, count_before in missing_before.items():
+        if count_before > 0:
+            count_after = missing_after.get(col, 0)
+            imputed_count = count_before - count_after
+            strategy = column_strategies_used.get(col, "unknown")
+            imputed_stats.append((col, count_before, count_after, imputed_count, strategy))
+    
+    if imputed_stats:
+        console = Console(force_terminal=True)
+        table = Table(title="Imputation Summary (Train)", show_header=True, header_style="bold cyan")
+        table.add_column("Feature", style="cyan")
+        table.add_column("Missing (Before)", justify="right")
+        table.add_column("Missing (After)", justify="right")
+        table.add_column("Imputed", justify="right", style="green")
+        table.add_column("Strategy", style="magenta")
+        
+        for col, before, after, imputed, strategy in sorted(imputed_stats, key=lambda x: x[1], reverse=True):
+            table.add_row(col, str(before), str(after), str(imputed), strategy)
+            
+        console.print(table)
+        console.print(f"[dim]Total missing values filled: {sum(x[3] for x in imputed_stats)}[/dim]\n")
+
+    # 14. Create state dict
     state_dict = {
         "version": "1.0",
         "config": {k: v for k, v in config.items() if not k.startswith("_")},

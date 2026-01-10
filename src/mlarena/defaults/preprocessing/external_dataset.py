@@ -71,6 +71,22 @@ def fit_transform(
     orig_df_loaded = pd.read_csv(orig_path, compression='infer')
     console.print(f"  External rows: {len(orig_df_loaded):,}, columns: {len(orig_df_loaded.columns)}")
 
+    # 1a. Drop specified columns (if any) or auto-detect ID columns
+    drop_cols = list(config.get("drop_columns", []))
+    drop_id = config.get("drop_id", True)  # Default: True
+
+    if drop_id:
+        id_cols = [c for c in orig_df_loaded.columns if c.lower().startswith("id_") or c.lower().endswith("_id")]
+        drop_cols.extend(id_cols)
+    
+    # Deduplicate and filter existing
+    drop_cols = sorted(list(set(drop_cols)))
+    dropped = [c for c in drop_cols if c in orig_df_loaded.columns]
+
+    if dropped:
+        orig_df_loaded = orig_df_loaded.drop(columns=dropped)
+        console.print(f"[yellow]Dropped columns:[/yellow] {', '.join(dropped)}")
+
     # 1b. Apply column mapping (if provided)
     column_mapping = config.get("column_mapping", {})
 

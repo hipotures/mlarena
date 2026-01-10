@@ -299,12 +299,23 @@ def _build_trial_pipeline(
     variant_map: Dict[str, str] = {}
 
     filter_by_eda = bool(super_chain.get("filter_by_eda", True))
+    fixed_groups: set[str] = {
+        (step.get("group") or step.get("name"))
+        for step in steps
+        if (step.get("meta") or {}).get("fixed") and step.get("enabled", True)
+    }
 
     for step in steps:
         step_name = step.get("name")
         template = step.get("template")
         group = step.get("group") or step_name
         if not template:
+            continue
+        if group in enabled_groups:
+            continue
+        meta = step.get("meta") or {}
+        if group in fixed_groups and not meta.get("fixed"):
+            # Enforce one-per-group: fixed steps take precedence over non-fixed.
             continue
 
         fixed_config = step.get("fixed_config") or {}
@@ -313,7 +324,6 @@ def _build_trial_pipeline(
         if override_cfg is None and isinstance(overrides, dict):
             # Strip meta-only override keys if present
             override_cfg = {k: v for k, v in overrides.items() if k not in {"allow_group_mode", "force_global_only"}}
-        meta = step.get("meta") or {}
 
         # Determine base config
         base_cfg = {}
@@ -429,6 +439,11 @@ def _build_baseline_pipeline(
     variant_map: Dict[str, str] = {}
     enabled_groups: set[str] = set()
     filter_by_eda = bool(super_chain.get("filter_by_eda", True))
+    fixed_groups: set[str] = {
+        (step.get("group") or step.get("name"))
+        for step in steps
+        if (step.get("meta") or {}).get("fixed") and step.get("enabled", True)
+    }
 
     for step in steps:
         meta = step.get("meta", {}) or {}
@@ -440,6 +455,10 @@ def _build_baseline_pipeline(
         step_name = step.get("name")
         group = step.get("group") or step_name
         if not template:
+            continue
+        if group in enabled_groups:
+            continue
+        if group in fixed_groups and not meta.get("fixed"):
             continue
 
         fixed_config = step.get("fixed_config") or {}

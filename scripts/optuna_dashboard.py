@@ -45,6 +45,9 @@ logging.basicConfig(
     filemode="w"
 )
 
+# Bump when UI changes to verify the running file
+DASHBOARD_VERSION = "1.1"
+
 # Load environment variables
 load_dotenv()
 
@@ -90,6 +93,11 @@ def _normalize_state(value: Any) -> Any:
         if raw.isdigit():
             return int(raw)
         key = raw.upper()
+        if key in STATE_NAME_TO_CODE:
+            return STATE_NAME_TO_CODE[key]
+        if "." in key:
+            tail = key.rsplit(".", 1)[-1]
+            return STATE_NAME_TO_CODE.get(tail, raw)
         return STATE_NAME_TO_CODE.get(key, raw)
     return value
 
@@ -156,7 +164,7 @@ class DashboardScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Container(
-            Label(f"Database: {self.db_path}", id="db_label"),
+            Label(f"Database: {self.db_path} | v{DASHBOARD_VERSION}", id="db_label"),
             Horizontal(
                 Static(id="study_stats", classes="box"),
                 Vertical(
@@ -237,6 +245,7 @@ class DashboardScreen(Screen):
             f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
             f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
             f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
+            f"[bold]Waiting:[/bold] {study['counts'].get(4, 0)}\n"
             f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}\n"
             f"[bold]Best Value:[/bold] {study['best_value']}\n"
             f"[bold]Best Trial:[/bold] {study['best_trial']}"
@@ -246,13 +255,28 @@ class DashboardScreen(Screen):
         # Update Running Table
         running_table = self.query_one("#running_table")
         running_table.clear()
-        running_trials = [t for t in trials if _normalize_state(t.get("state")) == 0]
+        running_trials = [
+            t for t in trials
+            if _normalize_state(t.get("state")) in (0, 4)
+        ]
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            try:
+                states = sorted({str(t.get("state")) for t in trials})
+                running_nums = [t.get("number") for t in running_trials]
+                logging.debug(
+                    f"Running trials in recent: {len(running_trials)}; "
+                    f"states={states}; running_numbers={running_nums}"
+                )
+            except Exception:
+                pass
         running_trials.sort(key=lambda x: x["number"], reverse=True)
         
         for t in running_trials[:8]:
+            state_code = _normalize_state(t.get("state"))
+            state_label = STATE_MAP.get(state_code, str(t.get("state")))
             running_table.add_row(
                 str(t["number"]),
-                "RUNNING",
+                state_label,
                 str(t["datetime_start"])[11:19] if t["datetime_start"] else "-",
                 _duration_str(t["datetime_start"], None),
                 key=str(t["number"])
@@ -440,6 +464,24 @@ class DashboardScreen(Screen):
             )
             rows = conn.execute(sql, (study_id, limit)).fetchall()
             result = [dict(row) for row in rows]
+
+        # Ensure running/waiting trials are included even if older than the limit
+        run_sql = (
+            "SELECT trial_id, number, state, datetime_start, datetime_complete "
+            "FROM trials "
+            "WHERE study_id=? AND ("
+            "CAST(state AS TEXT) IN ('0', '4') OR "
+            "UPPER(CAST(state AS TEXT)) IN ('RUNNING', 'WAITING')"
+            ")"
+        )
+        running_rows = conn.execute(run_sql, (study_id,)).fetchall()
+        seen_ids = {r["trial_id"] for r in result}
+        for row in running_rows:
+            if row["trial_id"] in seen_ids:
+                continue
+            extra = dict(row)
+            extra.setdefault("value", None)
+            result.append(extra)
 
         # Enrich with params hash
         if "trial_params" in tables and result:
@@ -700,36 +742,41 @@ class OptunaDashboard(App):
         height: auto;
     }
     .box {
-        border: solid $accent;
-        padding: 1;
-        margin: 1;
+        border: none;
+        padding: 0 1;
+        margin: 0;
     }
     #row1 {
-        height: 30%;
+        height: 40%;
+        min-height: 10;
     }
     #row2 {
-        height: 40%;
+        height: 35%;
     }
     #row3 {
-        height: 30%;
+        height: 25%;
     }
     #study_stats {
         width: 30%;
-        height: 100%;
+        height: 1fr;
+        min-height: 6;
+        overflow: auto;
     }
     #running_container {
         width: 70%;
-        height: 100%;
+        height: 1fr;
+        min-height: 6;
     }
     .section-title {
         text-align: center;
         text-style: bold;
         background: $secondary;
         color: $text;
-        margin-bottom: 1;
+        margin-bottom: 0;
     }
     #running_table {
         height: 1fr;
+        min-height: 5;
     }
     #top_table {
         height: 1fr;

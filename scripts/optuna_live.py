@@ -512,6 +512,7 @@ def _render_dashboard(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Live Optuna SQLite monitor (read-only)")
     parser.add_argument("--db", required=True, help="Path to Optuna sqlite file")
+    parser.add_argument("--project", default=None, help="Project name for notifications")
     parser.add_argument("--interval", type=int, default=5, help="Refresh interval in seconds")
     parser.add_argument("--study", default=None, help="Study name to focus on")
     parser.add_argument("--limit", type=int, default=1000, help="Trial buffer size for sorting")
@@ -566,6 +567,20 @@ def main() -> int:
         old_settings = termios.tcgetattr(sys.stdin)
         tty.setcbreak(sys.stdin.fileno())
 
+    project_name = args.project
+    if not project_name:
+        # Try to infer from path: projects/kaggle/<PROJECT>/experiments/db/mla.db
+        parts = db_path.parts
+        if "projects" in parts:
+            try:
+                idx = parts.index("projects")
+                if len(parts) > idx + 2:
+                    project_name = parts[idx + 2]
+            except:
+                pass
+    
+    project_display = f"<b>Project:</b> {project_name}\n" if project_name else ""
+
     last_best_val = None
     first_run = True
 
@@ -588,6 +603,7 @@ def main() -> int:
                             prev_fmt = f"{last_best_val:.5f}" if isinstance(last_best_val, (int, float)) else str(last_best_val)
                             msg = (
                                 f"🚀 <b>New Best Score!</b>\n\n"
+                                f"{project_display}"
                                 f"<b>Study:</b> {study_name}\n"
                                 f"<b>Score:</b> {score_fmt}\n"
                                 f"<b>Previous:</b> {prev_fmt}"

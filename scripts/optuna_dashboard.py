@@ -295,11 +295,17 @@ class DashboardScreen(Screen):
         if not self.first_run and current_best is not None and self.last_best_val is not None:
             if current_best != self.last_best_val:
                 self.app.bell()
+                
+                project_name = self.project_root.name if self.project_root else "Unknown"
+                score_fmt = f"{current_best:.5f}" if isinstance(current_best, (int, float)) else str(current_best)
+                prev_fmt = f"{self.last_best_val:.5f}" if isinstance(self.last_best_val, (int, float)) else str(self.last_best_val)
+                
                 msg = (
                     f"🚀 <b>New Best Score!</b>\n\n"
+                    f"<b>Project:</b> {project_name}\n"
                     f"<b>Study:</b> {study['name']}\n"
-                    f"<b>Score:</b> {current_best}\n"
-                    f"<b>Previous:</b> {self.last_best_val}"
+                    f"<b>Score:</b> {score_fmt}\n"
+                    f"<b>Previous:</b> {prev_fmt}"
                 )
                 send_telegram_notification(msg)
         
@@ -483,6 +489,7 @@ class TrialInspector(Screen):
         self.trial_id = int(trial_id)
         self.trial_dir = self._find_trial_dir()
         self.refresh_timer = None
+        self.state_cache = {}  # Cache for state.json contents
 
     def _find_trial_dir(self) -> Optional[Path]:
         # Search pattern: experiments/optuna_<study_name>/trial_<id>
@@ -598,50 +605,89 @@ class TrialInspector(Screen):
                 pass
 
     def _add_step_details(self, node: TreeNode, step_dir: Path) -> None:
-        # Check state.json
         state_path = step_dir / "state.json"
-        if state_path.exists():
-            try:
+        if not state_path.exists():
+            node.add("No state.json found", allow_expand=False)
+            return
+
+        try:
+            # 0. Caching logic
+            mtime = state_path.stat().st_mtime
+            cache_key = str(state_path)
+            if cache_key in self.state_cache and self.state_cache[cache_key]["mtime"] == mtime:
+                state = self.state_cache[cache_key]["data"]
+            else:
                 state = json.loads(state_path.read_text())
-                # Extract interesting info
-                # Status
-                mod_name = next(iter(state.get("modules", {}))) if state.get("modules") else "unknown"
-                mod_info = state.get("modules", {}).get(mod_name, {})
-                status = mod_info.get("status", "unknown")
-                
-                if status == "failed":
-                    node.set_label(f"❌ {node.label}")
-                elif status == "running":
-                    node.set_label(f"⏳ {node.label}")
-                # "completed" state won't have an icon for a cleaner look
-                
-                payload = mod_info.get("payload", {})
-                shapes = payload.get("shapes", {})
-                
-                if shapes:
-                    s_node = node.add("📐 Shapes")
-                    if "train_before" in shapes and "train_after" in shapes:
-                        tb = shapes["train_before"]
-                        ta = shapes["train_after"]
-                        s_node.add(f"Train: {tb} -> {ta}")
-                    if "test_before" in shapes and "test_after" in shapes:
-                        tb = shapes["test_before"]
-                        ta = shapes["test_after"]
-                        s_node.add(f"Test: {tb} -> {ta}")
+                self.state_cache[cache_key] = {"mtime": mtime, "data": state}
 
-                # Files
-                artifacts_dir = step_dir / "artifacts" / mod_name
-                if artifacts_dir.exists():
-                    f_node = node.add("📄 Artifacts")
-                    for f in artifacts_dir.iterdir():
-                        if f.is_file():
-                            size_kb = f.stat().st_size / 1024
-                            f_node.add(f"{f.name} ({size_kb:.1f} KB)")
+            # Find the most relevant module (preprocess or model)
+            modules = state.get("modules", {})
+            if "preprocess" in modules:
+                mod_name = "preprocess"
+            elif "model" in modules:
+                mod_name = "model"
+            else:
+                # Fallback to last module added
+                mod_name = list(modules.keys())[-1] if modules else "unknown"
+            
+            mod_info = modules.get(mod_name, {})
+            status = mod_info.get("status", "unknown")
+            
+            if status == "failed":
+                node.set_label(f"❌ {node.label}")
+            elif status == "running":
+                node.set_label(f"⏳ {node.label}")
 
-            except Exception as e:
-                node.add(f"Error reading state: {e}")
-        else:
-            node.add("No state.json found")
+            # 1. Duration (modules.X.finished_at - modules.X.started_at)
+            start_str = mod_info.get("started_at")
+            end_str = mod_info.get("finished_at")
+            if start_str and end_str:
+                try:
+                    d1 = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                    d2 = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                    diff = (d2 - d1).total_seconds()
+                    node.add(f"⏱ Duration: {diff:.1f}s", allow_expand=False)
+                except Exception:
+                    pass
+
+            # 2. Shapes (modules.X.payload.shapes)
+            payload = mod_info.get("payload", {})
+            shapes = payload.get("shapes", {})
+            if shapes:
+                s_node = node.add("📐 Shapes")
+                # Find all prefixes that have _before and _after
+                prefixes = set()
+                for k in shapes.keys():
+                    if k.endswith("_before"):
+                        prefixes.add(k[:-7])
+                    elif k.endswith("_after"):
+                        prefixes.add(k[:-6])
+                
+                for p in sorted(list(prefixes)):
+                    b = shapes.get(f"{p}_before")
+                    a = shapes.get(f"{p}_after")
+                    if b or a:
+                        label = p.capitalize()
+                        s_node.add(f"{label}: {b} -> {a}", allow_expand=False)
+
+            # 3. Config (modules.X.invocation...config)
+            config_data = None
+            invocation = mod_info.get("invocation", {})
+            if "preprocess_template_config" in invocation:
+                config_data = invocation["preprocess_template_config"].get("config")
+            elif "model_template_config" in invocation:
+                config_data = invocation["model_template_config"].get("config")
+            elif "config" in invocation:
+                config_data = invocation["config"]
+            
+            if config_data:
+                c_node = node.add("⚙ Config")
+                pretty_json = json.dumps(config_data, indent=2)
+                for line in pretty_json.splitlines():
+                    c_node.add(line, allow_expand=False)
+
+        except Exception as e:
+            node.add(f"Error: {e}", allow_expand=False)
 
 
 class OptunaDashboard(App):

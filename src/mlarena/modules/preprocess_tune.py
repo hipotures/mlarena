@@ -917,7 +917,7 @@ class PreprocessTuneModule(BaseModule):
 
         search_spaces = _load_search_spaces()
 
-        sampler = optuna.samplers.TPESampler(seed=seed)
+        sampler = optuna.samplers.TPESampler(seed=seed, constant_liar=True)
         if optuna_storage_timeout and str(storage_url).startswith("sqlite:///"):
             storage = optuna.storages.RDBStorage(
                 url=storage_url,

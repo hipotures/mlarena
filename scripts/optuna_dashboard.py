@@ -745,9 +745,9 @@ class TrialInspector(Screen):
             self._add_step_details(step_node, step_dir)
 
         # 2. Model
-        model_dir = self.trial_dir / "model" # Or model_fast
+        model_dir = self.trial_dir / "model" # Or optuna_model
         if not model_dir.exists():
-            model_dir = self.trial_dir / "model_fast"
+            model_dir = self.trial_dir / "optuna_model"
         
         if model_dir.exists():
             mod_node = root.add(f"📁 {model_dir.name}", expand=True)

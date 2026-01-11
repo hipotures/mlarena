@@ -531,7 +531,7 @@ def _cleanup_trial_artifacts(
     cleanup_model: bool,
     cleanup_processed: bool,
 ) -> Dict[str, Any]:
-    """Remove large trial artifacts safely (model_fast dir and *_processed.csv.gz files)."""
+    """Remove large trial artifacts safely (optuna_model dir and *_processed.csv.gz files)."""
     if not cleanup_model and not cleanup_processed:
         return {"skipped": "cleanup disabled"}
 
@@ -548,7 +548,7 @@ def _cleanup_trial_artifacts(
     removed = {"processed_files": 0, "model_dir_removed": False}
 
     if cleanup_model:
-        model_dir = trial_dir_resolved / "model_fast"
+        model_dir = trial_dir_resolved / "optuna_model"
         if model_dir.exists() and model_dir.is_dir() and model_dir.parent == trial_dir_resolved:
             shutil.rmtree(model_dir, ignore_errors=True)
             removed["model_dir_removed"] = True
@@ -687,7 +687,7 @@ def _run_trial_worker(
         # Run FAST model
         from mlarena.modules.model import ModelModule
 
-        model_exp_id = f"{chain_exp_id}/model_fast"
+        model_exp_id = f"{chain_exp_id}/optuna_model"
         model_ctx = _build_context(
             project_root=project_root,
             project_name=project_name,

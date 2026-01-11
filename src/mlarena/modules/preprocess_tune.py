@@ -548,9 +548,10 @@ def _cleanup_trial_artifacts(
     removed = {"processed_files": 0, "model_dir_removed": False}
 
     if cleanup_model:
-        model_dir = trial_dir_resolved / "optuna_model"
-        if model_dir.exists() and model_dir.is_dir() and model_dir.parent == trial_dir_resolved:
-            shutil.rmtree(model_dir, ignore_errors=True)
+        # Only remove the heavy model weights subdirectory, preserve metrics/state
+        model_weights_dir = trial_dir_resolved / "optuna_model" / "artifacts" / "model" / "model"
+        if model_weights_dir.exists() and model_weights_dir.is_dir() and model_weights_dir.is_relative_to(trial_dir_resolved):
+            shutil.rmtree(model_weights_dir, ignore_errors=True)
             removed["model_dir_removed"] = True
 
     if cleanup_processed:

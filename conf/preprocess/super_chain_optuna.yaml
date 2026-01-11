@@ -6,7 +6,7 @@ tune:
   allow_heavy_variants: false
   optuna_workers: 1
   optuna_storage_timeout: 100
-  model_cleanup: false
+  model_cleanup: true
   direction: maximize
   max_trial_sec: 1800
   max_features_out: 5000

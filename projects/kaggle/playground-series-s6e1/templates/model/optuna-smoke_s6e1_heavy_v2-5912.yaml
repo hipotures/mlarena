@@ -1,0 +1,10 @@
+model: autogluon_baseline
+preprocess_template: optuna-smoke_s6e1_heavy_v2-5912
+preset: best
+time_limit: 3600
+use_gpu: false
+seed: 42
+included_model_types:
+- GBM
+- XGB
+- CAT

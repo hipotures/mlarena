@@ -1,0 +1,8 @@
+module: missingness_features
+config:
+  include_cols: null
+  exclude_cols: []
+  add_per_column_indicators: false
+  add_row_missing_count: true
+  add_row_missing_ratio: false
+  cap_row_missing_count: 145

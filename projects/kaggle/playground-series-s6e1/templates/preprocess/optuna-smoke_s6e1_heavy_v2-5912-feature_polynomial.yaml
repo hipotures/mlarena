@@ -1,0 +1,6 @@
+module: feature_polynomial
+config:
+  poly_columns: null
+  poly_degree: 2
+  poly_interaction_only: false
+  max_generated_features: 25

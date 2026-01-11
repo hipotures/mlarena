@@ -1,0 +1,8 @@
+module: numeric_binner
+config:
+  numeric_include: null
+  numeric_exclude: []
+  drop_original: false
+  encode: ordinal
+  strategy: kmeans
+  n_bins: 20

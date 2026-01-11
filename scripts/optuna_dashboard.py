@@ -448,8 +448,13 @@ class DashboardScreen(Screen):
         studies: List[Dict[str, Any]] = []
         for row in studies_rows:
             study_id = row["study_id"]
-            direction = direction_by_study.get(study_id, "MINIMIZE")
-            order = "DESC" if str(direction).upper() == "MAXIMIZE" else "ASC"
+            raw_dir = direction_by_study.get(study_id, "MINIMIZE")
+            # Convert Optuna enum code to text if needed
+            if str(raw_dir) == "1": direction = "MAXIMIZE"
+            elif str(raw_dir) == "0": direction = "MINIMIZE"
+            else: direction = str(raw_dir).upper()
+
+            order = "DESC" if direction == "MAXIMIZE" else "ASC"
             counts = {state: 0 for state in STATE_MAP}
             for c in conn.execute(
                 "SELECT state, COUNT(*) AS cnt FROM trials WHERE study_id=? GROUP BY state",
@@ -514,18 +519,23 @@ class DashboardScreen(Screen):
         return studies[-1] if studies else None
 
     def _fetch_recent_trials(self, conn: sqlite3.Connection, study_id: int, limit: int) -> List[Dict[str, Any]]:
-        # limit is ignored in favor of specific 25/8 split
+        # limit is ignored in favor of specific 50/ALL split
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         has_trial_values = "trial_values" in tables
 
         # Get direction for sorting Top Completed
-        direction = "MINIMIZE"
+        raw_dir = "MINIMIZE"
         if "study_directions" in tables:
             d_row = conn.execute("SELECT direction FROM study_directions WHERE study_id=?", (study_id,)).fetchone()
             if d_row:
-                direction = d_row["direction"]
+                raw_dir = d_row["direction"]
         
-        order = "DESC" if str(direction).upper() == "MAXIMIZE" else "ASC"
+        # Robust direction mapping
+        if str(raw_dir) == "1": direction = "MAXIMIZE"
+        elif str(raw_dir) == "0": direction = "MINIMIZE"
+        else: direction = str(raw_dir).upper()
+        
+        order = "DESC" if direction == "MAXIMIZE" else "ASC"
 
         result = []
         
@@ -736,12 +746,12 @@ class TrialInspector(Screen):
         self._running_nodes = []
         
         if not self.trial_dir or not self.trial_dir.exists():
-             # Try finding it again
-             self.trial_dir = self._find_trial_dir()
+            # Try finding it again
+            self.trial_dir = self._find_trial_dir()
         
         if not self.trial_dir or not self.trial_dir.exists():
-             root.add("[dim]⏳ Trial directory initializing...[/dim]")
-             return
+            root.add("[dim]Trial directory initializing...[/dim]")
+            return
 
         # 1. Pipeline Steps (numbered dirs)
         steps = sorted([d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()], key=lambda x: int(x.name.split("-")[0]))
@@ -752,7 +762,7 @@ class TrialInspector(Screen):
             step_node = pre_node.add(f"{step_dir.name}", expand=False)
             self._add_step_details(step_node, step_dir)
 
-        # 2. Metrics (Moved up)
+        # 2. Metrics
         metrics_file = self.trial_dir / "metrics.json"
         if metrics_file.exists():
             # Stop refreshing if metrics found
@@ -781,7 +791,7 @@ class TrialInspector(Screen):
             except:
                 pass
 
-        # 3. Model (Moved down)
+        # 3. Model
         model_dir = self.trial_dir / "model" # Or optuna_model
         if not model_dir.exists():
             model_dir = self.trial_dir / "optuna_model"
@@ -833,18 +843,16 @@ class TrialInspector(Screen):
                 except Exception:
                     pass
 
-            # 2. Model-specific Details (Requested)
+            # 2. Model-specific Details
             if mod_name == "model":
                 payload = mod_info.get("payload", {})
                 cms = payload.get("custom_module_state", {})
                 
-                # Extract problem_type and metric from 'init' module if available in state
                 init_mod = modules.get("init", {})
                 init_payload = init_mod.get("payload", {})
                 problem_type = init_payload.get("problem_type")
                 metric = init_payload.get("metric")
 
-                # Preset, time_limit, use_gpu, template, preprocess_template, tuning_rows
                 p_node = node.add("Info")
                 if problem_type: p_node.add(f"Problem: {problem_type}", allow_expand=False)
                 if metric: p_node.add(f"Metric: {metric}", allow_expand=False)
@@ -853,8 +861,6 @@ class TrialInspector(Screen):
                 p_node.add(f"Use GPU: {payload.get('use_gpu')}", allow_expand=False)
                 p_node.add(f"Model Template: {payload.get('template')}", allow_expand=False)
                 p_node.add(f"Preprocess Template: {payload.get('preprocess_template')}", allow_expand=False)
-                
-                # Try getting tuning_rows from payload or custom_module_state
                 t_rows = payload.get("tuning_rows") or cms.get("tuning_rows")
                 p_node.add(f"Tuning Rows: {t_rows}", allow_expand=False)
 
@@ -863,7 +869,7 @@ class TrialInspector(Screen):
             shapes = payload.get("shapes", {})
             if shapes:
                 s_node = node.add("Shapes")
-                prefixes = sorted({k[:-7] if k.endswith("_before") else k[:-6] for k in shapes if k.endswith(("_before", "_after"))})
+                prefixes = sorted({k[:-7] if k.endswith("_before") else k[:-6] for k in shapes if k.endswith(('_before', '_after'))})
                 for p in prefixes:
                     b, a = shapes.get(f"{p}_before"), shapes.get(f"{p}_after")
                     if b or a: s_node.add(f"{p.capitalize()}: {b} -> {a}", allow_expand=False)

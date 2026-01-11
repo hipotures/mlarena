@@ -160,6 +160,7 @@ class DashboardScreen(Screen):
         self.active_study_name = study_name
         self.last_best_val = None
         self.first_run = True
+        self.last_trial_row_key = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -168,23 +169,17 @@ class DashboardScreen(Screen):
             Horizontal(
                 Static(id="study_stats", classes="box"),
                 Vertical(
-                    Label("Running Trials", classes="section-title"),
-                    DataTable(id="running_table", cursor_type="row"),
+                    Label("Trials (Running + Top Completed)", classes="section-title"),
+                    DataTable(id="trials_table", cursor_type="row"),
                     id="running_container",
                     classes="box"
                 ),
                 id="row1"
             ),
             Vertical(
-                Label("Top Trials (Click to Inspect)", classes="section-title"),
-                DataTable(id="top_table", cursor_type="row"),
-                id="row2",
-                classes="box"
-            ),
-            Vertical(
                 Label("Logs", classes="section-title"),
                 Log(id="error_log"),
-                id="row3",
+                id="row2",
                 classes="box",
             ),
             id="main_container"
@@ -192,8 +187,14 @@ class DashboardScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#running_table").add_columns("ID", "State", "Start", "Duration")
-        self.query_one("#top_table").add_columns("ID", "Value", "State", "Duration", "Params Hash")
+        self.query_one("#trials_table").add_columns(
+            "ID",
+            "State",
+            "Local CV",
+            "Duration",
+            "CfgHash",
+            "Start"
+        )
         self.set_interval(5, self.update_data)
         self.update_data()
 
@@ -242,6 +243,7 @@ class DashboardScreen(Screen):
         # Update Study Stats
         stats_text = (
             f"[bold]Study:[/bold] {study['name']}\n"
+            f"[bold]Direction:[/bold] {study.get('direction', 'MINIMIZE')}\n"
             f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
             f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
             f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
@@ -252,9 +254,10 @@ class DashboardScreen(Screen):
         )
         self.query_one("#study_stats").update(stats_text)
 
-        # Update Running Table
-        running_table = self.query_one("#running_table")
-        running_table.clear()
+        # Update Trials Table (Running + Top Completed)
+        trials_table = self.query_one("#trials_table")
+        prev_row_key = self.last_trial_row_key
+        trials_table.clear()
         running_trials = [
             t for t in trials
             if _normalize_state(t.get("state")) in (0, 4)
@@ -274,45 +277,59 @@ class DashboardScreen(Screen):
         for t in running_trials[:8]:
             state_code = _normalize_state(t.get("state"))
             state_label = STATE_MAP.get(state_code, str(t.get("state")))
-            running_table.add_row(
+            trials_table.add_row(
                 str(t["number"]),
                 state_label,
-                str(t["datetime_start"])[11:19] if t["datetime_start"] else "-",
+                "-",
                 _duration_str(t["datetime_start"], None),
+                str(t.get("params_hash", "-")),
+                str(t["datetime_start"]) if t["datetime_start"] else "-",
                 key=str(t["number"])
             )
 
-        # Update Top Table
-        top_table = self.query_one("#top_table")
-        top_table.clear()
-        
         completed_trials = [t for t in trials if _normalize_state(t.get("state")) == 1]
-        
-        def _val(t):
+
+        direction = (study.get("direction") or "MINIMIZE").upper()
+        reverse = direction == "MAXIMIZE"
+
+        def _val_key(t):
             v = t.get("value")
             try:
                 return float(v)
-            except:
-                return float("inf")
-        
-        completed_trials.sort(key=_val) # Default min
-        
-        for t in completed_trials[:15]:
+            except Exception:
+                return float("-inf") if reverse else float("inf")
+
+        completed_trials.sort(key=_val_key, reverse=reverse)
+
+        for t in completed_trials[:10]:
             val_str = f"{float(t['value']):.5f}" if t['value'] is not None else "-"
-            top_table.add_row(
+            trials_table.add_row(
                 str(t["number"]),
-                val_str,
                 "COMPLETE",
+                val_str,
                 _duration_str(t["datetime_start"], t["datetime_complete"]),
                 str(t.get("params_hash", "-")),
+                str(t["datetime_start"]) if t["datetime_start"] else "-",
                 key=str(t["number"]) # Store number in key for selection
             )
 
+        if prev_row_key is not None:
+            try:
+                row_index = trials_table._row_locations.get(prev_row_key)
+                if row_index is not None:
+                    trials_table.move_cursor(row=row_index, column=0)
+            except Exception:
+                pass
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.data_table.id in ("top_table", "running_table"):
+        if event.data_table.id in ("trials_table",):
             trial_id = event.row_key.value
             if trial_id:
                 self.app.push_screen(TrialInspector(self.project_root, self.active_study_name, trial_id))
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.data_table.id == "trials_table":
+            self.last_trial_row_key = event.row_key
 
     def _check_best_score(self, study: Dict[str, Any]) -> None:
         current_best = study.get("best_value")
@@ -355,9 +372,16 @@ class DashboardScreen(Screen):
         has_value_col = "value" in trials_cols
         has_trial_values = "trial_values" in tables
 
+        direction_by_study = {}
+        if "study_directions" in tables:
+            for row in conn.execute("SELECT study_id, direction FROM study_directions"):
+                direction_by_study[row["study_id"]] = row["direction"]
+
         studies: List[Dict[str, Any]] = []
         for row in studies_rows:
             study_id = row["study_id"]
+            direction = direction_by_study.get(study_id, "MINIMIZE")
+            order = "DESC" if str(direction).upper() == "MAXIMIZE" else "ASC"
             counts = {state: 0 for state in STATE_MAP}
             for c in conn.execute(
                 "SELECT state, COUNT(*) AS cnt FROM trials WHERE study_id=? GROUP BY state",
@@ -376,7 +400,7 @@ class DashboardScreen(Screen):
                     "FROM trials t "
                     "JOIN trial_values tv ON tv.trial_id = t.trial_id "
                     "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
-                    "ORDER BY tv.value ASC "
+                    f"ORDER BY tv.value {order} "
                     "LIMIT 1"
                 )
                 best_row = conn.execute(sql, (study_id,)).fetchone()
@@ -387,7 +411,7 @@ class DashboardScreen(Screen):
                 sql = (
                     "SELECT number, value FROM trials "
                     "WHERE study_id=? AND (state=1 OR UPPER(CAST(state AS TEXT))='COMPLETE') "
-                    "ORDER BY value ASC "
+                    f"ORDER BY value {order} "
                     "LIMIT 1"
                 )
                 best_row = conn.execute(sql, (study_id,)).fetchone()
@@ -402,6 +426,7 @@ class DashboardScreen(Screen):
                     "counts": counts,
                     "best_value": best_val,
                     "best_trial": best_trial,
+                    "direction": direction_by_study.get(study_id, "MINIMIZE"),
                 }
             )
         return studies
@@ -747,14 +772,11 @@ class OptunaDashboard(App):
         margin: 0;
     }
     #row1 {
-        height: 40%;
+        height: 55%;
         min-height: 10;
     }
     #row2 {
-        height: 35%;
-    }
-    #row3 {
-        height: 25%;
+        height: 45%;
     }
     #study_stats {
         width: 30%;
@@ -774,12 +796,9 @@ class OptunaDashboard(App):
         color: $text;
         margin-bottom: 0;
     }
-    #running_table {
+    #trials_table {
         height: 1fr;
         min-height: 5;
-    }
-    #top_table {
-        height: 1fr;
     }
     #error_log {
         height: 1fr;

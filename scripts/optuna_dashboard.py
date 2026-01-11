@@ -144,12 +144,24 @@ def _duration_str(start: Optional[str], end: Optional[str]) -> str:
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 
 class JSONModal(ModalScreen):
-    BINDINGS = [("escape", "app.pop_screen", "Close")]
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Close"),
+        ("c", "copy_json", "Copy"),
+    ]
 
     def __init__(self, title: str, data: Any):
         super().__init__()
         self.modal_title = title
         self.data = data
+
+    def action_copy_json(self) -> None:
+        """Copies the JSON data to clipboard."""
+        try:
+            json_str = json.dumps(self.data, indent=2)
+            self.app.copy_to_clipboard(json_str)
+            self.app.notify("JSON copied to clipboard!")
+        except Exception as e:
+            self.app.notify(f"Failed to copy: {e}", severity="error")
 
     def compose(self) -> ComposeResult:
         yield Container(

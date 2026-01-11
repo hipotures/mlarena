@@ -597,6 +597,7 @@ def _run_trial_worker(
                 message=r"Bins whose width are too small .* Consider decreasing the number of bins\.",
                 category=UserWarning,
             )
+            warnings.simplefilter("ignore", category=FutureWarning)
             try:
                 from sklearn.exceptions import ConvergenceWarning
                 warnings.filterwarnings(
@@ -623,52 +624,59 @@ def _run_trial_worker(
         pipeline_def, _ = load_pipeline_def("default", project_root=project_root)
 
         preprocess_start = time.time()
-        last_step_dir = None
-        last_shapes = None
-
         from mlarena.modules.preprocess import PreprocessModule
 
-        for idx, step in enumerate(pipeline):
-            step_name = step["name"]
-            exp_id = f"{chain_exp_id}/{idx}-{step_name}"
-            input_source = f"{idx - 1}-{pipeline[idx - 1]['name']}" if idx > 0 else None
+        # Unified execution: Run the entire pipeline in one go (In-Memory)
+        final_idx = len(pipeline) - 1
+        final_step_name = pipeline[final_idx]["name"]
+        # Point context to the last step folder to maintain directory structure
+        full_exp_id = f"{chain_exp_id}/{final_idx}-{final_step_name}"
 
-            context = _build_context(
-                project_root=project_root,
-                project_name=project_name,
-                module_name="preprocess",
-                experiment_id=exp_id,
-                config=config,
-                config_module=config_module,
-                pipeline_def=pipeline_def,
-            )
+        context = _build_context(
+            project_root=project_root,
+            project_name=project_name,
+            module_name="preprocess",
+            experiment_id=full_exp_id,
+            config=config,
+            config_module=config_module,
+            pipeline_def=pipeline_def,
+        )
 
-            module = PreprocessModule(context)
-            module.set_invocation_params(
-                {
-                    "preprocess_template": step_name,
-                    "preprocess_template_config": {
-                        "module": step["module"],
-                        "config": step["config"],
-                    },
-                    "input_source": input_source,
-                    "chain_exp_id": chain_exp_id,
-                    "is_last_in_chain": idx == (len(pipeline) - 1),
-                    "force": True,
-                    "lock": False,
-                    "quiet_preprocess_panel": bool(payload.get("quiet_preprocess_panel")),
-                    "quiet_model_panel": bool(payload.get("quiet_model_panel")),
-                }
-            )
+        module = PreprocessModule(context)
+        module.set_invocation_params(
+            {
+                "preprocess_template": "optuna_trial_pipeline",
+                "preprocess_template_config": {
+                    "steps": pipeline,
+                },
+                "input_source": None,  # Pipeline starts from raw data in memory
+                "chain_exp_id": chain_exp_id,
+                "force": True,
+                "lock": False,
+                "quiet_preprocess_panel": True, # Keep panels quiet, but we want steps log
+                "quiet_model_panel": bool(payload.get("quiet_model_panel")),
+            }
+        )
 
-            executor = PipelineExecutor({"preprocess": module})
-            results = executor.run_module("preprocess", force=True, skip_deps=False)
-            result = results.get("preprocess")
-            if not result or not result.success:
-                raise RuntimeError(f"Preprocess step failed: {step_name}")
+        # Execute module directly to avoid PipelineExecutor overhead/logging conflicts
+        result = module.execute()
+        
+        if not result or not result.success:
+            error_msg = result.error if result else "Unknown error"
+            raise RuntimeError(f"Preprocess pipeline failed: {error_msg}")
 
+        # The actual directory where artifacts were saved (resolved by module)
+        last_step_full_name = (result.payload or {}).get("last_step")
+        if last_step_full_name:
+            last_step_dir = project_root / "experiments" / chain_exp_id / last_step_full_name
+        else:
             last_step_dir = Path(context.experiment_dir)
-            last_shapes = (result.payload or {}).get("shapes")
+            
+        last_shapes = (result.payload or {}).get("shapes")
+        
+        # Extract explicit paths for model
+        preprocess_payload = result.payload or {}
+        train_processed_path = preprocess_payload.get("train_processed")
 
         preprocess_sec = time.time() - preprocess_start
 
@@ -702,7 +710,7 @@ def _run_trial_worker(
         model_module = ModelModule(model_ctx)
         model_params = {
             "model_template": model_template,
-            "preprocess_template": "optuna_trial",
+            "preprocess_template": None, # Disable searching for template
             "preprocess_exp_dir": str(last_step_dir) if last_step_dir else None,
             "force": True,
             "quiet_model_panel": bool(payload.get("quiet_model_panel")),
@@ -819,6 +827,7 @@ class PreprocessTuneModule(BaseModule):
                 message=r"Bins whose width are too small .* Consider decreasing the number of bins\.",
                 category=UserWarning,
             )
+            warnings.simplefilter("ignore", category=FutureWarning)
             try:
                 from sklearn.exceptions import ConvergenceWarning
                 warnings.filterwarnings(

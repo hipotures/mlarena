@@ -100,7 +100,7 @@ def _load_processed_or_raw(
 
         return train_df_local, test_df_local, sample_weight_local, orig_df_local, tuning_df_local
 
-    if preprocess_template:
+    if preprocess_template or preprocess_exp_dir:
         # 1) Prefer explicit experiment dir (for chains)
         if preprocess_exp_dir:
             exp_dir = Path(preprocess_exp_dir)
@@ -108,11 +108,15 @@ def _load_processed_or_raw(
             if train_df is not None:
                 return train_df, test_df, sample_weight, orig_df, tuning_df
 
-        # 2) Try default single-step location (legacy)
-        default_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
-        train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(default_dir)
-        if train_df is not None:
-            return train_df, test_df, sample_weight, orig_df, tuning_df
+        if preprocess_template:
+            # 2) Try default single-step location (legacy)
+            default_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
+            train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(default_dir)
+            if train_df is not None:
+                return train_df, test_df, sample_weight, orig_df, tuning_df
+            
+            # ... fallback search ...
+            # (reszta logiki pozostaje bez zmian)
 
         # 3) Fallback: search meta-template chain dir (pre-{template}) and use last step
         chain_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"

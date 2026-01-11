@@ -13,6 +13,7 @@ import contextlib
 import io
 import time
 import sys
+import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -73,6 +74,8 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
     def transform(self, X: MLArenaDataContainer) -> MLArenaDataContainer:
         start_time = time.time()
         from rich.text import Text
+        
+        # Always show progress on stdout, even if quiet_mode is on (but keep it subtle)
         console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
         
         # Build progress line: gray for the whole info
@@ -84,15 +87,13 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         template_name = self.config.get("template")
         template_cfg = self.config
         
-        if template_name:
-            # Load referenced template
-            from pathlib import Path as P
-            REPO_ROOT = P(__file__).resolve().parents[3]
-            sys.path.insert(0, str(REPO_ROOT / "scripts"))
-            from template_loader import load_templates
+        # OPTIMIZATION: If we already have 'module', we don't need any YAML files
+        if template_name and not template_cfg.get("module"):
+            # Load ONLY the specific template file instead of scanning everything
+            from mlarena.core.config import TemplateLoader
+            loader = TemplateLoader(self.context.project_root, template_type="preprocess")
+            loaded_cfg = loader.load(template_name) or {}
             
-            templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
-            loaded_cfg = templates.get(template_name, {})
             # Merge: config overrides template
             template_cfg = loaded_cfg.copy()
             template_cfg.update(self.config)
@@ -249,6 +250,8 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             res_msg = Text()
             res_msg.append(" done", style="dim green")
             res_msg.append(f" ({duration:.1f}s)", style="gray")
+            # Always use original stdout
+            console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
             console.print(res_msg)
 
         except Exception as e:
@@ -564,6 +567,11 @@ class PreprocessModule(BaseModule):
         # Resolve original feature set (used to avoid feature cascades)
         original_features = self._resolve_original_features(train_df, config, prev_custom_state)
 
+        # Always suppress common preprocessing noise
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        warnings.simplefilter("ignore", category=UserWarning)
+        warnings.simplefilter("ignore", category=FutureWarning)
+
         # Load template config (supports override via invocation params)
         template_cfg = None
         template_cfg_override = self.invocation_params.get("preprocess_template_config")
@@ -591,17 +599,20 @@ class PreprocessModule(BaseModule):
 
         # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK START <<<<<<
         pipeline_definition = template_cfg.get("steps")
+        is_classic = self.invocation_params.get("classic", False)
+        quiet_mode = self.invocation_params.get("quiet_preprocess_panel")
         
-        # Allow running existing 'chain' templates as unified pipeline if requested via flag
-        if pipeline_definition is None and template_cfg.get("chain"):
-            if self.invocation_params.get("pipeline") or self.invocation_params.get("fuse"):
-                pipeline_definition = template_cfg.get("chain")
+        # Default behavior: Treat 'chain' as 'steps' for pipeline execution
+        # unless classic mode is explicitly requested.
+        if pipeline_definition is None and template_cfg.get("chain") and not is_classic:
+            pipeline_definition = template_cfg.get("chain")
 
         if pipeline_definition:
-            console.print(f"\n[bold magenta]Starting Unified Pipeline Execution[/bold magenta] (In-Memory)")
+            # Always show start message on stdout
+            console_out = Console(file=sys.__stdout__, force_terminal=True)
+            console_out.print(f"\n[bold magenta]Starting Unified Pipeline Execution[/bold magenta] (In-Memory)")
             
             # 1. Initialize Container
-            # Use raw data loaded above
             container = MLArenaDataContainer(
                 train=train_df,
                 test=test_df,
@@ -615,7 +626,6 @@ class PreprocessModule(BaseModule):
                 }
             )
             
-            # Ensure original features are tracked
             if original_features and "original_features" not in container.state["custom_module_state"]:
                 container.state["custom_module_state"]["original_features"] = original_features
             
@@ -624,11 +634,15 @@ class PreprocessModule(BaseModule):
             for idx, step_item in enumerate(pipeline_definition):
                 if isinstance(step_item, str):
                     step_cfg = {"template": step_item}
-                    # Generate a readable name e.g. "0-imputer"
                     step_name = f"{idx}-{step_item}"
                 elif isinstance(step_item, dict):
                     step_cfg = step_item
-                    step_name = step_cfg.get("name", f"step_{idx}")
+                    raw_name = step_cfg.get("name") or step_cfg.get("template") or f"step_{idx}"
+                    # Robust check for prefix (e.g. "0-", "10-")
+                    if not (raw_name and re.match(r"^\d+-", str(raw_name))):
+                        step_name = f"{idx}-{raw_name}"
+                    else:
+                        step_name = raw_name
                 else:
                     raise ValueError(f"Invalid step format: {step_item}")
 
@@ -638,17 +652,11 @@ class PreprocessModule(BaseModule):
             pipeline = Pipeline(pipeline_steps)
             
             # 3. Execute
-            quiet_mode = self.invocation_params.get("quiet_preprocess_panel")
-            
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=RuntimeWarning)
-                warnings.simplefilter("ignore", category=UserWarning)
-                
-                if quiet_mode:
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        final_container = pipeline.fit_transform(container)
-                else:
+            if quiet_mode:
+                with contextlib.redirect_stdout(io.StringIO()):
                     final_container = pipeline.fit_transform(container)
+            else:
+                final_container = pipeline.fit_transform(container)
             
             # 4. Determine Target Directory
             # Since main.py now points context.artifact_dir to the last step,
@@ -697,11 +705,11 @@ class PreprocessModule(BaseModule):
             }
             
             payload = {
-                "train_processed": str(target_dir / "train_processed.parquet"),
-                "test_processed": str(target_dir / "test_processed.parquet"),
-                "orig_processed": str(processed_orig) if processed_orig else None,
-                "tuning_processed": str(processed_tuning_final) if processed_tuning_final else None,
-                "eval_processed": str(processed_eval) if processed_eval else None,
+                "train_processed": str((target_dir / "train_processed.parquet").resolve()),
+                "test_processed": str((target_dir / "test_processed.parquet").resolve()),
+                "orig_processed": str((target_dir / "orig_processed.parquet").resolve()) if final_container.orig is not None else None,
+                "tuning_processed": str((target_dir / "tuning_processed.parquet").resolve()) if final_container.val is not None else None,
+                "eval_processed": str((target_dir / "eval_processed.parquet").resolve()) if final_container.eval is not None else None,
                 "ignored_columns": ignored,
                 "template": template_name,
                 "input_source": input_source,
@@ -714,10 +722,10 @@ class PreprocessModule(BaseModule):
             # Note: state.json for the last step is handled by the executor itself
             # because this module IS the last step in its context.
 
-            artifacts_list = [target_dir / "train_processed.csv.gz", target_dir / "test_processed.csv.gz"]
-            if processed_orig: artifacts_list.append(processed_orig)
-            if processed_tuning_final: artifacts_list.append(processed_tuning_final)
-            if processed_eval: artifacts_list.append(processed_eval)
+            artifacts_list = [target_dir / "train_processed.parquet", target_dir / "test_processed.parquet"]
+            if final_container.orig is not None: artifacts_list.append(target_dir / "orig_processed.parquet")
+            if final_container.val is not None: artifacts_list.append(target_dir / "tuning_processed.parquet")
+            if final_container.eval is not None: artifacts_list.append(target_dir / "eval_processed.parquet")
             
             return ModuleResult(
                 success=True,
@@ -839,7 +847,6 @@ class PreprocessModule(BaseModule):
             
             # Drop IGNORED_COLUMNS first for basic preprocessing
             if ignored:
-                console.print(f"\n[bold]Dropping columns:[/bold] {', '.join(f'[yellow]{c}[/yellow]' for c in ignored)}")
                 train_df = self._drop_columns(train_df, ignored)
                 test_df = self._drop_columns(test_df, ignored)
                 if eval_df is not None:

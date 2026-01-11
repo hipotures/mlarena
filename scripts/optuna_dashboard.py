@@ -166,7 +166,6 @@ class DashboardScreen(Screen):
         yield Header(show_clock=True)
         yield Container(
             Label(f"Database: {self.db_path} | v{DASHBOARD_VERSION}", id="db_label"),
-            Static("", id="db_gap"),
             Horizontal(
                 Vertical(
                     Static(id="study_header"),
@@ -257,8 +256,8 @@ class DashboardScreen(Screen):
         body_text = (
             f"[bold]Direction:[/bold] {study.get('direction', 'MINIMIZE')}\n"
             f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
-            f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
             f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
+            f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
             f"[bold]Waiting:[/bold] {study['counts'].get(4, 0)}\n"
             f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}\n"
             f"[bold]Best Value:[/bold] {best_val_str}\n"
@@ -795,15 +794,12 @@ class OptunaDashboard(App):
     #db_label {
         background: $primary;
         color: $text;
-        padding: 1 1 0 1;
+        padding: 1 1;
         width: 100%;
-        height: auto;
+        height: 3;
     }
     #main_container {
         padding-top: 0;
-    }
-    #db_gap {
-        height: 1;
     }
     .box {
         border: none;

@@ -548,6 +548,7 @@ class DashboardScreen(Screen):
 
 class TrialInspector(Screen):
     BINDINGS = [("escape", "app.pop_screen", "Back")]
+    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
     def __init__(self, project_root: Path, study_name: str, trial_id: str):
         super().__init__()
@@ -557,6 +558,9 @@ class TrialInspector(Screen):
         self.trial_dir = self._find_trial_dir()
         self.refresh_timer = None
         self.state_cache = {}  # Cache for state.json contents
+        self.spinner_idx = 0
+        self._running_nodes = []
+        self._last_data_refresh = 0.0
 
     def _find_trial_dir(self) -> Optional[Path]:
         # Search pattern: experiments/optuna_<study_name>/trial_<id>
@@ -607,14 +611,24 @@ class TrialInspector(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.refresh_timer = self.set_interval(2, self._build_tree)
+        # Spinner refresh is frequent; heavy I/O throttled inside _build_tree
+        self.refresh_timer = self.set_interval(0.1, self._build_tree)
         self._build_tree()
 
     def _build_tree(self) -> None:
+        self.spinner_idx += 1
+
         tree = self.query_one("#flow_tree")
+        current_time = time.time()
+        if current_time - self._last_data_refresh <= 1.0:
+            self._animate_running_nodes()
+            return
+        self._last_data_refresh = current_time
+
         tree.clear()
         root = tree.root
         root.expand()
+        self._running_nodes = []
         
         if not self.trial_dir or not self.trial_dir.exists():
              # Try finding it again
@@ -701,9 +715,12 @@ class TrialInspector(Screen):
             status = mod_info.get("status", "unknown")
             
             if status == "failed":
-                node.set_label(f"❌ {node.label}")
+                node.set_label(f"{node.label} ❌")
             elif status == "running":
-                node.set_label(f"⏳ {node.label}")
+                base_label = str(node.label)
+                self._running_nodes.append((node, base_label))
+                frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
+                node.set_label(f"{base_label} {frame}")
 
             # 1. Duration (modules.X.finished_at - modules.X.started_at)
             start_str = mod_info.get("started_at")
@@ -755,6 +772,16 @@ class TrialInspector(Screen):
 
         except Exception as e:
             node.add(f"Error: {e}", allow_expand=False)
+
+    def _animate_running_nodes(self) -> None:
+        if not self._running_nodes:
+            return
+        frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
+        for node, base_label in self._running_nodes:
+            try:
+                node.set_label(f"{base_label} {frame}")
+            except Exception:
+                pass
 
 
 class OptunaDashboard(App):

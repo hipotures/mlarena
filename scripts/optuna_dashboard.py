@@ -615,7 +615,8 @@ class TrialInspector(Screen):
         ("escape", "app.pop_screen", "Back"),
         ("c", "copy_tree", "Copy Branch"),
         ("ctrl+insert", "copy_tree", "Copy Branch"),
-        ("e", "reset_tree", "Reset Tree"),
+        ("e", "expand_all_tree", "Expand All"),
+        ("e", "reset_view_tree", "Reset View"),
     ]
     # Full perimeter spinner including bottom dots (7, 8) for maximum height
     SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]
@@ -632,21 +633,36 @@ class TrialInspector(Screen):
         self._last_data_refresh = 0.0
         self._last_full_rebuild = 0
         self._running_nodes = []  # List of (node, base_label) for animation
+        self._tree_fully_expanded = False # Tracking state
 
-    def action_reset_tree(self) -> None:
-        """Restores the tree to its initial state: headings expanded, details collapsed."""
+    def check_action(self, action: str, parameters: tuple[Any, ...]) -> bool | None:
+        """Controls which 'e' action is visible in the footer."""
+        if action == "expand_all_tree":
+            return not self._tree_fully_expanded
+        if action == "reset_view_tree":
+            return self._tree_fully_expanded
+        return True
+
+    def action_expand_all_tree(self) -> None:
+        """Expands all nodes in the tree."""
         try:
             tree = self.query_one("#flow_tree")
-            # Collapse all first
+            tree.root.expand_all()
+            self._tree_fully_expanded = True
+            self.app.notify("Tree fully expanded.")
+        except Exception: pass
+
+    def action_reset_view_tree(self) -> None:
+        """Resets tree to default view (headings only)."""
+        try:
+            tree = self.query_one("#flow_tree")
             tree.root.collapse_all()
-            # Expand root
             tree.root.expand()
-            # Expand all top-level sections (Preprocessing, Metrics, Model)
             for child in tree.root.children:
                 child.expand()
+            self._tree_fully_expanded = False
             self.app.notify("Tree view reset to default.")
-        except Exception as e:
-            self.app.notify(f"Reset failed: {e}", severity="error")
+        except Exception: pass
 
     def _animate_running_nodes(self) -> None:
         """Updates labels of running nodes with the current spinner frame."""

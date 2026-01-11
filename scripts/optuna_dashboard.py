@@ -464,71 +464,59 @@ class DashboardScreen(Screen):
         return studies[-1] if studies else None
 
     def _fetch_recent_trials(self, conn: sqlite3.Connection, study_id: int, limit: int) -> List[Dict[str, Any]]:
+        # limit is ignored in favor of specific 25/8 split
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        trials_cols = self._table_columns(conn, "trials")
-        has_value_col = "value" in trials_cols
         has_trial_values = "trial_values" in tables
 
-        result = []
-        if has_trial_values:
-            sql = (
-                "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, "
-                "tv.value "
-                "FROM trials t "
-                "LEFT JOIN trial_values tv ON tv.trial_id = t.trial_id "
-                "WHERE t.study_id=? "
-                "ORDER BY t.number DESC "
-                "LIMIT ?"
-            )
-            rows = conn.execute(sql, (study_id, limit)).fetchall()
-            seen = set()
-            for row in rows:
-                if row["number"] in seen: continue
-                seen.add(row["number"])
-                result.append(dict(row))
-                
-        elif has_value_col:
-            sql = (
-                "SELECT trial_id, number, state, datetime_start, datetime_complete, value "
-                "FROM trials "
-                "WHERE study_id=? "
-                "ORDER BY number DESC "
-                "LIMIT ?"
-            )
-            rows = conn.execute(sql, (study_id, limit)).fetchall()
-            result = [dict(row) for row in rows]
-        else:
-            sql = (
-                "SELECT trial_id, number, state, datetime_start, datetime_complete, NULL as value "
-                "FROM trials "
-                "WHERE study_id=? "
-                "ORDER BY number DESC "
-                "LIMIT ?"
-            )
-            rows = conn.execute(sql, (study_id, limit)).fetchall()
-            result = [dict(row) for row in rows]
+        # Get direction for sorting Top Completed
+        direction = "MINIMIZE"
+        if "study_directions" in tables:
+            d_row = conn.execute("SELECT direction FROM study_directions WHERE study_id=?", (study_id,)).fetchone()
+            if d_row:
+                direction = d_row["direction"]
+        
+        order = "DESC" if str(direction).upper() == "MAXIMIZE" else "ASC"
 
-        # Ensure running/waiting trials are included even if older than the limit
-        run_sql = (
-            "SELECT trial_id, number, state, datetime_start, datetime_complete "
-            "FROM trials "
-            "WHERE study_id=? AND ("
-            "CAST(state AS TEXT) IN ('0', '4') OR "
-            "UPPER(CAST(state AS TEXT)) IN ('RUNNING', 'WAITING')"
-            ")"
+        result = []
+        
+        # 1. Fetch RUNNING trials (limit 8)
+        sql_running = (
+            "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, NULL as value "
+            "FROM trials t "
+            "WHERE t.study_id=? AND (t.state=0 OR UPPER(CAST(t.state AS TEXT))='RUNNING') "
+            "ORDER BY t.number DESC LIMIT 8"
         )
-        running_rows = conn.execute(run_sql, (study_id,)).fetchall()
-        seen_ids = {r["trial_id"] for r in result}
-        for row in running_rows:
-            if row["trial_id"] in seen_ids:
-                continue
-            extra = dict(row)
-            extra.setdefault("value", None)
-            result.append(extra)
+        rows_running = conn.execute(sql_running, (study_id,)).fetchall()
+        result.extend([dict(r) for r in rows_running])
+
+        # 2. Fetch TOP COMPLETE trials (limit 25)
+        if has_trial_values:
+            sql_complete = (
+                "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, tv.value "
+                "FROM trials t "
+                "JOIN trial_values tv ON tv.trial_id = t.trial_id "
+                "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
+                f"ORDER BY tv.value {order} LIMIT 25"
+            )
+        else:
+            sql_complete = (
+                "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, t.value "
+                "FROM trials t "
+                "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
+                f"ORDER BY t.value {order} LIMIT 25"
+            )
+        
+        rows_complete = conn.execute(sql_complete, (study_id,)).fetchall()
+        # Deduplicate by number
+        seen_nums = {r["number"] for r in result}
+        for r in rows_complete:
+            if r["number"] not in seen_nums:
+                result.append(dict(r))
+                seen_nums.add(r["number"])
 
         # Enrich with params hash
         if "trial_params" in tables and result:
-            trial_ids = [r["trial_id"] for r in result]
+            trial_ids = [r["trial_id"] for r in result if r.get("trial_id") is not None]
             if not trial_ids:
                 return result
                 
@@ -546,7 +534,7 @@ class DashboardScreen(Screen):
                     params_by_trial[tid][pr["param_name"]] = pr["param_value"]
                 
                 for r in result:
-                    tid = r["trial_id"]
+                    tid = r.get("trial_id")
                     p = params_by_trial.get(tid, {})
                     if p:
                         s = json.dumps(p, sort_keys=True)

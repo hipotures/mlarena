@@ -116,9 +116,9 @@ class PipelineExecutor:
             input_source = invocation.get("input_source")
             chain_exp_id = invocation.get("chain_exp_id", "")
             
-            # Determine extension based on mode
-            is_unified = invocation.get("pipeline") or invocation.get("fuse")
-            ext = ".parquet" if is_unified else ".csv.gz"
+            # Determine extension based on mode (Unified is now default)
+            is_classic = invocation.get("classic", False)
+            ext = ".csv.gz" if is_classic else ".parquet"
 
             if input_source:
                 input_paths["from"] = input_source

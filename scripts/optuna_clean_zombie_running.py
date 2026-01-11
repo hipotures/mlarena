@@ -1,63 +1,93 @@
 #!/usr/bin/env python3
-"""
-Mark stale Optuna RUNNING trials as FAIL in an SQLite storage.
-
-Works across Optuna versions by using:
-- storage._storage.set_trial_state_values(...) if available
-- fallback to study.tell(..., state=FAIL)
-
-Usage:
-  python optuna_clean_zombie_running.py \
-    --db /mnt/mlarena/projects/kaggle/playground-series-s6e1/experiments/db/optuna_smoke_s6e1_heavy_v2.sqlite \
-    --study smoke_s6e1_heavy_v2 \
-    --cutoff-minutes 60 \
-    --dry-run
-
-Run without --dry-run to apply changes.
-"""
-
 import argparse
 from datetime import datetime, timedelta, timezone
 
 import optuna
 
+try:
+    from zoneinfo import ZoneInfo  # py3.9+
+except Exception:
+    ZoneInfo = None
 
-def as_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+
+def get_local_tzinfo():
+    # System local tzinfo (whatever the OS/python is configured to)
+    return datetime.now().astimezone().tzinfo
+
+
+def naive_to_utc(dt_naive: datetime, naive_tz: str) -> datetime:
+    """Interpret naive datetime in naive_tz and convert to UTC."""
+    if naive_tz.lower() == "utc":
+        return dt_naive.replace(tzinfo=timezone.utc)
+
+    if naive_tz.lower() == "local":
+        tz = get_local_tzinfo()
+        return dt_naive.replace(tzinfo=tz).astimezone(timezone.utc)
+
+    # IANA tz name, e.g. Europe/Warsaw
+    if ZoneInfo is None:
+        raise RuntimeError("zoneinfo not available; use --naive-tz utc or local")
+    tz = ZoneInfo(naive_tz)
+    return dt_naive.replace(tzinfo=tz).astimezone(timezone.utc)
+
+
+def as_utc(dt: datetime, now_utc: datetime, naive_tz: str, future_tolerance: timedelta) -> datetime:
+    """Convert dt to aware UTC. If dt is naive and naive_tz=auto, choose best interpretation."""
+    if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+        return dt.astimezone(timezone.utc)
+
+    # naive
+    if naive_tz.lower() != "auto":
+        return naive_to_utc(dt, naive_tz)
+
+    # auto: try UTC assumption first
+    as_utc_assuming_utc = dt.replace(tzinfo=timezone.utc)
+
+    # if start seems to be in the future, likely naive is local time (e.g. Europe/Warsaw)
+    if as_utc_assuming_utc > (now_utc + future_tolerance):
+        # prefer Europe/Warsaw if available; fall back to system local
+        try:
+            if ZoneInfo is not None:
+                return naive_to_utc(dt, "Europe/Warsaw")
+        except Exception:
+            pass
+        return naive_to_utc(dt, "local")
+
+    return as_utc_assuming_utc
 
 
 def set_fail(storage: optuna.storages.RDBStorage, study: optuna.Study, trial) -> None:
-    """Set trial state to FAIL in a version-tolerant way."""
     trial_id = trial._trial_id
 
-    # Preferred: internal backend API (works for many Optuna versions)
     backend = getattr(storage, "_storage", None)
     if backend is not None:
         fn = getattr(backend, "set_trial_state_values", None)
         if callable(fn):
-            # values=None means keep objective values unset; state change only
             fn(trial_id, optuna.trial.TrialState.FAIL, values=None)
             return
 
-    # Fallback: public API
-    # study.tell can accept trial number in recent versions; if not, it will error.
+    # fallback
     study.tell(trial.number, state=optuna.trial.TrialState.FAIL)
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--db", required=True, help="Path to Optuna SQLite file.")
-    p.add_argument("--study", required=True, help="Optuna study name.")
-    p.add_argument(
-        "--cutoff-minutes",
-        type=int,
-        default=60,
-        help="Mark RUNNING trials older than this as FAIL (default: 60).",
-    )
-    p.add_argument("--dry-run", action="store_true", help="Print only; no DB changes.")
+    p.add_argument("--db", required=True)
+    p.add_argument("--study", required=True)
+    p.add_argument("--cutoff-minutes", type=int, default=60)
+    p.add_argument("--dry-run", action="store_true")
     p.add_argument("--limit-print", type=int, default=200)
+    p.add_argument(
+        "--naive-tz",
+        default="auto",
+        help='How to interpret naive datetime_start: "auto" (default), "utc", "local", or e.g. "Europe/Warsaw".',
+    )
+    p.add_argument(
+        "--future-tolerance-minutes",
+        type=int,
+        default=5,
+        help="In auto mode, if start time is > now + this tolerance, treat naive as local/Warsaw.",
+    )
     args = p.parse_args()
 
     storage_url = f"sqlite:///{args.db}"
@@ -66,21 +96,24 @@ def main() -> None:
 
     cutoff = timedelta(minutes=args.cutoff_minutes)
     now = datetime.now(timezone.utc)
+    future_tol = timedelta(minutes=args.future_tolerance_minutes)
 
     running_count = 0
     candidates = []
+    future_starts = 0
 
     for t in study.get_trials(deepcopy=False):
         if t.state != optuna.trial.TrialState.RUNNING:
             continue
         running_count += 1
-
         if t.datetime_start is None:
             continue
 
-        start_utc = as_utc(t.datetime_start)
-        runtime = now - start_utc
+        start_utc = as_utc(t.datetime_start, now, args.naive_tz, future_tol)
+        if start_utc > now + future_tol:
+            future_starts += 1
 
+        runtime = now - start_utc
         if runtime > cutoff:
             candidates.append((t, runtime, start_utc))
 
@@ -88,6 +121,8 @@ def main() -> None:
     print(f"Storage: {storage_url}")
     print(f"Now (UTC): {now.isoformat()}")
     print(f"RUNNING trials: {running_count}")
+    print(f"Naive tz mode: {args.naive_tz}  (future tolerance: {future_tol})")
+    print(f"Starts considered 'future': {future_starts}")
     print(f"Cutoff: {cutoff}  (>{args.cutoff_minutes} minutes => FAIL)")
     print(f"Candidates to mark FAIL: {len(candidates)}\n")
 
@@ -107,7 +142,7 @@ def main() -> None:
         return
 
     changed = 0
-    for t, _runtime, _start_utc in candidates:
+    for t, _, _ in candidates:
         set_fail(storage, study, t)
         changed += 1
 

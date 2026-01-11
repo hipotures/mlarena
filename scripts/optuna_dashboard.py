@@ -244,7 +244,8 @@ class DashboardScreen(Screen):
         table.add_column("CfgHash", width=10)
         table.add_column("Start", width=20)
         self.set_interval(5, self.update_data)
-        self.update_data()
+        # Ensure data is loaded immediately after the first refresh pass
+        self.call_after_refresh(self.update_data)
 
     def update_data(self) -> None:
         try:

@@ -15,10 +15,11 @@ from typing import Any, Dict, List, Optional, Tuple, Set
 
 import requests
 from dotenv import load_dotenv
+from rich.json import JSON
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.screen import ModalScreen, Screen
 from textual.reactive import reactive
-from textual.screen import Screen
 from textual.widgets import (
     Button,
     DataTable,
@@ -138,6 +139,22 @@ def _duration_str(start: Optional[str], end: Optional[str]) -> str:
     hours = minutes // 60
     minutes = minutes % 60
     return f"{hours}h{minutes:02d}m"
+
+
+class JSONModal(ModalScreen):
+    BINDINGS = [("escape", "app.pop_screen", "Close")]
+
+    def __init__(self, title: str, data: Any):
+        super().__init__()
+        self.modal_title = title
+        self.data = data
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Label(self.modal_title, classes="modal-title"),
+            Static(JSON.from_data(self.data), classes="modal-content"),
+            classes="modal-window"
+        )
 
 
 class DashboardScreen(Screen):
@@ -613,14 +630,33 @@ class TrialInspector(Screen):
         self._tree_fully_expanded = False # Tracking state
 
     def check_action(self, action: str, parameters: tuple[Any, ...]) -> bool | None:
-        """Controls which 'e' action is visible in the footer."""
-        if action == "expand_all_tree":
+        """Controls visibility of 'e' actions based on state."""
+        if action == "expand_all":
             return not self._tree_fully_expanded
-        if action == "reset_view_tree":
+        if action == "collapse_all":
             return self._tree_fully_expanded
         return True
 
-    def action_expand_all_tree(self) -> None:
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Handle node selection to open modals."""
+        self._handle_json_node(event.node)
+
+    def on_tree_node_expanded(self, event: Tree.NodeExpanded) -> None:
+        """Handle node expansion to open modals."""
+        self._handle_json_node(event.node)
+
+    def _handle_json_node(self, node: TreeNode) -> None:
+        if node.data and isinstance(node.data, dict) and node.data.get("type") == "json_modal":
+            title = node.data.get("title", "Data View")
+            payload = node.data.get("payload", {})
+            
+            # Collapse immediately to keep the arrow state "ready to expand"
+            # We use call_after_refresh to ensure the UI update doesn't fight the event loop
+            self.call_after_refresh(node.collapse)
+            
+            self.app.push_screen(JSONModal(title, payload))
+
+    def action_expand_all(self) -> None:
         """Expands all nodes in the tree."""
         try:
             tree = self.query_one("#flow_tree")
@@ -864,17 +900,18 @@ class TrialInspector(Screen):
                     b, a = shapes.get(f"{p}_before"), shapes.get(f"{p}_after")
                     if b or a: s_node.add(f"{p.capitalize()}: {b} -> {a}", allow_expand=False)
 
+            # 4. Config / Invocation (Modal View)
             invocation = mod_info.get("invocation", {})
             if invocation:
-                i_node = node.add("Invocation")
-                for line in json.dumps(invocation, indent=2).splitlines():
-                    i_node.add(line, allow_expand=False)
+                i_node = node.add("Invocation", expand=False)
+                i_node.data = {"type": "json_modal", "title": "Invocation Data", "payload": invocation}
+                i_node.add_leaf("") # Dummy leaf to show arrow
 
             config_data = invocation.get("preprocess_template_config", {}).get("config") or invocation.get("model_template_config", {}).get("config") or invocation.get("config")
             if config_data:
-                c_node = node.add("Config")
-                for line in json.dumps(config_data, indent=2).splitlines():
-                    c_node.add(line, allow_expand=False)
+                c_node = node.add("Config", expand=False)
+                c_node.data = {"type": "json_modal", "title": "Configuration Data", "payload": config_data}
+                c_node.add_leaf("") # Dummy leaf to show arrow
 
             lb_path = step_dir / "artifacts" / mod_name / "leaderboard.csv.gz"
             if lb_path.exists():
@@ -979,18 +1016,33 @@ class OptunaDashboard(App):
         width: 100%;
     }
     #loading_spinner {
-        width: 1fr;
+        display: none;
+        width: 14;
         height: 1;
-        content-align: center middle;
+        dock: right;
     }
-    .title {
-        text-align: center;
+    JSONModal {
+        align: center middle;
+    }
+    .modal-window {
+        width: 90%;
+        height: 90%;
+        background: $surface;
+        border: solid $accent;
+        padding: 1 2;
+    }
+    .modal-title {
         text-style: bold;
-    }
-    .subtitle {
+        background: $primary;
+        color: $text;
+        width: 100%;
         text-align: center;
-        color: $text-muted;
         margin-bottom: 1;
+    }
+    .modal-content {
+        width: 100%;
+        height: 1fr;
+        overflow: auto;
     }
     """
 

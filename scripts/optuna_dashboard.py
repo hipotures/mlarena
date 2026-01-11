@@ -642,8 +642,9 @@ class TrialInspector(Screen):
 
             def walk(node: TreeNode, prefix: str = "", is_last: bool = True, is_root: bool = True):
                 label = str(node.label)
-                # Clean up icons and spinners
+                # Clean up icons, spinners and bold tags
                 clean_label = label.replace("📁 ", "").replace("📐 ", "").replace("⚙ ", "").replace("📊 ", "").replace("📄 ", "")
+                clean_label = clean_label.replace("[bold]", "").replace("[/bold]", "")
                 for frame in self.SPINNER_FRAMES:
                     clean_label = clean_label.replace(f" {frame}", "")
 
@@ -745,10 +746,10 @@ class TrialInspector(Screen):
         # 1. Pipeline Steps (numbered dirs)
         steps = sorted([d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()], key=lambda x: int(x.name.split("-")[0]))
         
-        pre_node = root.add("📁 Preprocessing", expand=True)
+        pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
         
         for step_dir in steps:
-            step_node = pre_node.add(f"📁 {step_dir.name}", expand=False)
+            step_node = pre_node.add(f"{step_dir.name}", expand=False)
             self._add_step_details(step_node, step_dir)
 
         # 2. Metrics (Moved up)
@@ -767,7 +768,7 @@ class TrialInspector(Screen):
 
             try:
                 data = json.loads(metrics_file.read_text())
-                m_node = root.add("📊 Metrics", expand=True)
+                m_node = root.add("[bold]Metrics[/bold]", expand=True)
                 for k, v in data.items():
                     if isinstance(v, float):
                         if k in ["total_sec", "preprocess_sec"]:
@@ -776,7 +777,7 @@ class TrialInspector(Screen):
                             val_str = f"{v:.5f}"
                     else:
                         val_str = str(v)
-                    m_node.add(f"▶ {k}: {val_str}", allow_expand=False)
+                    m_node.add(f"{k}: {val_str}", allow_expand=False)
             except:
                 pass
 
@@ -786,7 +787,7 @@ class TrialInspector(Screen):
             model_dir = self.trial_dir / "optuna_model"
         
         if model_dir.exists():
-            mod_node = root.add(f"📁 {model_dir.name}", expand=True)
+            mod_node = root.add("[bold]Model[/bold]", expand=True)
             self._add_step_details(mod_node, model_dir)
 
     def _add_step_details(self, node: TreeNode, step_dir: Path) -> None:
@@ -813,7 +814,7 @@ class TrialInspector(Screen):
             status = mod_info.get("status", "unknown")
             
             if status == "failed":
-                node.set_label(f"{node.label} ❌")
+                node.set_label(f"{node.label} [FAILED]")
             elif status == "running":
                 base_label = str(node.label)
                 self._running_nodes.append((node, base_label))
@@ -828,7 +829,7 @@ class TrialInspector(Screen):
                     d1 = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
                     d2 = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
                     diff = (d2 - d1).total_seconds()
-                    node.add(f"⏱ Duration: {diff:.1f}s", allow_expand=False)
+                    node.add(f"Duration: {diff:.1f}s", allow_expand=False)
                 except Exception:
                     pass
 
@@ -844,7 +845,7 @@ class TrialInspector(Screen):
                 metric = init_payload.get("metric")
 
                 # Preset, time_limit, use_gpu, template, preprocess_template, tuning_rows
-                p_node = node.add("📝 Info")
+                p_node = node.add("Info")
                 if problem_type: p_node.add(f"Problem: {problem_type}", allow_expand=False)
                 if metric: p_node.add(f"Metric: {metric}", allow_expand=False)
                 p_node.add(f"Preset: {payload.get('preset')}", allow_expand=False)
@@ -858,7 +859,7 @@ class TrialInspector(Screen):
             payload = mod_info.get("payload", {})
             shapes = payload.get("shapes", {})
             if shapes:
-                s_node = node.add("📐 Shapes")
+                s_node = node.add("Shapes")
                 prefixes = sorted({k[:-7] if k.endswith("_before") else k[:-6] for k in shapes if k.endswith(("_before", "_after"))})
                 for p in prefixes:
                     b, a = shapes.get(f"{p}_before"), shapes.get(f"{p}_after")
@@ -867,13 +868,13 @@ class TrialInspector(Screen):
             # 4. Config / Invocation (Pretty Print)
             invocation = mod_info.get("invocation", {})
             if invocation:
-                i_node = node.add("⚙ Invocation")
+                i_node = node.add("Invocation")
                 for line in json.dumps(invocation, indent=2).splitlines():
                     i_node.add(line, allow_expand=False)
 
             config_data = invocation.get("preprocess_template_config", {}).get("config") or invocation.get("model_template_config", {}).get("config") or invocation.get("config")
             if config_data:
-                c_node = node.add("🛠 Config")
+                c_node = node.add("Config")
                 for line in json.dumps(config_data, indent=2).splitlines():
                     c_node.add(line, allow_expand=False)
 
@@ -883,7 +884,7 @@ class TrialInspector(Screen):
                 try:
                     with gzip.open(lb_path, "rt") as f:
                         reader = csv.DictReader(f)
-                        lb_node = node.add("🏆 Leaderboard")
+                        lb_node = node.add("Leaderboard")
                         count = 0
                         for row in reader:
                             m_name = row.get("model", "unknown")

@@ -141,6 +141,8 @@ def _duration_str(start: Optional[str], end: Optional[str]) -> str:
     return f"{hours}h{minutes:02d}m"
 
 
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+
 class JSONModal(ModalScreen):
     BINDINGS = [("escape", "app.pop_screen", "Close")]
 
@@ -152,7 +154,10 @@ class JSONModal(ModalScreen):
     def compose(self) -> ComposeResult:
         yield Container(
             Label(self.modal_title, classes="modal-title"),
-            Static(JSON.from_data(self.data), classes="modal-content"),
+            VerticalScroll(
+                Static(JSON.from_data(self.data), classes="modal-text"),
+                classes="modal-scroll-area"
+            ),
             classes="modal-window"
         )
 
@@ -393,7 +398,7 @@ class DashboardScreen(Screen):
         if event.data_table.id in ("trials_table",):
             trial_id = event.row_key.value
             if trial_id:
-                self.app.push_screen(TrialInspector(self.project_root, self.active_study_name, trial_id))
+                self.app.push_screen(TrialInspector(self.project_root, self.active_study_name, trial_id, self.db_path))
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if event.data_table.id == "trials_table":
@@ -615,11 +620,12 @@ class TrialInspector(Screen):
     ]
     SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]
 
-    def __init__(self, project_root: Path, study_name: str, trial_id: str):
+    def __init__(self, project_root: Path, study_name: str, trial_id: str, db_path: Path):
         super().__init__()
         self.project_root = project_root
         self.study_name = study_name
         self.trial_id = int(trial_id)
+        self.db_path = db_path
         self.trial_dir = self._find_trial_dir()
         self.refresh_timer = None
         self.state_cache = {}  # Cache for state.json contents
@@ -628,6 +634,50 @@ class TrialInspector(Screen):
         self._last_full_rebuild = 0
         self._running_nodes = []  # List of (node, base_label) for animation
         self._tree_fully_expanded = False # Tracking state
+
+    def _get_optuna_params(self) -> Dict[str, Any]:
+        """Fetches Optuna params from SQLite for the current trial number."""
+        try:
+            with _connect_read_only(self.db_path) as conn:
+                # 1. Get study_id
+                study_row = conn.execute("SELECT study_id FROM studies WHERE study_name=?", (self.study_name,)).fetchone()
+                if not study_row:
+                    return {"error": "Study not found"}
+                study_id = study_row["study_id"]
+
+                # 2. Get trial_id (PK) from trial_number (self.trial_id is the number)
+                trial_row = conn.execute(
+                    "SELECT trial_id FROM trials WHERE study_id=? AND number=?", 
+                    (study_id, self.trial_id)
+                ).fetchone()
+                
+                if not trial_row:
+                    return {"error": f"Trial number {self.trial_id} not found in DB"}
+                
+                real_trial_id = trial_row["trial_id"]
+
+                # 3. Get params
+                params = {}
+                rows = conn.execute(
+                    "SELECT param_name, param_value, distribution_json FROM trial_params WHERE trial_id=?", 
+                    (real_trial_id,)
+                ).fetchall()
+                
+                for r in rows:
+                    try:
+                        dist = json.loads(r["distribution_json"])
+                        val = r["param_value"]
+                        if dist.get("name") == "CategoricalDistribution":
+                            choices = dist.get("attributes", {}).get("choices", [])
+                            if isinstance(val, float) and val.is_integer() and 0 <= int(val) < len(choices):
+                                val = choices[int(val)]
+                        params[r["param_name"]] = val
+                    except:
+                        params[r["param_name"]] = r["param_value"]
+                
+                return params
+        except Exception as e:
+            return {"error": str(e)}
 
     def check_action(self, action: str, parameters: tuple[Any, ...]) -> bool | None:
         """Controls visibility of 'e' actions based on state."""
@@ -830,6 +880,15 @@ class TrialInspector(Screen):
         if model_dir.exists():
             mod_node = root.add("[bold]Model[/bold]", expand=True)
             self._add_step_details(mod_node, model_dir)
+
+        # 4. Optuna
+        opt_node = root.add("[bold]Optuna[/bold]", expand=False)
+        
+        params = self._get_optuna_params()
+        if params:
+            tp_node = opt_node.add("trial_params", expand=False)
+            tp_node.data = {"type": "json_modal", "title": "Optuna Trial Params", "payload": params}
+            tp_node.add_leaf("") # Dummy leaf for arrow
 
     def _add_step_details(self, node: TreeNode, step_dir: Path) -> None:
         state_path = step_dir / "state.json"
@@ -1039,10 +1098,13 @@ class OptunaDashboard(App):
         text-align: center;
         margin-bottom: 1;
     }
-    .modal-content {
+    .modal-scroll-area {
         width: 100%;
         height: 1fr;
-        overflow: auto;
+        scrollbar-size: 1 1;
+    }
+    .modal-text {
+        width: 100%;
     }
     """
 

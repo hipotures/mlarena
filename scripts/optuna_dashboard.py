@@ -611,7 +611,7 @@ class TrialInspector(Screen):
             walk(start_node)
             tree_text = "\n".join(lines)
             self.app.copy_to_clipboard(tree_text)
-            self.app.notify("Tree structure (1:1) copied to clipboard!")
+            self.app.notify("Tree structure copied to clipboard!")
         except Exception as e:
             self.app.notify(f"Failed to copy tree: {e}", severity="error")
 

@@ -150,7 +150,11 @@ def _duration_str(start: Optional[str], end: Optional[str]) -> str:
 
 
 class DashboardScreen(Screen):
-    BINDINGS = [("q", "app.quit", "Quit")]
+    BINDINGS = [
+        ("q", "app.quit", "Quit"),
+        ("c", "copy_dashboard", "Copy All"),
+        ("ctrl+insert", "copy_dashboard", "Copy All"),
+    ]
 
     def __init__(self, db_path: Path, project_root: Path, study_name: Optional[str] = None):
         super().__init__()
@@ -161,6 +165,46 @@ class DashboardScreen(Screen):
         self.last_best_val = None
         self.first_run = True
         self.last_trial_row_key = None
+
+    def action_copy_dashboard(self) -> None:
+        """Serializes the entire dashboard state to text and copies to clipboard."""
+        try:
+            lines = []
+            lines.append(f"Optuna Dashboard Export - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append(f"Database: {self.db_path}")
+            lines.append("-" * 40)
+            
+            # Study Stats
+            header = str(self.query_one("#study_header").content)
+            body = str(self.query_one("#study_body").content)
+            
+            # Simple markup removal
+            def clean_markup(t):
+                return t.replace("[bold]", "").replace("[/bold]", "").replace("[bold red]", "").replace("[/bold red]", "").replace("[bold yellow]", "").replace("[/bold yellow]", "")
+
+            lines.append(clean_markup(header))
+            lines.append(clean_markup(body))
+            lines.append("-" * 40)
+            
+            # Trials Table
+            table = self.query_one("#trials_table")
+            lines.append("TRIALS TABLE")
+            
+            # Header
+            col_labels = [col.label for col in table.columns.values()]
+            lines.append(" | ".join(map(str, col_labels)))
+            lines.append("-" * 80)
+            
+            # Rows
+            for row_idx in range(table.row_count):
+                row_data = [table.get_cell_at((row_idx, col_idx)) for col_idx in range(len(table.columns))]
+                lines.append(" | ".join(map(str, row_data)))
+            
+            final_text = "\n".join(lines)
+            self.app.copy_to_clipboard(final_text)
+            self.app.notify("Dashboard summary copied to clipboard!")
+        except Exception as e:
+            self.app.notify(f"Failed to copy dashboard: {e}", severity="error")
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -554,8 +598,8 @@ class DashboardScreen(Screen):
 class TrialInspector(Screen):
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("ctrl+insert", "copy_tree", "Copy Tree"),
-        ("c", "copy_tree", "Copy Tree"),
+        ("c", "copy_tree", "Copy Branch"),
+        ("ctrl+insert", "copy_tree", "Copy Branch"),
     ]
     # Full perimeter spinner including bottom dots (7, 8) for maximum height
     SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]

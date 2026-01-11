@@ -347,13 +347,15 @@ class DashboardScreen(Screen):
             start_str = str(t["datetime_start"]) if t["datetime_start"] else "-"
             if len(start_str) > 19:
                 start_str = start_str[:19]
+            
+            # Apply dim style to completed rows
             trials_table.add_row(
-                str(t["number"]),
-                "COMPLETE",
-                val_str,
-                _duration_str(t["datetime_start"], t["datetime_complete"]),
-                str(t.get("params_hash", "-")),
-                start_str,
+                f"[dim]{t['number']}[/dim]",
+                f"[dim]COMPLETE[/dim]",
+                f"[dim]{val_str}[/dim]",
+                f"[dim]{_duration_str(t['datetime_start'], t['datetime_complete'])}[/dim]",
+                f"[dim]{t.get('params_hash', '-')}[/dim]",
+                f"[dim]{start_str}[/dim]",
                 key=str(t["number"])
             )
 

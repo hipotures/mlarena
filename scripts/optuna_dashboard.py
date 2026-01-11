@@ -219,14 +219,11 @@ class DashboardScreen(Screen):
                     id="study_stats",
                     classes="box"
                 ),
-                Vertical(
-                    DataTable(
-                        id="trials_table",
-                        cursor_type="row",
-                        show_row_labels=False,
-                        zebra_stripes=False,
-                    ),
-                    id="running_container",
+                DataTable(
+                    id="trials_table",
+                    cursor_type="row",
+                    show_row_labels=False,
+                    zebra_stripes=False,
                     classes="box"
                 ),
                 id="row1"
@@ -242,7 +239,7 @@ class DashboardScreen(Screen):
         table.add_column("Local CV", width=10)
         table.add_column("Duration", width=12)
         table.add_column("CfgHash", width=10)
-        table.add_column("Start", width=20)
+        table.add_column("Start", width=19)
         self.set_interval(5, self.update_data)
         # Ensure data is loaded immediately after the first refresh pass
         self.call_after_refresh(self.update_data)
@@ -317,14 +314,14 @@ class DashboardScreen(Screen):
         prev_row_key = self.last_trial_row_key
         trials_table.clear()
         
-        # Calculate dynamic limit based on actual container height
+        # Calculate dynamic limit based on actual table height
         try:
-            container = self.query_one("#running_container")
-            # container.content_size.height is the inner height. 
-            # DataTable header takes 1 line.
-            available_height = container.content_size.height - 1
+            table_widget = self.query_one("#trials_table")
+            h = table_widget.content_size.height
+            # Use a slightly more aggressive fallback or actual height
+            available_height = h - 1 if h > 0 else (self.size.height - 7)
         except:
-            available_height = 20
+            available_height = 25
             
         if available_height < 5: available_height = 5
 
@@ -975,13 +972,13 @@ class OptunaDashboard(App):
         height: 1;
     }
     #trials_table {
-        height: 100%;
-        width: 100%;
-        min-height: 5;
+        width: auto;
+        height: 1fr;
+        min-height: 6;
+        border: solid $accent;
         background: transparent;
-        margin: 0;
-        padding: 0;
-        scrollbar-gutter: stable;
+        scrollbar-size: 0 0;
+        scrollbar-gutter: auto;
     }
     #trials_table > .datatable--header {
         background: #2a2a2a;

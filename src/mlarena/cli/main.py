@@ -274,6 +274,7 @@ def _build_parser(add_help: bool = True) -> argparse.ArgumentParser:
     parser.add_argument("--exp-id", "-e", help="Experiment ID to resume")
     parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
     parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
+    parser.add_argument("--pipeline", action="store_true", help="Execute chain as a single in-memory pipeline")
     return parser
 
 
@@ -421,6 +422,126 @@ def run_preprocess_chain(
 
     if force and chain_base_dir.exists():
         _safe_clear_preprocess_chain_dir(chain_base_dir, project_root, console)
+
+    # Check for FUSED execution mode
+    # Check both config.preprocess.fuse (yaml) and potential cli override if exposed
+    fuse_mode = False
+    if isinstance(preprocess_cfg, dict):
+        fuse_mode = preprocess_cfg.get("fuse", False)
+    
+    # Fused mode optimization: Run the whole chain in one go
+    if fuse_mode and len(preprocess_templates) > 1 and not force:
+         # Check if final result exists, if so return immediately
+         final_step_id = f"{len(preprocess_templates) - 1}-{preprocess_templates[-1]}"
+         final_exp_dir = chain_base_dir / final_step_id
+         final_state_file = final_exp_dir / "state.json"
+         
+         if final_state_file.exists():
+            try:
+                with open(final_state_file) as f:
+                    final_state = json.load(f)
+                    module_entry = final_state.get("modules", {}).get("preprocess", {})
+                    if module_entry.get("status") == "completed":
+                         console.print(f"\n[bold yellow]Using cached FUSED preprocessed data[/bold yellow]")
+                         # Fill results for all steps (virtual)
+                         for idx, tpl in enumerate(preprocess_templates):
+                             results[f"preprocess-{tpl}"] = ModuleResult(success=True, payload={"cached": True})
+                         return 0, results, final_exp_dir, preprocess_templates
+            except:
+                pass
+
+    if fuse_mode and len(preprocess_templates) > 1:
+        console.print(f"[bold magenta]⚡ Fused Mode Enabled: Executing {len(preprocess_templates)} steps in-memory[/bold magenta]")
+        
+        final_idx = len(preprocess_templates) - 1
+        final_tpl_name = preprocess_templates[final_idx]
+        final_sub_id = f"{final_idx}-{final_tpl_name}"
+        full_exp_id = f"{chain_exp_id}/{combined_hash}/{final_sub_id}"
+        
+        context = _build_module_context(
+            project_root=project_root,
+            project=project_name,
+            module_name="preprocess",
+            config=config,
+            experiment_id=full_exp_id,
+            config_module=config_module,
+            pipeline_def=pipeline_def,
+            argv=argv,
+        )
+
+        module_cls = ModuleRegistry.get("preprocess")
+        module = module_cls(context)
+
+        module.set_invocation_params({
+            "fused_chain_configs": template_configs,
+            "fused_chain_names": preprocess_templates,
+            "chain_root_dir": str(chain_base_dir),
+            "preprocess_template": final_tpl_name, # For locking/logging purposes
+            "force": force,
+            "lock": config.lock,
+            "quiet_preprocess_panel": quiet_preprocess_panel,
+        })
+
+        executor = PipelineExecutor({"preprocess": module})
+        # We only run the final step "module", but inside it executes everything
+        module_results = executor.run_module("preprocess", force=force, skip_deps=False)
+        result = module_results.get("preprocess")
+        
+        # Populate results for all steps to satisfy the contract
+        for tpl in preprocess_templates:
+            results[f"preprocess-{tpl}"] = result
+            
+        final_preprocess_exp_dir = chain_base_dir / final_sub_id
+        return (0 if result.success else 1), results, final_preprocess_exp_dir, preprocess_templates
+
+
+    # Determine if we should run in UNIFIED PIPELINE mode
+    use_pipeline = bool(getattr(config, "pipeline", False)) or "--pipeline" in argv
+    
+    if use_pipeline and len(preprocess_templates) > 1:
+        console.print(f"[bold magenta]⚡ Unified Pipeline Enabled: Executing {len(preprocess_templates)} steps in-memory[/bold magenta]")
+        
+        # Prepare single execution context pointing directly to the last step
+        # This prevents an extra 'artifacts' folder at the root level
+        final_tpl = preprocess_templates[-1]
+        final_idx = len(preprocess_templates) - 1
+        last_step_subpath = f"{final_idx}-{final_tpl}"
+        
+        # Build context for 'preprocess' module pointing to the LAST step dir
+        context = _build_module_context(
+            project_root=project_root,
+            project=project_name,
+            module_name="preprocess",
+            config=config,
+            experiment_id=f"{chain_exp_id}/{combined_hash}/{last_step_subpath}", 
+            config_module=config_module,
+            pipeline_def=pipeline_def,
+            argv=argv,
+        )
+        
+        module_cls = ModuleRegistry.get("preprocess")
+        module = module_cls(context)
+        
+        # Pass the full list of templates as 'steps'
+        module.set_invocation_params({
+            "preprocess_template": resolved_preprocess_template,
+            "steps": preprocess_templates,
+            "quiet_preprocess_panel": quiet_preprocess_panel,
+            "cache": getattr(config, "cache", False),
+            "pipeline": True # Ensure preprocess.py enters pipeline mode
+        })
+        
+        executor = PipelineExecutor({"preprocess": module})
+        module_results = executor.run_module("preprocess", force=force, skip_deps=False)
+        result = module_results.get("preprocess")
+        
+        # Map result to all virtual steps for the return value
+        for tpl in preprocess_templates:
+            results[f"preprocess-{tpl}"] = result
+            
+        # The physical results are in the last step folder (handled inside preprocess.py)
+        final_exp_dir = chain_base_dir / last_step_subpath
+        return (0 if result.success else 1), results, final_exp_dir, preprocess_templates
 
     execution_start_idx = 0
 

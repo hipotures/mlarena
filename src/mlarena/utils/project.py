@@ -68,15 +68,14 @@ def data_paths(config_module) -> Tuple[Path, Path]:
             data_dir = Path(train).parent
         
         if data_dir:
-            # Try .csv.gz first, then .csv
-            gz_path = Path(data_dir) / "train.csv.gz"
-            csv_path = Path(data_dir) / "train.csv"
-            if gz_path.exists():
-                train = gz_path
-            elif csv_path.exists():
-                train = csv_path
-            elif train is None:
-                train = gz_path # Default to .gz if neither exists
+            # Try extensions in priority order
+            for ext in [".parquet", ".csv.gz", ".csv"]:
+                p = Path(data_dir) / f"train{ext}"
+                if p.exists():
+                    train = p
+                    break
+            if train is None:
+                train = Path(data_dir) / "train.csv.gz" # Default fallback
 
     if test is None or not Path(test).exists():
         data_dir = getattr(config_module, "DATA_DIR", None)
@@ -84,14 +83,12 @@ def data_paths(config_module) -> Tuple[Path, Path]:
             data_dir = Path(test).parent
             
         if data_dir:
-            # Try .csv.gz first, then .csv
-            gz_path = Path(data_dir) / "test.csv.gz"
-            csv_path = Path(data_dir) / "test.csv"
-            if gz_path.exists():
-                test = gz_path
-            elif csv_path.exists():
-                test = csv_path
-            elif test is None:
-                test = gz_path # Default to .gz if neither exists
+            for ext in [".parquet", ".csv.gz", ".csv"]:
+                p = Path(data_dir) / f"test{ext}"
+                if p.exists():
+                    test = p
+                    break
+            if test is None:
+                test = Path(data_dir) / "test.csv.gz" # Default fallback
 
     return Path(train), Path(test)

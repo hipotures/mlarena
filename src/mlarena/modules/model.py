@@ -45,18 +45,31 @@ def _load_processed_or_raw(
     sample_weight = None
 
     def _load_from_exp_dir(exp_dir: Path):
-        train_path = exp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
-        test_path = exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
-        orig_path = exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
-        tuning_path = exp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
+        def _find_path(base_name: str) -> Optional[Path]:
+            base = exp_dir / "artifacts" / "preprocess" / base_name
+            for ext in [".parquet", ".csv.gz", ".csv"]:
+                p = base.with_suffix(ext)
+                if p.exists():
+                    return p
+            return None
 
-        if not train_path.exists():
+        train_path = _find_path("train_processed")
+        test_path = _find_path("test_processed")
+        orig_path = _find_path("orig_processed")
+        tuning_path = _find_path("tuning_processed")
+
+        if not train_path:
             return None, None, None, None, None
 
-        train_df_local = pd.read_csv(train_path, compression='infer')
-        test_df_local = pd.read_csv(test_path, compression='infer') if test_path.exists() else None
-        orig_df_local = pd.read_csv(orig_path, compression='infer') if orig_path.exists() else None
-        tuning_df_local = pd.read_csv(tuning_path, compression='infer') if tuning_path.exists() else None
+        def _read_df(p: Path):
+            if p.suffix == ".parquet":
+                return pd.read_parquet(p)
+            return pd.read_csv(p, compression='infer')
+
+        train_df_local = _read_df(train_path)
+        test_df_local = _read_df(test_path) if test_path else None
+        orig_df_local = _read_df(orig_path) if orig_path else None
+        tuning_df_local = _read_df(tuning_path) if tuning_path else None
 
         sample_weight_local = None
         state_path = exp_dir / "state.json"

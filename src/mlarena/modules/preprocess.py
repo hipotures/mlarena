@@ -8,6 +8,12 @@ from __future__ import annotations
 import importlib.util
 import json
 import pickle
+import warnings
+import contextlib
+import io
+import time
+import sys
+import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -65,8 +71,10 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         return self
         
     def transform(self, X: MLArenaDataContainer) -> MLArenaDataContainer:
-        console = Console(force_terminal=True)
-        console.print(f"[bold cyan]Pipeline Step:[/bold cyan] {self.step_name}")
+        start_time = time.time()
+        # Use original stdout to ensure progress is visible even if modules are redirected
+        console = Console(file=sys.__stdout__, force_terminal=True)
+        console.print(f"[bold cyan]Pipeline Step:[/bold cyan] {self.step_name}...", end="")
         
         # 1. Resolve configuration
         # Support inline config or template reference
@@ -75,7 +83,6 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         
         if template_name:
             # Load referenced template
-            import sys
             from pathlib import Path as P
             REPO_ROOT = P(__file__).resolve().parents[3]
             sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -102,11 +109,16 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         try:
             preprocess_module = self.loader_instance._load_preprocessing_module(module_name)
             
-            # Prepare config
-            step_artifact_dir = self.context.artifact_dir / "steps" / self.step_name
+            # Prepare standard directory structure for this step
+            # If we are in unified pipeline mode, self.context.experiment_dir points to the LAST step.
+            # We want all step folders to be siblings.
+            step_dir = self.context.experiment_dir.parent / self.step_name
+            step_artifact_dir = step_dir / "artifacts" / "preprocess"
             step_artifact_dir.mkdir(parents=True, exist_ok=True)
             
             preprocess_config = template_cfg.get("config", {}).copy()
+            if self.loader_instance.invocation_params.get("quiet_preprocess_panel"):
+                preprocess_config["quiet"] = True
             preprocess_config["_artifact_dir"] = str(step_artifact_dir)
             preprocess_config["_dataset"] = {
                 "id_column": getattr(self.context.config_module, "ID_COLUMN", "id"),
@@ -115,12 +127,9 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 "problem_type": getattr(self.context.config_module, "AUTOGLUON_PROBLEM_TYPE", "binary"),
             }
             # Pass aggregated original features
-            # TODO: Update original features if this step adds/removes them? 
-            # Usually original_features are static from raw data.
             preprocess_config["_original_features"] = X.state.get("custom_module_state", {}).get("original_features")
 
             # 3. Execute fit_transform
-            # Inspect signature
             import inspect
             fit_sig = inspect.signature(preprocess_module.fit_transform)
             params = fit_sig.parameters
@@ -138,7 +147,6 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                     orig_df=X.orig,
                 )
             else:
-                # Legacy handling
                 combined_test = X.test
                 test_len = len(X.test)
                 if X.eval is not None:
@@ -184,38 +192,59 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                     new_test = combined_res
 
             # Update container
-            # Only update if returned not None (some modules might return None for optional dfs)
-            # But usually fit_transform returns modified DFs.
             if new_train is not None: X.train = new_train
             if new_test is not None: X.test = new_test
-            # Handle optionals: if module dropped them (returned None), we keep None? 
-            # Or assume module handles passing them through?
-            # Standard convention: return transformed DF or None.
-            # If input was not None and output is None -> module dropped it? Unlikely.
-            # Safe update:
             X.val = new_val if new_val is not None else X.val
             X.eval = new_eval if new_eval is not None else X.eval
             X.orig = new_orig if new_orig is not None else X.orig
             
             # 5. Merge State
-            # Aggregate critical keys into custom_module_state
             if "custom_module_state" not in X.state:
                 X.state["custom_module_state"] = {}
                 
-            # Merge known compatibility keys
             for key in ["weights_path", "eval_path", "original_features"]:
                 if key in custom_preprocess_state:
                     X.state["custom_module_state"][key] = custom_preprocess_state[key]
             
-            # Add step history
-            if "pipeline_steps" not in X.state:
-                X.state["pipeline_steps"] = []
-            
-            X.state["pipeline_steps"].append({
+            step_info = {
                 "step": self.step_name,
                 "module": module_name,
                 "state": custom_preprocess_state
-            })
+            }
+            if "pipeline_steps" not in X.state:
+                X.state["pipeline_steps"] = []
+            X.state["pipeline_steps"].append(step_info)
+
+            # 6. Save Step-Specific state.json (for trackers/compatibility)
+            # This satisfies the requirement that scripts depend on state.json in step folders
+            step_payload = {
+                "template": template_name or self.step_name,
+                "input_source": None, # In-memory, no disk source
+                "cached": False,
+                "shapes": {
+                    "train_after": X.train.shape,
+                    "test_after": X.test.shape,
+                },
+                "custom_module_state": custom_preprocess_state
+            }
+            
+            step_state_data = {
+                "experiment_id": self.context.experiment_id,
+                "project": self.context.project_name,
+                "status": "completed",
+                "modules": {
+                    "preprocess": {
+                        "status": "completed",
+                        "payload": step_payload
+                    }
+                }
+            }
+            with open(step_dir / "state.json", "w") as f:
+                json.dump(step_state_data, f, indent=2)
+
+            duration = time.time() - start_time
+            console = Console(file=sys.__stdout__, force_terminal=True)
+            console.print(f" [bold green]done[/bold green] ([dim]{duration:.1f}s[/dim])")
 
         except Exception as e:
             console.print(f"[red]Error in step {self.step_name}:[/red] {e}")
@@ -251,7 +280,6 @@ class PreprocessModule(BaseModule):
             return False, f"preprocess_template should be string, got list: {template_name}"
 
         # Check if template exists by trying to load it
-        import sys
         from pathlib import Path as P
         REPO_ROOT = P(__file__).resolve().parents[3]
         sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -293,7 +321,6 @@ class PreprocessModule(BaseModule):
         # Many project preprocess modules do `import adversarial_validation` (from code/utils)
         # or `import categorical_utils` (from mlarena/defaults/preprocessing). Without these paths,
         # imports fail because modules are loaded via spec_from_file_location (not a package).
-        import sys
 
         # Repository root (resolve from this file's location)
         from pathlib import Path as P
@@ -454,15 +481,24 @@ class PreprocessModule(BaseModule):
             # Load from previous preprocessing step (within same chain)
             # input_source already contains index (e.g., "0-noop")
             prev_exp_dir = self.context.project_root / "experiments" / chain_exp_id / input_source
-            train_path = prev_exp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
-            test_path = prev_exp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
-            orig_path = prev_exp_dir / "artifacts" / "preprocess" / "orig_processed.csv.gz"
-            tuning_path = prev_exp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
-            eval_path = prev_exp_dir / "artifacts" / "preprocess" / "eval_processed.csv.gz"
-
-            if not train_path.exists():
+            
+            def _find_path(base_name: str) -> Optional[Path]:
+                base = prev_exp_dir / "artifacts" / "preprocess" / base_name
+                for ext in [".parquet", ".csv.gz", ".csv"]:
+                    p = base.with_suffix(ext)
+                    if p.exists():
+                        return p
+                return None
+    
+            train_path = _find_path("train_processed")
+            test_path = _find_path("test_processed")
+            orig_path = _find_path("orig_processed")
+            tuning_path = _find_path("tuning_processed")
+            eval_path = _find_path("eval_processed")
+    
+            if not train_path:
                 raise FileNotFoundError(
-                    f"Previous preprocessing output not found: {train_path}\n"
+                    f"Previous preprocessing output not found in: {prev_exp_dir}\n"
                     f"Chain broken: {input_source} must complete before {template_name}\n"
                     f"Chain experiment: {chain_exp_id}"
                 )
@@ -491,11 +527,17 @@ class PreprocessModule(BaseModule):
                 marker.write_text("Missing train/test; preprocess skipped.")
                 return ModuleResult(success=True, payload={"skipped": True, "input_source": input_source}, artifacts=[marker])
 
-        train_df = pd.read_csv(train_path, compression='infer')
-        test_df = pd.read_csv(test_path, compression='infer')
-        orig_df = pd.read_csv(orig_path, compression='infer') if orig_path and orig_path.exists() else None
-        tuning_df = pd.read_csv(tuning_path, compression='infer') if tuning_path and tuning_path.exists() else None
-        eval_df = pd.read_csv(eval_path, compression='infer') if eval_path and eval_path.exists() else None
+        def _read_df(p: Optional[Path]):
+            if p is None: return None
+            if p.suffix == ".parquet":
+                return pd.read_parquet(p)
+            return pd.read_csv(p, compression='infer')
+
+        train_df = _read_df(train_path)
+        test_df = _read_df(test_path)
+        orig_df = _read_df(orig_path)
+        tuning_df = _read_df(tuning_path)
+        eval_df = _read_df(eval_path)
 
         # Store original shapes
         orig_train_shape = train_df.shape
@@ -534,7 +576,6 @@ class PreprocessModule(BaseModule):
                 raise RuntimeError(f"Failed to load preprocess_template_path: {template_path} ({e})")
 
         if template_cfg is None:
-            import sys
             from pathlib import Path as P
             REPO_ROOT = P(__file__).resolve().parents[3]
             sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -544,7 +585,14 @@ class PreprocessModule(BaseModule):
             template_cfg = templates.get(template_name, {})
 
         # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK START <<<<<<
-        if template_cfg and "steps" in template_cfg:
+        pipeline_definition = template_cfg.get("steps")
+        
+        # Allow running existing 'chain' templates as unified pipeline if requested via flag
+        if pipeline_definition is None and template_cfg.get("chain"):
+            if self.invocation_params.get("pipeline") or self.invocation_params.get("fuse"):
+                pipeline_definition = template_cfg.get("chain")
+
+        if pipeline_definition:
             console.print(f"\n[bold magenta]Starting Unified Pipeline Execution[/bold magenta] (In-Memory)")
             
             # 1. Initialize Container
@@ -568,26 +616,56 @@ class PreprocessModule(BaseModule):
             
             # 2. Build Pipeline
             pipeline_steps = []
-            for idx, step_cfg in enumerate(template_cfg["steps"]):
-                step_name = step_cfg.get("name", f"step_{idx}")
+            for idx, step_item in enumerate(pipeline_definition):
+                if isinstance(step_item, str):
+                    step_cfg = {"template": step_item}
+                    # Generate a readable name e.g. "0-imputer"
+                    step_name = f"{idx}-{step_item}"
+                elif isinstance(step_item, dict):
+                    step_cfg = step_item
+                    step_name = step_cfg.get("name", f"step_{idx}")
+                else:
+                    raise ValueError(f"Invalid step format: {step_item}")
+
                 wrapper = MLArenaStepWrapper(step_name, step_cfg, self.context, self)
                 pipeline_steps.append((step_name, wrapper))
                 
             pipeline = Pipeline(pipeline_steps)
             
             # 3. Execute
-            final_container = pipeline.fit_transform(container)
+            quiet_mode = self.invocation_params.get("quiet_preprocess_panel")
             
-            # 4. Save Artifacts (One-Time IO)
-            console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts...")
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                warnings.simplefilter("ignore", category=UserWarning)
+                
+                if quiet_mode:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        final_container = pipeline.fit_transform(container)
+                else:
+                    final_container = pipeline.fit_transform(container)
             
-            final_container.train.to_csv(processed_train, index=False, compression='infer')
-            final_container.test.to_csv(processed_test, index=False, compression='infer')
+            # 4. Determine Target Directory
+            # Since main.py now points context.artifact_dir to the last step,
+            # we can use it directly for final datasets.
+            # But we still want to ensure step folder consistency.
+            
+            target_dir = self.context.artifact_dir
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+            # The last step name is from the pipeline_steps list
+            last_step_full_name = pipeline_steps[-1][0]
+            
+            console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts to [cyan]{last_step_full_name}[/cyan]...")
+            
+            # Use Parquet for performance (no string conversion, fast binary write)
+            final_container.train.to_parquet(target_dir / "train_processed.parquet", index=False)
+            final_container.test.to_parquet(target_dir / "test_processed.parquet", index=False)
             
             processed_eval = None
             if final_container.eval is not None:
-                processed_eval = artifact_dir / "eval_processed.csv.gz"
-                final_container.eval.to_csv(processed_eval, index=False, compression='infer')
+                processed_eval = target_dir / "eval_processed.parquet"
+                final_container.eval.to_parquet(processed_eval, index=False)
                 # Update path in state
                 if "custom_module_state" not in final_container.state:
                     final_container.state["custom_module_state"] = {}
@@ -595,13 +673,13 @@ class PreprocessModule(BaseModule):
                 
             processed_orig = None
             if final_container.orig is not None:
-                processed_orig = artifact_dir / "orig_processed.csv.gz"
-                final_container.orig.to_csv(processed_orig, index=False, compression='infer')
+                processed_orig = target_dir / "orig_processed.parquet"
+                final_container.orig.to_parquet(processed_orig, index=False)
                 
             processed_tuning_final = None
             if final_container.val is not None:
-                processed_tuning_final = artifact_dir / "tuning_processed.csv.gz"
-                final_container.val.to_csv(processed_tuning_final, index=False, compression='infer')
+                processed_tuning_final = target_dir / "tuning_processed.parquet"
+                final_container.val.to_parquet(processed_tuning_final, index=False)
                 
             # 5. Build Result Payload
             shapes_dict = {
@@ -610,11 +688,12 @@ class PreprocessModule(BaseModule):
                 "test_before": final_container.initial_shapes["test"],
                 "test_after": final_container.test.shape,
                 "pipeline_mode": True,
+                "last_step": last_step_full_name,
             }
             
             payload = {
-                "train_processed": str(processed_train),
-                "test_processed": str(processed_test),
+                "train_processed": str(target_dir / "train_processed.parquet"),
+                "test_processed": str(target_dir / "test_processed.parquet"),
                 "orig_processed": str(processed_orig) if processed_orig else None,
                 "tuning_processed": str(processed_tuning_final) if processed_tuning_final else None,
                 "eval_processed": str(processed_eval) if processed_eval else None,
@@ -627,7 +706,10 @@ class PreprocessModule(BaseModule):
                 "pipeline_steps": final_container.state.get("pipeline_steps", [])
             }
             
-            artifacts_list = [processed_train, processed_test]
+            # Note: state.json for the last step is handled by the executor itself
+            # because this module IS the last step in its context.
+
+            artifacts_list = [target_dir / "train_processed.csv.gz", target_dir / "test_processed.csv.gz"]
             if processed_orig: artifacts_list.append(processed_orig)
             if processed_tuning_final: artifacts_list.append(processed_tuning_final)
             if processed_eval: artifacts_list.append(processed_eval)

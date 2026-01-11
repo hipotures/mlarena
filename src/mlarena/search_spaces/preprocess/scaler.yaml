@@ -27,3 +27,4 @@ variants:
     params:
       scaling_method: {type: choice, values: [quantile_uniform]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+requires_preproc: [{group: imputer}]

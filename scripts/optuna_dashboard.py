@@ -853,7 +853,10 @@ class TrialInspector(Screen):
                 p_node.add(f"Use GPU: {payload.get('use_gpu')}", allow_expand=False)
                 p_node.add(f"Model Template: {payload.get('template')}", allow_expand=False)
                 p_node.add(f"Preprocess Template: {payload.get('preprocess_template')}", allow_expand=False)
-                p_node.add(f"Tuning Rows: {cms.get('tuning_rows')}", allow_expand=False)
+                
+                # Try getting tuning_rows from payload or custom_module_state
+                t_rows = payload.get("tuning_rows") or cms.get("tuning_rows")
+                p_node.add(f"Tuning Rows: {t_rows}", allow_expand=False)
 
             # 3. Shapes
             payload = mod_info.get("payload", {})

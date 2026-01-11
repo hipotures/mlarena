@@ -274,7 +274,7 @@ def _build_parser(add_help: bool = True) -> argparse.ArgumentParser:
     parser.add_argument("--exp-id", "-e", help="Experiment ID to resume")
     parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
     parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
-    parser.add_argument("--pipeline", action="store_true", help="Execute chain as a single in-memory pipeline")
+    parser.add_argument("--classic", action="store_true", help="Execute chain step-by-step using intermediate files (legacy mode)")
     return parser
 
 
@@ -361,6 +361,7 @@ def run_preprocess_chain(
     pipeline_def: Dict,
     argv: List[str],
     console,
+    standalone: bool = True,
 ) -> Tuple[int, Dict[str, ModuleResult], Optional[Path], List[str]]:
     """
     Execute a chain of preprocessing templates with content-addressed caching.
@@ -495,9 +496,22 @@ def run_preprocess_chain(
         return (0 if result.success else 1), results, final_preprocess_exp_dir, preprocess_templates
 
 
-    # Determine if we should run in UNIFIED PIPELINE mode
-    use_pipeline = bool(getattr(config, "pipeline", False)) or "--pipeline" in argv
+    # Determine if we should run in UNIFIED PIPELINE mode (now the default)
+    # Disabled only if --classic is present or explicitly disabled in config
+    use_classic = bool(getattr(config, "classic", False)) or "--classic" in argv
+    use_pipeline = not use_classic
     
+    # Check for deprecated or unknown flags in argv
+    if "--pipeline" in argv:
+        console.print("[bold red]✗ Error:[/bold red] The [yellow]--pipeline[/yellow] flag has been removed. Unified Pipeline is now the [bold]default[/bold] mode. Use [cyan]--classic[/cyan] for legacy behavior.")
+        return 1, {}, None, []
+
+    if standalone:
+        unsupported_flags = [a for a in argv if a.startswith("--") and a not in ["--classic", "--force", "--lock", "--cache", "--preprocess-template"]]
+        if unsupported_flags:
+            console.print(f"[bold red]✗ Error:[/bold red] Unknown preprocessing arguments: [yellow]{', '.join(unsupported_flags)}[/yellow]")
+            return 1, {}, None, []
+
     if use_pipeline and len(preprocess_templates) > 1:
         console.print(f"[bold magenta]⚡ Unified Pipeline Enabled: Executing {len(preprocess_templates)} steps in-memory[/bold magenta]")
         
@@ -528,7 +542,7 @@ def run_preprocess_chain(
             "steps": preprocess_templates,
             "quiet_preprocess_panel": quiet_preprocess_panel,
             "cache": getattr(config, "cache", False),
-            "pipeline": True # Ensure preprocess.py enters pipeline mode
+            "classic": use_classic # Pass classic flag status
         })
         
         executor = PipelineExecutor({"preprocess": module})
@@ -1264,7 +1278,7 @@ def main(argv: List[str] | None = None) -> int:
         if resolved_preprocess_template:
             config.preprocess_template = resolved_preprocess_template
             exit_code, chain_results, final_preprocess_exp_dir, preprocess_templates = run_preprocess_chain(
-                project_root, project, config, config_module, pipeline_def, argv, console
+                project_root, project, config, config_module, pipeline_def, argv, console, standalone=False
             )
             if exit_code != 0:
                 return exit_code

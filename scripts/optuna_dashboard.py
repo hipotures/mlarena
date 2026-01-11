@@ -12,6 +12,8 @@ import sys
 import time
 import os
 import logging
+import gzip
+import csv
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set
@@ -749,16 +751,7 @@ class TrialInspector(Screen):
             step_node = pre_node.add(f"📁 {step_dir.name}", expand=False)
             self._add_step_details(step_node, step_dir)
 
-        # 2. Model
-        model_dir = self.trial_dir / "model" # Or optuna_model
-        if not model_dir.exists():
-            model_dir = self.trial_dir / "optuna_model"
-        
-        if model_dir.exists():
-            mod_node = root.add(f"📁 {model_dir.name}", expand=True)
-            self._add_step_details(mod_node, model_dir)
-            
-        # 3. Metrics
+        # 2. Metrics (Moved up)
         metrics_file = self.trial_dir / "metrics.json"
         if metrics_file.exists():
             # Stop refreshing if metrics found
@@ -787,6 +780,15 @@ class TrialInspector(Screen):
             except:
                 pass
 
+        # 3. Model (Moved down)
+        model_dir = self.trial_dir / "model" # Or optuna_model
+        if not model_dir.exists():
+            model_dir = self.trial_dir / "optuna_model"
+        
+        if model_dir.exists():
+            mod_node = root.add(f"📁 {model_dir.name}", expand=True)
+            self._add_step_details(mod_node, model_dir)
+
     def _add_step_details(self, node: TreeNode, step_dir: Path) -> None:
         state_path = step_dir / "state.json"
         if not state_path.exists():
@@ -805,13 +807,7 @@ class TrialInspector(Screen):
 
             # Find the most relevant module (preprocess or model)
             modules = state.get("modules", {})
-            if "preprocess" in modules:
-                mod_name = "preprocess"
-            elif "model" in modules:
-                mod_name = "model"
-            else:
-                # Fallback to last module added
-                mod_name = list(modules.keys())[-1] if modules else "unknown"
+            mod_name = "preprocess" if "preprocess" in modules else "model" if "model" in modules else list(modules.keys())[-1] if modules else "unknown"
             
             mod_info = modules.get(mod_name, {})
             status = mod_info.get("status", "unknown")
@@ -824,7 +820,7 @@ class TrialInspector(Screen):
                 frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
                 node.set_label(f"{base_label} {frame}")
 
-            # 1. Duration (modules.X.finished_at - modules.X.started_at)
+            # 1. Duration
             start_str = mod_info.get("started_at")
             end_str = mod_info.get("finished_at")
             if start_str and end_str:
@@ -836,41 +832,69 @@ class TrialInspector(Screen):
                 except Exception:
                     pass
 
-            # 2. Shapes (modules.X.payload.shapes)
+            # 2. Model-specific Details (Requested)
+            if mod_name == "model":
+                payload = mod_info.get("payload", {})
+                cms = payload.get("custom_module_state", {})
+                
+                # Extract problem_type and metric from 'init' module if available in state
+                init_mod = modules.get("init", {})
+                init_payload = init_mod.get("payload", {})
+                problem_type = init_payload.get("problem_type")
+                metric = init_payload.get("metric")
+
+                # Preset, time_limit, use_gpu, template, preprocess_template, tuning_rows
+                p_node = node.add("📝 Info")
+                if problem_type: p_node.add(f"Problem: {problem_type}", allow_expand=False)
+                if metric: p_node.add(f"Metric: {metric}", allow_expand=False)
+                p_node.add(f"Preset: {payload.get('preset')}", allow_expand=False)
+                p_node.add(f"Time Limit: {payload.get('time_limit')}", allow_expand=False)
+                p_node.add(f"Use GPU: {payload.get('use_gpu')}", allow_expand=False)
+                p_node.add(f"Model Template: {payload.get('template')}", allow_expand=False)
+                p_node.add(f"Preprocess Template: {payload.get('preprocess_template')}", allow_expand=False)
+                p_node.add(f"Tuning Rows: {cms.get('tuning_rows')}", allow_expand=False)
+
+            # 3. Shapes
             payload = mod_info.get("payload", {})
             shapes = payload.get("shapes", {})
             if shapes:
                 s_node = node.add("📐 Shapes")
-                # Find all prefixes that have _before and _after
-                prefixes = set()
-                for k in shapes.keys():
-                    if k.endswith("_before"):
-                        prefixes.add(k[:-7])
-                    elif k.endswith("_after"):
-                        prefixes.add(k[:-6])
-                
-                for p in sorted(list(prefixes)):
-                    b = shapes.get(f"{p}_before")
-                    a = shapes.get(f"{p}_after")
-                    if b or a:
-                        label = p.capitalize()
-                        s_node.add(f"{label}: {b} -> {a}", allow_expand=False)
+                prefixes = sorted({k[:-7] if k.endswith("_before") else k[:-6] for k in shapes if k.endswith(("_before", "_after"))})
+                for p in prefixes:
+                    b, a = shapes.get(f"{p}_before"), shapes.get(f"{p}_after")
+                    if b or a: s_node.add(f"{p.capitalize()}: {b} -> {a}", allow_expand=False)
 
-            # 3. Config (modules.X.invocation...config)
-            config_data = None
+            # 4. Config / Invocation (Pretty Print)
             invocation = mod_info.get("invocation", {})
-            if "preprocess_template_config" in invocation:
-                config_data = invocation["preprocess_template_config"].get("config")
-            elif "model_template_config" in invocation:
-                config_data = invocation["model_template_config"].get("config")
-            elif "config" in invocation:
-                config_data = invocation["config"]
-            
+            if invocation:
+                i_node = node.add("⚙ Invocation")
+                for line in json.dumps(invocation, indent=2).splitlines():
+                    i_node.add(line, allow_expand=False)
+
+            config_data = invocation.get("preprocess_template_config", {}).get("config") or invocation.get("model_template_config", {}).get("config") or invocation.get("config")
             if config_data:
-                c_node = node.add("⚙ Config")
-                pretty_json = json.dumps(config_data, indent=2)
-                for line in pretty_json.splitlines():
+                c_node = node.add("🛠 Config")
+                for line in json.dumps(config_data, indent=2).splitlines():
                     c_node.add(line, allow_expand=False)
+
+            # 5. Leaderboard (Artifact)
+            lb_path = step_dir / "artifacts" / mod_name / "leaderboard.csv.gz"
+            if lb_path.exists():
+                try:
+                    with gzip.open(lb_path, "rt") as f:
+                        reader = csv.DictReader(f)
+                        lb_node = node.add("🏆 Leaderboard")
+                        count = 0
+                        for row in reader:
+                            m_name = row.get("model", "unknown")
+                            s_val = row.get("score_val", "-")
+                            try: s_val = f"{float(s_val):.5f}"
+                            except: pass
+                            lb_node.add(f"{m_name}: {s_val}", allow_expand=False)
+                            count += 1
+                            if count >= 10: break
+                except Exception as e:
+                    node.add(f"Error reading leaderboard: {e}", allow_expand=False)
 
         except Exception as e:
             node.add(f"Error: {e}", allow_expand=False)

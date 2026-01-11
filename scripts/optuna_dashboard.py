@@ -615,6 +615,7 @@ class TrialInspector(Screen):
         ("escape", "app.pop_screen", "Back"),
         ("c", "copy_tree", "Copy Branch"),
         ("ctrl+insert", "copy_tree", "Copy Branch"),
+        ("e", "reset_tree", "Reset Tree"),
     ]
     # Full perimeter spinner including bottom dots (7, 8) for maximum height
     SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]
@@ -631,6 +632,21 @@ class TrialInspector(Screen):
         self._last_data_refresh = 0.0
         self._last_full_rebuild = 0
         self._running_nodes = []  # List of (node, base_label) for animation
+
+    def action_reset_tree(self) -> None:
+        """Restores the tree to its initial state: headings expanded, details collapsed."""
+        try:
+            tree = self.query_one("#flow_tree")
+            # Collapse all first
+            tree.root.collapse_all()
+            # Expand root
+            tree.root.expand()
+            # Expand all top-level sections (Preprocessing, Metrics, Model)
+            for child in tree.root.children:
+                child.expand()
+            self.app.notify("Tree view reset to default.")
+        except Exception as e:
+            self.app.notify(f"Reset failed: {e}", severity="error")
 
     def _animate_running_nodes(self) -> None:
         """Updates labels of running nodes with the current spinner frame."""

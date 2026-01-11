@@ -165,7 +165,7 @@ class DashboardScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Container(
-            Label(f"Database: {self.db_path} | v{DASHBOARD_VERSION}", id="db_label"),
+            Label(f"{self.db_path}", id="db_label"),
             Horizontal(
                 Vertical(
                     Static(id="study_header"),
@@ -552,8 +552,13 @@ class DashboardScreen(Screen):
 
 
 class TrialInspector(Screen):
-    BINDINGS = [("escape", "app.pop_screen", "Back")]
-    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Back"),
+        ("ctrl+insert", "copy_tree", "Copy Tree"),
+        ("c", "copy_tree", "Copy Tree"),
+    ]
+    # Full perimeter spinner including bottom dots (7, 8) for maximum height
+    SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]
 
     def __init__(self, project_root: Path, study_name: str, trial_id: str):
         super().__init__()
@@ -564,8 +569,51 @@ class TrialInspector(Screen):
         self.refresh_timer = None
         self.state_cache = {}  # Cache for state.json contents
         self.spinner_idx = 0
-        self._running_nodes = []
         self._last_data_refresh = 0.0
+        self._last_full_rebuild = 0
+        self._running_nodes = []  # List of (node, base_label) for animation
+
+    def _animate_running_nodes(self) -> None:
+        """Updates labels of running nodes with the current spinner frame."""
+        frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
+        for node, base_label in self._running_nodes:
+            try:
+                node.set_label(f"{base_label} {frame}")
+            except:
+                pass
+
+    def action_copy_tree(self) -> None:
+        """Serializes the selected node structure to text and copies to clipboard with proper branch characters."""
+        try:
+            tree = self.query_one("#flow_tree")
+            start_node = tree.cursor_node if tree.cursor_node else tree.root
+            lines = []
+
+            def walk(node: TreeNode, prefix: str = "", is_last: bool = True, is_root: bool = True):
+                label = str(node.label)
+                # Clean up icons and spinners
+                clean_label = label.replace("📁 ", "").replace("📐 ", "").replace("⚙ ", "").replace("📊 ", "").replace("📄 ", "")
+                for frame in self.SPINNER_FRAMES:
+                    clean_label = clean_label.replace(f" {frame}", "")
+
+                if is_root:
+                    lines.append(clean_label)
+                    new_prefix = ""
+                else:
+                    connector = "└── " if is_last else "├── "
+                    lines.append(f"{prefix}{connector}{clean_label}")
+                    new_prefix = prefix + ("    " if is_last else "│   ")
+
+                children = list(node.children)
+                for i, child in enumerate(children):
+                    walk(child, new_prefix, is_last=(i == len(children) - 1), is_root=False)
+
+            walk(start_node)
+            tree_text = "\n".join(lines)
+            self.app.copy_to_clipboard(tree_text)
+            self.app.notify("Tree structure (1:1) copied to clipboard!")
+        except Exception as e:
+            self.app.notify(f"Failed to copy tree: {e}", severity="error")
 
     def _find_trial_dir(self) -> Optional[Path]:
         # Search pattern: experiments/optuna_<study_name>/trial_<id>

@@ -205,10 +205,10 @@ class DashboardScreen(Screen):
     def update_data(self) -> None:
         try:
             if not self.db_path.exists():
-                msg = f"DB not found: {self.db_path}"
-                self.query_one("#study_stats").update(msg)
+                msg = f"Database not found at:\n{self.db_path}"
+                self.query_one("#study_header").update("[bold red]⚠ DB Missing[/bold red]")
+                self.query_one("#study_body").update(msg)
                 logging.warning(msg)
-                self.query_one("#error_log").write_line(msg)
                 return
 
             with _connect_read_only(self.db_path) as conn:
@@ -218,10 +218,11 @@ class DashboardScreen(Screen):
                 study = self._choose_study(studies, self.target_study_name)
                 
                 if not study:
-                    msg = "No study found."
+                    msg = "No study found in database."
                     if self.target_study_name:
-                        msg += f" Target: {self.target_study_name}"
-                    self.query_one("#study_stats").update(msg)
+                        msg += f"\nTarget: {self.target_study_name}"
+                    self.query_one("#study_header").update("[bold yellow]❓ No Study[/bold yellow]")
+                    self.query_one("#study_body").update(msg)
                     logging.warning(msg)
                     return
 
@@ -236,10 +237,10 @@ class DashboardScreen(Screen):
                 self._check_best_score(study)
         except Exception as e:
             err_msg = f"Error in update_data: {e}"
-            self.query_one("#study_stats").update(err_msg)
             logging.error(err_msg, exc_info=True)
             try:
-                self.query_one("#error_log").write_line(err_msg)
+                self.query_one("#study_header").update("[bold red]❌ Error[/bold red]")
+                self.query_one("#study_body").update(str(e))
             except:
                 pass
 
@@ -270,23 +271,19 @@ class DashboardScreen(Screen):
         trials_table = self.query_one("#trials_table")
         prev_row_key = self.last_trial_row_key
         trials_table.clear()
+        
+        # Calculate dynamic limit based on screen height
+        # Subtract Header(1), Footer(1), DB Label(2), DB Gap(1), Table Header(2) = ~7-10 lines
+        available_height = self.size.height - 10
+        if available_height < 5: available_height = 5
+
         running_trials = [
             t for t in trials
             if _normalize_state(t.get("state")) in (0, 4)
         ]
-        if logging.getLogger().isEnabledFor(logging.DEBUG):
-            try:
-                states = sorted({str(t.get("state")) for t in trials})
-                running_nums = [t.get("number") for t in running_trials]
-                logging.debug(
-                    f"Running trials in recent: {len(running_trials)}; "
-                    f"states={states}; running_numbers={running_nums}"
-                )
-            except Exception:
-                pass
         running_trials.sort(key=lambda x: x["number"], reverse=True)
         
-        for t in running_trials[:8]:
+        for t in running_trials:
             state_code = _normalize_state(t.get("state"))
             state_label = STATE_MAP.get(state_code, str(t.get("state")))
             start_str = str(t["datetime_start"]) if t["datetime_start"] else "-"
@@ -302,6 +299,9 @@ class DashboardScreen(Screen):
                 key=str(t["number"])
             )
 
+        # How many slots left for completed trials?
+        slots_for_completed = max(5, available_height - len(running_trials))
+
         completed_trials = [t for t in trials if _normalize_state(t.get("state")) == 1]
 
         direction = (study.get("direction") or "MINIMIZE").upper()
@@ -316,7 +316,7 @@ class DashboardScreen(Screen):
 
         completed_trials.sort(key=_val_key, reverse=reverse)
 
-        for t in completed_trials[:10]:
+        for t in completed_trials[:slots_for_completed]:
             val_str = f"{float(t['value']):.5f}" if t['value'] is not None else "-"
             start_str = str(t["datetime_start"]) if t["datetime_start"] else "-"
             if len(start_str) > 19:
@@ -479,12 +479,12 @@ class DashboardScreen(Screen):
 
         result = []
         
-        # 1. Fetch RUNNING trials (limit 8)
+        # 1. Fetch ALL RUNNING/WAITING trials
         sql_running = (
             "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, NULL as value "
             "FROM trials t "
-            "WHERE t.study_id=? AND (t.state=0 OR UPPER(CAST(t.state AS TEXT))='RUNNING') "
-            "ORDER BY t.number DESC LIMIT 8"
+            "WHERE t.study_id=? AND (t.state=0 OR UPPER(CAST(t.state AS TEXT))='RUNNING' OR t.state=4 OR UPPER(CAST(t.state AS TEXT))='WAITING') "
+            "ORDER BY t.number DESC"
         )
         rows_running = conn.execute(sql_running, (study_id,)).fetchall()
         result.extend([dict(r) for r in rows_running])

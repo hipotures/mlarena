@@ -166,35 +166,39 @@ class DashboardScreen(Screen):
         yield Header(show_clock=True)
         yield Container(
             Label(f"Database: {self.db_path} | v{DASHBOARD_VERSION}", id="db_label"),
+            Static("", id="db_gap"),
             Horizontal(
-                Static(id="study_stats", classes="box"),
                 Vertical(
-                    Label("Trials (Running + Top Completed)", classes="section-title"),
-                    DataTable(id="trials_table", cursor_type="row"),
+                    Static(id="study_header"),
+                    Static(id="study_body"),
+                    id="study_stats",
+                    classes="box"
+                ),
+                Vertical(
+                    DataTable(
+                        id="trials_table",
+                        cursor_type="row",
+                        show_row_labels=False,
+                        cell_padding=1,
+                        zebra_stripes=False,
+                    ),
                     id="running_container",
                     classes="box"
                 ),
                 id="row1"
-            ),
-            Vertical(
-                Label("Logs", classes="section-title"),
-                Log(id="error_log"),
-                id="row2",
-                classes="box",
             ),
             id="main_container"
         )
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#trials_table").add_columns(
-            "ID",
-            "State",
-            "Local CV",
-            "Duration",
-            "CfgHash",
-            "Start"
-        )
+        table = self.query_one("#trials_table")
+        table.add_column("#", width=6)
+        table.add_column("State", width=10)
+        table.add_column("Local CV", width=10)
+        table.add_column("Duration", width=12)
+        table.add_column("CfgHash", width=10)
+        table.add_column("Start", width=20)
         self.set_interval(5, self.update_data)
         self.update_data()
 
@@ -241,18 +245,26 @@ class DashboardScreen(Screen):
 
     def _update_ui(self, study: Dict[str, Any], trials: List[Dict[str, Any]]) -> None:
         # Update Study Stats
-        stats_text = (
-            f"[bold]Study:[/bold] {study['name']}\n"
+        best_val = study.get("best_value")
+        if isinstance(best_val, (int, float)):
+            best_val_str = f"{best_val:.5f}"
+        elif best_val is None:
+            best_val_str = "-"
+        else:
+            best_val_str = str(best_val)
+        header_text = f"[bold]Study:[/bold] {study['name']}"
+        body_text = (
             f"[bold]Direction:[/bold] {study.get('direction', 'MINIMIZE')}\n"
             f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
             f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
             f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
             f"[bold]Waiting:[/bold] {study['counts'].get(4, 0)}\n"
             f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}\n"
-            f"[bold]Best Value:[/bold] {study['best_value']}\n"
+            f"[bold]Best Value:[/bold] {best_val_str}\n"
             f"[bold]Best Trial:[/bold] {study['best_trial']}"
         )
-        self.query_one("#study_stats").update(stats_text)
+        self.query_one("#study_header").update(header_text)
+        self.query_one("#study_body").update(body_text)
 
         # Update Trials Table (Running + Top Completed)
         trials_table = self.query_one("#trials_table")
@@ -277,13 +289,16 @@ class DashboardScreen(Screen):
         for t in running_trials[:8]:
             state_code = _normalize_state(t.get("state"))
             state_label = STATE_MAP.get(state_code, str(t.get("state")))
+            start_str = str(t["datetime_start"]) if t["datetime_start"] else "-"
+            if len(start_str) > 19:
+                start_str = start_str[:19]
             trials_table.add_row(
                 str(t["number"]),
                 state_label,
                 "-",
                 _duration_str(t["datetime_start"], None),
                 str(t.get("params_hash", "-")),
-                str(t["datetime_start"]) if t["datetime_start"] else "-",
+                start_str,
                 key=str(t["number"])
             )
 
@@ -303,13 +318,16 @@ class DashboardScreen(Screen):
 
         for t in completed_trials[:10]:
             val_str = f"{float(t['value']):.5f}" if t['value'] is not None else "-"
+            start_str = str(t["datetime_start"]) if t["datetime_start"] else "-"
+            if len(start_str) > 19:
+                start_str = start_str[:19]
             trials_table.add_row(
                 str(t["number"]),
                 "COMPLETE",
                 val_str,
                 _duration_str(t["datetime_start"], t["datetime_complete"]),
                 str(t.get("params_hash", "-")),
-                str(t["datetime_start"]) if t["datetime_start"] else "-",
+                start_str,
                 key=str(t["number"]) # Store number in key for selection
             )
 
@@ -789,9 +807,15 @@ class OptunaDashboard(App):
     #db_label {
         background: $primary;
         color: $text;
-        padding: 1;
+        padding: 1 1 0 1;
         width: 100%;
         height: auto;
+    }
+    #main_container {
+        padding-top: 0;
+    }
+    #db_gap {
+        height: 1;
     }
     .box {
         border: none;
@@ -799,17 +823,21 @@ class OptunaDashboard(App):
         margin: 0;
     }
     #row1 {
-        height: 55%;
+        height: 1fr;
         min-height: 10;
-    }
-    #row2 {
-        height: 45%;
     }
     #study_stats {
         width: 30%;
         height: 1fr;
         min-height: 6;
         overflow: auto;
+    }
+    #study_header {
+        background: #2a2a2a;
+        padding: 0 1;
+    }
+    #study_body {
+        padding: 0 1;
     }
     #running_container {
         width: 70%;
@@ -826,10 +854,11 @@ class OptunaDashboard(App):
     #trials_table {
         height: 1fr;
         min-height: 5;
+        background: transparent;
     }
-    #error_log {
-        height: 1fr;
-        border: none;
+    #trials_table > .datatable--header {
+        background: #2a2a2a;
+        border-bottom: solid #3a3a3a;
     }
     #inspector_header {
         height: 2;

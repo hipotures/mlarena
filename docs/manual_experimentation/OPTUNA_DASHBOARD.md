@@ -55,7 +55,35 @@ Clicking a trial opens a detailed tree view of its pipeline:
 - **Data Shapes**: Shows how dataset dimensions change at each step (e.g., `(1000, 20) -> (1000, 25)`).
 - **Artifacts**: Lists generated files.
 
-## Technical Implementation
+## Cleaning Zombie Trials
+
+If an optimization process is interrupted (e.g., system crash, worker killed), some trials may remain stuck in the `RUNNING` state in the database. These "zombie" trials can interfere with dashboard statistics and future runs.
+
+You can use the helper script `scripts/optuna_clean_zombie_running.py` to mark these stale trials as `FAIL`.
+
+### Usage Example
+
+```bash
+# Preview trials that haven't finished for more than 60 minutes
+python scripts/optuna_clean_zombie_running.py \
+  --db projects/kaggle/<PROJECT>/experiments/db/mla.db \
+  --study <STUDY_NAME> \
+  --cutoff-minutes 60 \
+  --dry-run
+
+# Apply changes (remove --dry-run)
+python scripts/optuna_clean_zombie_running.py \
+  --db projects/kaggle/<PROJECT>/experiments/db/mla.db \
+  --study <STUDY_NAME> \
+  --cutoff-minutes 60
+```
+
+- **--cutoff-minutes**: Defines how long a trial must be in `RUNNING` state to be considered "dead" (default: 60).
+- **--dry-run**: Always run with this flag first to see which trials will be affected without modifying the database.
+
+---
+
+## Technical Details
 - **Library**: `textual` for the TUI (Terminal User Interface).
 - **Data Source**: 
     - `optuna.db` (SQLite) for study-level stats.

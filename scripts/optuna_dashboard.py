@@ -222,7 +222,6 @@ class DashboardScreen(Screen):
                         id="trials_table",
                         cursor_type="row",
                         show_row_labels=False,
-                        cell_padding=1,
                         zebra_stripes=False,
                     ),
                     id="running_container",
@@ -315,9 +314,15 @@ class DashboardScreen(Screen):
         prev_row_key = self.last_trial_row_key
         trials_table.clear()
         
-        # Calculate dynamic limit based on screen height
-        # Subtract Header(1), Footer(1), DB Label(2), DB Gap(1), Table Header(2) = ~7-10 lines
-        available_height = self.size.height - 10
+        # Calculate dynamic limit based on actual container height
+        try:
+            container = self.query_one("#running_container")
+            # container.content_size.height is the inner height. 
+            # DataTable header takes 1 line.
+            available_height = container.content_size.height - 1
+        except:
+            available_height = 20
+            
         if available_height < 5: available_height = 5
 
         running_trials = [
@@ -532,21 +537,21 @@ class DashboardScreen(Screen):
         rows_running = conn.execute(sql_running, (study_id,)).fetchall()
         result.extend([dict(r) for r in rows_running])
 
-        # 2. Fetch TOP COMPLETE trials (limit 25)
+        # 2. Fetch TOP COMPLETE trials (limit 50)
         if has_trial_values:
             sql_complete = (
                 "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, tv.value "
                 "FROM trials t "
                 "JOIN trial_values tv ON tv.trial_id = t.trial_id "
                 "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
-                f"ORDER BY tv.value {order} LIMIT 25"
+                f"ORDER BY tv.value {order} LIMIT 50"
             )
         else:
             sql_complete = (
                 "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, t.value "
                 "FROM trials t "
                 "WHERE t.study_id=? AND (t.state=1 OR UPPER(CAST(t.state AS TEXT))='COMPLETE') "
-                f"ORDER BY t.value {order} LIMIT 25"
+                f"ORDER BY t.value {order} LIMIT 50"
             )
         
         rows_complete = conn.execute(sql_complete, (study_id,)).fetchall()
@@ -892,6 +897,7 @@ class OptunaDashboard(App):
     }
     #main_container {
         padding-top: 0;
+        height: 100%;
     }
     .box {
         border: none;
@@ -907,6 +913,7 @@ class OptunaDashboard(App):
         height: 1fr;
         min-height: 6;
         overflow: auto;
+        border: solid $accent;
     }
     #study_header {
         background: #2a2a2a;
@@ -919,18 +926,27 @@ class OptunaDashboard(App):
         width: 70%;
         height: 1fr;
         min-height: 6;
+        border: solid $accent;
+        padding: 0;
+        margin: 0;
     }
     .section-title {
         text-align: center;
         text-style: bold;
         background: $secondary;
         color: $text;
-        margin-bottom: 0;
+        margin: 0;
+        padding: 0;
+        height: 1;
     }
     #trials_table {
-        height: 1fr;
+        height: 100%;
+        width: 100%;
         min-height: 5;
         background: transparent;
+        margin: 0;
+        padding: 0;
+        scrollbar-gutter: stable;
     }
     #trials_table > .datatable--header {
         background: #2a2a2a;

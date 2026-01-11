@@ -72,9 +72,12 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         
     def transform(self, X: MLArenaDataContainer) -> MLArenaDataContainer:
         start_time = time.time()
-        # Use original stdout to ensure progress is visible even if modules are redirected
-        console = Console(file=sys.__stdout__, force_terminal=True)
-        console.print(f"[bold cyan]Pipeline Step:[/bold cyan] {self.step_name}...", end="")
+        from rich.text import Text
+        console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
+        
+        # Build progress line: gray for the whole info
+        msg = Text(f"Pipeline Step: {self.step_name}...", style="gray")
+        console.print(msg, end="")
         
         # 1. Resolve configuration
         # Support inline config or template reference
@@ -243,8 +246,10 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 json.dump(step_state_data, f, indent=2)
 
             duration = time.time() - start_time
-            console = Console(file=sys.__stdout__, force_terminal=True)
-            console.print(f" [bold green]done[/bold green] ([dim]{duration:.1f}s[/dim])")
+            res_msg = Text()
+            res_msg.append(" done", style="dim green")
+            res_msg.append(f" ({duration:.1f}s)", style="gray")
+            console.print(res_msg)
 
         except Exception as e:
             console.print(f"[red]Error in step {self.step_name}:[/red] {e}")

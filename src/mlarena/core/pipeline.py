@@ -115,15 +115,26 @@ class PipelineExecutor:
         elif module_name == "preprocess":
             input_source = invocation.get("input_source")
             chain_exp_id = invocation.get("chain_exp_id", "")
+            
+            # Determine extension based on mode
+            is_unified = invocation.get("pipeline") or invocation.get("fuse")
+            ext = ".parquet" if is_unified else ".csv.gz"
 
             if input_source:
                 input_paths["from"] = input_source
-                if chain_exp_id:
-                    input_paths["train"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/train_processed.csv.gz"
-                    input_paths["test"] = f"experiments/{chain_exp_id}/{input_source}/artifacts/preprocess/test_processed.csv.gz"
-                else:
-                    input_paths["train"] = f"experiments/pre-{input_source}/artifacts/preprocess/train_processed.csv.gz"
-                    input_paths["test"] = f"experiments/pre-{input_source}/artifacts/preprocess/test_processed.csv.gz"
+                # For input, we should also check if parquet exists from a previous step
+                def _get_input_path(base_name: str):
+                    if chain_exp_id:
+                        base = module.context.project_root / "experiments" / chain_exp_id / input_source / "artifacts" / "preprocess" / base_name
+                    else:
+                        base = module.context.project_root / "experiments" / f"pre-{input_source}" / "artifacts" / "preprocess" / base_name
+                    
+                    if (base.with_suffix(".parquet")).exists():
+                        return format_path_relative(base.with_suffix(".parquet"), module.context.project_root)
+                    return format_path_relative(base.with_suffix(".csv.gz"), module.context.project_root)
+
+                input_paths["train"] = _get_input_path("train_processed")
+                input_paths["test"] = _get_input_path("test_processed")
             else:
                 try:
                     from mlarena.utils.project import data_paths, load_project_config
@@ -140,66 +151,13 @@ class PipelineExecutor:
                     pass
 
             experiment_id = module.context.experiment_id
-            output_paths["train"] = f"experiments/{experiment_id}/artifacts/preprocess/train_processed.csv.gz"
-            output_paths["test"] = f"experiments/{experiment_id}/artifacts/preprocess/test_processed.csv.gz"
+            output_paths["train"] = f"experiments/{experiment_id}/artifacts/preprocess/train_processed{ext}"
+            output_paths["test"] = f"experiments/{experiment_id}/artifacts/preprocess/test_processed{ext}"
 
         elif module_name == "model":
             preprocess_template = invocation.get("preprocess_template") or template_config.get("preprocess_template")
             preprocess_exp_dir = invocation.get("preprocess_exp_dir")
             shapes_meta = None
-
-            def _load_shapes_from_state(exp_dir: Path):
-                state_path = exp_dir / "state.json"
-                if not state_path.exists():
-                    return None
-                try:
-                    import json
-                    with open(state_path) as f:
-                        state = json.load(f)
-                    payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
-                    shapes = payload.get("shapes", {})
-                    train_after = shapes.get("train_after")
-                    test_after = shapes.get("test_after")
-                    tuning_after = shapes.get("tuning_after")
-
-                    custom_state = payload.get("custom_module_state", {})
-                    eval_rows = custom_state.get("eval_rows")
-
-                    result = {}
-                    if train_after:
-                        result["train"] = train_after
-                    if test_after:
-                        result["test"] = test_after
-                    if tuning_after:
-                        result["tuning"] = tuning_after
-                    if eval_rows:
-                        result["eval"] = (eval_rows, None)
-
-                    return result if result else None
-                except Exception:
-                    return None
-                return None
-
-            def _load_shapes_from_chain_root(root: Path):
-                shapes = _load_shapes_from_state(root)
-                if shapes:
-                    return shapes
-                candidates = []
-                for subdir in root.iterdir():
-                    if not subdir.is_dir():
-                        continue
-                    try:
-                        idx = int(subdir.name.split("-")[0])
-                    except Exception:
-                        continue
-                    candidates.append((idx, subdir))
-                if candidates:
-                    candidates.sort(reverse=True)
-                    _, latest_dir = candidates[0]
-                    shapes = _load_shapes_from_state(latest_dir)
-                    if shapes:
-                        return shapes
-                return None
 
             def _resolve_preprocess_dir():
                 if preprocess_exp_dir:
@@ -220,10 +178,16 @@ class PipelineExecutor:
 
             pp_dir = _resolve_preprocess_dir()
             if pp_dir:
-                train_pp = pp_dir / "artifacts" / "preprocess" / "train_processed.csv.gz"
-                test_pp = pp_dir / "artifacts" / "preprocess" / "test_processed.csv.gz"
-                tuning_pp = pp_dir / "artifacts" / "preprocess" / "tuning_processed.csv.gz"
-                eval_pp = pp_dir / "artifacts" / "preprocess" / "eval_processed.csv.gz"
+                def _get_path(base_name: str):
+                    base = pp_dir / "artifacts" / "preprocess" / base_name
+                    if (base.with_suffix(".parquet")).exists():
+                        return base.with_suffix(".parquet")
+                    return base.with_suffix(".csv.gz")
+
+                train_pp = _get_path("train_processed")
+                test_pp = _get_path("test_processed")
+                tuning_pp = _get_path("tuning_processed")
+                eval_pp = _get_path("eval_processed")
 
                 input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
                 input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
@@ -232,6 +196,59 @@ class PipelineExecutor:
                     input_paths["tuning"] = format_path_relative(tuning_pp, module.context.project_root)
                 if eval_pp.exists():
                     input_paths["eval"] = format_path_relative(eval_pp, module.context.project_root)
+
+                def _load_shapes_from_state(exp_dir: Path):
+                    state_path = exp_dir / "state.json"
+                    if not state_path.exists():
+                        return None
+                    try:
+                        import json
+                        with open(state_path) as f:
+                            state = json.load(f)
+                        payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
+                        shapes = payload.get("shapes", {})
+                        train_after = shapes.get("train_after")
+                        test_after = shapes.get("test_after")
+                        tuning_after = shapes.get("tuning_after")
+
+                        custom_state = payload.get("custom_module_state", {})
+                        eval_rows = custom_state.get("eval_rows")
+
+                        result = {}
+                        if train_after:
+                            result["train"] = train_after
+                        if test_after:
+                            result["test"] = test_after
+                        if tuning_after:
+                            result["tuning"] = tuning_after
+                        if eval_rows:
+                            result["eval"] = (eval_rows, None)
+
+                        return result if result else None
+                    except Exception:
+                        return None
+                    return None
+
+                def _load_shapes_from_chain_root(root: Path):
+                    shapes = _load_shapes_from_state(root)
+                    if shapes:
+                        return shapes
+                    candidates = []
+                    for subdir in root.iterdir():
+                        if not subdir.is_dir():
+                            continue
+                        try:
+                            idx = int(subdir.name.split("-")[0])
+                        except Exception:
+                            continue
+                        candidates.append((idx, subdir))
+                    if candidates:
+                        candidates.sort(reverse=True)
+                        _, latest_dir = candidates[0]
+                        shapes = _load_shapes_from_state(latest_dir)
+                        if shapes:
+                            return shapes
+                    return None
 
                 shapes_meta = _load_shapes_from_chain_root(pp_dir)
                 if shapes_meta:

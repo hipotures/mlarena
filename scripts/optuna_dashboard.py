@@ -927,7 +927,13 @@ def main():
     parser.add_argument("--db", required=True, help="Path to Optuna sqlite DB")
     parser.add_argument("--project-root", required=True, help="Project root directory")
     parser.add_argument("--study-name", help="Specific study name to monitor")
+    parser.add_argument("--telegram-test-message", action="store_true", help="Send a test Telegram message on startup")
     args = parser.parse_args()
+
+    if args.telegram_test_message:
+        print("Sending test Telegram message...", file=sys.stderr)
+        project_name = Path(args.project_root).name
+        send_telegram_notification(f"🔔 <b>Test Message</b>\n\nOptuna Dashboard is connected.\n<b>Project:</b> {project_name}")
 
     app = OptunaDashboard(args.db, args.project_root, args.study_name)
     app.run()

@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-Optuna Live Dashboard using Textual.
-Monitors Optuna studies and allows drill-down into trial artifacts.
-"""
-
 import argparse
 import hashlib
 import json
@@ -39,7 +34,6 @@ from textual.widgets import (
 )
 from textual.widgets.tree import TreeNode
 
-# Configure logging
 logging.basicConfig(
     filename="dashboard.log",
     level=logging.DEBUG,
@@ -47,13 +41,8 @@ logging.basicConfig(
     filemode="w"
 )
 
-# Bump when UI changes to verify the running file
-DASHBOARD_VERSION = "1.1"
-
-# Load environment variables
 load_dotenv()
 
-# Telegram notification setup
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 API_BASE = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}" if TELEGRAM_TOKEN else None
@@ -176,11 +165,9 @@ class DashboardScreen(Screen):
             lines.append(f"Database: {self.db_path}")
             lines.append("-" * 40)
             
-            # Study Stats
             header = str(self.query_one("#study_header").content)
             body = str(self.query_one("#study_body").content)
             
-            # Simple markup removal
             def clean_markup(t):
                 return t.replace("[bold]", "").replace("[/bold]", "").replace("[bold red]", "").replace("[/bold red]", "").replace("[bold yellow]", "").replace("[/bold yellow]", "")
 
@@ -188,16 +175,13 @@ class DashboardScreen(Screen):
             lines.append(clean_markup(body))
             lines.append("-" * 40)
             
-            # Trials Table
             table = self.query_one("#trials_table")
             lines.append("TRIALS TABLE")
             
-            # Header
             col_labels = [col.label for col in table.columns.values()]
             lines.append(" | ".join(map(str, col_labels)))
             lines.append("-" * 80)
             
-            # Rows
             for row_idx in range(table.row_count):
                 row_data = [table.get_cell_at((row_idx, col_idx)) for col_idx in range(len(table.columns))]
                 lines.append(" | ".join(map(str, row_data)))
@@ -241,7 +225,6 @@ class DashboardScreen(Screen):
         table.add_column("CfgHash", width=10)
         table.add_column("Start", width=19)
         self.set_interval(5, self.update_data)
-        # Ensure data is loaded immediately after the first refresh pass
         self.call_after_refresh(self.update_data)
 
     def update_data(self) -> None:
@@ -287,7 +270,6 @@ class DashboardScreen(Screen):
                 pass
 
     def _update_ui(self, study: Dict[str, Any], trials: List[Dict[str, Any]]) -> None:
-        # Update Study Stats
         best_val = study.get("best_value")
         if isinstance(best_val, (int, float)):
             best_val_str = f"{best_val:.5f}"
@@ -309,16 +291,13 @@ class DashboardScreen(Screen):
         self.query_one("#study_header").update(header_text)
         self.query_one("#study_body").update(body_text)
 
-        # Update Trials Table (Running + Top Completed)
         trials_table = self.query_one("#trials_table")
         prev_row_key = self.last_trial_row_key
         trials_table.clear()
         
-        # Calculate dynamic limit based on actual table height
         try:
             table_widget = self.query_one("#trials_table")
             h = table_widget.content_size.height
-            # Use a slightly more aggressive fallback or actual height
             available_height = h - 1 if h > 0 else (self.size.height - 7)
         except:
             available_height = 25
@@ -347,7 +326,6 @@ class DashboardScreen(Screen):
                 key=str(t["number"])
             )
 
-        # How many slots left for completed trials?
         slots_for_completed = max(5, available_height - len(running_trials))
 
         completed_trials = [t for t in trials if _normalize_state(t.get("state")) == 1]
@@ -376,7 +354,7 @@ class DashboardScreen(Screen):
                 _duration_str(t["datetime_start"], t["datetime_complete"]),
                 str(t.get("params_hash", "-")),
                 start_str,
-                key=str(t["number"]) # Store number in key for selection
+                key=str(t["number"])
             )
 
         if prev_row_key is not None:
@@ -420,7 +398,6 @@ class DashboardScreen(Screen):
             self.last_best_val = current_best
         self.first_run = False
 
-    # --- Data Fetching Methods (Adapted from optuna_live.py) ---
     def _table_columns(self, conn: sqlite3.Connection, table: str) -> set[str]:
         cols = set()
         for row in conn.execute(f"PRAGMA table_info({table})"):
@@ -447,7 +424,7 @@ class DashboardScreen(Screen):
         for row in studies_rows:
             study_id = row["study_id"]
             raw_dir = direction_by_study.get(study_id, "MINIMIZE")
-            # Convert Optuna enum code to text if needed
+            
             if str(raw_dir) == "1": direction = "MAXIMIZE"
             elif str(raw_dir) == "0": direction = "MINIMIZE"
             else: direction = str(raw_dir).upper()
@@ -509,26 +486,23 @@ class DashboardScreen(Screen):
             for s in studies:
                 if s["name"] == name:
                     return s
-            # Fallback to fuzzy match or first
+            
             for s in studies:
                 if name in s["name"]:
                     return s
-        # Return last created/updated? Or just first
+        
         return studies[-1] if studies else None
 
     def _fetch_recent_trials(self, conn: sqlite3.Connection, study_id: int, limit: int) -> List[Dict[str, Any]]:
-        # limit is ignored in favor of specific 50/ALL split
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         has_trial_values = "trial_values" in tables
 
-        # Get direction for sorting Top Completed
         raw_dir = "MINIMIZE"
         if "study_directions" in tables:
             d_row = conn.execute("SELECT direction FROM study_directions WHERE study_id=?", (study_id,)).fetchone()
             if d_row:
                 raw_dir = d_row["direction"]
         
-        # Robust direction mapping
         if str(raw_dir) == "1": direction = "MAXIMIZE"
         elif str(raw_dir) == "0": direction = "MINIMIZE"
         else: direction = str(raw_dir).upper()
@@ -537,7 +511,6 @@ class DashboardScreen(Screen):
 
         result = []
         
-        # 1. Fetch ALL RUNNING/WAITING trials
         sql_running = (
             "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, NULL as value "
             "FROM trials t "
@@ -547,7 +520,6 @@ class DashboardScreen(Screen):
         rows_running = conn.execute(sql_running, (study_id,)).fetchall()
         result.extend([dict(r) for r in rows_running])
 
-        # 2. Fetch TOP COMPLETE trials (limit 50)
         if has_trial_values:
             sql_complete = (
                 "SELECT t.trial_id, t.number, t.state, t.datetime_start, t.datetime_complete, tv.value "
@@ -565,14 +537,13 @@ class DashboardScreen(Screen):
             )
         
         rows_complete = conn.execute(sql_complete, (study_id,)).fetchall()
-        # Deduplicate by number
+        
         seen_nums = {r["number"] for r in result}
         for r in rows_complete:
             if r["number"] not in seen_nums:
                 result.append(dict(r))
                 seen_nums.add(r["number"])
 
-        # Enrich with params hash
         if "trial_params" in tables and result:
             trial_ids = [r["trial_id"] for r in result if r.get("trial_id") is not None]
             if not trial_ids:
@@ -618,7 +589,6 @@ class TrialInspector(Screen):
         ("e", "expand_all_tree", "Expand All"),
         ("e", "reset_view_tree", "Reset View"),
     ]
-    # Full perimeter spinner including bottom dots (7, 8) for maximum height
     SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]
 
     def __init__(self, project_root: Path, study_name: str, trial_id: str):
@@ -708,10 +678,6 @@ class TrialInspector(Screen):
             self.app.notify(f"Failed to copy tree: {e}", severity="error")
 
     def _find_trial_dir(self) -> Optional[Path]:
-        # Search pattern: experiments/optuna_<study_name>/trial_<id>
-        # trial_id here is actually the 0-based 'number'
-        
-        # Try exact match first
         base = self.project_root / "experiments" / f"optuna_{self.study_name}" / f"trial_{self.trial_id:04d}"
         
         try:
@@ -723,7 +689,6 @@ class TrialInspector(Screen):
         if base.exists():
             return base
             
-        # Try listing experiments dir and finding one that matches
         exp_root = self.project_root / "experiments"
         logging.debug(f"Searching in exp_root: {exp_root} (Exists: {exp_root.exists()})")
         
@@ -756,7 +721,6 @@ class TrialInspector(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        # Spinner refresh is frequent; heavy I/O throttled inside _build_tree
         self.refresh_timer = self.set_interval(0.1, self._build_tree)
         self._build_tree()
 
@@ -776,14 +740,12 @@ class TrialInspector(Screen):
         self._running_nodes = []
         
         if not self.trial_dir or not self.trial_dir.exists():
-            # Try finding it again
             self.trial_dir = self._find_trial_dir()
         
         if not self.trial_dir or not self.trial_dir.exists():
             root.add("[dim]Trial directory initializing...[/dim]")
             return
 
-        # 1. Pipeline Steps (numbered dirs)
         steps = sorted([d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()], key=lambda x: int(x.name.split("-")[0]))
         
         pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
@@ -792,15 +754,12 @@ class TrialInspector(Screen):
             step_node = pre_node.add(f"{step_dir.name}", expand=False)
             self._add_step_details(step_node, step_dir)
 
-        # 2. Metrics
         metrics_file = self.trial_dir / "metrics.json"
         if metrics_file.exists():
-            # Stop refreshing if metrics found
             if self.refresh_timer:
                 self.refresh_timer.stop()
                 self.refresh_timer = None
             
-            # Hide spinner
             try:
                 self.query_one("#loading_spinner").display = False
             except:
@@ -821,7 +780,6 @@ class TrialInspector(Screen):
             except:
                 pass
 
-        # 3. Model
         model_dir = self.trial_dir / "model" # Or optuna_model
         if not model_dir.exists():
             model_dir = self.trial_dir / "optuna_model"
@@ -837,7 +795,6 @@ class TrialInspector(Screen):
             return
 
         try:
-            # 0. Caching logic
             mtime = state_path.stat().st_mtime
             cache_key = str(state_path)
             if cache_key in self.state_cache and self.state_cache[cache_key]["mtime"] == mtime:
@@ -846,7 +803,6 @@ class TrialInspector(Screen):
                 state = json.loads(state_path.read_text())
                 self.state_cache[cache_key] = {"mtime": mtime, "data": state}
 
-            # Find the most relevant module (preprocess or model)
             modules = state.get("modules", {})
             mod_name = "preprocess" if "preprocess" in modules else "model" if "model" in modules else list(modules.keys())[-1] if modules else "unknown"
             
@@ -861,7 +817,6 @@ class TrialInspector(Screen):
                 frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
                 node.set_label(f"{base_label} {frame}")
 
-            # 1. Duration
             start_str = mod_info.get("started_at")
             end_str = mod_info.get("finished_at")
             if start_str and end_str:
@@ -873,7 +828,6 @@ class TrialInspector(Screen):
                 except Exception:
                     pass
 
-            # 2. Model-specific Details
             if mod_name == "model":
                 payload = mod_info.get("payload", {})
                 cms = payload.get("custom_module_state", {})
@@ -894,7 +848,6 @@ class TrialInspector(Screen):
                 t_rows = payload.get("tuning_rows") or cms.get("tuning_rows")
                 p_node.add(f"Tuning Rows: {t_rows}", allow_expand=False)
 
-            # 3. Shapes
             payload = mod_info.get("payload", {})
             shapes = payload.get("shapes", {})
             if shapes:
@@ -904,7 +857,6 @@ class TrialInspector(Screen):
                     b, a = shapes.get(f"{p}_before"), shapes.get(f"{p}_after")
                     if b or a: s_node.add(f"{p.capitalize()}: {b} -> {a}", allow_expand=False)
 
-            # 4. Config / Invocation (Pretty Print)
             invocation = mod_info.get("invocation", {})
             if invocation:
                 i_node = node.add("Invocation")
@@ -917,7 +869,6 @@ class TrialInspector(Screen):
                 for line in json.dumps(config_data, indent=2).splitlines():
                     c_node.add(line, allow_expand=False)
 
-            # 5. Leaderboard (Artifact)
             lb_path = step_dir / "artifacts" / mod_name / "leaderboard.csv.gz"
             if lb_path.exists():
                 try:

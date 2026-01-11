@@ -20,6 +20,209 @@ from mlarena.core.registry import ModuleRegistry
 from mlarena.core.config import TemplateLoader
 from mlarena.utils.project import data_paths, load_project_config
 
+try:
+    from sklearn.pipeline import Pipeline
+    from sklearn.base import BaseEstimator, TransformerMixin
+except ImportError:
+    # Optional dependency, but required for pipeline mode
+    Pipeline = object
+    BaseEstimator = object
+    TransformerMixin = object
+
+from dataclasses import dataclass, field
+
+@dataclass
+class MLArenaDataContainer:
+    """Holds dataframes and state for in-memory pipeline execution."""
+    train: pd.DataFrame
+    test: pd.DataFrame
+    val: Optional[pd.DataFrame] = None
+    eval: Optional[pd.DataFrame] = None
+    orig: Optional[pd.DataFrame] = None
+    state: Dict[str, Any] = field(default_factory=dict)
+    
+    # Track shapes for reporting
+    initial_shapes: Dict[str, Tuple] = field(default_factory=dict)
+    
+    def update_data(self, train, val, test, eval_df, orig):
+        self.train = train
+        self.val = val
+        self.test = test
+        self.eval = eval_df
+        self.orig = orig
+
+
+class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
+    """Wraps ML Arena preprocessing modules as Sklearn transformers."""
+    
+    def __init__(self, step_name: str, config: Dict, context, loader_instance):
+        self.step_name = step_name
+        self.config = config
+        self.context = context
+        self.loader_instance = loader_instance  # Access to _load_preprocessing_module
+        
+    def fit(self, X, y=None):
+        return self
+        
+    def transform(self, X: MLArenaDataContainer) -> MLArenaDataContainer:
+        console = Console(force_terminal=True)
+        console.print(f"[bold cyan]Pipeline Step:[/bold cyan] {self.step_name}")
+        
+        # 1. Resolve configuration
+        # Support inline config or template reference
+        template_name = self.config.get("template")
+        template_cfg = self.config
+        
+        if template_name:
+            # Load referenced template
+            import sys
+            from pathlib import Path as P
+            REPO_ROOT = P(__file__).resolve().parents[3]
+            sys.path.insert(0, str(REPO_ROOT / "scripts"))
+            from template_loader import load_templates
+            
+            templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
+            loaded_cfg = templates.get(template_name, {})
+            # Merge: config overrides template
+            template_cfg = loaded_cfg.copy()
+            template_cfg.update(self.config)
+        
+        module_name = template_cfg.get("module")
+        if not module_name:
+            # Fallback to basic template ops
+            X.train = self.loader_instance._apply_template(X.train, template_cfg)
+            X.test = self.loader_instance._apply_template(X.test, template_cfg)
+            if X.val is not None:
+                X.val = self.loader_instance._apply_template(X.val, template_cfg)
+            if X.eval is not None:
+                X.eval = self.loader_instance._apply_template(X.eval, template_cfg)
+            return X
+
+        # 2. Load module
+        try:
+            preprocess_module = self.loader_instance._load_preprocessing_module(module_name)
+            
+            # Prepare config
+            step_artifact_dir = self.context.artifact_dir / "steps" / self.step_name
+            step_artifact_dir.mkdir(parents=True, exist_ok=True)
+            
+            preprocess_config = template_cfg.get("config", {}).copy()
+            preprocess_config["_artifact_dir"] = str(step_artifact_dir)
+            preprocess_config["_dataset"] = {
+                "id_column": getattr(self.context.config_module, "ID_COLUMN", "id"),
+                "target": getattr(self.context.config_module, "TARGET_COLUMN", None),
+                "ignored_columns": getattr(self.context.config_module, "IGNORED_COLUMNS", []),
+                "problem_type": getattr(self.context.config_module, "AUTOGLUON_PROBLEM_TYPE", "binary"),
+            }
+            # Pass aggregated original features
+            # TODO: Update original features if this step adds/removes them? 
+            # Usually original_features are static from raw data.
+            preprocess_config["_original_features"] = X.state.get("custom_module_state", {}).get("original_features")
+
+            # 3. Execute fit_transform
+            # Inspect signature
+            import inspect
+            fit_sig = inspect.signature(preprocess_module.fit_transform)
+            params = fit_sig.parameters
+            has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+            supports_eval_df = "eval_df" in params or has_kwargs
+            supports_orig_df = "orig_df" in params or has_kwargs
+
+            if supports_eval_df:
+                result = preprocess_module.fit_transform(
+                    train_df=X.train,
+                    val_df=X.val,
+                    test_df=X.test,
+                    eval_df=X.eval,
+                    config=preprocess_config,
+                    orig_df=X.orig,
+                )
+            else:
+                # Legacy handling
+                combined_test = X.test
+                test_len = len(X.test)
+                if X.eval is not None:
+                    combined_test = pd.concat([X.test, X.eval], axis=0).reset_index(drop=True)
+                
+                if supports_orig_df:
+                    result = preprocess_module.fit_transform(
+                        train_df=X.train,
+                        val_df=X.val,
+                        test_df=combined_test,
+                        config=preprocess_config,
+                        orig_df=X.orig,
+                    )
+                else:
+                    result = preprocess_module.fit_transform(
+                        train_df=X.train,
+                        val_df=X.val,
+                        test_df=combined_test,
+                        config=preprocess_config,
+                    )
+
+            # 4. Unpack result
+            custom_preprocess_state = {}
+            new_train, new_val, new_test, new_eval, new_orig = None, None, None, None, None
+
+            if len(result) == 6:
+                new_train, new_val, new_test, new_eval, new_orig, custom_preprocess_state = result
+            elif len(result) == 5:
+                new_train, new_val, combined_res, new_orig, custom_preprocess_state = result
+                if not supports_eval_df and X.eval is not None:
+                    new_test = combined_res.iloc[:test_len].copy()
+                    new_eval = combined_res.iloc[test_len:].copy()
+                else:
+                    new_test = combined_res
+            elif len(result) == 4:
+                new_train, _, combined_res, custom_preprocess_state = result
+                new_orig = None
+                new_val = None
+                if not supports_eval_df and X.eval is not None:
+                    new_test = combined_res.iloc[:test_len].copy()
+                    new_eval = combined_res.iloc[test_len:].copy()
+                else:
+                    new_test = combined_res
+
+            # Update container
+            # Only update if returned not None (some modules might return None for optional dfs)
+            # But usually fit_transform returns modified DFs.
+            if new_train is not None: X.train = new_train
+            if new_test is not None: X.test = new_test
+            # Handle optionals: if module dropped them (returned None), we keep None? 
+            # Or assume module handles passing them through?
+            # Standard convention: return transformed DF or None.
+            # If input was not None and output is None -> module dropped it? Unlikely.
+            # Safe update:
+            X.val = new_val if new_val is not None else X.val
+            X.eval = new_eval if new_eval is not None else X.eval
+            X.orig = new_orig if new_orig is not None else X.orig
+            
+            # 5. Merge State
+            # Aggregate critical keys into custom_module_state
+            if "custom_module_state" not in X.state:
+                X.state["custom_module_state"] = {}
+                
+            # Merge known compatibility keys
+            for key in ["weights_path", "eval_path", "original_features"]:
+                if key in custom_preprocess_state:
+                    X.state["custom_module_state"][key] = custom_preprocess_state[key]
+            
+            # Add step history
+            if "pipeline_steps" not in X.state:
+                X.state["pipeline_steps"] = []
+            
+            X.state["pipeline_steps"].append({
+                "step": self.step_name,
+                "module": module_name,
+                "state": custom_preprocess_state
+            })
+
+        except Exception as e:
+            console.print(f"[red]Error in step {self.step_name}:[/red] {e}")
+            raise
+            
+        return X
+
 
 @ModuleRegistry.register
 class PreprocessModule(BaseModule):
@@ -339,6 +542,102 @@ class PreprocessModule(BaseModule):
 
             templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
             template_cfg = templates.get(template_name, {})
+
+        # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK START <<<<<<
+        if template_cfg and "steps" in template_cfg:
+            console.print(f"\n[bold magenta]Starting Unified Pipeline Execution[/bold magenta] (In-Memory)")
+            
+            # 1. Initialize Container
+            # Use raw data loaded above
+            container = MLArenaDataContainer(
+                train=train_df,
+                test=test_df,
+                val=tuning_df,
+                eval=eval_df,
+                orig=orig_df,
+                state={"custom_module_state": prev_custom_state.copy()},
+                initial_shapes={
+                    "train": orig_train_shape,
+                    "test": orig_test_shape,
+                }
+            )
+            
+            # Ensure original features are tracked
+            if original_features and "original_features" not in container.state["custom_module_state"]:
+                container.state["custom_module_state"]["original_features"] = original_features
+            
+            # 2. Build Pipeline
+            pipeline_steps = []
+            for idx, step_cfg in enumerate(template_cfg["steps"]):
+                step_name = step_cfg.get("name", f"step_{idx}")
+                wrapper = MLArenaStepWrapper(step_name, step_cfg, self.context, self)
+                pipeline_steps.append((step_name, wrapper))
+                
+            pipeline = Pipeline(pipeline_steps)
+            
+            # 3. Execute
+            final_container = pipeline.fit_transform(container)
+            
+            # 4. Save Artifacts (One-Time IO)
+            console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts...")
+            
+            final_container.train.to_csv(processed_train, index=False, compression='infer')
+            final_container.test.to_csv(processed_test, index=False, compression='infer')
+            
+            processed_eval = None
+            if final_container.eval is not None:
+                processed_eval = artifact_dir / "eval_processed.csv.gz"
+                final_container.eval.to_csv(processed_eval, index=False, compression='infer')
+                # Update path in state
+                if "custom_module_state" not in final_container.state:
+                    final_container.state["custom_module_state"] = {}
+                final_container.state["custom_module_state"]["eval_path"] = str(processed_eval)
+                
+            processed_orig = None
+            if final_container.orig is not None:
+                processed_orig = artifact_dir / "orig_processed.csv.gz"
+                final_container.orig.to_csv(processed_orig, index=False, compression='infer')
+                
+            processed_tuning_final = None
+            if final_container.val is not None:
+                processed_tuning_final = artifact_dir / "tuning_processed.csv.gz"
+                final_container.val.to_csv(processed_tuning_final, index=False, compression='infer')
+                
+            # 5. Build Result Payload
+            shapes_dict = {
+                "train_before": final_container.initial_shapes["train"],
+                "train_after": final_container.train.shape,
+                "test_before": final_container.initial_shapes["test"],
+                "test_after": final_container.test.shape,
+                "pipeline_mode": True,
+            }
+            
+            payload = {
+                "train_processed": str(processed_train),
+                "test_processed": str(processed_test),
+                "orig_processed": str(processed_orig) if processed_orig else None,
+                "tuning_processed": str(processed_tuning_final) if processed_tuning_final else None,
+                "eval_processed": str(processed_eval) if processed_eval else None,
+                "ignored_columns": ignored,
+                "template": template_name,
+                "input_source": input_source,
+                "cached": False,
+                "shapes": shapes_dict,
+                "custom_module_state": final_container.state.get("custom_module_state", {}),
+                "pipeline_steps": final_container.state.get("pipeline_steps", [])
+            }
+            
+            artifacts_list = [processed_train, processed_test]
+            if processed_orig: artifacts_list.append(processed_orig)
+            if processed_tuning_final: artifacts_list.append(processed_tuning_final)
+            if processed_eval: artifacts_list.append(processed_eval)
+            
+            return ModuleResult(
+                success=True,
+                payload=payload,
+                artifacts=artifacts_list,
+            )
+        # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK END <<<<<<
 
         custom_module_name = template_cfg.get("module") if template_cfg else None
 

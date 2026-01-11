@@ -211,7 +211,7 @@ class DashboardScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Container(
-            Label(f"{self.db_path}", id="db_label"),
+            Label(f"Database: {self.db_path}", id="db_label"),
             Horizontal(
                 Vertical(
                     Static(id="study_header"),

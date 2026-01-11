@@ -342,20 +342,25 @@ class DashboardScreen(Screen):
 
         completed_trials.sort(key=_val_key, reverse=reverse)
 
-        for t in completed_trials[:slots_for_completed]:
+        for i, t in enumerate(completed_trials[:slots_for_completed]):
             val_str = f"{float(t['value']):.5f}" if t['value'] is not None else "-"
             start_str = str(t["datetime_start"]) if t["datetime_start"] else "-"
             if len(start_str) > 19:
                 start_str = start_str[:19]
             
-            # Apply dim style to completed rows
+            # Highlight best trial (index 0) in green, others dim
+            if i == 0:
+                style_tag = "green"
+            else:
+                style_tag = "dim"
+            
             trials_table.add_row(
-                f"[dim]{t['number']}[/dim]",
-                f"[dim]COMPLETE[/dim]",
-                f"[dim]{val_str}[/dim]",
-                f"[dim]{_duration_str(t['datetime_start'], t['datetime_complete'])}[/dim]",
-                f"[dim]{t.get('params_hash', '-')}[/dim]",
-                f"[dim]{start_str}[/dim]",
+                f"[{style_tag}]{t['number']}[/{style_tag}]",
+                f"[{style_tag}]COMPLETE[/{style_tag}]",
+                f"[{style_tag}]{val_str}[/{style_tag}]",
+                f"[{style_tag}]{_duration_str(t['datetime_start'], t['datetime_complete'])}[/{style_tag}]",
+                f"[{style_tag}]{t.get('params_hash', '-')}[/{style_tag}]",
+                f"[{style_tag}]{start_str}[/{style_tag}]",
                 key=str(t["number"])
             )
 

@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sqlite3
 import sys
 import time
@@ -205,28 +206,48 @@ class DashboardScreen(Screen):
             lines = []
             lines.append(f"Optuna Dashboard Export - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             lines.append(f"Database: {self.db_path}")
-            lines.append("-" * 40)
+            lines.append("")
             
             header = str(self.query_one("#study_header").content)
             body = str(self.query_one("#study_body").content)
             
-            def clean_markup(t):
-                return t.replace("[bold]", "").replace("[/bold]", "").replace("[bold red]", "").replace("[/bold red]", "").replace("[bold yellow]", "").replace("[/bold yellow]", "")
+            def clean_markup(t: str) -> str:
+                return re.sub(r"\[/?[^\]]+\]", "", t)
 
             lines.append(clean_markup(header))
             lines.append(clean_markup(body))
-            lines.append("-" * 40)
+            lines.append("")
             
             table = self.query_one("#trials_table")
             lines.append("TRIALS TABLE")
             
             col_labels = [col.label for col in table.columns.values()]
-            lines.append(" | ".join(map(str, col_labels)))
-            lines.append("-" * 80)
+            header_cells = [clean_markup(str(c)) for c in col_labels]
             
+            rows: list[list[str]] = []
             for row_idx in range(table.row_count):
                 row_data = [table.get_cell_at((row_idx, col_idx)) for col_idx in range(len(table.columns))]
-                lines.append(" | ".join(map(str, row_data)))
+                clean_row = [clean_markup(str(cell)) for cell in row_data]
+                rows.append(clean_row)
+
+            col_widths = [len(h) for h in header_cells]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    if i < len(col_widths):
+                        col_widths[i] = max(col_widths[i], len(cell))
+
+            def fmt_row(cells: list[str]) -> str:
+                padded = [
+                    cell.ljust(col_widths[i]) if i < len(col_widths) else cell
+                    for i, cell in enumerate(cells)
+                ]
+                return " | ".join(padded)
+
+            lines.append(fmt_row(header_cells))
+            lines.append("-" * len(fmt_row(["-" * w for w in col_widths])))
+
+            for row in rows:
+                lines.append(fmt_row(row))
             
             final_text = "\n".join(lines)
             self.app.copy_to_clipboard(final_text)

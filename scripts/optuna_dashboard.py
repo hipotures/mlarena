@@ -284,11 +284,11 @@ class DashboardScreen(Screen):
     def on_mount(self) -> None:
         table = self.query_one("#trials_table")
         table.add_column("#", width=6)
-        table.add_column("State", width=10)
-        table.add_column("Local CV", width=10)
-        table.add_column("Duration", width=12)
-        table.add_column("CfgHash", width=10)
-        table.add_column("Start", width=19)
+        table.add_column("State")
+        table.add_column("Local CV")
+        table.add_column("Duration")
+        table.add_column("CfgHash")
+        table.add_column("Start")
         self.set_interval(5, self.update_data)
         self.call_after_refresh(self.update_data)
 
@@ -383,12 +383,12 @@ class DashboardScreen(Screen):
             if len(start_str) > 19:
                 start_str = start_str[:19]
             trials_table.add_row(
-                str(t["number"]),
-                state_label,
-                "-",
-                _duration_str(t["datetime_start"], None),
-                str(t.get("params_hash", "-")),
-                start_str,
+                Text(str(t["number"]), justify="right"),
+                Text(state_label, justify="left"),
+                Text("-", justify="right"),
+                Text(_duration_str(t["datetime_start"], None), justify="right"),
+                Text(str(t.get("params_hash", "-")), justify="left"),
+                Text(start_str, justify="left"),
                 key=str(t["number"])
             )
 
@@ -421,12 +421,12 @@ class DashboardScreen(Screen):
                 style_tag = "dim"
             
             trials_table.add_row(
-                f"[{style_tag}]{t['number']}[/{style_tag}]",
-                f"[{style_tag}]COMPLETE[/{style_tag}]",
-                f"[{style_tag}]{val_str}[/{style_tag}]",
-                f"[{style_tag}]{_duration_str(t['datetime_start'], t['datetime_complete'])}[/{style_tag}]",
-                f"[{style_tag}]{t.get('params_hash', '-')}[/{style_tag}]",
-                f"[{style_tag}]{start_str}[/{style_tag}]",
+                Text.from_markup(f"[{style_tag}]{t['number']}[/{style_tag}]", justify="right"),
+                Text.from_markup(f"[{style_tag}]COMPLETE[/{style_tag}]", justify="left"),
+                Text.from_markup(f"[{style_tag}]{val_str}[/{style_tag}]", justify="right"),
+                Text.from_markup(f"[{style_tag}]{_duration_str(t['datetime_start'], t['datetime_complete'])}[/{style_tag}]", justify="right"),
+                Text.from_markup(f"[{style_tag}]{t.get('params_hash', '-')}[/{style_tag}]", justify="left"),
+                Text.from_markup(f"[{style_tag}]{start_str}[/{style_tag}]", justify="left"),
                 key=str(t["number"])
             )
 
@@ -1402,6 +1402,7 @@ class OptunaDashboard(App):
         margin: 0;
     }
     #row1 {
+        width: 100%;
         height: 1fr;
         min-height: 10;
     }
@@ -1437,12 +1438,11 @@ class OptunaDashboard(App):
         height: 1;
     }
     #trials_table {
-        width: auto;
+        width: 1fr;
         height: 1fr;
         min-height: 6;
         border: solid $accent;
         background: transparent;
-        scrollbar-size: 0 0;
         scrollbar-gutter: auto;
     }
     #trials_table > .datatable--header {

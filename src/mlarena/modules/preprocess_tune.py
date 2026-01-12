@@ -1244,6 +1244,22 @@ def run_optimization_loop(
         except Exception as exc:
             console.print(f"[yellow]⚠ Failed to write best templates: {exc}[/yellow]")
 
+    def _stop_callback(study_obj, trial_obj):
+        """Check for stop signal file after each trial."""
+        try:
+            if str(storage_url).startswith("sqlite:///"):
+                db_path = Path(str(storage_url).replace("sqlite:///", ""))
+                signal_file = db_path.parent / ".optuna_stop_signal"
+                if signal_file.exists():
+                    console.print(f"[bold yellow]⚠ Stop signal detected at {signal_file}. Gracefully stopping study...[/bold yellow]")
+                    study_obj.stop()
+                    try:
+                        signal_file.unlink()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     if optuna_workers < 1:
         optuna_workers = 1
     try:
@@ -1252,7 +1268,7 @@ def run_optimization_loop(
             n_trials=effective_n_trials,
             n_jobs=optuna_workers,
             show_progress_bar=False,
-            callbacks=[_on_trial_complete],
+            callbacks=[_on_trial_complete, _stop_callback],
         )
     finally:
         signal.signal(signal.SIGINT, prev_sigint)

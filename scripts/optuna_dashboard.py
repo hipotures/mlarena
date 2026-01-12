@@ -181,8 +181,69 @@ class JSONModal(ModalScreen):
                 Static(JSON.from_data(self.data), classes="modal-text"),
                 classes="modal-scroll-area"
             ),
-            classes="modal-window"
+            classes="modal-window json-modal"
         )
+
+
+class KillConfirmationModal(ModalScreen):
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Cancel"),
+    ]
+
+    def __init__(self, trial_id: str, state: str, duration: str):
+        super().__init__()
+        self.trial_id = trial_id
+        self.state = state
+        self.duration = duration
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Label(f"Are you sure you want to kill trial #{self.trial_id}?", classes="modal-title"),
+            Label(f"State: {self.state}", classes="modal-text"),
+            Label(f"Duration: {self.duration}", classes="modal-text"),
+            Horizontal(
+                Button("Kill", variant="error", id="kill_btn"),
+                Button("Cancel", variant="primary", id="cancel_btn"),
+                classes="modal-buttons"
+            ),
+            classes="modal-window kill-modal"
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "kill_btn":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+
+class StopConfirmationModal(ModalScreen):
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Cancel"),
+    ]
+
+    def __init__(self, study_name: str, project_root: Path):
+        super().__init__()
+        self.study_name = study_name
+        self.project_root = project_root
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Label(f"Are you sure you want to STOP the study?", classes="modal-title"),
+            Label(f"Study: {self.study_name}", classes="modal-text"),
+            Label(f"Signal file will be created in:\n{self.project_root}", classes="modal-text"),
+            Horizontal(
+                Button("STOP STUDY", variant="error", id="stop_btn"),
+                Button("Cancel", variant="primary", id="cancel_btn"),
+                classes="modal-buttons"
+            ),
+            classes="modal-window kill-modal"
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "stop_btn":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
 
 
 class DashboardScreen(Screen):
@@ -190,6 +251,9 @@ class DashboardScreen(Screen):
         ("q", "app.quit", "Quit"),
         ("c", "copy_dashboard", "Copy All"),
         ("ctrl+insert", "copy_dashboard", "Copy All"),
+        ("k", "kill_trial", "Kill Trial"),
+        ("delete", "kill_trial", "Kill Trial"),
+        ("s", "stop_study", "Stop Study"),
     ]
 
     def __init__(self, db_path: Path, project_root: Path, study_name: Optional[str] = None):
@@ -201,6 +265,104 @@ class DashboardScreen(Screen):
         self.last_best_val = None
         self.first_run = True
         self.last_trial_row_key = None
+
+    def action_kill_trial(self) -> None:
+        """Shows confirmation modal to kill the selected trial."""
+        table = self.query_one("#trials_table")
+        if table.cursor_row is None:
+            self.app.notify("No trial selected.", severity="warning")
+            return
+
+        try:
+            # Extract data from the row
+            row_idx = table.cursor_row
+            row_data = [table.get_cell_at((row_idx, col_idx)) for col_idx in range(len(table.columns))]
+            
+            # Map columns (assuming order: #, State, Local CV, Duration, CfgHash, Start)
+            # Text objects are used, so we need to get their plain text
+            def get_text(cell_content):
+                if isinstance(cell_content, Text):
+                    return cell_content.plain
+                return str(cell_content)
+
+            trial_number = get_text(row_data[0])
+            state = get_text(row_data[1])
+            duration = get_text(row_data[3])
+            
+            self.app.push_screen(
+                KillConfirmationModal(trial_number, state, duration),
+                self._kill_trial_callback
+            )
+        except Exception as e:
+            self.app.notify(f"Error preparing kill modal: {e}", severity="error")
+
+    def _kill_trial_callback(self, result: bool) -> None:
+        if not result:
+            return
+
+        table = self.query_one("#trials_table")
+        row_idx = table.cursor_row
+        cell_content = table.get_cell_at((row_idx, 0))
+        trial_number = int(cell_content.plain if isinstance(cell_content, Text) else str(cell_content))
+
+        try:
+            # We need a writable connection here
+            uri = f"file:{self.db_path}?mode=rwc"
+            with sqlite3.connect(uri, uri=True, timeout=5) as conn:
+                # 1. Get study_id
+                study_row = conn.execute("SELECT study_id FROM studies WHERE study_name=?", (self.active_study_name,)).fetchone()
+                if not study_row:
+                    raise ValueError(f"Study '{self.active_study_name}' not found")
+                study_id = study_row[0]
+
+                # 2. Get trial_id
+                trial_row = conn.execute(
+                    "SELECT trial_id FROM trials WHERE study_id=? AND number=?", 
+                    (study_id, trial_number)
+                ).fetchone()
+                if not trial_row:
+                    raise ValueError(f"Trial {trial_number} not found")
+                real_trial_id = trial_row[0]
+
+                # 3. Update state to FAIL and set datetime_complete
+                conn.execute(
+                    "UPDATE trials SET state='FAIL', datetime_complete=? WHERE trial_id=?",
+                    (datetime.now(), real_trial_id)
+                )
+                conn.commit()
+            
+            self.app.notify(f"Trial #{trial_number} marked as FAIL.")
+            self.update_data()
+            
+        except Exception as e:
+            self.app.notify(f"Failed to kill trial: {e}", severity="error")
+            logging.error(f"Failed to kill trial {trial_number}: {e}", exc_info=True)
+
+    def action_stop_study(self) -> None:
+        """Shows confirmation modal to stop the study."""
+        if not self.active_study_name:
+            self.app.notify("No active study to stop.", severity="warning")
+            return
+        
+        self.app.push_screen(
+            StopConfirmationModal(self.active_study_name, self.project_root),
+            self._stop_study_callback
+        )
+
+    def _stop_study_callback(self, result: bool) -> None:
+        if not result:
+            return
+
+        try:
+            # Save the signal file next to the database file (on NFS)
+            # This ensures it is visible to the computing server.
+            signal_file = self.db_path.parent / ".optuna_stop_signal"
+            signal_file.touch()
+            self.app.notify(f"Stop signal created at: {signal_file}")
+            logging.info(f"Stop signal created at {signal_file}")
+        except Exception as e:
+            self.app.notify(f"Failed to create stop signal: {e}", severity="error")
+            logging.error(f"Failed to create stop signal: {e}", exc_info=True)
 
     def action_copy_dashboard(self) -> None:
         """Serializes the entire dashboard state to text and copies to clipboard."""
@@ -1484,28 +1646,35 @@ class OptunaDashboard(App):
     JSONModal {
         align: center middle;
     }
+    KillConfirmationModal {
+        align: center middle;
+    }
+    StopConfirmationModal {
+        align: center middle;
+    }
     .modal-window {
-        width: 90%;
-        height: 90%;
+        width: 80;
+        height: auto;
         background: $surface;
         border: solid $accent;
         padding: 1 2;
     }
-    .modal-title {
-        text-style: bold;
-        background: $primary;
-        color: $text;
-        width: 100%;
-        text-align: center;
-        margin-bottom: 1;
+    .json-modal {
+        width: 90%;
+        height: 90%;
     }
-    .modal-scroll-area {
-        width: 100%;
-        height: 1fr;
-        scrollbar-size: 1 1;
+    .kill-modal {
+        width: 60;
+        height: auto;
+        min-height: 10;
     }
-    .modal-text {
-        width: 100%;
+    .modal-buttons {
+        align: center middle;
+        height: auto;
+        margin-top: 1;
+    }
+    .modal-buttons Button {
+        margin: 0 1;
     }
     """
 

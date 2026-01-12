@@ -40,6 +40,7 @@ preprocessors:
   enabled: false
   meta:
     heavy_step: false
+    fixed: true # DISABLED: prevents Optuna from enabling it
   fixed_config:
     target_transform: none
     clip_lower_quantile: null
@@ -73,17 +74,17 @@ preprocessors:
   enabled: true
   meta:
     heavy_step: false
-    heavy_variants:
-    - isolation_forest
+    heavy_variants: []
+    # - isolation_forest
 - name: imputer
   group: imputer
   template: imputer
   enabled: true
   meta:
     heavy_step: false
-    heavy_variants:
-    - knn
-    - iterative
+    heavy_variants: []
+    # - knn
+    # - iterative
     fixed: true
 - name: rare_category_handler
   group: rare_category
@@ -124,8 +125,8 @@ preprocessors:
   enabled: false
   meta:
     heavy_step: false
-    heavy_variants:
-    - kmeans
+    heavy_variants: []
+    # - kmeans
 - name: encoder
   group: encoding
   template: encoder
@@ -167,9 +168,9 @@ preprocessors:
   enabled: true
   meta:
     heavy_step: false
-    heavy_variants:
-    - quantile_normal
-    - quantile_uniform
+    heavy_variants: []
+    # - quantile_normal
+    # - quantile_uniform
 - name: dimensionality_reducer
   group: dimensionality_reducer
   template: dimensionality_reducer

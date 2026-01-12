@@ -28,17 +28,19 @@ variants:
     params:
       encoding_method: {type: choice, values: [ordinal]}
     requires_preproc: [{group: imputer}]
-  - name: target_mean
-    params:
-      encoding_method: {type: choice, values: [target_mean]}
+  # DISABLED: Causes data leakage in Preprocess->Model architecture (Global Target Encoding)
+  # - name: target_mean
+  #   params:
+  #     encoding_method: {type: choice, values: [target_mean]}
   - name: target_mean_oof
     weight: 3.0
     params:
       encoding_method: {type: choice, values: [target_mean_oof]}
       oof_folds: {type: int_range, min: 3, max: 8}
-  - name: catboost
-    params:
-      encoding_method: {type: choice, values: [catboost]}
+  # DISABLED: Potential leakage if not strictly OOF
+  # - name: catboost
+  #   params:
+  #     encoding_method: {type: choice, values: [catboost]}
   - name: hashing
     params:
       encoding_method: {type: choice, values: [hashing]}

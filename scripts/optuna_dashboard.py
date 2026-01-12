@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional, Tuple, Set
 import requests
 from dotenv import load_dotenv
 from rich.json import JSON
+from rich.style import Style
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual import events
 from textual import events
@@ -1050,26 +1052,38 @@ class TrialInspector(Screen):
             return
         pre_node.remove_children()
         trial_state = self._load_trial_state()
-        steps_meta = {
-            s.get("name"): s
-            for s in (trial_state.get("pipeline_progress", {}) or {}).get("steps", [])
+        steps = [
+            s for s in (trial_state.get("pipeline_progress", {}) or {}).get("steps", [])
             if isinstance(s, dict)
-        }
-        steps = sorted(
-            [d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()],
-            key=lambda x: int(x.name.split("-")[0]),
-        )
+        ]
         running = False
         self._running_nodes_pre = []
-        for step_dir in steps:
-            status_override = None
-            meta = steps_meta.get(step_dir.name)
-            if isinstance(meta, dict):
-                status_override = meta.get("status")
-            step_node = pre_node.add(f"{step_dir.name}", expand=False)
-            status = self._add_step_details(step_node, step_dir, self._running_nodes_pre, status_override=status_override)
-            if status == "running" or status_override == "running":
+        for meta in steps:
+            name = str(meta.get("name", "unknown"))
+            status = str(meta.get("status", "unknown")).lower()
+            if status == "pending":
+                label = Text(name, style="dim")
+            elif status == "running":
+                label = Text(name, style=Style(color="#A2E339"))
+            elif status == "failed":
+                label = Text(f"{name} [FAILED]", style="red")
+            else:
+                label = Text(name)
+
+            step_node = pre_node.add(label, expand=False)
+            if status == "running":
+                base_label = step_node.label
+                self._running_nodes_pre.append((step_node, base_label))
+                frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
+                if isinstance(base_label, Text):
+                    new_label = base_label.copy()
+                    new_label.append(f" {frame}", style=base_label.style)
+                    step_node.set_label(new_label)
+                else:
+                    step_node.set_label(f"{base_label} {frame}")
                 running = True
+
+            self._add_step_details_from_meta(step_node, meta)
         self._preprocess_running = running
 
     def _render_metrics(self, metrics_node: TreeNode, metrics_file: Path) -> None:
@@ -1272,6 +1286,39 @@ class TrialInspector(Screen):
             return "running"
         return str(status_override or status)
 
+    def _add_step_details_from_meta(self, node: TreeNode, meta: Dict[str, Any]) -> None:
+        status = meta.get("status")
+        module = meta.get("module")
+        started_at = meta.get("started_at")
+        finished_at = meta.get("finished_at")
+        duration = meta.get("duration")
+        shapes = meta.get("shapes", {})
+
+        if module:
+            node.add(f"Module: {module}", allow_expand=False)
+        if status:
+            node.add(f"Status: {status}", allow_expand=False)
+        if started_at:
+            node.add(f"Started: {started_at}", allow_expand=False)
+        if finished_at:
+            node.add(f"Finished: {finished_at}", allow_expand=False)
+        if duration is not None:
+            try:
+                node.add(f"Duration: {float(duration):.3f}s", allow_expand=False)
+            except Exception:
+                node.add(f"Duration: {duration}", allow_expand=False)
+
+        if isinstance(shapes, dict) and shapes:
+            s_node = node.add("Shapes")
+            prefixes = sorted({
+                k[:-7] if k.endswith("_before") else k[:-6]
+                for k in shapes if k.endswith(("_before", "_after"))
+            })
+            for p in prefixes:
+                b, a = shapes.get(f"{p}_before"), shapes.get(f"{p}_after")
+                if b or a:
+                    s_node.add(f"{p.capitalize()}: {b} -> {a}", allow_expand=False)
+
     def _load_trial_state(self) -> Dict[str, Any]:
         if not self.trial_dir:
             return {}
@@ -1305,7 +1352,12 @@ class TrialInspector(Screen):
         frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
         for node, base_label in self._running_nodes:
             try:
-                node.set_label(f"{base_label} {frame}")
+                if isinstance(base_label, Text):
+                    new_label = base_label.copy()
+                    new_label.append(f" {frame}", style=base_label.style)
+                    node.set_label(new_label)
+                else:
+                    node.set_label(f"{base_label} {frame}")
             except Exception:
                 pass
 

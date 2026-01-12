@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from rich.json import JSON
 from textual.app import App, ComposeResult
 from textual import events
+from textual import events
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen, Screen
 from textual.reactive import reactive
@@ -671,6 +672,7 @@ class TrialInspector(Screen):
         self._last_modal_time = 0.0
         self._trial_state_cache = {}
         self._last_trial_state_refresh = 0.0
+        self._full_trial_path = None
 
     def _get_optuna_params(self) -> Dict[str, Any]:
         """Fetches Optuna params from SQLite for the current trial number."""
@@ -878,7 +880,7 @@ class TrialInspector(Screen):
                 LoadingIndicator(id="loading_spinner"),
                 id="inspector_header"
             ),
-            Label(f"Path: {self.trial_dir}", classes="subtitle"),
+            Label("Path: -", classes="subtitle", id="path_label"),
             Tree("Pipeline Flow", id="flow_tree"),
             id="inspector_container"
         )
@@ -886,7 +888,33 @@ class TrialInspector(Screen):
 
     def on_mount(self) -> None:
         self.refresh_timer = self.set_interval(0.1, self._build_tree)
+        self._update_path_label()
         self._build_tree()
+
+    def on_click(self, event: events.Click) -> None:
+        if event.widget.id != "path_label":
+            return
+        if self._full_trial_path:
+            self.app.copy_to_clipboard(str(self._full_trial_path))
+            self.app.notify("Full path copied to clipboard.")
+
+    def _update_path_label(self) -> None:
+        label = self.query_one("#path_label", Label)
+        if not self.trial_dir:
+            label.update("Path: -")
+            self._full_trial_path = None
+            return
+        full_path = Path(self.trial_dir)
+        self._full_trial_path = full_path
+        display_path = self._shorten_path(full_path)
+        label.update(f"Path: {display_path}")
+
+    def _shorten_path(self, path: Path) -> str:
+        parts = list(path.parts)
+        if "experiments" in parts:
+            idx = parts.index("experiments")
+            return "/".join(parts[idx:])
+        return str(path)
 
     def _build_tree(self) -> None:
         self.spinner_idx += 1
@@ -903,6 +931,7 @@ class TrialInspector(Screen):
         
         if not self.trial_dir or not self.trial_dir.exists():
             self.trial_dir = self._find_trial_dir()
+            self._update_path_label()
         
         if not self.trial_dir or not self.trial_dir.exists():
             if not self._tree_initialized:

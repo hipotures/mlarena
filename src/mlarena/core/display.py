@@ -5,7 +5,7 @@ Provides consistent header/footer panels across all modules using Rich library
 with standardized styling and information presentation.
 """
 
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
 from datetime import datetime, timezone
 from rich.console import Console, Group
@@ -33,6 +33,108 @@ COLOR_KEY = "bold cyan"
 COLOR_VALUE = "white"
 COLOR_OVERRIDE = "yellow"
 COLOR_METRIC_KEY = "cyan"
+
+
+def _render_grouped_paths(paths_dict: Dict[str, str], shapes_meta: Optional[Dict] = None, title: str = "Input") -> List[str]:
+    """Helper to render grouped file paths with aligned shapes."""
+    if not paths_dict:
+        return []
+
+    lines = [f"[{COLOR_KEY}]{title}:[/{COLOR_KEY}]"]
+    
+    # Separate special entries
+    clean_paths = {k: v for k, v in paths_dict.items() if k not in ["__shapes__", "preprocessing", "model_template", "pipeline", "flow"]}
+    if not clean_paths:
+        # Fallback for meta-info only
+        for k, v in paths_dict.items():
+            if k == "__shapes__": continue
+            lines.append(f"  [{COLOR_KEY}]{k.replace('_', ' ').title()}:[/{COLOR_KEY}] {v}")
+        return lines
+
+    # Try to find a common base directory
+    try:
+        path_objs = [Path(p) for p in clean_paths.values() if p]
+        if len(path_objs) > 1:
+            common_base = os.path.commonpath([str(p.parent) for p in path_objs])
+            if common_base and common_base != "/" and common_base != ".":
+                lines.append(f"  [dim]- {common_base}/[/dim]")
+                display_paths = {k: Path(v).name for k, v in clean_paths.items()}
+            else:
+                display_paths = clean_paths
+        else:
+            display_paths = clean_paths
+    except Exception:
+        display_paths = clean_paths
+
+    # Highlighted keys color
+    KEY_STYLE = "grey70"
+
+    # Find max width for alignment (Label and Filename)
+    max_key_len = max([len(k.replace('_', ' ').title().replace('Processed', '').strip()) for k in display_paths.keys()] + [8])
+    max_fname_len = max([len(str(v)) for v in display_paths.values()] + [1])
+    
+    # Standard order for data files
+    order = ["train", "test", "tuning", "val", "eval", "original", "orig"]
+    
+    # Pre-calculate if ANY shapes are present to decide on column alignment
+    any_shapes = bool(shapes_meta and len(shapes_meta) > 0)
+    
+    processed_keys = set()
+    for key_pattern in order:
+        # Match keys (handling variants like 'train' vs 'train_processed')
+        actual_key = next((k for k in display_paths if key_pattern in k.lower() and k not in processed_keys), None)
+        if not actual_key:
+            continue
+            
+        processed_keys.add(actual_key)
+        fname = display_paths[actual_key]
+        label = actual_key.replace('_', ' ').title().replace('Processed', '').strip()
+        if label == "Val": label = "Tuning"
+        if label == "Original": label = "Orig"
+        
+        # Get shape info
+        shape_str = ""
+        if any_shapes:
+            s_val = None
+            # Robust shape lookup (mapping val->tuning etc)
+            search_keys = [key_pattern]
+            if key_pattern == "tuning": search_keys.append("val")
+            if key_pattern == "val": search_keys.append("tuning")
+            if key_pattern == "orig": search_keys.append("original")
+            
+            for sk in search_keys:
+                s_match = next((k for k in shapes_meta if sk in k.lower()), None)
+                if s_match:
+                    s_val = shapes_meta[s_match]
+                    break
+            
+            if s_val:
+                if isinstance(s_val, (list, tuple)) and len(s_val) >= 2:
+                    shape_str = f"[grey70]Shapes:[/] {s_val[0]:,} × {s_val[1]}"
+                else:
+                    shape_str = f"[grey70]Shapes:[/] {s_val} columns"
+            else:
+                # Placeholder for missing shape to maintain alignment
+                shape_str = ""
+
+        # Aligned line: Label (fixed) | Filename (fixed) | Shapes
+        label_spacing = " " * (max_key_len - len(label))
+        fname_spacing = " " * (max_fname_len - len(fname))
+        
+        # Only add triple space if shape exists, otherwise just the filename
+        if shape_str:
+            lines.append(f"  [{KEY_STYLE}]{label}:[/{KEY_STYLE}]{label_spacing} {fname}{fname_spacing}   {shape_str}")
+        else:
+            lines.append(f"  [{KEY_STYLE}]{label}:[/{KEY_STYLE}]{label_spacing} {fname}")
+
+    # Remaining keys
+    for key, fname in display_paths.items():
+        if key in processed_keys: continue
+        label = key.replace('_', ' ').title()
+        label_spacing = " " * (max_key_len - len(label))
+        lines.append(f"  [{KEY_STYLE}]{label}:[/{KEY_STYLE}]{label_spacing} {fname}")
+
+    return lines
 
 
 def format_path_relative(path: Union[str, Path], project_root: Path) -> str:
@@ -768,31 +870,12 @@ def print_module_header(
                     lines.append(f"  [{COLOR_KEY}]Model Template:[/{COLOR_KEY}] {model_template}")
                 lines.append("")
 
-        lines.append(f"[{COLOR_KEY}]Input:[/{COLOR_KEY}]")
-        for key, path in input_paths.items():
-            if key == "__shapes__":
-                continue
-            if module_name == "predict" and key in ["preprocessing", "model_template"]:
-                continue
-            label = key.replace('_', ' ').title()
-            lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
-        
         shapes_meta = input_paths.get("__shapes__")
-        if shapes_meta:
-            for s_key, s_val in shapes_meta.items():
-                if s_val:
-                    label = s_key.title()
-                    if s_val[1] is not None:
-                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] {label}: {s_val[0]:,} × {s_val[1]}")
-                    else:
-                        lines.append(f"  [{COLOR_KEY}]Shapes:[/{COLOR_KEY}] {label}: {s_val[0]:,} rows")
+        lines.extend(_render_grouped_paths(input_paths, shapes_meta, title="Input"))
 
     if output_paths:
         lines.append("")
-        lines.append(f"[{COLOR_KEY}]Output:[/{COLOR_KEY}]")
-        for key, path in output_paths.items():
-            label = key.replace('_', ' ').title()
-            lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
+        lines.extend(_render_grouped_paths(output_paths, title="Output"))
 
     panel = Panel(
         "\n".join(lines),
@@ -872,32 +955,42 @@ def print_module_footer(
     else:
         if output_paths and not path_tree:
             lines.append("")
-            lines.append(f"[{COLOR_KEY}]Output Files:[/{COLOR_KEY}]")
-            for key, path in output_paths.items():
-                label = key.replace('_', ' ').title()
-                if module_name == "model" and key == "model":
-                    model_path = Path(path)
-                    if not model_path.is_absolute():
-                        model_path = project_root / path
-                    size_str = format_size(get_directory_size(model_path))
-                    lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path} [dim]({size_str})[/dim]")
-                else:
-                    lines.append(f"  [{COLOR_KEY}]{label}:[/{COLOR_KEY}] {path}")
+            # Map 'after' shapes for integrated display
+            sm = {}
+            if shapes:
+                # Map all variants to canonical keys for _render_grouped_paths
+                for k in ["train", "test", "tuning", "val", "eval", "orig", "original"]:
+                    v = shapes.get(f"{k}_after")
+                    if v:
+                        key = "tuning" if k == "val" else "orig" if k == "original" else k
+                        sm[key] = v
+            
+            lines.extend(_render_grouped_paths(output_paths, sm, title="Output Files"))
 
         if shapes and not path_tree:
-            lines.append("")
-            if shapes.get("pass_through", False):
-                lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}] [dim](pass-through, unchanged)[/dim]")
-                if "train_before" in shapes:
-                    lines.append(f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] {shapes['train_before'][0]:,} × {shapes['train_before'][1]}")
-                if "test_before" in shapes:
-                    lines.append(f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] {shapes['test_before'][0]:,} × {shapes['test_before'][1]}")
-            else:
-                lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}]")
-                if "train_before" in shapes and "train_after" in shapes:
-                    lines.append(f"  [{COLOR_KEY}]Train:[/{COLOR_KEY}] {shapes['train_before'][0]:,} × {shapes['train_before'][1]} → {shapes['train_after'][0]:,} × {shapes['train_after'][1]}")
-                if "test_before" in shapes and "test_after" in shapes:
-                    lines.append(f"  [{COLOR_KEY}]Test:[/{COLOR_KEY}] {shapes['test_before'][0]:,} × {shapes['test_before'][1]} → {shapes['test_after'][0]:,} × {shapes['test_after'][1]}")
+            # Only show summary if not already integrated in Output Files
+            has_shown_integrated = any("Shapes:" in line for line in lines)
+            
+            if not has_shown_integrated:
+                lines.append("")
+                if shapes.get("pass_through", False):
+                    lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}] [dim](pass-through, unchanged)[/dim]")
+                    if "train_before" in shapes:
+                        s = shapes["train_before"]
+                        if isinstance(s, (list, tuple)) and len(s) >= 2:
+                            lines.append(f"  [grey70]Train:[/] {s[0]:,} × {s[1]}")
+                else:
+                    lines.append(f"[{COLOR_KEY}]Dataset Shapes:[/{COLOR_KEY}]")
+                    
+                    def _fmt_shape_val(val):
+                        if isinstance(val, (list, tuple)) and len(val) >= 2:
+                            return f"{val[0]:,} × {val[1]}"
+                        return f"{val} columns"
+
+                    if "train_before" in shapes and "train_after" in shapes:
+                        lines.append(f"  [grey70]Train:[/] {_fmt_shape_val(shapes['train_before'])} → {_fmt_shape_val(shapes['train_after'])}")
+                    if "test_before" in shapes and "test_after" in shapes:
+                        lines.append(f"  [grey70]Test:[/] {_fmt_shape_val(shapes['test_before'])} → {_fmt_shape_val(shapes['test_after'])}")
 
         if metrics:
             if "av_stats" in metrics:

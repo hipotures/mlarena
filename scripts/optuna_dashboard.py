@@ -669,6 +669,8 @@ class TrialInspector(Screen):
         self._suppress_modal_on_expand = False
         self._last_modal_key = None
         self._last_modal_time = 0.0
+        self._trial_state_cache = {}
+        self._last_trial_state_refresh = 0.0
 
     def _get_optuna_params(self) -> Dict[str, Any]:
         """Fetches Optuna params from SQLite for the current trial number."""
@@ -909,48 +911,26 @@ class TrialInspector(Screen):
                 self._tree_initialized = True
             return
 
-        metrics_file = self.trial_dir / "metrics.json"
-        if metrics_file.exists():
-            if not self._completed_view:
-                root.remove_children()
-                self._pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
-                self._metrics_node = root.add("[bold]Metrics[/bold]", expand=True)
-                self._model_node = None
-                self._opt_node = None
-                self._render_preprocess(self._pre_node)
-                self._render_metrics(self._metrics_node, metrics_file)
-                self._render_model()
-                self._render_optuna()
-                self._completed_view = True
-
-            if self.refresh_timer:
-                self.refresh_timer.stop()
-                self.refresh_timer = None
-
-            try:
-                self.query_one("#loading_spinner").display = False
-            except Exception:
-                pass
-            return
-
         if not self._tree_initialized:
             root.remove_children()
             self._pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
             self._opt_node = root.add("[bold]Optuna[/bold]", expand=False)
             self._tree_initialized = True
 
-        any_running = self._preprocess_running or self._model_running
         force_refresh = self._last_preprocess_refresh == 0.0 and self._last_model_refresh == 0.0
+        trial_state = self._load_trial_state()
+        pipeline_status = (trial_state.get("pipeline_progress", {}) or {}).get("status")
+        pipeline_running = str(pipeline_status).lower() == "running"
 
-        if not any_running and not force_refresh:
-            if self.refresh_timer:
-                self.refresh_timer.stop()
-                self.refresh_timer = None
-            return
-
-        refresh_pre = force_refresh or (self._preprocess_running and current_time - self._last_preprocess_refresh >= 1.0)
-        refresh_model = force_refresh or (self._model_running and current_time - self._last_model_refresh >= 30.0)
-        refresh_optuna = (self._preprocess_running or self._model_running) and (
+        refresh_pre = force_refresh or (self._preprocess_running and current_time - self._last_preprocess_refresh >= 0.5)
+        pending_model = (not self._model_dir_exists()) and not (self.trial_dir / "metrics.json").exists()
+        refresh_model = (
+            force_refresh
+            or (self._model_running and current_time - self._last_model_refresh >= 30.0)
+            or (self._model_node is None and self._model_dir_exists())
+            or (pending_model and current_time - self._last_model_refresh >= 2.0)
+        )
+        refresh_optuna = (self._preprocess_running or self._model_running or pipeline_running) and (
             force_refresh or (current_time - self._last_optuna_refresh >= 10.0)
         )
 
@@ -985,10 +965,38 @@ class TrialInspector(Screen):
                 pass
             self._pending_reset_view = False
 
+        any_running = self._preprocess_running or self._model_running or pipeline_running
+        metrics_file = self.trial_dir / "metrics.json"
+        if metrics_file.exists() and not any_running:
+            if not self._completed_view:
+                try:
+                    self.query_one("#loading_spinner").display = False
+                except Exception:
+                    pass
+                self._metrics_node = root.add("[bold]Metrics[/bold]", expand=True)
+                self._render_metrics(self._metrics_node, metrics_file)
+                self._completed_view = True
+            if self.refresh_timer:
+                self.refresh_timer.stop()
+                self.refresh_timer = None
+            return
+
+        if not any_running and not force_refresh and not pending_model:
+            if self.refresh_timer:
+                self.refresh_timer.stop()
+                self.refresh_timer = None
+            return
+
     def _render_preprocess(self, pre_node: TreeNode) -> None:
         if pre_node is None:
             return
         pre_node.remove_children()
+        trial_state = self._load_trial_state()
+        steps_meta = {
+            s.get("name"): s
+            for s in (trial_state.get("pipeline_progress", {}) or {}).get("steps", [])
+            if isinstance(s, dict)
+        }
         steps = sorted(
             [d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()],
             key=lambda x: int(x.name.split("-")[0]),
@@ -996,9 +1004,13 @@ class TrialInspector(Screen):
         running = False
         self._running_nodes_pre = []
         for step_dir in steps:
+            status_override = None
+            meta = steps_meta.get(step_dir.name)
+            if isinstance(meta, dict):
+                status_override = meta.get("status")
             step_node = pre_node.add(f"{step_dir.name}", expand=False)
-            status = self._add_step_details(step_node, step_dir, self._running_nodes_pre)
-            if status == "running":
+            status = self._add_step_details(step_node, step_dir, self._running_nodes_pre, status_override=status_override)
+            if status == "running" or status_override == "running":
                 running = True
         self._preprocess_running = running
 
@@ -1062,11 +1074,35 @@ class TrialInspector(Screen):
             tp_node.data = {"type": "json_modal", "title": "Optuna Trial Params", "payload": params}
             tp_node.add_leaf("") # Dummy leaf for arrow
 
-    def _add_step_details(self, node: TreeNode, step_dir: Path, running_nodes: List[Tuple[TreeNode, str]]) -> str:
+    def _model_dir_exists(self) -> bool:
+        if not self.trial_dir:
+            return False
+        model_dir = self.trial_dir / "model"
+        if model_dir.exists():
+            return True
+        model_dir = self.trial_dir / "optuna_model"
+        return model_dir.exists()
+
+    def _add_step_details(
+        self,
+        node: TreeNode,
+        step_dir: Path,
+        running_nodes: List[Tuple[TreeNode, str]],
+        status_override: Optional[str] = None,
+    ) -> str:
         state_path = step_dir / "state.json"
         if not state_path.exists():
+            if status_override:
+                status_norm = str(status_override).lower()
+                if status_norm == "failed":
+                    node.set_label(f"{node.label} [FAILED]")
+                elif status_norm == "running":
+                    base_label = str(node.label)
+                    running_nodes.append((node, base_label))
+                    frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
+                    node.set_label(f"{base_label} {frame}")
             node.add("No state.json found", allow_expand=False)
-            return "unknown"
+            return str(status_override or "unknown")
 
         try:
             mtime = state_path.stat().st_mtime
@@ -1082,10 +1118,20 @@ class TrialInspector(Screen):
             
             mod_info = modules.get(mod_name, {})
             status = mod_info.get("status", "unknown")
+            any_running = any(
+                isinstance(m, dict) and m.get("status") == "running"
+                for m in modules.values()
+            )
+            any_failed = any(
+                isinstance(m, dict) and m.get("status") == "failed"
+                for m in modules.values()
+            )
             
-            if status == "failed":
+            status_effective = status_override or status
+            status_norm = str(status_effective).lower()
+            if any_failed or status_norm == "failed":
                 node.set_label(f"{node.label} [FAILED]")
-            elif status == "running":
+            elif any_running or status_norm == "running":
                 base_label = str(node.label)
                 running_nodes.append((node, base_label))
                 frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
@@ -1164,7 +1210,36 @@ class TrialInspector(Screen):
 
         except Exception as e:
             node.add(f"Error: {e}", allow_expand=False)
-        return status
+        if any_running or str(status_override or status).lower() == "running":
+            return "running"
+        return str(status_override or status)
+
+    def _load_trial_state(self) -> Dict[str, Any]:
+        if not self.trial_dir:
+            return {}
+        state_path = self.trial_dir / "state.json"
+        if not state_path.exists():
+            return {}
+        now = time.time()
+        if now - self._last_trial_state_refresh < 0.5:
+            cached = self._trial_state_cache.get(str(state_path))
+            if cached:
+                return cached.get("data", {})
+        cache_key = str(state_path)
+        try:
+            mtime = state_path.stat().st_mtime
+        except Exception:
+            mtime = None
+        cached = self._trial_state_cache.get(cache_key)
+        if cached and cached.get("mtime") == mtime:
+            return cached.get("data", {})
+        try:
+            data = json.loads(state_path.read_text())
+        except Exception:
+            data = {}
+        self._trial_state_cache[cache_key] = {"mtime": mtime, "data": data}
+        self._last_trial_state_refresh = now
+        return data
 
     def _animate_running_nodes(self) -> None:
         if not self._running_nodes:

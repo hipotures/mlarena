@@ -17,6 +17,7 @@ import requests
 from dotenv import load_dotenv
 from rich.json import JSON
 from textual.app import App, ComposeResult
+from textual import events
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen, Screen
 from textual.reactive import reactive
@@ -162,6 +163,12 @@ class JSONModal(ModalScreen):
             self.app.notify("JSON copied to clipboard!")
         except Exception as e:
             self.app.notify(f"Failed to copy: {e}", severity="error")
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "escape":
+            event.stop()
+            event.prevent_default()
+            self.app.pop_screen()
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -627,7 +634,7 @@ class TrialInspector(Screen):
         ("escape", "app.pop_screen", "Back"),
         ("c", "copy_tree", "Copy Branch"),
         ("ctrl+insert", "copy_tree", "Copy Branch"),
-        ("e", "expand_all_tree", "Expand All"),
+        ("E", "expand_all", "Expand All"),
         ("e", "reset_view_tree", "Reset View"),
     ]
     SPINNER_FRAMES = ["⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"]
@@ -657,6 +664,11 @@ class TrialInspector(Screen):
         self._last_optuna_refresh = 0.0
         self._tree_initialized = False
         self._completed_view = False
+        self._pending_expand_all = False
+        self._pending_reset_view = False
+        self._suppress_modal_on_expand = False
+        self._last_modal_key = None
+        self._last_modal_time = 0.0
 
     def _get_optuna_params(self) -> Dict[str, Any]:
         """Fetches Optuna params from SQLite for the current trial number."""
@@ -712,14 +724,26 @@ class TrialInspector(Screen):
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle node selection to open modals."""
+        if self._suppress_modal_on_expand:
+            return
         self._handle_json_node(event.node)
 
     def on_tree_node_expanded(self, event: Tree.NodeExpanded) -> None:
         """Handle node expansion to open modals."""
+        if self._suppress_modal_on_expand:
+            return
         self._handle_json_node(event.node)
 
     def _handle_json_node(self, node: TreeNode) -> None:
+        if self._suppress_modal_on_expand:
+            return
         if node.data and isinstance(node.data, dict) and node.data.get("type") == "json_modal":
+            modal_key = node.data.get("title", str(node.label))
+            now = time.time()
+            if self._last_modal_key == modal_key and (now - self._last_modal_time) < 0.25:
+                return
+            self._last_modal_key = modal_key
+            self._last_modal_time = now
             title = node.data.get("title", "Data View")
             payload = node.data.get("payload", {})
             
@@ -733,10 +757,30 @@ class TrialInspector(Screen):
         """Expands all nodes in the tree."""
         try:
             tree = self.query_one("#flow_tree")
-            tree.root.expand_all()
+            self._suppress_modal_on_expand = True
+            self._expand_all_non_modal(tree.root)
             self._tree_fully_expanded = True
+            self._pending_expand_all = True
+            self._pending_reset_view = False
             self.app.notify("Tree fully expanded.")
+            try:
+                self.set_timer(0.5, self._clear_expand_suppression)
+            except Exception:
+                self.call_after_refresh(self._clear_expand_suppression)
         except Exception: pass
+
+    def _clear_expand_suppression(self) -> None:
+        self._suppress_modal_on_expand = False
+
+    def _expand_all_non_modal(self, node: TreeNode) -> None:
+        if isinstance(node.data, dict) and node.data.get("type") == "json_modal":
+            return
+        try:
+            node.expand()
+        except Exception:
+            pass
+        for child in node.children:
+            self._expand_all_non_modal(child)
 
     def action_reset_view_tree(self) -> None:
         """Resets tree to default view (headings only)."""
@@ -747,6 +791,8 @@ class TrialInspector(Screen):
             for child in tree.root.children:
                 child.expand()
             self._tree_fully_expanded = False
+            self._pending_reset_view = True
+            self._pending_expand_all = False
             self.app.notify("Tree view reset to default.")
         except Exception: pass
 
@@ -923,6 +969,21 @@ class TrialInspector(Screen):
             *getattr(self, "_running_nodes_model", []),
         ]
         self._animate_running_nodes()
+        if self._pending_expand_all:
+            try:
+                self._expand_all_non_modal(tree.root)
+            except Exception:
+                pass
+            self._pending_expand_all = False
+        elif self._pending_reset_view:
+            try:
+                tree.root.collapse_all()
+                tree.root.expand()
+                for child in tree.root.children:
+                    child.expand()
+            except Exception:
+                pass
+            self._pending_reset_view = False
 
     def _render_preprocess(self, pre_node: TreeNode) -> None:
         if pre_node is None:

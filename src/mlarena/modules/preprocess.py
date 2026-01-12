@@ -75,6 +75,13 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         start_time = time.time()
         from rich.text import Text
         
+        # Capture shapes BEFORE transformation
+        shape_before_train = X.train.shape
+        shape_before_test = X.test.shape
+        shape_before_val = X.val.shape if X.val is not None else None
+        shape_before_eval = X.eval.shape if X.eval is not None else None
+        shape_before_orig = X.orig.shape if X.orig is not None else None
+        
         # Always show progress on stdout, even if quiet_mode is on (but keep it subtle)
         console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
         
@@ -120,7 +127,13 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             step_artifact_dir = step_dir / "artifacts" / "preprocess"
             step_artifact_dir.mkdir(parents=True, exist_ok=True)
             
-            preprocess_config = template_cfg.get("config", {}).copy()
+            # Handle both nested (legacy) and flattened (TemplateLoader) configs
+            if "config" in template_cfg and isinstance(template_cfg["config"], dict):
+                preprocess_config = template_cfg["config"].copy()
+            else:
+                # Configuration is already flattened
+                preprocess_config = template_cfg.copy()
+
             if self.loader_instance.invocation_params.get("quiet_preprocess_panel"):
                 preprocess_config["quiet"] = True
             preprocess_config["_artifact_dir"] = str(step_artifact_dir)
@@ -226,8 +239,16 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 "input_source": None, # In-memory, no disk source
                 "cached": False,
                 "shapes": {
+                    "train_before": shape_before_train,
                     "train_after": X.train.shape,
+                    "test_before": shape_before_test,
                     "test_after": X.test.shape,
+                    "val_before": shape_before_val,
+                    "val_after": X.val.shape if X.val is not None else None,
+                    "eval_before": shape_before_eval,
+                    "eval_after": X.eval.shape if X.eval is not None else None,
+                    "orig_before": shape_before_orig,
+                    "orig_after": X.orig.shape if X.orig is not None else None,
                 },
                 "custom_module_state": custom_preprocess_state
             }
@@ -621,6 +642,9 @@ class PreprocessModule(BaseModule):
                 initial_shapes={
                     "train": orig_train_shape,
                     "test": orig_test_shape,
+                    "val": orig_tuning_shape,
+                    "eval": orig_eval_shape,
+                    "orig": orig_orig_shape,
                 }
             )
             
@@ -694,10 +718,16 @@ class PreprocessModule(BaseModule):
                 
             # 5. Build Result Payload
             shapes_dict = {
-                "train_before": final_container.initial_shapes["train"],
+                "train_before": final_container.initial_shapes.get("train"),
                 "train_after": final_container.train.shape,
-                "test_before": final_container.initial_shapes["test"],
+                "test_before": final_container.initial_shapes.get("test"),
                 "test_after": final_container.test.shape,
+                "val_before": final_container.initial_shapes.get("val"),
+                "val_after": final_container.val.shape if final_container.val is not None else None,
+                "eval_before": final_container.initial_shapes.get("eval"),
+                "eval_after": final_container.eval.shape if final_container.eval is not None else None,
+                "orig_before": final_container.initial_shapes.get("orig"),
+                "orig_after": final_container.orig.shape if final_container.orig is not None else None,
                 "pipeline_mode": True,
                 "last_step": last_step_full_name,
             }

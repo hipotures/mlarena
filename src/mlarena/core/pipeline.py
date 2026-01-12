@@ -56,14 +56,9 @@ class PipelineExecutor:
 
         if template_name:
             try:
-                import sys
-                from pathlib import Path as P
-                REPO_ROOT = P(__file__).resolve().parents[3]
-                sys.path.insert(0, str(REPO_ROOT / "scripts"))
-                from template_loader import load_templates
-
-                templates, _ = load_templates(module_name, module.context.project_root, suppress_warnings=True)
-                template_config = templates.get(template_name, {})
+                from mlarena.core.config import TemplateLoader
+                loader = TemplateLoader(module.context.project_root, template_type=module_name)
+                template_config = loader.load(template_name) or {}
 
                 if invocation.get("dev"):
                     invocation["preset"] = "medium"
@@ -166,12 +161,33 @@ class PipelineExecutor:
                     default_dir = module.context.project_root / f"experiments/pre-{preprocess_template}"
                     if default_dir.exists():
                         return default_dir
+                    
+                    import time
+                    import os
+                    start_scan = time.perf_counter()
                     experiments_dir = module.context.project_root / "experiments"
-                    candidates = sorted(
-                        experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"),
-                        key=lambda p: p.stat().st_mtime,
-                        reverse=True,
-                    )
+                    candidates = []
+                    
+                    if experiments_dir.exists():
+                        with os.scandir(experiments_dir) as it:
+                            for entry in it:
+                                if not entry.is_dir() or not entry.name.startswith("pre-"):
+                                    continue
+                                try:
+                                    with os.scandir(entry.path) as sub_it:
+                                        for sub_entry in sub_it:
+                                            if sub_entry.is_dir() and f"-{preprocess_template}" in sub_entry.name:
+                                                candidates.append(Path(sub_entry.path))
+                                except (PermissionError, NotADirectoryError):
+                                    continue
+                    
+                    candidates = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
+                    scan_duration = time.perf_counter() - start_scan
+                    if os.getenv("MLARENA_DEBUG") == "1":
+                        from rich.console import Console
+                        console_err = Console(stderr=True)
+                        console_err.print(f"[DEBUG] _resolve_preprocess_dir scan took {scan_duration:.4f}s (scanned {experiments_dir})")
+                    
                     if candidates:
                         return candidates[0]
                 return None

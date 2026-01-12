@@ -1,0 +1,7 @@
+chain:
+- optuna-smoke_s6e1_heavy_v2-0219-train_fraction
+- optuna-smoke_s6e1_heavy_v2-0219-outlier_handler
+- optuna-smoke_s6e1_heavy_v2-0219-rare_category_handler
+- optuna-smoke_s6e1_heavy_v2-0219-rank_features_post
+- optuna-smoke_s6e1_heavy_v2-0219-scaler
+- optuna-smoke_s6e1_heavy_v2-0219-drift_detector

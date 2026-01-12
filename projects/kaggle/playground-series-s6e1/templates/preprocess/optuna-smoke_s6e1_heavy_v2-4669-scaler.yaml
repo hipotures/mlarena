@@ -1,0 +1,7 @@
+module: scaler
+config:
+  numeric_include: null
+  numeric_exclude: []
+  log_transform: []
+  random_state: 42
+  scaling_method: standard

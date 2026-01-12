@@ -1,0 +1,7 @@
+module: feature_interactions
+config:
+  numeric_pairs: []
+  use_original_features_only: true
+  interaction_types:
+  - sub
+  max_generated_features: 175

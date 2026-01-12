@@ -165,9 +165,47 @@ def _load_processed_or_raw(
                     return train_df, test_df, sample_weight, orig_df, tuning_df
 
         # 4) Fallback: search chain directories containing this template (pick most recent)
+        import os
+        import time
+        start_scan = time.perf_counter()
+        
         experiments_dir = context.project_root / "experiments"
-        candidates = list(experiments_dir.glob(f"pre-*/[0-9]*-{preprocess_template}"))
-        candidates += list(experiments_dir.glob(f"pre-*/*/[0-9]*-{preprocess_template}"))
+        candidates = []
+        
+        if experiments_dir.exists():
+            # Faster alternative to glob: manual scan of top-level directories
+            with os.scandir(experiments_dir) as it:
+                for entry in it:
+                    if not entry.is_dir() or not entry.name.startswith("pre-"):
+                        continue
+                    
+                    # Check for [0-9]*-{template} pattern in subdirectories
+                    try:
+                        with os.scandir(entry.path) as sub_it:
+                            for sub_entry in sub_it:
+                                if not sub_entry.is_dir():
+                                    continue
+                                if f"-{preprocess_template}" in sub_entry.name:
+                                    candidates.append(Path(sub_entry.path))
+                                
+                                # Also check one level deeper for hashed chains: pre-*/*/[0-9]*-{template}
+                                else:
+                                    try:
+                                        with os.scandir(sub_entry.path) as hash_it:
+                                            for hash_entry in hash_it:
+                                                if hash_entry.is_dir() and f"-{preprocess_template}" in hash_entry.name:
+                                                    candidates.append(Path(hash_entry.path))
+                                    except (PermissionError, NotADirectoryError):
+                                        continue
+                    except (PermissionError, NotADirectoryError):
+                        continue
+
+        scan_duration = time.perf_counter() - start_scan
+        if os.getenv("MLARENA_DEBUG") == "1":
+            from rich.console import Console
+            console_err = Console(stderr=True)
+            console_err.print(f"[DEBUG] _load_processed_or_raw scan took {scan_duration:.4f}s (found {len(candidates)} candidates)")
+
         candidates = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
         for exp_dir in candidates:
             train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(exp_dir)

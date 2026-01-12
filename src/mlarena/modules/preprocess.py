@@ -293,14 +293,14 @@ class PreprocessModule(BaseModule):
         sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
         try:
-            from template_loader import load_templates
-            templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
-            if template_name not in templates:
-                available = ", ".join(list(templates.keys())[:10]) if templates else "none"
-                return False, f"Template '{template_name}' not found. Available: {available}"
+            from mlarena.core.config import TemplateLoader
+            loader = TemplateLoader(self.context.project_root, template_type="preprocess")
+            template_cfg = loader.load(template_name)
+            if not template_cfg:
+                return False, f"Template '{template_name}' not found."
         except Exception as e:
             import traceback
-            return False, f"Failed to load templates: {e}\n{traceback.format_exc()}"
+            return False, f"Failed to load template: {e}\n{traceback.format_exc()}"
 
         return True, ""
 
@@ -589,13 +589,11 @@ class PreprocessModule(BaseModule):
                 raise RuntimeError(f"Failed to load preprocess_template_path: {template_path} ({e})")
 
         if template_cfg is None:
-            from pathlib import Path as P
-            REPO_ROOT = P(__file__).resolve().parents[3]
-            sys.path.insert(0, str(REPO_ROOT / "scripts"))
-            from template_loader import load_templates
-
-            templates, _ = load_templates("preprocess", self.context.project_root, suppress_warnings=True)
-            template_cfg = templates.get(template_name, {})
+            from mlarena.core.config import TemplateLoader
+            loader = TemplateLoader(self.context.project_root, template_type="preprocess")
+            template_cfg = loader.load(template_name)
+            if not template_cfg:
+                raise ValueError(f"Template '{template_name}' not found.")
 
         # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK START <<<<<<
         pipeline_definition = template_cfg.get("steps")

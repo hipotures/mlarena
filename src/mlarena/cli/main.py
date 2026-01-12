@@ -37,16 +37,13 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
 
     templates = [t.strip() for t in template_arg.split(",")]
 
-    import sys
-    sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    from template_loader import load_templates
-
-    all_templates, _ = load_templates("preprocess", project_root, suppress_warnings=True)
+    from mlarena.core.config import TemplateLoader
+    loader = TemplateLoader(project_root, template_type="preprocess")
 
     if len(templates) == 1:
-        template_config = all_templates.get(templates[0], {})
+        template_config = loader.load(templates[0])
 
-        if "chain" in template_config:
+        if template_config and "chain" in template_config:
             chain = template_config["chain"]
             if not isinstance(chain, list):
                 raise ValueError(f"Meta-template '{templates[0]}' chain must be a list")
@@ -65,9 +62,10 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
 
     template_configs = []
     for tpl_name in templates:
-        if tpl_name not in all_templates:
+        tpl_cfg = loader.load(tpl_name)
+        if not tpl_cfg:
             raise ValueError(f"Template '{tpl_name}' not found in preprocess templates")
-        template_configs.append(all_templates[tpl_name])
+        template_configs.append(tpl_cfg)
 
     from mlarena.utils.hash_utils import compute_chain_hash
     combined_hash, individual_hashes = compute_chain_hash(template_configs, project_root)
@@ -774,11 +772,9 @@ def run_auto_flow(
     resolved_preprocess_template = config.preprocess_template
     if not resolved_preprocess_template:
         try:
-            sys.path.insert(0, str(REPO_ROOT / "scripts"))
-            from template_loader import load_templates
-
-            model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
-            model_tpl_cfg = model_templates.get(model_template, {})
+            from mlarena.core.config import TemplateLoader
+            loader = TemplateLoader(project_root, template_type="model")
+            model_tpl_cfg = loader.load(model_template)
             resolved_preprocess_template = model_tpl_cfg.get("preprocess_template")
         except Exception:
             resolved_preprocess_template = None
@@ -1264,11 +1260,9 @@ def main(argv: List[str] | None = None) -> int:
         resolved_preprocess_template = config.preprocess_template
         if not resolved_preprocess_template:
             try:
-                sys.path.insert(0, str(REPO_ROOT / "scripts"))
-                from template_loader import load_templates
-
-                model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
-                model_tpl_cfg = model_templates.get(config.model_template, {})
+                from mlarena.core.config import TemplateLoader
+                loader = TemplateLoader(project_root, template_type="model")
+                model_tpl_cfg = loader.load(config.model_template)
                 resolved_preprocess_template = model_tpl_cfg.get("preprocess_template")
             except Exception:
                 resolved_preprocess_template = None

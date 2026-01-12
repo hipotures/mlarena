@@ -1,0 +1,8 @@
+module: rare_category_handler
+config:
+  rare_label: __RARE__
+  detect_id_like_columns: true
+  id_unique_fraction_threshold: 0.95
+  min_freq: 7
+  min_freq_ratio: 0.025
+  top_k: 70

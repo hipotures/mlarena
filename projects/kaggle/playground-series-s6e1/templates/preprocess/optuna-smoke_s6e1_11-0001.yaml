@@ -1,0 +1,8 @@
+chain:
+- optuna-smoke_s6e1_11-0001-train_fraction
+- optuna-smoke_s6e1_11-0001-target_transformer
+- optuna-smoke_s6e1_11-0001-missingness_features
+- optuna-smoke_s6e1_11-0001-outlier_handler
+- optuna-smoke_s6e1_11-0001-scaler
+- optuna-smoke_s6e1_11-0001-drift_detector
+- optuna-smoke_s6e1_11-0001-feature_selector

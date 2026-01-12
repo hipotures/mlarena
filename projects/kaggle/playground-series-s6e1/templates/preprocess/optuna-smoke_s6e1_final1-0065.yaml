@@ -1,0 +1,11 @@
+chain:
+- optuna-smoke_s6e1_final1-0065-sanity_check
+- optuna-smoke_s6e1_final1-0065-train_fraction
+- optuna-smoke_s6e1_final1-0065-target_transformer
+- optuna-smoke_s6e1_final1-0065-outlier_handler
+- optuna-smoke_s6e1_final1-0065-rank_features_pre
+- optuna-smoke_s6e1_final1-0065-encoder
+- optuna-smoke_s6e1_final1-0065-feature_interactions
+- optuna-smoke_s6e1_final1-0065-rank_features_post
+- optuna-smoke_s6e1_final1-0065-scaler
+- optuna-smoke_s6e1_final1-0065-drift_detector

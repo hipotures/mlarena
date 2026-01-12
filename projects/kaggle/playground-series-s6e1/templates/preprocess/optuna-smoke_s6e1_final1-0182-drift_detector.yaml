@@ -1,0 +1,7 @@
+module: drift_detector
+config:
+  max_drop_fraction: 0.5
+  random_state: 42
+  drift_metric: psi
+  max_psi: 0.15
+  action: drop

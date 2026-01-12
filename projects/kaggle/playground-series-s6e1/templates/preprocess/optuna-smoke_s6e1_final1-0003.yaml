@@ -1,0 +1,7 @@
+chain:
+- optuna-smoke_s6e1_final1-0003-train_fraction
+- optuna-smoke_s6e1_final1-0003-row_aggregates
+- optuna-smoke_s6e1_final1-0003-rank_features_post
+- optuna-smoke_s6e1_final1-0003-scaler
+- optuna-smoke_s6e1_final1-0003-drift_detector
+- optuna-smoke_s6e1_final1-0003-feature_selector

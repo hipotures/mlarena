@@ -1,0 +1,8 @@
+module: drift_detector
+config:
+  max_drop_fraction: 0.2
+  random_state: 42
+  drift_metric: ks
+  max_ks: 0.2
+  max_pvalue: 0.041
+  action: drop

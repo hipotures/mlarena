@@ -1,0 +1,11 @@
+module: imputer
+config:
+  categorical_strategy: most_frequent
+  column_strategies: {}
+  treat_outliers_as_na: false
+  outlier_method: iqr
+  outlier_threshold: null
+  fill_value: 0
+  knn_n_neighbors: 5
+  iterative_estimator: bayesian_ridge
+  iterative_max_iter: 10

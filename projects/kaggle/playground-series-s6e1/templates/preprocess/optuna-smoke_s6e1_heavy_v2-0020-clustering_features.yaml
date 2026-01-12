@@ -1,0 +1,11 @@
+module: clustering_features
+config:
+  use_original_features_only: true
+  numeric_include: null
+  numeric_exclude: []
+  algorithm: kmeans
+  n_clusters: 20
+  add_cluster_id: true
+  add_distances: false
+  random_state: 42
+  n_init: 10

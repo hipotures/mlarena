@@ -1,0 +1,19 @@
+module: encoder
+config:
+  include_cols: null
+  exclude_cols: null
+  max_cardinality: 50
+  handle_unknown: ignore
+  unknown_value: -1
+  target_encoding_smoothing: 1.0
+  target_encoding_min_samples: 1
+  oof_folds: 5
+  oof_shuffle: true
+  oof_random_state: 42
+  oof_feature_prefix: mean_
+  keep_original: false
+  normalize: false
+  add_log: false
+  min_count: 1
+  use_original_features_only: true
+  encoding_method: target_mean

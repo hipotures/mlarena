@@ -1,0 +1,12 @@
+chain:
+- optuna-smoke_s6e1_heavy_v2-5344-sanity_check
+- optuna-smoke_s6e1_heavy_v2-5344-train_fraction
+- optuna-smoke_s6e1_heavy_v2-5344-target_transformer
+- optuna-smoke_s6e1_heavy_v2-5344-imputer
+- optuna-smoke_s6e1_heavy_v2-5344-rare_category_handler
+- optuna-smoke_s6e1_heavy_v2-5344-encoder
+- optuna-smoke_s6e1_heavy_v2-5344-scaler
+- optuna-smoke_s6e1_heavy_v2-5344-feature_interactions
+- optuna-smoke_s6e1_heavy_v2-5344-feature_polynomial
+- optuna-smoke_s6e1_heavy_v2-5344-clustering_features
+- optuna-smoke_s6e1_heavy_v2-5344-feature_selector

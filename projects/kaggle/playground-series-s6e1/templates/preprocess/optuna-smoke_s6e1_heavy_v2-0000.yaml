@@ -1,0 +1,4 @@
+chain:
+- optuna-smoke_s6e1_heavy_v2-0000-train_fraction
+- optuna-smoke_s6e1_heavy_v2-0000-imputer
+- optuna-smoke_s6e1_heavy_v2-0000-feature_selector

@@ -1,0 +1,9 @@
+module: outlier_handler
+config:
+  include_cols: null
+  exclude_cols: []
+  random_state: 42
+  outlier_method: quantile
+  lower_quantile: 0.04
+  upper_quantile: 0.99
+  action: clip

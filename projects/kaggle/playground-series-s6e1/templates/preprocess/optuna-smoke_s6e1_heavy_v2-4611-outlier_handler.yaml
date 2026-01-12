@@ -1,0 +1,8 @@
+module: outlier_handler
+config:
+  include_cols: null
+  exclude_cols: []
+  random_state: 42
+  outlier_method: iqr
+  iqr_factor: 1.2
+  action: clip

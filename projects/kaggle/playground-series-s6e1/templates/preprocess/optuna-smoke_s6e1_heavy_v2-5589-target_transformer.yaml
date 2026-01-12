@@ -1,0 +1,8 @@
+module: target_transformer
+config:
+  target_transform: none
+  clip_lower_quantile: null
+  clip_upper_quantile: null
+  shift_before_log: true
+  shift_value: null
+  standardize: true

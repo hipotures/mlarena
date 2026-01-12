@@ -1,0 +1,10 @@
+module: rank_features
+config:
+  numeric_include: null
+  numeric_exclude: []
+  group_keys: []
+  mode: global
+  method: rank
+  tie_method: min
+  add_original: true
+  use_original_features_only: true

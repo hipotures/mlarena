@@ -1,0 +1,11 @@
+chain:
+- optuna-smoke_s6e1_heavy_v2-4669-sanity_check
+- optuna-smoke_s6e1_heavy_v2-4669-train_fraction
+- optuna-smoke_s6e1_heavy_v2-4669-imputer
+- optuna-smoke_s6e1_heavy_v2-4669-rank_features_pre
+- optuna-smoke_s6e1_heavy_v2-4669-encoder
+- optuna-smoke_s6e1_heavy_v2-4669-feature_interactions
+- optuna-smoke_s6e1_heavy_v2-4669-rank_features_post
+- optuna-smoke_s6e1_heavy_v2-4669-scaler
+- optuna-smoke_s6e1_heavy_v2-4669-clustering_features
+- optuna-smoke_s6e1_heavy_v2-4669-feature_selector

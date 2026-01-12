@@ -1,0 +1,18 @@
+model: autogluon_baseline
+preprocess_template: optuna-smoke_s6e1_heavy_v2-5861
+preset: medium
+time_limit: 600
+use_gpu: false
+seed: 42
+included_model_types:
+- GBM
+- XGB
+- CAT
+fit_args:
+  save_space: true
+  fit_weighted_ensemble: false
+  auto_stack: false
+  use_bag_holdout: true
+  save_bag_folds: true
+  num_bag_folds: 5
+  num_bag_sets: 1

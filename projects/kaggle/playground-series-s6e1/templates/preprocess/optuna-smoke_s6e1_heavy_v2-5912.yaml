@@ -1,6 +1,6 @@
 chain:
 - optuna-smoke_s6e1_heavy_v2-5912-sanity_check
-#- optuna-smoke_s6e1_heavy_v2-5912-target_transformer
+- optuna-smoke_s6e1_heavy_v2-5912-target_transformer
 - optuna-smoke_s6e1_heavy_v2-5912-missingness_features
 - optuna-smoke_s6e1_heavy_v2-5912-imputer
 - optuna-smoke_s6e1_heavy_v2-5912-rare_category_handler

@@ -341,9 +341,10 @@ class DashboardScreen(Screen):
         else:
             best_val_str = str(best_val)
         header_text = f"[bold]Study:[/bold] {study['name']}"
+        best_color = "#A2E339"
         body_text = (
-            f"[green]Best Value:[/green] [green]{best_val_str}[/green]\n"
-            f"[green]Best Trial:[/green] [green]{study['best_trial']}[/green]\n"
+            f"[{best_color}]Best Value: {best_val_str}[/{best_color}]\n"
+            f"[{best_color}]Best Trial: {study['best_trial']}[/{best_color}]\n"
             f"[bold]Direction:[/bold] {study.get('direction', 'MINIMIZE')}\n"
             f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
             f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
@@ -413,7 +414,7 @@ class DashboardScreen(Screen):
             
             # Highlight best trial (index 0) in green, others dim
             if i == 0:
-                style_tag = "green"
+                style_tag = "#A2E339"
             else:
                 style_tag = "dim"
             

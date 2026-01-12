@@ -530,11 +530,13 @@ class DashboardScreen(Screen):
         table.add_row("[bold]Total:[/bold]", str(sum(study['counts'].values())))
         table.add_row("[bold]Running:[/bold]", str(study['counts'].get(0, 0)))
         table.add_row("[bold]Complete:[/bold]", str(study['counts'].get(1, 0)))
-        table.add_row("[bold]Waiting:[/bold]", str(study['counts'].get(4, 0)))
-        table.add_row(
-            "[bold]Fail/Pruned:[/bold]", 
-            f"{study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}"
-        )
+        
+        waiting_count = study['counts'].get(4, 0)
+        if waiting_count > 0:
+            table.add_row("[bold]Waiting:[/bold]", str(waiting_count))
+            
+        table.add_row("[bold]Fail:[/bold]", str(study['counts'].get(3, 0)))
+        table.add_row("[bold]Pruned:[/bold]", str(study['counts'].get(2, 0)))
         
         self.query_one("#study_header").update(header_text)
         self.query_one("#study_body").update(table)

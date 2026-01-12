@@ -292,6 +292,11 @@ class DashboardScreen(Screen):
         self.set_interval(5, self.update_data)
         self.call_after_refresh(self.update_data)
 
+    def on_click(self, event: events.Click) -> None:
+        if event.widget.id == "db_label":
+            self.app.copy_to_clipboard(str(self.db_path.resolve()))
+            self.app.notify("Database path copied to clipboard.")
+
     def update_data(self) -> None:
         try:
             if not self.db_path.exists():

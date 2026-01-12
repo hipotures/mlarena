@@ -1223,6 +1223,7 @@ class TrialInspector(Screen):
             if mod_name == "model":
                 payload = mod_info.get("payload", {})
                 cms = payload.get("custom_module_state", {})
+                training_summary = payload.get("training_summary", {})
                 
                 init_mod = modules.get("init", {})
                 init_payload = init_mod.get("payload", {})
@@ -1230,15 +1231,28 @@ class TrialInspector(Screen):
                 metric = init_payload.get("metric")
 
                 p_node = node.add("Info")
-                if problem_type: p_node.add(f"Problem: {problem_type}", allow_expand=False)
-                if metric: p_node.add(f"Metric: {metric}", allow_expand=False)
-                p_node.add(f"Preset: {payload.get('preset')}", allow_expand=False)
-                p_node.add(f"Time Limit: {payload.get('time_limit')}", allow_expand=False)
-                p_node.add(f"Use GPU: {payload.get('use_gpu')}", allow_expand=False)
-                p_node.add(f"Model Template: {payload.get('template')}", allow_expand=False)
-                p_node.add(f"Preprocess Template: {payload.get('preprocess_template')}", allow_expand=False)
-                t_rows = payload.get("tuning_rows") or cms.get("tuning_rows")
-                p_node.add(f"Tuning Rows: {t_rows}", allow_expand=False)
+                if problem_type:
+                    p_node.add(f"Problem: {problem_type}", allow_expand=False)
+                if metric:
+                    p_node.add(f"Metric: {metric}", allow_expand=False)
+                preset = payload.get("preset", training_summary.get("preset"))
+                if preset is not None:
+                    p_node.add(f"Preset: {preset}", allow_expand=False)
+                time_limit = payload.get("time_limit", training_summary.get("time_limit"))
+                if time_limit is not None:
+                    p_node.add(f"Time Limit: {time_limit}", allow_expand=False)
+                use_gpu = payload.get("use_gpu", training_summary.get("use_gpu"))
+                if use_gpu is not None:
+                    p_node.add(f"Use GPU: {use_gpu}", allow_expand=False)
+                model_template = payload.get("template", training_summary.get("template"))
+                if model_template is not None:
+                    p_node.add(f"Model Template: {model_template}", allow_expand=False)
+                preprocess_template = payload.get("preprocess_template", training_summary.get("preprocess_template"))
+                if preprocess_template is not None:
+                    p_node.add(f"Preprocess Template: {preprocess_template}", allow_expand=False)
+                t_rows = payload.get("tuning_rows") or training_summary.get("tuning_rows") or cms.get("tuning_rows")
+                if t_rows is not None:
+                    p_node.add(f"Tuning Rows: {t_rows}", allow_expand=False)
 
             payload = mod_info.get("payload", {})
             shapes = payload.get("shapes", {})

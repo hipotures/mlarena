@@ -342,14 +342,14 @@ class DashboardScreen(Screen):
             best_val_str = str(best_val)
         header_text = f"[bold]Study:[/bold] {study['name']}"
         body_text = (
+            f"[green]Best Value:[/green] [green]{best_val_str}[/green]\n"
+            f"[green]Best Trial:[/green] [green]{study['best_trial']}[/green]\n"
             f"[bold]Direction:[/bold] {study.get('direction', 'MINIMIZE')}\n"
             f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
             f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
             f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
             f"[bold]Waiting:[/bold] {study['counts'].get(4, 0)}\n"
-            f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}\n"
-            f"[bold]Best Value:[/bold] {best_val_str}\n"
-            f"[bold]Best Trial:[/bold] {study['best_trial']}"
+            f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}"
         )
         self.query_one("#study_header").update(header_text)
         self.query_one("#study_body").update(body_text)

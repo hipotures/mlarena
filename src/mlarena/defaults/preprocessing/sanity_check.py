@@ -39,7 +39,7 @@ def fit_transform(
             - _artifact_dir: Path to save artifacts
             - _dataset: {id_column, target, ignored_columns}
             - column_types_override: Dict mapping column names to types (e.g., {'col': 'int64'})
-            - min_unique_fraction: Minimum fraction of unique values to keep column (default: 0.01)
+            - min_unique_fraction: Minimum fraction of unique values to keep column (default: 0.0)
             - max_missing_fraction: Maximum fraction of missing values to keep column (default: 0.95)
             - drop_duplicates: Whether to drop duplicate rows (default: True)
             - ignore_columns: List of columns to never drop (default: [])
@@ -67,7 +67,7 @@ def fit_transform(
     required_params = []
     optional_params = {
         "column_types_override": {},
-        "min_unique_fraction": 0.01,
+        "min_unique_fraction": 0.0,
         "max_missing_fraction": 0.95,
         "drop_duplicates": True,
         "ignore_columns": [],

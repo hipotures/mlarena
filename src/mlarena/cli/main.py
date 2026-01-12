@@ -505,7 +505,12 @@ def run_preprocess_chain(
         return 1, {}, None, []
 
     if standalone:
-        unsupported_flags = [a for a in argv if a.startswith("--") and a not in ["--classic", "--force", "--lock", "--cache", "--preprocess-template"]]
+        allowed_flags = [
+            "--classic", "--force", "--lock", "--cache", "--preprocess-template",
+            "--project", "-p", "--exp-id", "--smoke", "--dev", "--preset",
+            "--time-limit", "--use-gpu", "--seed", "--mla-retention"
+        ]
+        unsupported_flags = [a for a in argv if a.startswith("--") and a not in allowed_flags]
         if unsupported_flags:
             console.print(f"[bold red]✗ Error:[/bold red] Unknown preprocessing arguments: [yellow]{', '.join(unsupported_flags)}[/yellow]")
             return 1, {}, None, []

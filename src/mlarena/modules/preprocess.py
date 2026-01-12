@@ -26,6 +26,8 @@ from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
 from mlarena.core.config import TemplateLoader
 from mlarena.utils.project import data_paths, load_project_config
+from mlarena.utils.time import utc_now_iso
+from mlarena.core.experiment import PipelineProgress, PipelineStep
 
 try:
     from sklearn.pipeline import Pipeline
@@ -62,8 +64,9 @@ class MLArenaDataContainer:
 class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
     """Wraps ML Arena preprocessing modules as Sklearn transformers."""
     
-    def __init__(self, step_name: str, config: Dict, context, loader_instance):
+    def __init__(self, step_name: str, step_idx: int, config: Dict, context, loader_instance):
         self.step_name = step_name
+        self.step_idx = step_idx
         self.config = config
         self.context = context
         self.loader_instance = loader_instance  # Access to _load_preprocessing_module
@@ -73,14 +76,26 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         
     def transform(self, X: MLArenaDataContainer) -> MLArenaDataContainer:
         start_time = time.time()
+        started_at = utc_now_iso()
         from rich.text import Text
         
+        # 0. Update Central State (Started)
+        if self.context.state and self.context.state.pipeline_progress:
+            progress = self.context.state.pipeline_progress
+            progress.current_step_idx = self.step_idx
+            if self.step_idx < len(progress.steps):
+                step_state = progress.steps[self.step_idx]
+                step_state.status = "running"
+                step_state.started_at = started_at
+            self.context.state.last_heartbeat = started_at
+            self.context.state.save()
+
         # Capture shapes BEFORE transformation
-        shape_before_train = X.train.shape
-        shape_before_test = X.test.shape
-        shape_before_val = X.val.shape if X.val is not None else None
-        shape_before_eval = X.eval.shape if X.eval is not None else None
-        shape_before_orig = X.orig.shape if X.orig is not None else None
+        shape_before_train = list(X.train.shape)
+        shape_before_test = list(X.test.shape)
+        shape_before_val = list(X.val.shape) if X.val is not None else None
+        shape_before_eval = list(X.eval.shape) if X.eval is not None else None
+        shape_before_orig = list(X.orig.shape) if X.orig is not None else None
         
         # Always show progress on stdout, even if quiet_mode is on (but keep it subtle)
         console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
@@ -114,6 +129,24 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 X.val = self.loader_instance._apply_template(X.val, template_cfg)
             if X.eval is not None:
                 X.eval = self.loader_instance._apply_template(X.eval, template_cfg)
+            
+            # Update State for basic ops
+            duration = time.time() - start_time
+            if self.context.state and self.context.state.pipeline_progress:
+                progress = self.context.state.pipeline_progress
+                if self.step_idx < len(progress.steps):
+                    step_state = progress.steps[self.step_idx]
+                    step_state.status = "completed"
+                    step_state.finished_at = utc_now_iso()
+                    step_state.duration = round(duration, 3)
+                    step_state.shapes = {
+                        "train_before": shape_before_train,
+                        "train_after": list(X.train.shape),
+                        "test_before": shape_before_test,
+                        "test_after": list(X.test.shape),
+                    }
+                self.context.state.last_heartbeat = utc_now_iso()
+                self.context.state.save()
             return X
 
         # 2. Load module
@@ -240,15 +273,15 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 "cached": False,
                 "shapes": {
                     "train_before": shape_before_train,
-                    "train_after": X.train.shape,
+                    "train_after": list(X.train.shape),
                     "test_before": shape_before_test,
-                    "test_after": X.test.shape,
+                    "test_after": list(X.test.shape),
                     "val_before": shape_before_val,
-                    "val_after": X.val.shape if X.val is not None else None,
+                    "val_after": list(X.val.shape) if X.val is not None else None,
                     "eval_before": shape_before_eval,
-                    "eval_after": X.eval.shape if X.eval is not None else None,
+                    "eval_after": list(X.eval.shape) if X.eval is not None else None,
                     "orig_before": shape_before_orig,
-                    "orig_after": X.orig.shape if X.orig is not None else None,
+                    "orig_after": list(X.orig.shape) if X.orig is not None else None,
                 },
                 "custom_module_state": custom_preprocess_state
             }
@@ -267,7 +300,20 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             with open(step_dir / "state.json", "w") as f:
                 json.dump(step_state_data, f, indent=2)
 
+            # 7. Update Central State (Completed)
             duration = time.time() - start_time
+            if self.context.state and self.context.state.pipeline_progress:
+                progress = self.context.state.pipeline_progress
+                if self.step_idx < len(progress.steps):
+                    step_state = progress.steps[self.step_idx]
+                    step_state.status = "completed"
+                    step_state.finished_at = utc_now_iso()
+                    step_state.duration = round(duration, 3)
+                    step_state.shapes = step_payload["shapes"]
+                    step_state.custom_module_state = custom_preprocess_state
+                self.context.state.last_heartbeat = utc_now_iso()
+                self.context.state.save()
+
             res_msg = Text()
             res_msg.append(" done", style="dim green")
             res_msg.append(f" ({duration:.1f}s)", style="gray")
@@ -276,6 +322,14 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             console.print(res_msg)
 
         except Exception as e:
+            if self.context.state and self.context.state.pipeline_progress:
+                progress = self.context.state.pipeline_progress
+                if self.step_idx < len(progress.steps):
+                    step_state = progress.steps[self.step_idx]
+                    step_state.status = "failed"
+                    step_state.finished_at = utc_now_iso()
+                self.context.state.status = "failed"
+                self.context.state.save()
             console.print(f"[red]Error in step {self.step_name}:[/red] {e}")
             raise
             
@@ -651,12 +705,14 @@ class PreprocessModule(BaseModule):
             if original_features and "original_features" not in container.state["custom_module_state"]:
                 container.state["custom_module_state"]["original_features"] = original_features
             
-            # 2. Build Pipeline
+            # 2. Build Pipeline & Initialize State
             pipeline_steps = []
+            state_steps = []
             for idx, step_item in enumerate(pipeline_definition):
                 if isinstance(step_item, str):
                     step_cfg = {"template": step_item}
                     step_name = f"{idx}-{step_item}"
+                    module_name_for_step = step_item # Fallback
                 elif isinstance(step_item, dict):
                     step_cfg = step_item
                     raw_name = step_cfg.get("name") or step_cfg.get("template") or f"step_{idx}"
@@ -665,12 +721,35 @@ class PreprocessModule(BaseModule):
                         step_name = f"{idx}-{raw_name}"
                     else:
                         step_name = raw_name
+                    module_name_for_step = step_cfg.get("module") or step_cfg.get("template") or "unknown"
                 else:
                     raise ValueError(f"Invalid step format: {step_item}")
 
-                wrapper = MLArenaStepWrapper(step_name, step_cfg, self.context, self)
+                wrapper = MLArenaStepWrapper(step_name, idx, step_cfg, self.context, self)
                 pipeline_steps.append((step_name, wrapper))
+                state_steps.append(PipelineStep(name=step_name, module=module_name_for_step))
+            
+            if self.context.state:
+                # IMPORTANT: Move state.json to parent directory (hash level) for unified pipeline
+                # as per docs/preprocessing_state_schema.md
+                original_exp_dir = self.context.state.experiment_dir
+                self.context.state.experiment_dir = original_exp_dir.parent
                 
+                # Update experiment_id to reflect hash level (remove the last component)
+                exp_id_parts = self.context.state.experiment_id.split("/")
+                if len(exp_id_parts) > 1:
+                    self.context.state.experiment_id = "/".join(exp_id_parts[:-1])
+
+                self.context.state.pipeline_progress = PipelineProgress(
+                    status="running",
+                    total_steps=len(pipeline_definition),
+                    current_step_idx=0,
+                    start_time=utc_now_iso(),
+                    steps=state_steps
+                )
+                self.context.state.status = "running"
+                self.context.state.save()
+
             pipeline = Pipeline(pipeline_steps)
             
             # 3. Execute
@@ -680,7 +759,14 @@ class PreprocessModule(BaseModule):
             else:
                 final_container = pipeline.fit_transform(container)
             
-            # 4. Determine Target Directory
+            # 4. Finalize State
+            if self.context.state and self.context.state.pipeline_progress:
+                self.context.state.pipeline_progress.status = "completed"
+                self.context.state.pipeline_progress.end_time = utc_now_iso()
+                self.context.state.status = "completed"
+                self.context.state.save()
+
+            # 5. Determine Target Directory
             # Since main.py now points context.artifact_dir to the last step,
             # we can use it directly for final datasets.
             # But we still want to ensure step folder consistency.

@@ -8,7 +8,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from filelock import FileLock, Timeout
 
@@ -155,6 +155,96 @@ class ModuleEntry:
 
 
 @dataclass
+class PipelineStep:
+    """
+    Metadata for a single step in a unified pipeline.
+    """
+    name: str
+    module: str
+    status: str = "pending"
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    duration: Optional[float] = None
+    shapes: Dict[str, List[int]] = field(default_factory=dict)
+    custom_module_state: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        # Filter null shapes to keep it clean
+        clean_shapes = {k: v for k, v in self.shapes.items() if v is not None}
+        
+        # Strictly whitelist keys for custom_module_state to avoid noise
+        # Only paths and essential metadata are allowed as per schema definition
+        allowed_keys = {"weights_path", "eval_path", "original_features"}
+        clean_custom_state = {
+            k: v for k, v in self.custom_module_state.items() 
+            if k in allowed_keys
+        }
+        
+        res = {
+            "name": self.name,
+            "module": self.module,
+            "status": self.status,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "duration": self.duration,
+            "shapes": clean_shapes,
+        }
+        
+        # Only add custom_module_state if it contains whitelisted data
+        if clean_custom_state:
+            res["custom_module_state"] = clean_custom_state
+            
+        return res
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PipelineStep":
+        return cls(
+            name=data.get("name", "unknown"),
+            module=data.get("module", "unknown"),
+            status=data.get("status", "pending"),
+            started_at=data.get("started_at"),
+            finished_at=data.get("finished_at"),
+            duration=data.get("duration"),
+            shapes=data.get("shapes", {}),
+            custom_module_state=data.get("custom_module_state", {}),
+        )
+
+
+@dataclass
+class PipelineProgress:
+    """
+    Aggregated progress tracking for in-memory pipelines.
+    """
+    status: str = "pending"
+    total_steps: int = 0
+    current_step_idx: int = 0
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    steps: List[PipelineStep] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "status": self.status,
+            "total_steps": self.total_steps,
+            "current_step_idx": self.current_step_idx,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "steps": [s.to_dict() for s in self.steps],
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PipelineProgress":
+        return cls(
+            status=data.get("status", "pending"),
+            total_steps=data.get("total_steps", 0),
+            current_step_idx=data.get("current_step_idx", 0),
+            start_time=data.get("start_time"),
+            end_time=data.get("end_time"),
+            steps=[PipelineStep.from_dict(s) for s in data.get("steps", [])],
+        )
+
+
+@dataclass
 class ExperimentState:
     """
     Aggregate state for a single experiment, persisted in ``state.json``.
@@ -165,20 +255,26 @@ class ExperimentState:
         project_root: Root directory of the project.
         experiment_dir: Directory where state/artifacts are written.
         created_at: ISO timestamp of state creation.
+        status: Overall experiment status (running|completed|failed).
         pipeline: Pipeline definition snapshot.
+        pipeline_progress: Detailed in-memory pipeline progress metadata.
         modules: Mapping of module names to ``ModuleEntry`` records.
         run: CLI invocation metadata.
         git: Git metadata captured at start.
+        last_heartbeat: ISO timestamp of last update.
     """
     experiment_id: str
     project: str
     project_root: Path
     experiment_dir: Path
     created_at: str
+    status: str = "pending"
     pipeline: Dict[str, Any] = field(default_factory=dict)
+    pipeline_progress: Optional[PipelineProgress] = None
     modules: Dict[str, ModuleEntry] = field(default_factory=dict)
     run: Dict[str, Any] = field(default_factory=dict)
     git: Dict[str, Any] = field(default_factory=dict)
+    last_heartbeat: Optional[str] = None
 
     @property
     def state_path(self) -> Path:
@@ -259,6 +355,7 @@ class ExperimentState:
             project_root=project_root,
             experiment_dir=experiment_dir,
             created_at=utc_now_iso(),
+            status="pending",
             pipeline=pipeline or {},
             modules=initial_modules,
             run=run_invocation or {},
@@ -278,6 +375,8 @@ class ExperimentState:
         entry.invocation = invocation or {}
         entry.error = None
         self.modules[name] = entry
+        self.status = "running"
+        self.last_heartbeat = utc_now_iso()
 
     def complete_module(self, name: str, payload: Dict[str, Any]) -> None:
         """Mark a module as completed and attach its payload."""
@@ -287,6 +386,11 @@ class ExperimentState:
         entry.payload = payload or {}
         entry.error = None
         self.modules[name] = entry
+        
+        # Determine overall status (if all modules completed, experiment is completed)
+        # For simple cases (non-pipeline), this is correct.
+        self.status = "completed"
+        self.last_heartbeat = utc_now_iso()
 
     def fail_module(self, name: str, error: str) -> None:
         """Mark a module as failed and record the error message."""
@@ -295,6 +399,8 @@ class ExperimentState:
         entry.finished_at = utc_now_iso()
         entry.error = error
         self.modules[name] = entry
+        self.status = "failed"
+        self.last_heartbeat = utc_now_iso()
 
     def to_dict(self, relative: bool = False) -> Dict[str, Any]:
         """
@@ -303,6 +409,17 @@ class ExperimentState:
         Args:
             relative: If True, convert all paths to be relative to project_root or REPO_ROOT.
         """
+        # If this is a unified pipeline experiment, use the minimal schema
+        # as defined in docs/preprocessing_state_schema.md
+        if self.pipeline_progress:
+            return {
+                "experiment_id": self.experiment_id,
+                "project": self.project,
+                "status": self.status,
+                "last_heartbeat": self.last_heartbeat,
+                "pipeline_progress": self.pipeline_progress.to_dict(),
+            }
+
         if relative:
             # Format project_root: use "/slug" if under projects/kaggle, otherwise relative to REPO_ROOT
             try:
@@ -329,10 +446,13 @@ class ExperimentState:
             "project_root": project_root_str,
             "experiment_dir": experiment_dir_str,
             "created_at": self.created_at,
+            "status": self.status,
             "pipeline": self.pipeline,
+            "pipeline_progress": self.pipeline_progress.to_dict() if self.pipeline_progress else None,
             "modules": {k: v.to_dict() for k, v in self.modules.items()},
             "run": self.run,
             "git": self.git,
+            "last_heartbeat": self.last_heartbeat,
         }
         
         if relative:
@@ -368,12 +488,8 @@ class ExperimentState:
                     project_root = REPO_ROOT / p
         else:
             # Fallback based on file location
-            # projects/kaggle/P/experiments/E/state.json -> project_root is 3 levels up
-            # projects/kaggle/P/experiments/pre-T/S/state.json -> project_root is 4 levels up
-            # We use the project name to find it reliably if it's under our projects dir
             project_root = REPO_ROOT / "projects" / "kaggle" / project_name
             if not project_root.exists():
-                # Generic fallback: 3 levels up from state.json
                 project_root = path.parent.parent.parent
 
         # Reconstruct experiment_dir
@@ -394,6 +510,10 @@ class ExperimentState:
             k: ModuleEntry.from_dict(v) 
             for k, v in reconstructed_data.get("modules", {}).items()
         }
+
+        pipeline_progress = None
+        if "pipeline_progress" in reconstructed_data and reconstructed_data["pipeline_progress"]:
+            pipeline_progress = PipelineProgress.from_dict(reconstructed_data["pipeline_progress"])
         
         return cls(
             experiment_id=data["experiment_id"],
@@ -401,10 +521,13 @@ class ExperimentState:
             project_root=project_root,
             experiment_dir=experiment_dir,
             created_at=data.get("created_at", utc_now_iso()),
+            status=data.get("status", "pending"),
             pipeline=reconstructed_data.get("pipeline", {}),
+            pipeline_progress=pipeline_progress,
             modules=modules,
             run=reconstructed_data.get("run", {}),
             git=reconstructed_data.get("git", {}),
+            last_heartbeat=data.get("last_heartbeat"),
         )
 
     def save(self) -> None:
@@ -433,21 +556,23 @@ class ExperimentState:
                     except (json.JSONDecodeError, Exception):
                         pass
                 
-                relative_payload = _relativize_paths(current_abs_payload, self.project_root)
+                relative_payload = self.to_dict(relative=True)
                 
-                try:
-                    rel_to_kaggle = self.project_root.relative_to(REPO_ROOT / "projects" / "kaggle")
-                    relative_payload["project_root"] = "/" + rel_to_kaggle.parts[0]
-                except (ValueError, IndexError):
+                # For non-slim payloads, ensure project_root and experiment_dir are formatted
+                if not self.pipeline_progress:
                     try:
-                        relative_payload["project_root"] = str(self.project_root.relative_to(REPO_ROOT))
-                    except ValueError:
-                        relative_payload["project_root"] = str(self.project_root)
+                        rel_to_kaggle = self.project_root.relative_to(REPO_ROOT / "projects" / "kaggle")
+                        relative_payload["project_root"] = "/" + rel_to_kaggle.parts[0]
+                    except (ValueError, IndexError):
+                        try:
+                            relative_payload["project_root"] = str(self.project_root.relative_to(REPO_ROOT))
+                        except ValueError:
+                            relative_payload["project_root"] = str(self.project_root)
 
-                try:
-                    relative_payload["experiment_dir"] = str(self.experiment_dir.relative_to(self.project_root))
-                except ValueError:
-                    relative_payload["experiment_dir"] = str(self.experiment_dir)
+                    try:
+                        relative_payload["experiment_dir"] = str(self.experiment_dir.relative_to(self.project_root))
+                    except ValueError:
+                        relative_payload["experiment_dir"] = str(self.experiment_dir)
 
                 self.state_path.write_text(json.dumps(relative_payload, indent=2))
         except Timeout:

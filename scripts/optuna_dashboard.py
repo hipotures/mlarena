@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from rich.json import JSON
 from rich.style import Style
 from rich.text import Text
+from rich.table import Table
 from textual.app import App, ComposeResult
 from textual import events
 from textual import events
@@ -509,20 +510,34 @@ class DashboardScreen(Screen):
             best_val_str = "-"
         else:
             best_val_str = str(best_val)
+        
         header_text = f"[bold]Study:[/bold] {study['name']}"
         best_color = "#A2E339"
-        body_text = (
-            f"[{best_color}]Best Value: {best_val_str}[/{best_color}]\n"
-            f"[{best_color}]Best Trial: {study['best_trial']}[/{best_color}]\n"
-            f"[bold]Direction:[/bold] {study.get('direction', 'MINIMIZE')}\n"
-            f"[bold]Total:[/bold] {sum(study['counts'].values())}\n"
-            f"[bold]Running:[/bold] {study['counts'].get(0, 0)}\n"
-            f"[bold]Complete:[/bold] {study['counts'].get(1, 0)}\n"
-            f"[bold]Waiting:[/bold] {study['counts'].get(4, 0)}\n"
-            f"[bold]Fail/Pruned:[/bold] {study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}"
+        
+        table = Table.grid(expand=True)
+        table.add_column(justify="left")
+        table.add_column(justify="right")
+        
+        table.add_row(
+            f"[{best_color}]Best Value:[/{best_color}]", 
+            f"[{best_color}]{best_val_str}[/{best_color}]"
         )
+        table.add_row(
+            f"[{best_color}]Best Trial:[/{best_color}]", 
+            f"[{best_color}]{study['best_trial']}[/{best_color}]"
+        )
+        table.add_row("[bold]Direction:[/bold]", str(study.get('direction', 'MINIMIZE')))
+        table.add_row("[bold]Total:[/bold]", str(sum(study['counts'].values())))
+        table.add_row("[bold]Running:[/bold]", str(study['counts'].get(0, 0)))
+        table.add_row("[bold]Complete:[/bold]", str(study['counts'].get(1, 0)))
+        table.add_row("[bold]Waiting:[/bold]", str(study['counts'].get(4, 0)))
+        table.add_row(
+            "[bold]Fail/Pruned:[/bold]", 
+            f"{study['counts'].get(3, 0)}/{study['counts'].get(2, 0)}"
+        )
+        
         self.query_one("#study_header").update(header_text)
-        self.query_one("#study_body").update(body_text)
+        self.query_one("#study_body").update(table)
 
         trials_table = self.query_one("#trials_table")
         prev_row_key = self.last_trial_row_key

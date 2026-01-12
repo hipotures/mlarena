@@ -176,8 +176,22 @@ class PipelineExecutor:
                                 try:
                                     with os.scandir(entry.path) as sub_it:
                                         for sub_entry in sub_it:
-                                            if sub_entry.is_dir() and f"-{preprocess_template}" in sub_entry.name:
+                                            if not sub_entry.is_dir():
+                                                continue
+                                            
+                                            # Match direct step: pre-template/0-step
+                                            if f"-{preprocess_template}" in sub_entry.name:
                                                 candidates.append(Path(sub_entry.path))
+                                            
+                                            # Match hashed step: pre-template/hash/0-step
+                                            else:
+                                                try:
+                                                    with os.scandir(sub_entry.path) as hash_it:
+                                                        for hash_entry in hash_it:
+                                                            if hash_entry.is_dir() and f"-{preprocess_template}" in hash_entry.name:
+                                                                candidates.append(Path(hash_entry.path))
+                                                except (PermissionError, NotADirectoryError):
+                                                    continue
                                 except (PermissionError, NotADirectoryError):
                                     continue
                     
@@ -204,6 +218,7 @@ class PipelineExecutor:
                 test_pp = _get_path("test_processed")
                 tuning_pp = _get_path("tuning_processed")
                 eval_pp = _get_path("eval_processed")
+                orig_pp = _get_path("orig_processed")
 
                 input_paths["train"] = format_path_relative(train_pp, module.context.project_root)
                 input_paths["test"] = format_path_relative(test_pp, module.context.project_root)
@@ -212,6 +227,8 @@ class PipelineExecutor:
                     input_paths["tuning"] = format_path_relative(tuning_pp, module.context.project_root)
                 if eval_pp.exists():
                     input_paths["eval"] = format_path_relative(eval_pp, module.context.project_root)
+                if orig_pp.exists():
+                    input_paths["orig"] = format_path_relative(orig_pp, module.context.project_root)
 
                 def _load_shapes_from_state(exp_dir: Path):
                     state_path = exp_dir / "state.json"
@@ -223,27 +240,26 @@ class PipelineExecutor:
                             state = json.load(f)
                         payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
                         shapes = payload.get("shapes", {})
-                        train_after = shapes.get("train_after")
-                        test_after = shapes.get("test_after")
-                        tuning_after = shapes.get("tuning_after")
-
-                        custom_state = payload.get("custom_module_state", {})
-                        eval_rows = custom_state.get("eval_rows")
-
+                        
                         result = {}
-                        if train_after:
-                            result["train"] = train_after
-                        if test_after:
-                            result["test"] = test_after
-                        if tuning_after:
-                            result["tuning"] = tuning_after
-                        if eval_rows:
-                            result["eval"] = (eval_rows, None)
+                        # Map all after shapes
+                        for k in ["train", "test", "tuning", "val", "eval", "orig", "original"]:
+                            val = shapes.get(f"{k}_after")
+                            if val:
+                                # Use standard keys for display
+                                key = "tuning" if k == "val" else "orig" if k == "original" else k
+                                result[key] = val
+
+                        # Fallback for eval from custom state
+                        if "eval" not in result:
+                            custom_state = payload.get("custom_module_state", {})
+                            eval_rows = custom_state.get("eval_rows")
+                            if eval_rows:
+                                result["eval"] = (eval_rows, None)
 
                         return result if result else None
                     except Exception:
                         return None
-                    return None
 
                 def _load_shapes_from_chain_root(root: Path):
                     shapes = _load_shapes_from_state(root)
@@ -572,6 +588,10 @@ class PipelineExecutor:
                                 output_paths["orig"] = format_path_relative(payload["orig_processed"], module.context.project_root)
                             if "tuning_processed" in payload and payload["tuning_processed"]:
                                 output_paths["tuning"] = format_path_relative(payload["tuning_processed"], module.context.project_root)
+                            if "eval_processed" in payload and payload["eval_processed"]:
+                                output_paths["eval"] = format_path_relative(payload["eval_processed"], module.context.project_root)
+                            if "eval_processed" in payload and payload["eval_processed"]:
+                                output_paths["eval"] = format_path_relative(payload["eval_processed"], module.context.project_root)
 
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
                             output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)
@@ -793,6 +813,8 @@ class PipelineExecutor:
                                 output_paths["orig"] = format_path_relative(payload["orig_processed"], module.context.project_root)
                             if "tuning_processed" in payload and payload["tuning_processed"]:
                                 output_paths["tuning"] = format_path_relative(payload["tuning_processed"], module.context.project_root)
+                            if "eval_processed" in payload and payload["eval_processed"]:
+                                output_paths["eval"] = format_path_relative(payload["eval_processed"], module.context.project_root)
 
                         if "custom_module_state" in payload and "weights_path" in payload["custom_module_state"]:
                             output_paths["weights"] = format_path_relative(payload["custom_module_state"]["weights_path"], module.context.project_root)

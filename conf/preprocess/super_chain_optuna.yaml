@@ -2,15 +2,15 @@ project: <slug>
 experiment_prefix: optuna_preprocess
 filter_by_eda: true
 tune:
-  allow_heavy_steps: false
-  allow_heavy_variants: false
-  optuna_workers: 1
+  allow_heavy_steps: true
+  allow_heavy_variants: true
+  optuna_workers: 4
   optuna_storage_timeout: 100
   model_cleanup: true
   direction: maximize
-  max_trial_sec: 1800
+  max_trial_sec: 3600
   max_features_out: 5000
-  quiet_preprocess_panel: true
+  quiet_preprocess_panel: false
   quiet_model_panel: false
   model_verbosity: 2
 preprocessors:
@@ -40,7 +40,7 @@ preprocessors:
   enabled: false
   meta:
     heavy_step: false
-    fixed: true # DISABLED: prevents Optuna from enabling it
+    fixed: true # DISABLED due to data leakage risk
   fixed_config:
     target_transform: none
     clip_lower_quantile: null
@@ -68,14 +68,6 @@ preprocessors:
   enabled: true
   meta:
     heavy_step: false
-- name: outlier_handler
-  group: outlier
-  template: outlier_handler
-  enabled: true
-  meta:
-    heavy_step: false
-    heavy_variants: []
-    # - isolation_forest
 - name: imputer
   group: imputer
   template: imputer
@@ -95,7 +87,7 @@ preprocessors:
 - name: feature_group_agg
   group: feature_group_agg
   template: feature_group_agg
-  enabled: false
+  enabled: true
   meta:
     heavy_step: false
 - name: groupwise_normalizer
@@ -107,14 +99,14 @@ preprocessors:
 - name: categorical_cross
   group: categorical_cross
   template: categorical_cross
-  enabled: false
+  enabled: true
   meta:
     heavy_step: true
     timeout_sec: 300
 - name: rank_features_pre
   group: rank_pre
   template: rank_features
-  enabled: false
+  enabled: true
   meta:
     heavy_step: false
   overrides:
@@ -122,11 +114,17 @@ preprocessors:
 - name: numeric_binner
   group: numeric_binner
   template: numeric_binner
-  enabled: false
+  enabled: true
   meta:
     heavy_step: false
     heavy_variants: []
     # - kmeans
+- name: categorical_encoder
+  group: encoding
+  template: categorical_encoder
+  enabled: true
+  meta:
+    heavy_step: false
 - name: encoder
   group: encoding
   template: encoder
@@ -135,33 +133,20 @@ preprocessors:
     heavy_step: false
     heavy_variants:
     - target_mean_oof
+- name: outlier_handler
+  group: outlier
+  template: outlier_handler
+  enabled: true
+  meta:
+    heavy_step: false
+    heavy_variants: []
+    # - isolation_forest    
 - name: row_aggregates
   group: row_aggregates
   template: row_aggregates
-  enabled: false
+  enabled: true
   meta:
     heavy_step: false
-- name: feature_interactions
-  group: feature_interactions
-  template: feature_interactions
-  enabled: false
-  meta:
-    heavy_step: false
-- name: feature_polynomial
-  group: feature_polynomial
-  template: feature_polynomial
-  enabled: false
-  meta:
-    heavy_step: true
-    timeout_sec: 600
-- name: rank_features_post
-  group: rank_post
-  template: rank_features
-  enabled: false
-  meta:
-    heavy_step: false
-  overrides:
-    force_global_only: true
 - name: scaler
   group: scaler
   template: scaler
@@ -171,6 +156,27 @@ preprocessors:
     heavy_variants: []
     # - quantile_normal
     # - quantile_uniform
+- name: feature_interactions
+  group: feature_interactions
+  template: feature_interactions
+  enabled: true
+  meta:
+    heavy_step: false
+- name: feature_polynomial
+  group: feature_polynomial
+  template: feature_polynomial
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 600
+- name: rank_features_post
+  group: rank_post
+  template: rank_features
+  enabled: true
+  meta:
+    heavy_step: false
+  overrides:
+    force_global_only: true
 - name: dimensionality_reducer
   group: dimensionality_reducer
   template: dimensionality_reducer
@@ -181,14 +187,14 @@ preprocessors:
 - name: clustering_features
   group: clustering_features
   template: clustering_features
-  enabled: false
+  enabled: true
   meta:
     heavy_step: true
     timeout_sec: 300
 - name: drift_detector
   group: drift
   template: drift_detector
-  enabled: false
+  enabled: true
   meta:
     heavy_step: false
 - name: feature_selector
@@ -201,16 +207,18 @@ preprocessors:
   fixed_config:
     selection_method: mi
     n_features: 0.5
+    max_drop_fraction: 0.5
+    protect_cb_features: true
 - name: imbalance_handler
   group: imbalance
   template: imbalance_handler
-  enabled: false
+  enabled: true
   meta:
     heavy_step: false
 - name: adversarial_validation
   group: adversarial_validation_fixed
   template: adversarial_validation
-  enabled: false
+  enabled: true
   meta:
     heavy_step: true
     timeout_sec: 300

@@ -646,6 +646,17 @@ class TrialInspector(Screen):
         self._last_full_rebuild = 0
         self._running_nodes = []  # List of (node, base_label) for animation
         self._tree_fully_expanded = False # Tracking state
+        self._pre_node = None
+        self._model_node = None
+        self._opt_node = None
+        self._metrics_node = None
+        self._preprocess_running = False
+        self._model_running = False
+        self._last_preprocess_refresh = 0.0
+        self._last_model_refresh = 0.0
+        self._last_optuna_refresh = 0.0
+        self._tree_initialized = False
+        self._completed_view = False
 
     def _get_optuna_params(self) -> Dict[str, Any]:
         """Fetches Optuna params from SQLite for the current trial number."""
@@ -834,79 +845,167 @@ class TrialInspector(Screen):
 
         tree = self.query_one("#flow_tree")
         current_time = time.time()
-        if current_time - self._last_data_refresh <= 1.0:
+        if current_time - self._last_data_refresh <= 0.1:
             self._animate_running_nodes()
             return
         self._last_data_refresh = current_time
 
-        tree.clear()
         root = tree.root
         root.expand()
-        self._running_nodes = []
         
         if not self.trial_dir or not self.trial_dir.exists():
             self.trial_dir = self._find_trial_dir()
         
         if not self.trial_dir or not self.trial_dir.exists():
-            root.add("[dim]Trial directory initializing...[/dim]")
+            if not self._tree_initialized:
+                root.remove_children()
+                root.add("[dim]Trial directory initializing...[/dim]")
+                self._tree_initialized = True
             return
-
-        steps = sorted([d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()], key=lambda x: int(x.name.split("-")[0]))
-        
-        pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
-        
-        for step_dir in steps:
-            step_node = pre_node.add(f"{step_dir.name}", expand=False)
-            self._add_step_details(step_node, step_dir)
 
         metrics_file = self.trial_dir / "metrics.json"
         if metrics_file.exists():
+            if not self._completed_view:
+                root.remove_children()
+                self._pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
+                self._metrics_node = root.add("[bold]Metrics[/bold]", expand=True)
+                self._model_node = None
+                self._opt_node = None
+                self._render_preprocess(self._pre_node)
+                self._render_metrics(self._metrics_node, metrics_file)
+                self._render_model()
+                self._render_optuna()
+                self._completed_view = True
+
             if self.refresh_timer:
                 self.refresh_timer.stop()
                 self.refresh_timer = None
-            
+
             try:
                 self.query_one("#loading_spinner").display = False
-            except:
+            except Exception:
                 pass
+            return
 
-            try:
-                data = json.loads(metrics_file.read_text())
-                m_node = root.add("[bold]Metrics[/bold]", expand=True)
-                for k, v in data.items():
-                    if isinstance(v, float):
-                        if k in ["total_sec", "preprocess_sec"]:
-                            val_str = f"{v:.1f}"
-                        else:
-                            val_str = f"{v:.5f}"
+        if not self._tree_initialized:
+            root.remove_children()
+            self._pre_node = root.add("[bold]Preprocessing[/bold]", expand=True)
+            self._opt_node = root.add("[bold]Optuna[/bold]", expand=False)
+            self._tree_initialized = True
+
+        any_running = self._preprocess_running or self._model_running
+        force_refresh = self._last_preprocess_refresh == 0.0 and self._last_model_refresh == 0.0
+
+        if not any_running and not force_refresh:
+            if self.refresh_timer:
+                self.refresh_timer.stop()
+                self.refresh_timer = None
+            return
+
+        refresh_pre = force_refresh or (self._preprocess_running and current_time - self._last_preprocess_refresh >= 1.0)
+        refresh_model = force_refresh or (self._model_running and current_time - self._last_model_refresh >= 30.0)
+        refresh_optuna = (self._preprocess_running or self._model_running) and (
+            force_refresh or (current_time - self._last_optuna_refresh >= 10.0)
+        )
+
+        if refresh_pre:
+            self._render_preprocess(self._pre_node)
+            self._last_preprocess_refresh = current_time
+        if refresh_model:
+            self._render_model()
+            self._last_model_refresh = current_time
+        if refresh_optuna:
+            self._render_optuna()
+            self._last_optuna_refresh = current_time
+
+        self._running_nodes = [
+            *getattr(self, "_running_nodes_pre", []),
+            *getattr(self, "_running_nodes_model", []),
+        ]
+        self._animate_running_nodes()
+
+    def _render_preprocess(self, pre_node: TreeNode) -> None:
+        if pre_node is None:
+            return
+        pre_node.remove_children()
+        steps = sorted(
+            [d for d in self.trial_dir.iterdir() if d.is_dir() and d.name[0].isdigit()],
+            key=lambda x: int(x.name.split("-")[0]),
+        )
+        running = False
+        self._running_nodes_pre = []
+        for step_dir in steps:
+            step_node = pre_node.add(f"{step_dir.name}", expand=False)
+            status = self._add_step_details(step_node, step_dir, self._running_nodes_pre)
+            if status == "running":
+                running = True
+        self._preprocess_running = running
+
+    def _render_metrics(self, metrics_node: TreeNode, metrics_file: Path) -> None:
+        if metrics_node is None or not metrics_file.exists():
+            return
+        metrics_node.remove_children()
+        try:
+            data = json.loads(metrics_file.read_text())
+            for k, v in data.items():
+                if isinstance(v, float):
+                    if k in ["total_sec", "preprocess_sec"]:
+                        val_str = f"{v:.1f}"
                     else:
-                        val_str = str(v)
-                    m_node.add(f"{k}: {val_str}", allow_expand=False)
-            except:
-                pass
+                        val_str = f"{v:.5f}"
+                else:
+                    val_str = str(v)
+                metrics_node.add(f"{k}: {val_str}", allow_expand=False)
+        except Exception:
+            pass
 
+    def _render_model(self) -> None:
         model_dir = self.trial_dir / "model" # Or optuna_model
         if not model_dir.exists():
             model_dir = self.trial_dir / "optuna_model"
-        
-        if model_dir.exists():
-            mod_node = root.add("[bold]Model[/bold]", expand=True)
-            self._add_step_details(mod_node, model_dir)
 
-        # 4. Optuna
-        opt_node = root.add("[bold]Optuna[/bold]", expand=False)
-        
+        if not model_dir.exists():
+            if self._model_node is not None:
+                try:
+                    self._model_node.remove()
+                except Exception:
+                    pass
+                self._model_node = None
+            self._model_running = False
+            self._running_nodes_model = []
+            return
+
+        if self._model_node is None or self._model_node.parent is None:
+            root = self.query_one("#flow_tree").root
+            if self._opt_node is not None and self._opt_node.parent is root:
+                self._model_node = root.add("[bold]Model[/bold]", expand=True, before=self._opt_node)
+            else:
+                self._model_node = root.add("[bold]Model[/bold]", expand=True)
+
+        self._model_node.remove_children()
+        self._running_nodes_model = []
+        status = self._add_step_details(self._model_node, model_dir, self._running_nodes_model)
+        self._model_running = status == "running"
+
+    def _render_optuna(self) -> None:
+        if self._opt_node is None or self._opt_node.parent is None:
+            root = self.query_one("#flow_tree").root
+            if self._model_node is not None and self._model_node.parent is root:
+                self._opt_node = root.add("[bold]Optuna[/bold]", expand=False, after=self._model_node)
+            else:
+                self._opt_node = root.add("[bold]Optuna[/bold]", expand=False)
+        self._opt_node.remove_children()
         params = self._get_optuna_params()
         if params:
-            tp_node = opt_node.add("trial_params", expand=False)
+            tp_node = self._opt_node.add("trial_params", expand=False)
             tp_node.data = {"type": "json_modal", "title": "Optuna Trial Params", "payload": params}
             tp_node.add_leaf("") # Dummy leaf for arrow
 
-    def _add_step_details(self, node: TreeNode, step_dir: Path) -> None:
+    def _add_step_details(self, node: TreeNode, step_dir: Path, running_nodes: List[Tuple[TreeNode, str]]) -> str:
         state_path = step_dir / "state.json"
         if not state_path.exists():
             node.add("No state.json found", allow_expand=False)
-            return
+            return "unknown"
 
         try:
             mtime = state_path.stat().st_mtime
@@ -927,7 +1026,7 @@ class TrialInspector(Screen):
                 node.set_label(f"{node.label} [FAILED]")
             elif status == "running":
                 base_label = str(node.label)
-                self._running_nodes.append((node, base_label))
+                running_nodes.append((node, base_label))
                 frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
                 node.set_label(f"{base_label} {frame}")
 
@@ -1004,6 +1103,7 @@ class TrialInspector(Screen):
 
         except Exception as e:
             node.add(f"Error: {e}", allow_expand=False)
+        return status
 
     def _animate_running_nodes(self) -> None:
         if not self._running_nodes:

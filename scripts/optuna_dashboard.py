@@ -876,20 +876,27 @@ class TrialInspector(Screen):
         yield Header()
         yield Container(
             Horizontal(
-                Label(f"Trial {self.trial_id} Inspector", classes="title"),
+                Label("Path: -", id="path_label"),
                 LoadingIndicator(id="loading_spinner"),
-                id="inspector_header"
+                id="path_bar",
             ),
-            Label("Path: -", classes="subtitle", id="path_label"),
-            Tree("Pipeline Flow", id="flow_tree"),
+            Container(
+                Tree("Pipeline Flow", id="flow_tree"),
+                classes="box",
+                id="flow_panel",
+            ),
             id="inspector_container"
         )
         yield Footer()
 
     def on_mount(self) -> None:
         self.refresh_timer = self.set_interval(0.1, self._build_tree)
+        self.app.title = f"OptunaInspector/Trial {self.trial_id}"
         self._update_path_label()
         self._build_tree()
+
+    def on_unmount(self) -> None:
+        self.app.title = f"OptunaDashboard/{self.project_root.name}"
 
     def on_click(self, event: events.Click) -> None:
         if event.widget.id != "path_label":
@@ -1290,6 +1297,13 @@ class OptunaDashboard(App):
         width: 100%;
         height: 3;
     }
+    #path_label {
+        background: $primary;
+        color: $text;
+        padding: 1 1;
+        width: 100%;
+        height: 3;
+    }
     #main_container {
         padding-top: 0;
         height: 100%;
@@ -1347,15 +1361,31 @@ class OptunaDashboard(App):
         background: #2a2a2a;
         border-bottom: solid #3a3a3a;
     }
-    #inspector_header {
-        height: 2;
+    #path_bar {
+        background: $primary;
+        color: $text;
         width: 100%;
+        height: 3;
+    }
+    #path_label {
+        width: 1fr;
+        padding: 1 1;
+    }
+    #path_label > .label--text {
+        text-style: bold;
+    }
+    #flow_panel {
+        border: solid $accent;
+        padding: 0 1;
+        margin: 0;
+    }
+    #flow_tree {
+        background: transparent;
     }
     #loading_spinner {
         display: none;
         width: 14;
         height: 1;
-        dock: right;
     }
     JSONModal {
         align: center middle;
@@ -1390,6 +1420,7 @@ class OptunaDashboard(App):
         self.db_path = Path(db_path)
         self.project_root = Path(project_root)
         self.study_name = study_name
+        self.title = f"OptunaDashboard/{self.project_root.name}"
 
     def on_mount(self) -> None:
         self.push_screen(DashboardScreen(self.db_path, self.project_root, self.study_name))

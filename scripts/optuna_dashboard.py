@@ -1129,7 +1129,7 @@ class TrialInspector(Screen):
 
         self._model_node.remove_children()
         self._running_nodes_model = []
-        status = self._add_step_details(self._model_node, model_dir, self._running_nodes_model)
+        status = self._add_step_details(self._model_node, model_dir, self._running_nodes_model, base_label_override="Model")
         self._model_running = status == "running"
 
     def _render_optuna(self) -> None:
@@ -1161,6 +1161,7 @@ class TrialInspector(Screen):
         step_dir: Path,
         running_nodes: List[Tuple[TreeNode, str]],
         status_override: Optional[str] = None,
+        base_label_override: Optional[str] = None,
     ) -> str:
         state_path = step_dir / "state.json"
         if not state_path.exists():
@@ -1169,7 +1170,7 @@ class TrialInspector(Screen):
                 if status_norm == "failed":
                     node.set_label(f"{node.label} [FAILED]")
                 elif status_norm == "running":
-                    base_label = str(node.label)
+                    base_label = base_label_override or str(node.label)
                     running_nodes.append((node, base_label))
                     frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
                     node.set_label(f"{base_label} {frame}")
@@ -1204,7 +1205,7 @@ class TrialInspector(Screen):
             if any_failed or status_norm == "failed":
                 node.set_label(f"{node.label} [FAILED]")
             elif any_running or status_norm == "running":
-                base_label = str(node.label)
+                base_label = base_label_override or str(node.label)
                 running_nodes.append((node, base_label))
                 frame = self.SPINNER_FRAMES[self.spinner_idx % len(self.SPINNER_FRAMES)]
                 node.set_label(f"{base_label} {frame}")

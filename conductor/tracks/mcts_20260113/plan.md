@@ -15,7 +15,7 @@
     - [ ] Sub-task: Refactor/reuse `_load_search_spaces` from `preprocess_tune.py` to be shared.
     - [ ] Sub-task: Write unit tests verifying correct loading of chains and spaces.
 
-## Phase 2: Core MCTS Logic (No Execution)
+## Phase 2: Core MCTS Logic (No Execution) [checkpoint: ca699eb]
 - [x] Task: Define State Representation & Action Generation [3e668bb]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/node.py` (PipelineState definition).
     - [ ] Sub-task: Implement `pipeline_signature` generation (canonical hash).

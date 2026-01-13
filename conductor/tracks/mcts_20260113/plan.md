@@ -48,7 +48,7 @@
     - [ ] Sub-task: Write unit tests for command generation and result parsing.
 
 ## Phase 4: Integration & Refinement
-- [ ] Task: End-to-End Integration
+- [x] Task: End-to-End Integration [9c47227]
     - [ ] Sub-task: Connect `MCTSRunner` to `Storage`, `Materializer`, and `Executor`.
     - [ ] Sub-task: Implement the main optimization loop (Selection -> Expansion -> Execution -> Backprop).
     - [ ] Sub-task: Implement Baseline (Model Zero) evaluation logic at start.

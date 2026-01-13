@@ -5,9 +5,11 @@ Textual-based Task Queue Manager.
 Displays queue dashboard, task list, and live logs.
 """
 import sys
+import os
 import json
 import io
 import re
+import requests
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -79,6 +81,7 @@ class QueueDashboard(Vertical):
         with Container(classes="controls-container"):
             yield Button("Run Queue", id="btn-run-queue", variant="success")
             yield Button("Stop Queue", id="btn-stop-queue", variant="error")
+            yield Button("Test Telegram", id="btn-test-tg", variant="primary")
 
 class TasksView(Container):
     status_filter = reactive("all")
@@ -327,6 +330,8 @@ class TaskQueueApp(App):
         self.auto_run = auto_run
         self.is_running_queue = False
         self.exp_info_cache = {} # Cache for state.json info: {exp_id: (mtime, mod_name)}
+        self.task_exp_id_cache = {} # Cache for task -> exp_id mapping: {task_id: exp_id}
+        self.exp_cv_cache = {} # Cache for exp_id -> CV score: {exp_id: (mtime, score)}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -438,12 +443,11 @@ class TaskQueueApp(App):
              if self.current_log_file:
                  self.query_one("#log-status", Label).update("Task finished. Waiting for next...")
 
-    def _get_live_module_info(self, exp_id: str) -> str:
+    def _get_live_module_info(self, exp_id: str) -> str | None:
         """
         Get the currently active or last completed module from state.json.
         Uses pipeline-aware ordering to ensure logical progression display.
         """
-        import os
         state_path = self.project_root / "experiments" / exp_id / "state.json"
         if not state_path.exists():
             return None
@@ -500,6 +504,82 @@ class TaskQueueApp(App):
                 return active_mod
         except:
             pass
+        return None
+
+    def _get_experiment_id(self, task: dict) -> str | None:
+        """Robustly discover experiment_id from task data, command, or logs."""
+        task_id = str(task["id"])
+        
+        # 1. Check task_exp_id_cache
+        if task_id in self.task_exp_id_cache:
+            return self.task_exp_id_cache[task_id]
+
+        # 2. Check explicit field
+        exp_id = task.get("experiment_id")
+        
+        # 3. Check command line
+        if not exp_id:
+            cmd = task.get("command", "")
+            match = re.search(r'--exp-id\s+([^\s]+)', cmd) or re.search(r'experiment_id=([^\s]+)', cmd)
+            if match:
+                exp_id = match.group(1)
+            
+        # 4. Scan log file (last 4KB)
+        if not exp_id:
+            log_path = self.project_root / task.get("log_file", "")
+            if log_path.exists():
+                try:
+                    with open(log_path, "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(max(0, size - 4096))
+                        log_tail = f.read().decode('utf-8', errors='ignore')
+                    match = re.search(r'(exp-\d{8}-\d{6})', log_tail)
+                    if match:
+                        exp_id = match.group(1)
+                except: pass
+        
+        if exp_id:
+            self.task_exp_id_cache[task_id] = exp_id
+        return exp_id
+
+    def _get_cv_score(self, exp_id: str) -> float | None:
+        """Retrieve CV score from experiment state.json."""
+        if not exp_id:
+            return None
+            
+        state_path = self.project_root / "experiments" / exp_id / "state.json"
+        if not state_path.exists():
+            return None
+            
+        try:
+            mtime = os.path.getmtime(state_path)
+            cached_mtime, cached_score = self.exp_cv_cache.get(exp_id, (0, None))
+            if mtime <= cached_mtime:
+                return cached_score
+
+            with open(state_path) as f:
+                state_data = json.load(f)
+            
+            modules = state_data.get("modules", {})
+            
+            # Priority: model module, then any module with a score
+            score_val = None
+            model_mod = modules.get("model", {})
+            p = model_mod.get("payload", {})
+            score_val = p.get("local_cv_score") or p.get("local_cv")
+            
+            if score_val is None:
+                for m in modules.values():
+                    p = m.get("payload", {})
+                    score_val = p.get("local_cv_score") or p.get("local_cv")
+                    if score_val is not None: break
+            
+            if score_val is not None:
+                score_val = float(score_val)
+                self.exp_cv_cache[exp_id] = (mtime, score_val)
+                return score_val
+        except: pass
         return None
 
     def update_tasks_table(self, tasks: list) -> None:
@@ -575,16 +655,10 @@ class TaskQueueApp(App):
             filtered.sort(key=sort_key)
         else:
             def _get_cv(t):
-                exp_id = t.get("experiment_id")
-                if not exp_id: return -1.0
-                try:
-                    p = self.project_root / "experiments" / exp_id / "state.json"
-                    if p.exists():
-                        d = json.loads(p.read_text())
-                        for m in d.get("modules", {}).values():
-                            score = m.get("payload", {}).get("local_cv_score") or m.get("payload", {}).get("local_cv")
-                            if score is not None: return abs(float(score))
-                except: pass
+                exp_id = self._get_experiment_id(t)
+                score = self._get_cv_score(exp_id)
+                if score is not None:
+                    return abs(float(score))
                 return -1.0
 
             def _get_sort_val(t):
@@ -688,59 +762,15 @@ class TaskQueueApp(App):
             
             # Robust CV/Public score discovery AND Live Module tracking
             cv_score = "-"
-            exp_id = t.get("experiment_id")
-            
-            # 1. Discovery: If exp_id missing, try to find it in command or LOG file
-            if not exp_id:
-                cmd = t.get("command", "")
-                match = re.search(r'--exp-id\s+([^\s]+)', cmd) or re.search(r'experiment_id=([^\s]+)', cmd)
-                if match:
-                    exp_id = match.group(1)
-                else:
-                    # Try scanning the log file for exp-YYYYMMDD-HHMMSS
-                    log_path = self.project_root / t.get("log_file", "")
-                    if log_path.exists():
-                        try:
-                            # Read only the last part of the log for speed
-                            with open(log_path, "rb") as f:
-                                f.seek(0, 2)
-                                size = f.tell()
-                                f.seek(max(0, size - 4096))
-                                log_tail = f.read().decode('utf-8', errors='ignore')
-                            match = re.search(r'(exp-\d{8}-\d{6})', log_tail)
-                            if match:
-                                exp_id = match.group(1)
-                        except: pass
+            exp_id = self._get_experiment_id(t)
 
             live_mod = None
             if exp_id:
                 # Try to get currently active module from state.json
                 live_mod = self._get_live_module_info(exp_id)
-
-                state_path = self.project_root / "experiments" / exp_id / "state.json"
-                if state_path.exists():
-                    try:
-                        # Use already cached data if possible, or read for score
-                        with open(state_path) as f:
-                            state_data = json.load(f)
-                        
-                        modules = state_data.get("modules", {})
-                        
-                        # Find CV Score
-                        score_val = None
-                        model_mod = modules.get("model", {})
-                        p = model_mod.get("payload", {})
-                        score_val = p.get("local_cv_score") or p.get("local_cv")
-                        
-                        if score_val is None:
-                            for m in modules.values():
-                                p = m.get("payload", {})
-                                score_val = p.get("local_cv_score") or p.get("local_cv")
-                                if score_val is not None: break
-                        
-                        if score_val is not None:
-                            cv_score = f"{abs(score_val):.4f}"
-                    except: pass
+                score_val = self._get_cv_score(exp_id)
+                if score_val is not None:
+                    cv_score = f"{abs(score_val):.4f}"
             
             display_mod_name = live_mod if live_mod else module_name
             module_key = display_mod_name.lower().replace("_", "-")
@@ -900,6 +930,21 @@ class TaskQueueApp(App):
             self.action_run_queue()
         elif event.button.id == "btn-stop-queue":
             self.action_stop_queue()
+        elif event.button.id == "btn-test-tg":
+            self.action_test_telegram()
+
+    def action_test_telegram(self) -> None:
+        """Send a test notification."""
+        from mlarena.utils.queue_textual import send_telegram_notification
+        msg = (
+            f"🔔 <b>Telegram Test</b>\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"<b>Project:</b> {self.project}\n"
+            f"<b>Status:</b> Connected\n"
+            f"<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        send_telegram_notification(msg)
+        self.notify("Test Telegram message sent")
 
     def action_run_queue(self) -> None:
         if self.is_running_queue:
@@ -934,8 +979,22 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="Project name")
+    parser.add_argument("--telegram-test", action="store_true", help="Send a test Telegram message and exit")
     parser.add_argument("command", nargs="?", choices=["run"], help="Optional command")
     args = parser.parse_args()
+    
+    if args.telegram_test:
+        from mlarena.utils.queue_textual import send_telegram_notification
+        msg = (
+            f"🔔 <b>Telegram Test (CLI)</b>\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"<b>Project:</b> {args.project}\n"
+            f"<b>Status:</b> Manual Trigger\n"
+            f"<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        print(f"Sending test Telegram message for project '{args.project}'...")
+        send_telegram_notification(msg)
+        sys.exit(0)
     
     auto_run = (args.command == "run")
     

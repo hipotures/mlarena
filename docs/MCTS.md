@@ -30,8 +30,10 @@ Ten dokument opisuje, jak dodać **Monte Carlo Tree Search (MCTS)** jako alterna
   - `mla_super_chain.yaml` jako **kanoniczna kolejność** i logika “co po czym może być” (wspólne dla: Optuna / MCTS / Random)
     - plik zawiera sekcje konfiguracyjne dedykowane algorytmom: `optuna:`, `mcts:`, `random:`; w tym dokumencie opisujemy wyłącznie `mcts:`
   - search spaces używane w `preprocess_tune.py` (np. `SEARCH_SPACE_DIR/*.yaml`) jako **specyfikacja parametrów i variantów**.
-- **Root/baseline**: root to **czysty score** (bez “dodatkowego preprocessing’u” – tylko to, co robi model/AutoGluon).
-  - Dopuszczalne są “fixed harness steps” (np. przyspieszające evaluację), ale:
+- **Model Zero / baseline (etap 0, obowiązkowy)**: zanim zaczniemy ekspansję MCTS, **zawsze** wykonujemy ewaluację “pustego” pipeline’u:
+  - `preprocessing_template: null` (brak *searched transforms* → brak dodatkowego feature engineering; model trenuje na surowych kolumnach datasetu + standardowych krokach modelu/AutoGluon)
+  - ten wynik jest punktem odniesienia dla całego study (porównania, pruning, raportowanie delta)
+  - dopuszczalne są “fixed harness steps” (`meta.fixed: true`), ale:
     - nie liczą się do “głębokości transformacji”
     - nie są częścią “odkrytego” łańcucha transformacji.
 - **Małe kroki + testy**: implementacja ma być rozbita na **10–20 etapów**, każdy weryfikowalny (preferowane unit testy).
@@ -44,6 +46,22 @@ Ten dokument opisuje, jak dodać **Monte Carlo Tree Search (MCTS)** jako alterna
 
 - Przepisywanie pipeline MLA (init/eda/preprocess/model) – tylko minimalne hooki.
 - Tworzenie nowego, równoległego “systemu uruchamiania eksperymentów” obok MLA.
+
+### Terminologia (spójne nazwy: Iteracja / Trial / Node)
+
+Żeby nie mieszać pojęć (szczególnie przy Optuna‑like storage), w tym dokumencie używamy:
+
+- **Iteracja (symulacja)**: jeden pełny cykl MCTS: **Selekcja → Ekspansja → Ewaluacja → Backpropagation**.
+  - W praktyce: iteracja kończy się ewaluacją jednego liścia (jednego pipeline’u) i aktualizacją statystyk na ścieżce.
+- **Węzeł (Node)**: unikatowy stan drzewa = konkretny pipeline preprocessingu (lista kroków + warianty + parametry).
+  - Identyfikator stanu: `pipeline_signature` (kanoniczna reprezentacja).
+- **Trial**: nazwa “Optuna‑like” dla rekordu w tabeli `trials` (kompatybilność z narzędziami Optuny).
+  - W tej architekturze **1 trial == 1 node** (dedupe po `pipeline_signature`), a `trial.number` pełni rolę `node_id`
+    używanego w logach i w nazwach template’ów.
+
+Ważne rozróżnienie (multi‑fidelity):
+- pojedyncze “odpalenie MLA” na danej wierności to **ewaluacja** i jest zapisywane jako rekord w `mcts_evaluations` (`trial_id`, `fidelity`),
+- `trial_values.value` trzyma wartość docelową używaną do zapytań “best score” (zwykle z `F2`).
 
 ---
 
@@ -124,7 +142,7 @@ To jest najbliższe temu, co robisz manualnie: “MLA + model + ścieżki do tem
 `MlaCliExecutor`:
 - buduje polecenie zgodne z MLA
 - odpala je synchronicznie
-- zapisuje wynik do SQLite na podstawie `--json-output` (JSON jest tylko transportem) – patrz §4
+- zapisuje wynik do SQLite na podstawie `--json-output` (JSON transport na stdout) – patrz §4.7
 
 #### Tryb B: TaskQueue (opcjonalnie później)
 
@@ -134,6 +152,47 @@ To jest najbliższe temu, co robisz manualnie: “MLA + model + ścieżki do tem
 
 ---
 
+### 3.3 Model Zero (baseline trial #0)
+
+**Wymóg:** każdy `study` zaczyna się od ewaluacji bazowej, zanim pojawi się pierwszy “prawdziwy” ruch MCTS.
+
+Konkretnie:
+- tworzymy `trial` o `number=0` i `depth=0` (pusty `PipelineState`, brak *searched transforms*)
+- uruchamiamy MLA tak, aby wynik odpowiadał “model na surowych cechach”:
+  - `preprocessing_template: null` (albo chain zawierający wyłącznie `meta.fixed: true`)
+  - wynik zapisujemy w `trial_values` (dla objective=0) i/lub w `mcts_evaluations` dla wierności docelowej (`F2`)
+  
+To nie jest “model bez danych/bez kolumn”, tylko baseline **bez dodatkowych transformacji** z przestrzeni przeszukiwania.
+
+Dlaczego to jest konieczne:
+- mamy stały punkt odniesienia (baseline) do porównywania wszystkich kolejnych pipeline’ów,
+- możemy stosować `pruning.incumbent_margin` sensownie (względem baseline i późniejszego incumbent),
+- “best score” od początku ma znaczenie i jest query’owalny w SQLite.
+
+Resume:
+- jeśli `trial.number=0` już istnieje i ma status `COMPLETE`, nie uruchamiamy go ponownie,
+- jeśli baseline nie istnieje albo jest w stanie “osieroconym” (np. `RUNNING` bez heartbeat) – obowiązuje ta sama polityka co dla innych triali (fail/requeue), ale **study nie powinno startować ekspansji bez baseline**.
+
+### 3.4 Wywołanie MLA dla pojedynczego triala (exp-id = traceability)
+
+MCTS uruchamia ewaluację przez standardowy entrypoint MLA i zawsze nadaje jawne `--exp-id` zgodne z konwencją nazw (§6.2).
+
+Przykład:
+
+```bash
+uv run python scripts/mla.py model \
+  --project [PROJEKT] \
+  --model-template [TEMPLATE] \
+  --json-output \
+  --exp-id mcts_s0001_v1_n000123_d04_a1b2c3d4
+```
+
+Traceability: patrząc na folder `experiments/mcts_s0001_v1_n000123_d04_a1b2c3d4/...` od razu wiesz, że to:
+- Study 1 (`s0001`)
+- Trial/Node 123 (`n000123`)
+- Głębokość 4 (`d04`)
+- skrót sygnatury pipeline’u (`a1b2c3d4` = `sig8`)
+
 ## 4. Persystencja i query: SQLite (Optuna-like) zamiast plików JSON
 
 ### 4.1 Cel
@@ -141,7 +200,7 @@ To jest najbliższe temu, co robisz manualnie: “MLA + model + ścieżki do tem
 - **Jedno źródło prawdy** dla runu (tree/trials/parametry/wyniki) – bez snapshotów plikowych po stronie MCTS (wszystko w SQLite).
 - **Możliwość odpytywania “na żywo”** o aktualny best wynik (np. polling dashboardu / skryptu).
 - **Resume**: MCTS ma się dać wznowić tylko na podstawie bazy (bez dodatkowych snapshotów plikowych).
-- **Traceability**: w bazie da się dojść od `trial_id/node_id` → `template_base` → `experiment_id` → artefakty MLA.
+- **Traceability**: w bazie da się dojść od `trial_id` (oraz `node_id == trial.number`) → `template_base` → `experiment_id` → artefakty MLA.
 
 ### 4.2 Lokalizacja i tryb pracy (WAL + read-only query)
 
@@ -187,7 +246,7 @@ W praktyce warto rozdzielić “co definiuje study” od “parametrów runtime�
 - przy resume porównujemy i:
   - jeśli różni się → logujemy WARNING (co się zmieniło), ale **kontynuujemy** to samo study
 
-Ważne: liczba iteracji/budżet (`budget`) może się zwiększać między sesjami; to nie psuje study (tak jak w Optunie).
+Ważne: budżet iteracji (symulacji) `budget` może się zwiększać między sesjami; to nie psuje study (tak jak w Optunie).
 
 ### 4.4 Co zapisujemy (minimum)
 
@@ -197,16 +256,22 @@ Ważne: liczba iteracji/budżet (`budget`) może się zwiększać między sesjam
 - snapshot metadanych: hash (i opcjonalnie treść) `mla_super_chain.yaml` + search spaces
 - MCTS config (budżet, max_depth, exploration_weight, seed, gating flags)
 
-**Poziom trial/node (per ewaluacja):**
-- `trial_id/node_id`, `depth`, `pipeline_signature` (kanoniczna reprezentacja pipeline’u)
+**Poziom node/trial (per stan drzewa / pipeline):**
+- `trial_id` (PK) + `trial.number` jako `node_id` (stabilne nazewnictwo template’ów i logów)
+- `depth`, `pipeline_signature` (kanoniczna reprezentacja pipeline’u; dedupe/transpozycje)
 - relacje parent→child trzymamy jako krawędzie (np. `mcts_edges.parent_trial_id` / `mcts_edges.child_trial_id`);
   `parent_id` w logach oznacza rodzica dla danej iteracji/selekcji
 - reprezentacja “akcji” (dodany krok/variant + wylosowane parametry)
 - **parametry, które stanowią zawartość template’ów**:
   - preprocess chain (lista kroków w kolejności + warianty + parametry)
-  - model template (jeśli jest stały – zapisujemy 1× per run; jeśli zmienny – per trial)
+  - model template (jeśli stały – zapisujemy 1× per study; jeśli zmienny – per trial)
   - preferowane: zapis w formie *parametrów* (Optuna-like `trial_params`) + opcjonalnie snapshot YAML (TEXT) do 1:1 reprodukcji
-- mapping do świata MLA: `template_base`, `experiment_id`, ścieżki do template plików (jeśli materializowane), `exit_code`, runtime, error info
+
+**Poziom ewaluacji (per odpalenie MLA; szczególnie w multi-fidelity):**
+- rekord w `mcts_evaluations` (`trial_id`, `fidelity`) trzyma: status, value, metric_name, duration, limity, `n_features_out`, debug
+- dane “runtime” z MLA (np. `experiment_id`, `output_files`, exit_code, error tail) powinny trafić do `mcts_evaluations.details_json`
+- dla prostych joinów “best trial → experiment” warto dodatkowo skopiować identyfikatory ewaluacji, która zasiliła `trial_values`,
+  do `trial_user_attributes` (np. `mcts.experiment_id`, `mcts.template_base`)
 
 **Poziom statystyk MCTS (do resume):**
 - `n_visits`, `value_sum`, `value_best` / `value_mean` (plus ewentualnie cache UCT)
@@ -220,6 +285,7 @@ Ważne: liczba iteracji/budżet (`budget`) może się zwiększać między sesjam
 - `trial_params`: spłaszczone parametry odpowiadające template’om (łatwe filtrowanie / hash)
 - `trial_user_attributes`: “grubsze” pola JSON/TEXT (np. `actions_json`, `template_base`, `experiment_id`, snapshot YAML)
 - `study_user_attributes`: metadane runu (konfig, hash super-chain, itd.)
+- `mcts_evaluations`: multi‑fidelity wyniki i metadane per uruchomienie (F0/F1/F2)
 
 Dzięki temu:
 - SQL o best score wygląda “tak jak w Optuna”.
@@ -294,7 +360,7 @@ CREATE TABLE IF NOT EXISTS study_user_attributes (
   FOREIGN KEY (study_id) REFERENCES studies(study_id) ON DELETE CASCADE
 );
 
--- Trials (1 trial = 1 node w drzewie MCTS)
+-- Trials (Optuna-like; 1 trial = 1 node/pipeline_signature; pojedyncze uruchomienia są w mcts_evaluations)
 -- state: 0=RUNNING, 1=COMPLETE, 2=PRUNED, 3=FAIL, 4=WAITING
 CREATE TABLE IF NOT EXISTS trials (
   trial_id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -389,7 +455,7 @@ CREATE INDEX IF NOT EXISTS idx_mcts_eval_fidelity_value ON mcts_evaluations(fide
 
 Przykładowe klucze w `study_user_attributes` (do resume/compat):
 - `mcts.super_chain_sha256`, `mcts.search_spaces_sha256`, `mcts.objective_fingerprint`, `mcts.gating_fingerprint`
-- `mcts.schema_version` (schema bazy, niezależne od `schema_version` w JSON z MLA)
+- `mcts.schema_version` (wersja schematu bazy; niezależna od formatu transportowego JSON z MLA)
 
 Przykładowe klucze w `trial_user_attributes` (traceability):
 - `mcts.template_base`, `mcts.experiment_id`, `mcts.actions_json`, `mcts.executor_cmd`
@@ -447,47 +513,97 @@ WHERE trial_id = :trial_id
 
 SQLite jest persystencją, ale wciąż trzeba “złapać” score z uruchomionego MLA.
 
-Najprościej (na start):
-- dodać do MLA minimalny hook `--json-output <path>` zwracający pojedynczy obiekt z metrykami
-- `MlaCliExecutor` **zawsze** używa `--json-output <file>` i parsuje wynik z pliku (nie parsujemy stdout)
+Stan obecny: `mla.py model --json-output` jest już zaimplementowane i wypisuje pojedynczy obiekt JSON (transport) na stdout
+(przykład poniżej).
 
-Dlaczego plik (a nie stdout):
-- stdout/stderr bywa “zanieczyszczony” przez biblioteki ML i warningi z C/C++ (co psuje JSON)
-- plik daje prostą semantykę: brak pliku = failure; jest plik = parsowalny wynik
-- łatwiej zapewnić atomowość (write‑to‑tmp + rename)
+Kontrakt dla MCTS: executor uruchamia MLA jako subprocess z `--json-output`, **przechwytuje stdout** i parsuje JSON z outputu.
+
+Przykład:
+
+```bash
+uv run python scripts/mla.py model \
+  --project titanic \
+  --model-template baseline \
+  --json-output \
+  --exp-id mcts_s0001_v1_n000123_d04_a1b2c3d4
+```
+
+Jeśli chcesz zachować wynik jako plik obok artefaktów (debug/trace), użyj przekierowania stdout:
+`... --json-output --exp-id ... > experiments/mcts_s0001_v1_n000123_d04_a1b2c3d4/result.json`.
 
 Ważne: ten JSON **nie jest elementem schematu SQLite** i nie jest “stanem MCTS”.
 To tylko transport wyniku z subprocessa MLA → po parsowaniu trafia do DB (np. `trial_values.value`, `trial_user_attributes`).
-Pole `paths.state_json` (jeśli używane) wskazuje na `state.json` eksperymentu MLA (artefakt MLA, nie persystencja MCTS).
+Pole `state_json` (jeśli istnieje) wskazuje na `state.json` eksperymentu MLA (artefakt MLA, nie persystencja MCTS).
 
-Minimalne wymagania dla JSON:
+Minimalne wymagania dla JSON (transport):
 - jednoznaczny obiekt (najlepiej single-line)
-- stabilna wersja schematu: `schema_version`
-- na failure: `status=error`, `error_type`, `error_message`
+- musi zawierać dane wystarczające do wpisu do SQLite: `experiment_id`, `preprocessing_template` (może być `null`), wynik (`local_cv` albo `best_value`), metryka (`eval_metric`), `duration_seconds`
+- na failure: stabilne pola błędu (np. `error_type`, `error_message`) – jeśli stdout nie jest parsowalnym JSON-em, executor traktuje to jako `FAIL` i zapisuje surowy stdout/stderr do debug (np. `mcts_evaluations.details_json`)
 
-Przykładowy schemat:
+Przykład (obecny output `--json-output`, skrócony):
 
 ```json
 {
-  "schema_version": 1,
-  "status": "ok",
   "project": "<slug>",
-  "experiment_id": "exp-mcts_..._n000123",
-  "model_template": "mcts_..._n000123",
-  "preprocess_template": "mcts_..._n000123",
-  "metrics": {
-    "local_cv_score": 0.81234,
-    "metric_name": "roc_auc"
+  "experiment_id": "exp-20260113-184256",
+  "template": "baseline",
+  "preprocessing_template": null,
+  "local_cv": 0.8435754189944135,
+  "best_model": "NeuralNetTorch",
+  "best_value": 0.8435754189944135,
+  "eval_metric": "accuracy",
+  "greater_is_better": true,
+  "direction": "maximize",
+  "duration_seconds": 8.838399414999003,
+  "output_files": {
+    "artifact_dir": "experiments/exp-20260113-184256/artifacts/model"
   },
-  "paths": {
-    "experiment_dir": ".../experiments/...",
-    "state_json": ".../state.json"
-  },
-  "timings": {
-    "total_sec": 123.4
-  }
+  "finished": "2026-01-13T19:43:05.290883"
 }
 ```
+
+#### Kontrakt: co dokładnie czytamy z JSON (żeby kod “wiedział, co brać”)
+
+Executor parsuje JSON i buduje `ExperimentResult` według prostych reguł:
+
+- `experiment_id` (**required**) → `trial_user_attributes['mcts.experiment_id']`
+- `preprocessing_template` (**required**, może być `null`) → `trial_user_attributes['mcts.preprocessing_template']`
+- `value` (wynik funkcji celu, **required**) wybieramy jako:
+  - **primary**: `local_cv`
+  - **fallback**: `best_value` (jeśli `local_cv` jest `null`/brak)
+- `metric_name` (**required**) wybieramy jako:
+  - **primary**: `eval_metric`
+  - **fallback**: `metrics.metric_name` (jeśli kiedyś pojawi się z inną strukturą)
+- `direction` (**optional**) wybieramy jako:
+  - `direction` jeśli istnieje,
+  - inaczej: `maximize` gdy `greater_is_better == true`, `minimize` gdy `false`,
+  - ostatecznie: bierzemy z konfiguracji `mcts.direction` (i logujemy WARNING, jeśli JSON podaje coś innego).
+- `duration_seconds` (**optional**) → `mcts_evaluations.duration_sec`
+- `output_files` (**optional**) → `trial_user_attributes['mcts.output_files_json']` (surowy JSON)
+
+Pseudokod (dokładnie to, co ma robić parser):
+
+```text
+raw = stdout_text.strip()
+obj = json.loads(raw)
+experiment_id = obj["experiment_id"]
+preprocess_template = obj.get("preprocessing_template")   # null allowed
+
+value = obj.get("local_cv")
+if value is None:
+  value = obj.get("best_value")
+assert value is not None
+
+metric = obj.get("eval_metric") or obj.get("metrics", {}).get("metric_name")
+assert metric is not None
+```
+
+Mapowanie do SQLite (minimalnie):
+- `value` → `trial_values.value` (objective=0) oraz/lub `mcts_evaluations.value` dla `fidelity='F2'`
+- `metric_name` → `study_user_attributes['mcts.metric_name']` i/lub `mcts_evaluations.metric_name`
+- `experiment_id` → `trial_user_attributes['mcts.experiment_id']`
+- `preprocessing_template` → `trial_user_attributes['mcts.preprocessing_template']` (dla baseline: `null`)
+- ścieżki artefaktów → `trial_user_attributes['mcts.output_files_json']`
 
 ---
 
@@ -748,14 +864,14 @@ Persystencja działa przez SQLite (domyślnie):
 
 W bazie trzymamy:
 * deduplikację (unikatowy `pipeline_signature`)
-* mapowanie `trial_id/node_id` → `template_base` → `experiment_id`
+* mapowanie `trial_id` (`node_id == trial.number`) → `template_base` → `experiment_id`
 * wyniki i statystyki MCTS (resume bez dodatkowych snapshotów plikowych)
 
 ### 7.2 Minimalne wymagania logów (2 poziomy: INFO + DEBUG)
 
 **INFO (minimalny zestaw, jedna linia/event):**
 - START/RESUME: `study_name`, `run_id`, `storage_url`, `resume_policy`, fingerprinty (chain/search spaces/objective), budżet
-- TRIAL_START: `trial_id/node_id`, `parent_id`, `depth`, `pipeline_signature`, `template_base` (jeśli materializujemy), `experiment_id` (jeśli już nadany)
+- TRIAL_START: `trial_id`, `node_id` (`trial.number`), `parent_id`, `depth`, `pipeline_signature`, `template_base` (jeśli materializujemy), `experiment_id` (jeśli już nadany)
 - TRIAL_END: `trial_id`, `status` (`COMPLETE/FAIL`), `score/value`, `metric_name`, `duration_sec`, `exit_code`, `experiment_id`
 - NEW_BEST: `best_value`, `best_trial_id`, `best_template_base`, `best_experiment_id`
 - STOP/SUMMARY: liczba triali, czas całkowity, best_value + wskazanie najlepszego triala
@@ -773,7 +889,7 @@ W bazie trzymamy:
 - DB_STATE: przejścia stanów triali (`WAITING→RUNNING→COMPLETE/FAIL`) + obsługa “stale RUNNING” (fail/requeue)
 
 **Wspólne wymagania (INFO i DEBUG):**
-- każde zdarzenie ma klucze korelacyjne: `study_name`, `run_id`, `trial_id/node_id`, `parent_id`, `depth`, `pipeline_signature`, `template_base`, `experiment_id`
+- każde zdarzenie ma klucze korelacyjne: `study_name`, `run_id`, `trial_id`, `node_id` (`trial.number`), `parent_id`, `depth`, `pipeline_signature`, `template_base`, `experiment_id`
 - format logu ma być “grep-friendly” (1 event = 1 linia; dopuszczalne: key=value albo JSON)
 
 ### 7.3 Raportowanie nowego best score
@@ -800,9 +916,8 @@ Preferowane: dopisać `mcts:` do istniejącej konfiguracji tunera (np. w `mla_su
 
 Preferowana nazwa pliku super-chain (uniwersalna): `conf/preprocess/mla_super_chain.yaml`.
 
-Obecnie `conf/preprocess/mla_super_chain.yaml` może być symlinkiem do legacy nazwy
-`conf/preprocess/super_chain_optuna.yaml` (compat), ale dokumentacja i nowe komponenty powinny używać
-`mla_super_chain.yaml` jako kanonicznej ścieżki.
+Dokumentacja i nowe komponenty używają wyłącznie `mla_super_chain.yaml` jako kanonicznej ścieżki
+(ewentualne aliasy/symlinki to detal implementacyjny repo, nie element architektury).
 
 **Konwencja zawartości `mla_super_chain.yaml`:**
 - część wspólna (używana przez wszystkie algorytmy): `preprocessors`, `evaluation`, `meta.*`
@@ -838,7 +953,7 @@ mcts:
 
   root_mode: "harness_only"      # "no_preprocess" | "harness_only"
   executor: "cli"                # "cli" | "task_queue"
-  json_output: true              # wymuszaj --json-output w mla.py (transport wyniku → zapis do SQLite)
+  json_output: true              # wymuszaj --json-output (MCTS czyta JSON z stdout; §4.7)
 
   allow_heavy_steps: true
   allow_heavy_variants: true
@@ -908,7 +1023,7 @@ mcts:
 |   12 | SQLite storage                 | schema (nodes/edges/evaluations) + resume       | restart kontynuuje; resume_policy=strict działa      |
 |   13 | NEW BEST + notifier + GC       | event + (opc.) Telegram/Bell + retencja template’ów | caplog: NEW BEST; GC działa; notifier nie blokuje runu |
 |   14 | `MlaCliExecutor`               | składanie komendy + timeouty                    | test budowania command line; failure mapping         |
-|   15 | `--json-output` w MLA          | minimalny hook w runnerze                       | test schematu JSON; status=error na wyjątku          |
+|   15 | `--json-output` (stdout JSON)  | parser outputu + mapowanie pól do DB            | poprawny parse JSON; walidacja wymaganych pól        |
 |   16 | `--dry-run`                    | generuje template’y i komendy bez uruchamiania  | pliki + wpisy w SQLite powstają                      |
 |   17 | Multi-fidelity + pruning       | F0/F1/F2 + ASHA/successive halving              | promocje zgodne z regułami; PRUNED działa            |
 |   18 | Real run budżet=1–2            | end-to-end na małej próbie                      | score złapany, artefakty istnieją                    |

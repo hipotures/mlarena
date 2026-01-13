@@ -46,6 +46,12 @@ class MCTSRunner:
         print(f"Starting MCTS Study: {self.config.study_name}")
         self._evaluate_baseline()
         
+        best_so_far = -float('inf') if self.direction == StudyDirection.MAXIMIZE else float('inf')
+        base_trial = self.storage.get_best_trial(self.study_id)
+        if base_trial:
+            best_so_far = base_trial["value"]
+            print(f"[INFO] Baseline Score: {best_so_far}")
+        
         for i in range(self.config.budget):
             print(f"Iteration {i+1}/{self.config.budget}")
             node = self.tree.select(self.tree.root)
@@ -56,10 +62,6 @@ class MCTSRunner:
                 self.tree.backpropagate(node, node.value_best if node.value_best > -float('inf') else 0.0)
                 continue
                 
-            # Create trial if needed (dedupe handled by storage usually, but here we create new ID for unique node path logic?)
-            # Actually, storage.create_trial handles dedupe by signature if we want.
-            # But MCTS logic maps node 1:1 to trial for tracking.
-            
             trial_id = self.storage.create_trial(
                 self.study_id,
                 number=self._get_next_trial_number(),
@@ -68,38 +70,36 @@ class MCTSRunner:
                 params=self._state_to_params(child.state)
             )
             
-            # Determine fidelity
             fidelity = self._get_next_fidelity(child, trial_id)
             if not fidelity:
-                # Pruned or fully done
                 print("  -> Pruned or done")
-                # If pruned, what value to backprop? 
-                # Maybe value from lower fidelity?
-                # Or penalty?
-                # If F0 was bad, we backpropped F0 value.
-                # If F1 pruned, we don't update.
                 continue
                 
             result = self._execute_trial(child, trial_id, fidelity)
             
             if result.success and result.value is not None:
-                # Save evaluation
                 self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration)
-                
-                # Update Best Value if this is target fidelity (F2) or best we have?
-                # Usually we optimize for target fidelity.
-                # If F0, we still update tree stats (surrogate).
-                
                 self.tree.backpropagate(child, result.value)
-                
-                # Only mark trial COMPLETE if target fidelity done?
-                # Or set value to best so far.
-                # Let's set value to current result.
                 self.storage.set_trial_value(trial_id, result.value)
                 
                 target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
                 if fidelity == target_fid:
                     self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
+                    
+                # New Best Check
+                is_new_best = False
+                if self.direction == StudyDirection.MAXIMIZE:
+                    if result.value > best_so_far:
+                        is_new_best = True
+                else:
+                    if result.value < best_so_far:
+                        is_new_best = True
+                        
+                if is_new_best:
+                    best_so_far = result.value
+                    print(f"\n>>> NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) <<<
+")
+
             else:
                 penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
                 self.tree.backpropagate(child, penalty)
@@ -111,15 +111,21 @@ class MCTSRunner:
 
     def _evaluate_baseline(self):
         print("Evaluating Baseline (Model Zero)")
+        # Check if baseline already exists
+        # Simplistic check: query trial number 0
+        with self.storage._connect() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT trial_id FROM trials WHERE study_id=? AND number=0", (self.study_id,))
+            if cur.fetchone():
+                print("Baseline already exists, skipping execution.")
+                return
+
         trial_id = self.storage.create_trial(
             self.study_id, 0, "baseline", 0, {}, state=TrialState.RUNNING
         )
         state = PipelineState()
         templates = self.materializer.materialize(state, node_id=0)
         
-        # Baseline is always F2 (target) effectively, or run as configured base
-        # Spec says "Model Zero ... training on raw columns".
-        # Let's run it as standard.
         result = self._run_mla(templates, "baseline_exp")
         
         if result.success and result.value is not None:
@@ -134,34 +140,18 @@ class MCTSRunner:
         templates = self.materializer.materialize(node.state, node_id=trial_id)
         exp_id = f"mcts_{self.config.study_name}_{trial_id}_{fidelity}"
         
-        # Apply fidelity configs (time limit, folds, subsample)
-        # We need to pass these to MLA via overrides or flags.
-        # Currently Executor doesn't support arbitrary overrides easily via flags unless we use 'key=value'.
-        # We can update Executor or pass via overrides.
-        
-        # Look up fidelity config
         fid_cfg = next((l for l in self.config.multi_fidelity.levels if l["name"] == fidelity), {})
         
-        # Map fid_cfg to MLA params
-        # sample_frac -> train_fraction.config.fraction? Or internal flag?
-        # cv_folds -> model.cv_folds?
-        # time_limit -> model.time_limit?
-        
-        # For simplicity, we assume we can pass common model args.
         overrides = {}
         if "cv_folds" in fid_cfg:
             overrides["model.cv_folds"] = fid_cfg["cv_folds"]
         if "time_limit_sec" in fid_cfg:
             overrides["model.time_limit"] = fid_cfg["time_limit_sec"]
             
-        # TODO: Handle sample_frac (requires adding a step or configuring loader)
-        
         return self._run_mla(templates, exp_id, overrides)
 
     def _run_mla(self, templates: Dict[str, Any], exp_id: str, overrides: Dict[str, Any] = {}) -> ExperimentResult:
         model_template = self.params.get("model_template") or "baseline"
-        
-        # Build list of override args "key=value"
         extra_args = [f"{k}={v}" for k, v in overrides.items()]
         
         cmd = self.executor.build_command(
@@ -195,7 +185,6 @@ class MCTSRunner:
                 
             prev_name = levels[i-1]["name"]
             if prev_name not in completed_fids:
-                # Previous not done (maybe skipped or failed?), shouldn't happen in sequence
                 return None 
                 
             prev_score = next((e["value"] for e in evals if e["fidelity"] == prev_name), None)

@@ -97,8 +97,11 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         shape_before_eval = list(X.eval.shape) if X.eval is not None else None
         shape_before_orig = list(X.orig.shape) if X.orig is not None else None
         
-        # Always show progress on stdout, even if quiet_mode is on (but keep it subtle)
-        console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
+        # Always show progress on stdout (unless json_output is enabled)
+        is_quiet = False
+        if self.context.config and getattr(self.context.config, "json_output", False):
+            is_quiet = True
+        console = Console(file=sys.__stdout__, force_terminal=True, highlight=False, quiet=is_quiet)
         
         # Build progress line: gray for the whole info
         msg = Text(f"Pipeline Step: {self.step_name}...", style="gray")
@@ -317,8 +320,11 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             res_msg = Text()
             res_msg.append(" done", style="dim green")
             res_msg.append(f" ({duration:.1f}s)", style="gray")
-            # Always use original stdout
-            console = Console(file=sys.__stdout__, force_terminal=True, highlight=False)
+            # Always use original stdout (unless json_output is enabled)
+            is_quiet = False
+            if self.context.config and getattr(self.context.config, "json_output", False):
+                is_quiet = True
+            console = Console(file=sys.__stdout__, force_terminal=True, highlight=False, quiet=is_quiet)
             console.print(res_msg)
 
         except Exception as e:
@@ -681,8 +687,8 @@ class PreprocessModule(BaseModule):
             pipeline_definition = template_cfg.get("chain")
 
         if pipeline_definition:
-            # Always show start message on stdout
-            console_out = Console(file=sys.__stdout__, force_terminal=True)
+            # Always show start message on stdout (unless quiet_mode is enabled)
+            console_out = Console(file=sys.__stdout__, force_terminal=True, quiet=quiet_mode)
             console_out.print(f"\n[bold magenta]Starting Unified Pipeline Execution[/bold magenta] (In-Memory)")
             
             # 1. Initialize Container
@@ -777,7 +783,8 @@ class PreprocessModule(BaseModule):
             # The last step name is from the pipeline_steps list
             last_step_full_name = pipeline_steps[-1][0]
             
-            console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts to [cyan]{last_step_full_name}[/cyan]...")
+            if not quiet_mode:
+                console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts to [cyan]{last_step_full_name}[/cyan]...")
             
             # Use Parquet for performance (no string conversion, fast binary write)
             final_container.train.to_parquet(target_dir / "train_processed.parquet", index=False)

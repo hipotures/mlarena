@@ -9,7 +9,7 @@
     - [ ] Sub-task: Define `MCTSConfig` Pydantic model in `src/mlarena/modules/mcts/config.py`.
     - [ ] Sub-task: Implement loading logic from `mla_super_chain.yaml` (parsing the `mcts:` section).
     - [ ] Sub-task: Write unit tests for config validation and defaults.
-- [ ] Task: Implement Super-Chain & Search Space Loaders
+- [x] Task: Implement Super-Chain & Search Space Loaders [45e5a0f]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/space.py`.
     - [ ] Sub-task: Implement logic to load and parse `mla_super_chain.yaml` (preserving order).
     - [ ] Sub-task: Refactor/reuse `_load_search_spaces` from `preprocess_tune.py` to be shared.

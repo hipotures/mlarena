@@ -74,7 +74,7 @@ Wdrożenie MCTS ma maksymalnie kopiować te mechanizmy (a nie budować nowe).
 1) **MCTSRunner** (nowy)
 - uruchamiany przez `PreprocessTuneModule` gdy `--mcts`
 - zarządza:
-  - drzewem i statystykami (UCT)
+  - drzewem i statystykami (UCT/PUCT)
   - budżetem (liczbą ewaluacji)
   - persistence (SQLite: `experiments/db/mcts.db`)
   - logami
@@ -124,7 +124,7 @@ To jest najbliższe temu, co robisz manualnie: “MLA + model + ścieżki do tem
 `MlaCliExecutor`:
 - buduje polecenie zgodne z MLA
 - odpala je synchronicznie
-- parsuje wynik i zapisuje do SQLite (JSON jest tylko transportem) – patrz §4
+- zapisuje wynik do SQLite na podstawie `--json-output` (JSON jest tylko transportem) – patrz §4
 
 #### Tryb B: TaskQueue (opcjonalnie później)
 
@@ -168,15 +168,24 @@ W tej architekturze `study` oznacza **jeden** proces przeszukiwania MCTS o stał
   - wykrywa “osierocone” triale w stanie `RUNNING` (np. bez heartbeat / zbyt stare) i oznacza je jako `FAIL` albo przywraca do `WAITING` (policy w config)
 
 **Wykrycie zmiany konfiguracji i blokada resume (strict, domyślnie):**
-- przy tworzeniu `study` zapisujemy w `study_user_attributes` fingerprint wejścia, np.:
+W praktyce warto rozdzielić “co definiuje study” od “parametrów runtime”, bo często zmienia się ustawienia szukania
+(budżet, `exploration_weight`, widening), ale nie zmienia się problem (super‑chain/search space/metryka).
+
+**Hard constraint (Study Signature) – zmiana = nowe study:**
+- przy tworzeniu `study` zapisujemy fingerprint, np.:
   - `mcts.super_chain_sha256` (hash treści `conf/preprocess/mla_super_chain.yaml`)
   - `mcts.search_spaces_sha256` (hash treści wszystkich plików search space)
-  - `mcts.objective_fingerprint` (metric_name + direction + model_template/evaluation config)
+  - `mcts.objective_fingerprint` (metric_name + direction + evaluation/model template)
   - `mcts.gating_fingerprint` (problem_type + allow_heavy_* + max_features_out + EDA fingerprint)
-  - `mcts.mcts_config_fingerprint` (parametry algorytmu, jeśli chcemy je “zamrozić” w study)
 - przy resume liczymy fingerprint ponownie i:
-  - jeśli się nie zgadza → **przerywamy** z jasnym błędem (“study config mismatch”) i prosimy o nowy `study_name`
-  - opcjonalnie (niezalecane): `resume_policy: force` pozwala wznowić mimo różnic
+  - jeśli się nie zgadza → **przerywamy** (“study signature mismatch”) i wymagamy nowego `study_name`
+  - opcjonalnie: `resume_policy: force` pozwala wznowić mimo różnic (niezalecane)
+
+**Soft constraint (Runtime Params) – zmiana = warning, ale resume dozwolony:**
+- zapisujemy w `study_user_attributes` również “snapshot” runtime, np.:
+  - `mcts.runtime_params_json` (wybrane parametry: budget, selection_policy, exploration_weight, PW, workers, multi_fidelity)
+- przy resume porównujemy i:
+  - jeśli różni się → logujemy WARNING (co się zmieniło), ale **kontynuujemy** to samo study
 
 Ważne: liczba iteracji/budżet (`budget`) może się zwiększać między sesjami; to nie psuje study (tak jak w Optunie).
 
@@ -384,6 +393,7 @@ Przykładowe klucze w `study_user_attributes` (do resume/compat):
 
 Przykładowe klucze w `trial_user_attributes` (traceability):
 - `mcts.template_base`, `mcts.experiment_id`, `mcts.actions_json`, `mcts.executor_cmd`
+- `mcts.template_files_json`, `mcts.templates_retained`, `mcts.templates_deleted_at`
 
 ### 4.6 Przykładowe zapytania SQL (best score + najlepsze parametry)
 
@@ -433,13 +443,18 @@ WHERE trial_id = :trial_id
   AND key IN ('mcts.template_base', 'mcts.experiment_id');
 ```
 
-### 4.7 Transport wyniku z MLA (opcjonalnie `--json`)
+### 4.7 Transport wyniku z MLA (wymuszony `--json-output`)
 
 SQLite jest persystencją, ale wciąż trzeba “złapać” score z uruchomionego MLA.
 
 Najprościej (na start):
-- dodać do MLA minimalny hook `--json` / `--json-output <path>` zwracający pojedynczy obiekt z metrykami
-- `MlaCliExecutor` parsuje JSON ze stdout (lub pliku) i zapisuje wynik do SQLite
+- dodać do MLA minimalny hook `--json-output <path>` zwracający pojedynczy obiekt z metrykami
+- `MlaCliExecutor` **zawsze** używa `--json-output <file>` i parsuje wynik z pliku (nie parsujemy stdout)
+
+Dlaczego plik (a nie stdout):
+- stdout/stderr bywa “zanieczyszczony” przez biblioteki ML i warningi z C/C++ (co psuje JSON)
+- plik daje prostą semantykę: brak pliku = failure; jest plik = parsowalny wynik
+- łatwiej zapewnić atomowość (write‑to‑tmp + rename)
 
 Ważne: ten JSON **nie jest elementem schematu SQLite** i nie jest “stanem MCTS”.
 To tylko transport wyniku z subprocessa MLA → po parsowaniu trafia do DB (np. `trial_values.value`, `trial_user_attributes`).
@@ -634,6 +649,10 @@ To jest logika runtime (nie musi być persystowana), ale powinna być widoczna w
   * `mla.py model --model-template <NAME>`
 * debug jest identyczny jak w standardowym MLA (bo to ten sam entrypoint)
 
+Uwaga: jeśli template’y zostały usunięte przez politykę retencji, replay wygląda tak:
+1) rehydratacja template’ów z SQLite dla danego `trial_id` / `pipeline_signature`
+2) `mla.py model --model-template <NAME>`
+
 ### 6.2 Deterministyczny schemat nazw
 
 Każde `study` ma `run_id` (stabilny identyfikator do nazw plików), zapisywany w SQLite przy pierwszym uruchomieniu
@@ -669,6 +688,45 @@ Dwie opcje konfigurowalne:
 * **harness_only**: tylko fixed harness chain, bez transformacji
 
 Obie utrzymują `depth=0`.
+
+### 6.4 Ograniczanie “template spam” (retencja + rehydratacja z SQLite)
+
+Materializacja YAML jest tylko “adapterem” do uruchomienia MLA – źródłem prawdy jest SQLite (`trial_params` + attrs).
+Przy MCTS + multi‑fidelity łatwo wygenerować tysiące małych plików, więc potrzebujemy strategii retencji:
+
+**Zasada domyślna (rekomendowana):**
+- template’y tworzymy na potrzeby uruchomienia triala,
+- po ewaluacji **usuwamy** template’y, jeśli trial nie jest aktualnym `best` (top‑1),
+- zostawiamy tylko template’y dla:
+  - aktualnego `best` (top‑1),
+  - (opcjonalnie) top‑K,
+  - (opcjonalnie) triali w pełnej wierności (`F2`) i/lub failure‑debug.
+
+**Ślad w SQLite (żeby było wiadomo co zostało skasowane):**
+- w `trial_user_attributes` zapisujemy np.:
+  - `mcts.template_base`
+  - `mcts.template_files_json` (lista ścieżek)
+  - `mcts.templates_retained` (bool)
+  - `mcts.templates_deleted_at` (timestamp lub null)
+
+**Ephemeral templates dla niskich wierności:**
+- dla `F0/F1` template’y mogą być “ephemeral” (zawsze usuwane po ewaluacji),
+- w DB zostaje komplet informacji do odtworzenia pipeline’u.
+- dzięki temu liczba plików “na dysku naraz” jest ograniczona (najczęściej: tylko dla aktualnie uruchamianych triali).
+
+**Opcjonalnie (polecane jeśli IDE/FS cierpi): izolowany katalog template’ów**
+- dodać do MLA flagę w stylu `--templates-root <path>` (albo osobno dla model/preprocess),
+  żeby `TemplateLoader` mógł czytać template’y z katalogu innego niż `project_root/templates/*`
+- wtedy MCTS może trzymać swoje pliki pod `experiments/mcts_runs/{run_id}/templates/*` i czyścić je bez “zaśmiecania” projektu
+
+**Rehydratacja (odtworzenie template’ów z bazy):**
+- potrzebny jest prosty mechanizm/komenda, który z `trial_id` (lub `pipeline_signature`) odtworzy YAML do poprawnej struktury
+  (chain + kroki + model wskazujący na chain),
+- to jest krytyczne, jeśli kasujemy template’y większości triali: replay działa wtedy przez “rehydrate → mla.py model”.
+
+Minimalny test/unit:
+- zasil DB przykładowym `trial_params` (jak w §4.5) i sprawdź, że rehydratacja tworzy poprawne YAML
+  (kroki + chain referencje) oraz że loader template’ów MLA potrafi je wczytać.
 
 ---
 
@@ -708,6 +766,7 @@ W bazie trzymamy:
 - EXPANSION: wybrana akcja + wylosowane parametry (w formacie zgodnym z `trial_params`) + seed/RNG
 - DEDUPE: wykrycie duplikatu `pipeline_signature` + decyzja (skip/reuse)
 - MATERIALIZE: ścieżki wygenerowanych template’ów + `sig8`/hash
+- TEMPLATE_GC: decyzja retencji (keep/delete) + lista plików + powód (best/topK/fidelity/failure)
 - EXECUTOR_CMD: dokładna komenda MLA (lub task_id) + timeouty
 - EXECUTOR_RESULT: sparsowany wynik (JSON → `value/metric_name/paths`) + surowy stderr/stdout tail przy błędzie
 - BACKPROP: reward/value + aktualizacje statystyk (`n_visits`, `value_sum`, `value_mean`) dla węzłów na ścieżce
@@ -779,7 +838,7 @@ mcts:
 
   root_mode: "harness_only"      # "no_preprocess" | "harness_only"
   executor: "cli"                # "cli" | "task_queue"
-  cli_json: true                 # używaj --json w mla.py (transport wyniku → zapis do SQLite)
+  json_output: true              # wymuszaj --json-output w mla.py (transport wyniku → zapis do SQLite)
 
   allow_heavy_steps: true
   allow_heavy_variants: true
@@ -806,6 +865,13 @@ mcts:
   penalties:
     features_lambda: 0.0
     time_lambda: 0.0
+
+  templates:
+    retention: "best"            # "best" | "top_k" | "all"
+    retain_top_k: 20
+    retain_fidelities: ["F2"]
+    retain_failures: true
+    ephemeral_fidelities: ["F0", "F1"]
 
   parallelism:
     workers: 1
@@ -835,16 +901,16 @@ mcts:
 |    5 | Model `PipelineState`          | fixed vs searched, sygnatura                    | sygnatura stabilna; kolejność wpływa na hash         |
 |    6 | Generator akcji                | `next_actions(state)` (kolejność + grupy)       | akcje zawsze “później” w chain; brak duplikatów grup |
 |    7 | Sampler parametrów             | RNG-based zgodny ze specami                     | dla każdego typu spec: value in-domain               |
-|    8 | Materializer template’ów       | zapis plików + naming scheme                    | pliki powstają; chain wskazuje na kroki              |
+|    8 | Materializer + rehydrate       | naming + ephemeral templates + retencja         | unit: rehydrate z DB tworzy poprawne YAML            |
 |    9 | `ExperimentExecutor` interface | `FakeExecutor` + Result schema                  | MCTS loop działa bez MLA; wyniki wracają             |
 |   10 | Core MCTS (PUCT + PW)          | selection/expansion/backprop + progressive widening | test z FakeExecutor: wybiera lepszą gałąź; PW nie eksploduje |
 |   11 | Cache/transpozycje             | pipeline_signature + cache wyników + (opc.) transposition table | duplikaty nie odpalają executora                     |
 |   12 | SQLite storage                 | schema (nodes/edges/evaluations) + resume       | restart kontynuuje; resume_policy=strict działa      |
-|   13 | NEW BEST + notifier            | event + (opc.) Telegram/Bell                    | caplog: NEW BEST event; notifier nie blokuje runu    |
+|   13 | NEW BEST + notifier + GC       | event + (opc.) Telegram/Bell + retencja template’ów | caplog: NEW BEST; GC działa; notifier nie blokuje runu |
 |   14 | `MlaCliExecutor`               | składanie komendy + timeouty                    | test budowania command line; failure mapping         |
-|   15 | `--json` w MLA                 | minimalny hook w runnerze                       | test schematu JSON; status=error na wyjątku          |
+|   15 | `--json-output` w MLA          | minimalny hook w runnerze                       | test schematu JSON; status=error na wyjątku          |
 |   16 | `--dry-run`                    | generuje template’y i komendy bez uruchamiania  | pliki + wpisy w SQLite powstają                      |
 |   17 | Multi-fidelity + pruning       | F0/F1/F2 + ASHA/successive halving              | promocje zgodne z regułami; PRUNED działa            |
 |   18 | Real run budżet=1–2            | end-to-end na małej próbie                      | score złapany, artefakty istnieją                    |
 |   19 | (opcjonalnie) równoległość     | virtual loss / worker pool                      | limit workerów, brak kolizji na liściach             |
-|   20 | Wyniki (top-K + best)          | export top-K + promocja best template           | top-K stabilne; best aktualizuje się tylko przy poprawie |
+|   20 | Wyniki (top-K + best)          | export top-K + finalna retencja template’ów     | top-K stabilne; best i pliki są spójne               |

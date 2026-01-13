@@ -1,0 +1,10 @@
+module: row_aggregates
+config:
+  include_cols: null
+  exclude_cols: []
+  stats:
+  - max
+  - min
+  - std
+  prefix: row_
+  nan_policy: omit

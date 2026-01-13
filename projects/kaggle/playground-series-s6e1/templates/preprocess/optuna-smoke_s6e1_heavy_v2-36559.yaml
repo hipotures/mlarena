@@ -1,0 +1,10 @@
+chain:
+- optuna-smoke_s6e1_heavy_v2-36559-missingness_features
+- optuna-smoke_s6e1_heavy_v2-36559-imputer
+- optuna-smoke_s6e1_heavy_v2-36559-numeric_binner
+- optuna-smoke_s6e1_heavy_v2-36559-outlier_handler
+- optuna-smoke_s6e1_heavy_v2-36559-row_aggregates
+- optuna-smoke_s6e1_heavy_v2-36559-scaler
+- optuna-smoke_s6e1_heavy_v2-36559-feature_polynomial
+- optuna-smoke_s6e1_heavy_v2-36559-drift_detector
+- optuna-smoke_s6e1_heavy_v2-36559-feature_selector

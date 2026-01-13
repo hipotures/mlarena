@@ -1,0 +1,8 @@
+module: numeric_binner
+config:
+  numeric_include: null
+  numeric_exclude: []
+  drop_original: false
+  encode: ordinal
+  strategy: quantile
+  n_bins: 40

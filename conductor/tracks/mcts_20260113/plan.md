@@ -24,7 +24,7 @@
 - [x] Task: Implement Parameter Sampler [1e1d298]
     - [ ] Sub-task: Implement RNG-based parameter sampler in `src/mlarena/modules/mcts/sampler.py` (supporting choice, int/float ranges).
     - [ ] Sub-task: Write unit tests verifying sampled values are within bounds.
-- [ ] Task: Implement Tree Search & Selection Policies
+- [x] Task: Implement Tree Search & Selection Policies [ca906e0]
     - [ ] Sub-task: Implement UCT and PUCT selection logic.
     - [ ] Sub-task: Implement **Progressive Widening** logic in the expansion phase.
     - [ ] Sub-task: Implement Backpropagation logic.

@@ -36,7 +36,7 @@
     - [ ] Sub-task: Implement DDL for tables (`studies`, `trials`, `trial_params`, `mcts_nodes`, etc.).
     - [ ] Sub-task: Implement methods for `create_study`, `add_trial`, `update_trial`.
     - [ ] Sub-task: Write integration tests for database operations.
-- [ ] Task: Implement Template Materialization
+- [x] Task: Implement Template Materialization [e95f464]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/materializer.py`.
     - [ ] Sub-task: Implement logic to convert `PipelineState` to YAML templates (chain + steps).
     - [ ] Sub-task: Implement logic for "Ephemeral Templates" (deletion policy).

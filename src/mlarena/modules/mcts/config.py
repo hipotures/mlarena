@@ -35,7 +35,7 @@ class ParallelismConfig(BaseModel):
 class MCTSConfig(BaseModel):
     # Storage & Identity
     storage_url: str = "sqlite:///experiments/db/mcts.db"
-    study_name: str
+    study_name: Optional[str] = None
     direction: Literal["minimize", "maximize"] = "maximize"
     resume_policy: Literal["strict", "force"] = "strict"
     stale_running_trials: Literal["fail", "requeue"] = "fail"

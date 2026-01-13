@@ -97,8 +97,9 @@ class MCTSRunner:
                         
                 if is_new_best:
                     best_so_far = result.value
-                    print(f"\n>>> NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) <<<
-")
+                    print("")
+                    print(f">>> NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) <<<")
+                    print("")
 
             else:
                 penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0

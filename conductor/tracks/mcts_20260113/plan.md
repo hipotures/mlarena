@@ -52,7 +52,7 @@
     - [ ] Sub-task: Connect `MCTSRunner` to `Storage`, `Materializer`, and `Executor`.
     - [ ] Sub-task: Implement the main optimization loop (Selection -> Expansion -> Execution -> Backprop).
     - [ ] Sub-task: Implement Baseline (Model Zero) evaluation logic at start.
-- [ ] Task: Implement Multi-Fidelity & Pruning
+- [x] Task: Implement Multi-Fidelity & Pruning [790d265]
     - [ ] Sub-task: Add logic for F0/F1/F2 levels in `MCTSRunner`.
     - [ ] Sub-task: Implement ASHA/Successive Halving promotion logic.
     - [ ] Sub-task: Write tests verifying that poor performers are pruned.

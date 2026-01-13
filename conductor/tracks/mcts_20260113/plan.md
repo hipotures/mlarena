@@ -5,7 +5,7 @@
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/runner.py` with a basic `MCTSRunner` class.
     - [ ] Sub-task: Update `src/mlarena/modules/preprocess_tune.py` to handle the `--mcts` flag and instantiate `MCTSRunner`.
     - [ ] Sub-task: Write unit test to verify CLI routing.
-- [ ] Task: Implement MCTS Configuration System
+- [x] Task: Implement MCTS Configuration System [d2e9025]
     - [ ] Sub-task: Define `MCTSConfig` Pydantic model in `src/mlarena/modules/mcts/config.py`.
     - [ ] Sub-task: Implement loading logic from `mla_super_chain.yaml` (parsing the `mcts:` section).
     - [ ] Sub-task: Write unit tests for config validation and defaults.

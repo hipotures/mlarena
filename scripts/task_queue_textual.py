@@ -69,6 +69,8 @@ class QueueDashboard(Vertical):
                 yield Static("0", id="stat-failed", classes="stat-value")
                 yield Label("Avg Duration:", classes="stat-label")
                 yield Static("-", id="stat-avg-duration", classes="stat-value")
+                yield Label("App Started:", classes="stat-label")
+                yield Static("-", id="stat-app-started", classes="stat-value")
         
         yield Label("Current Status", classes="panel-header")
         with Container(classes="status-container"):
@@ -346,7 +348,7 @@ class TaskQueueApp(App):
 
     def on_mount(self) -> None:
         self.query_one(DataTable).add_columns(
-            "ID", "Prio", "OK", "Mod", "CV", "Template", "Added", "Duration", "Log File"
+            "ID", "Prio", "OK", "Mod", "CV", "Template", "Started", "Duration", "Log File"
         )
         self.set_interval(2.0, self.refresh_data)
         self.set_interval(1.0, self.update_log)
@@ -591,7 +593,7 @@ class TaskQueueApp(App):
         old_scroll = table.scroll_offset
 
         # Update Column Headers with Sort Indicators
-        base_cols = ["ID", "Prio", "OK", "Mod", "CV", "Template", "Added", "Duration", "Log File"]
+        base_cols = ["ID", "Prio", "OK", "Mod", "CV", "Template", "Started", "Duration", "Log File"]
         table.clear(columns=True)
         for col in base_cols:
             label = col
@@ -671,7 +673,7 @@ class TaskQueueApp(App):
                 if col == "Mod": return str(t.get("command") or "")
                 if col == "CV": return _get_cv(t)
                 if col == "Template": return str(t.get("command") or "")
-                if col == "Added": return str(t.get("added_at") or "")
+                if col == "Started": return str(t.get("started_at") or "")
                 if col == "Duration": 
                     start = t.get("started_at")
                     end = t.get("finished_at")
@@ -801,6 +803,14 @@ class TaskQueueApp(App):
             else:
                 log_cell = t.get("log_file", "-")
             
+            started_at = t.get("started_at") or "-"
+            if started_at != "-":
+                # Shorten to HH:MM:SS or keep as is if desired
+                try:
+                    dt = datetime.strptime(started_at, "%Y-%m-%d %H:%M:%S")
+                    started_at = dt.strftime("%H:%M:%S")
+                except: pass
+
             table.add_row(
                 str(t["id"]),
                 str(t["priority"]),
@@ -808,7 +818,7 @@ class TaskQueueApp(App):
                 Align.center(module_icon),
                 Align.right(display_score),
                 template,
-                t["added_at"],
+                started_at,
                 duration,
                 log_cell
             )

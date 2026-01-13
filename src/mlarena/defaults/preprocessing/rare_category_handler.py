@@ -169,14 +169,20 @@ def fit_transform(
         }
 
     # 8. Apply mappings to all DataFrames
+    rare_label = config.get("rare_label", "__RARE__")
     for col, mapping in category_mappings.items():
-        # Apply mapping with fillna for unseen categories in test
-        train_df[col] = train_df[col].map(mapping).fillna(config["rare_label"])
-        test_df[col] = test_df[col].map(mapping).fillna(config["rare_label"])
-        if val_df is not None:
-            val_df[col] = val_df[col].map(mapping).fillna(config["rare_label"])
-        if orig_df is not None and col in orig_df.columns:
-            orig_df[col] = orig_df[col].map(mapping).fillna(config["rare_label"])
+        for df in [train_df, val_df, test_df, orig_df]:
+            if df is not None and col in df.columns:
+                # Store whether it was categorical to restore it later
+                is_cat = hasattr(df[col], "cat")
+                
+                # Convert to object to safely map and fill without "new category" errors
+                # fillna handles any categories that were in test/val but not in train mapping
+                df[col] = df[col].astype(object).map(mapping).fillna(rare_label)
+                
+                # Restore categorical dtype if it was originally categorical
+                if is_cat:
+                    df[col] = df[col].astype("category")
 
     # 9. Save artifacts
     artifacts.save_report(
@@ -204,7 +210,7 @@ def fit_transform(
 
     # 11. Create state dict
     state_dict = {
-        "version": "1.0",
+        "version": "1.1",
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
         "category_mappings": category_mappings,
         "detected_id_columns": detected_id_columns,
@@ -240,6 +246,9 @@ def transform(
     # Apply mappings
     for col, mapping in category_mappings.items():
         if col in df.columns:
-            df[col] = df[col].map(mapping).fillna(rare_label)
+            is_cat = hasattr(df[col], "cat")
+            df[col] = df[col].astype(object).map(mapping).fillna(rare_label)
+            if is_cat:
+                df[col] = df[col].astype("category")
 
     return df

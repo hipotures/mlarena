@@ -41,7 +41,7 @@
     - [ ] Sub-task: Implement logic to convert `PipelineState` to YAML templates (chain + steps).
     - [ ] Sub-task: Implement logic for "Ephemeral Templates" (deletion policy).
     - [ ] Sub-task: Write unit tests verifying YAML content against state.
-- [ ] Task: Implement `ExperimentExecutor` & CLI Wrapper
+- [x] Task: Implement `ExperimentExecutor` & CLI Wrapper [cbf10c2]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/executor.py` and `MlaCliExecutor`.
     - [ ] Sub-task: Implement subprocess command builder (`mla.py model ...`).
     - [ ] Sub-task: Implement stdout JSON parser to capture results.

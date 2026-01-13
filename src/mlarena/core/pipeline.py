@@ -535,7 +535,7 @@ class PipelineExecutor:
                     pass
                 elif name == module_name:
                     # Target module is already completed - show full header/footer with "Already completed" status
-                    console = Console(force_terminal=True)
+                    # (Respects passed console's quiet setting)
 
                     # Collect header data (same as normal execution)
                     try:
@@ -683,7 +683,8 @@ class PipelineExecutor:
                     except Exception as e:
                         console.print(f"[dim red]Footer display error: {e}[/dim red]")
 
-                    console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
+                    if not getattr(console, 'quiet', False):
+                        console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
 
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)
                     continue

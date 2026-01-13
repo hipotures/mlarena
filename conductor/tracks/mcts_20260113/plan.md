@@ -21,7 +21,7 @@
     - [ ] Sub-task: Implement `pipeline_signature` generation (canonical hash).
     - [ ] Sub-task: Implement `next_actions(state)` logic in `space.py` (respecting gating and groups).
     - [ ] Sub-task: Write unit tests for action generation and signature stability.
-- [ ] Task: Implement Parameter Sampler
+- [x] Task: Implement Parameter Sampler [1e1d298]
     - [ ] Sub-task: Implement RNG-based parameter sampler in `src/mlarena/modules/mcts/sampler.py` (supporting choice, int/float ranges).
     - [ ] Sub-task: Write unit tests verifying sampled values are within bounds.
 - [ ] Task: Implement Tree Search & Selection Policies

@@ -16,7 +16,7 @@
     - [ ] Sub-task: Write unit tests verifying correct loading of chains and spaces.
 
 ## Phase 2: Core MCTS Logic (No Execution)
-- [ ] Task: Define State Representation & Action Generation
+- [x] Task: Define State Representation & Action Generation [3e668bb]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/node.py` (PipelineState definition).
     - [ ] Sub-task: Implement `pipeline_signature` generation (canonical hash).
     - [ ] Sub-task: Implement `next_actions(state)` logic in `space.py` (respecting gating and groups).

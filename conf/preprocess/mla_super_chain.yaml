@@ -231,6 +231,10 @@ mcts:
   direction: maximize
   budget: 10
   storage_url: sqlite:///experiments/db/mcts.db
+  debug: true
+  model_verbosity: 0
+  model_cleanup: true
+  cleanup_processed: false
   selection_policy: puct
   exploration_weight: 1.414
   multi_fidelity:

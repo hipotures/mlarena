@@ -16,54 +16,52 @@ class ExperimentResult:
     details: Dict[str, Any]
 
 class MlaCliExecutor:
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, log_root: Optional[Path] = None):
         self.project_root = project_root
+        self.log_root = log_root or project_root
 
     def build_command(
         self, 
         project: str, 
-        model_template: str, 
+        module: str,
+        model_template: Optional[str], 
         preprocess_template: Optional[str], 
         exp_id: str,
         timeout: Optional[int] = None
     ) -> List[str]:
-        # Using 'uv run' prefix is standard in this project
-        # CLI syntax: mla.py model --project P ... or model_template=T
-        # The spec says: mla.py model --model-template T --json-output --exp-id E
-        
         cmd = [
-            "uv", "run", "python", "scripts/mla.py", "model",
+            "uv", "run", "python", "scripts/mla.py", module,
             "--project", project,
             "--exp-id", exp_id,
-            "--json-output",
-            "--force" # Force re-run if needed, MCTS manages cache
+            "--force"
         ]
         
-        # Add templates as args or flags. MLA supports both. 
-        # Using key=value syntax for module params is robust in MLA.
-        cmd.append(f"model_template={model_template}")
+        # Only add json-output for model
+        if module == "model":
+            cmd.append("--json-output")
+        
+        if model_template:
+            cmd.append(f"model_template={model_template}")
         if preprocess_template:
             cmd.append(f"preprocess_template={preprocess_template}")
-        else:
-            # Explicitly set to None/null if baseline
-            # But bash can't pass None easily. 
-            # If using OmegaConf key=value, we might need a way to say "no preprocess".
-            # Or just omit if MLA handles it.
-            # Assuming "preprocess_template=" (empty) or omitting works.
-            pass
             
         return cmd
 
     def parse_result(self, stdout: str) -> ExperimentResult:
         try:
-            data = json.loads(stdout)
+            # MLA --json-output can sometimes be preceded by logs
+            # Find the first '{' and parse from there
+            start_idx = stdout.find('{')
+            if start_idx != -1:
+                json_str = stdout[start_idx:]
+                data = json.loads(json_str)
+            else:
+                data = json.loads(stdout)
             
-            # Value logic
             value = data.get("local_cv")
             if value is None:
                 value = data.get("best_value")
                 
-            # Metric logic
             metric = data.get("eval_metric")
             if not metric:
                 metrics = data.get("metrics", {})
@@ -87,16 +85,16 @@ class MlaCliExecutor:
                 details={"error": str(e), "stdout": stdout}
             )
 
-    def run(self, cmd: List[str], timeout: Optional[int] = None) -> ExperimentResult:
+    def run(self, cmd: List[str], timeout: Optional[int] = None, require_json: bool = True) -> ExperimentResult:
         try:
-            # Capture stdout for parsing
+            # Use capture_output=True - simple and reliable for getting JSON/errors
             proc = subprocess.run(
                 cmd, 
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                check=False # We handle exit code manually via parsing
+                check=False
             )
             
             if proc.returncode != 0:
@@ -109,12 +107,16 @@ class MlaCliExecutor:
                     details={"returncode": proc.returncode, "stderr": proc.stderr, "stdout": proc.stdout}
                 )
                 
-            # Try to find JSON in stdout (it might be surrounded by logs)
-            # The MLA --json-output usually prints ONLY JSON if silent, but let's be robust
-            # We look for the last line that looks like JSON or just parse whole.
-            # Simple approach: parse the whole output. If MLA is noisy, we might need to filter.
-            # For now, assuming MLA respects --json-output.
-            
+            if not require_json:
+                return ExperimentResult(
+                    experiment_id="success",
+                    value=None,
+                    metric="unknown",
+                    duration=0.0,
+                    success=True,
+                    details={"stdout": proc.stdout}
+                )
+
             return self.parse_result(proc.stdout)
             
         except subprocess.TimeoutExpired:
@@ -125,4 +127,13 @@ class MlaCliExecutor:
                 duration=timeout or 0.0,
                 success=False,
                 details={"error": "timeout"}
+            )
+        except Exception as e:
+            return ExperimentResult(
+                experiment_id="failed",
+                value=None,
+                metric="unknown",
+                duration=0.0,
+                success=False,
+                details={"error": str(e)}
             )

@@ -25,7 +25,8 @@ class TemplateMaterializer:
             # Ensure name is safe for filesystem
             step_safe = "".join(c if c.isalnum() else "_" for c in step_name)
             
-            tpl_name = f"{base_name}__{i:02d}-{step_safe}"
+            # Fix: Use single underscore or dash to avoid sklearn pipeline error
+            tpl_name = f"{base_name}_{i:02d}_{step_safe}"
             tpl_path = self.templates_dir / f"{tpl_name}.yaml"
             
             module = step.get("module") or step.get("template")

@@ -56,7 +56,7 @@
     - [ ] Sub-task: Add logic for F0/F1/F2 levels in `MCTSRunner`.
     - [ ] Sub-task: Implement ASHA/Successive Halving promotion logic.
     - [ ] Sub-task: Write tests verifying that poor performers are pruned.
-- [ ] Task: Final Polish & Reporting
+- [x] Task: Final Polish & Reporting [ba08b99]
     - [ ] Sub-task: Implement "New Best Score" reporting/logging.
     - [ ] Sub-task: Add final top-K export and cleanup logic.
     - [ ] Sub-task: Verify `mla pre tune --mcts` works on a small subset of the Titanic dataset.

@@ -108,7 +108,7 @@ class TasksView(Container):
 class LogView(Container):
     def compose(self) -> ComposeResult:
         yield Label("Waiting for logs...", id="log-status")
-        yield RichLog(highlight=True, markup=True, wrap=True)
+        yield RichLog(highlight=True, markup=True, wrap=False)
 
 class TaskQueueApp(App):
     CSS = """

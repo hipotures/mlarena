@@ -52,7 +52,7 @@ class LogModal(Screen):
         yield Footer()
     
     def on_mount(self) -> None:
-        self.query_one(RichLog).write(self.log_content)
+        self.query_one(RichLog).write(Text.from_ansi(self.log_content))
 
 class QueueDashboard(Vertical):
     def compose(self) -> ComposeResult:

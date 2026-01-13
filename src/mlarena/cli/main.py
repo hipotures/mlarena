@@ -458,7 +458,7 @@ def run_preprocess_chain(
 
         executor = PipelineExecutor({"preprocess": module})
         # We only run the final step "module", but inside it executes everything
-        module_results = executor.run_module("preprocess", force=force, skip_deps=False)
+        module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
         result = module_results.get("preprocess")
         
         # Populate results for all steps to satisfy the contract
@@ -524,7 +524,7 @@ def run_preprocess_chain(
         })
         
         executor = PipelineExecutor({"preprocess": module})
-        module_results = executor.run_module("preprocess", force=force, skip_deps=False)
+        module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
         result = module_results.get("preprocess")
         
         # Map result to all virtual steps for the return value
@@ -685,7 +685,7 @@ def run_preprocess_chain(
         })
 
         executor = PipelineExecutor({"preprocess": module})
-        module_results = executor.run_module("preprocess", force=force, skip_deps=False)
+        module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
 
         result = module_results.get("preprocess")
         results[f"preprocess-{tpl_name}"] = result

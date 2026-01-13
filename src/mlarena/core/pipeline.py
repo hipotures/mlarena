@@ -509,7 +509,8 @@ class PipelineExecutor:
                     wait_seconds = getattr(module.context.config, "wait_seconds", 30)
                 
                 if wait_seconds > 0:
-                    console = Console(force_terminal=True)
+                    json_output = getattr(module, "invocation_params", {}).get("json_output", False)
+                    console = Console(force_terminal=True, quiet=json_output)
                     console.print(f"\n[dim]Waiting {wait_seconds}s for Kaggle processing (submit → fetch-score)...[/dim]")
                     import time
                     time.sleep(wait_seconds)
@@ -683,7 +684,8 @@ class PipelineExecutor:
                     except Exception as e:
                         console.print(f"[dim red]Footer display error: {e}[/dim red]")
 
-                    if not getattr(console, 'quiet', False):
+                    json_output = getattr(module, "invocation_params", {}).get("json_output", False)
+                    if not json_output:
                         console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
 
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)

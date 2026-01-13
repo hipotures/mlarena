@@ -376,17 +376,17 @@ def _print_training_summary(
             "preprocessing_template": preprocess_template,
             "best_model_implementation": best_model,
             "local_cv": local_cv_score,
-            "leaderboard": lb_data,
             "best_model": top1_model,
             "best_value": top1_score,
             "eval_metric": eval_metric,
             "greater_is_better": greater_is_better,
             "direction": direction,
             "stack_level": stack_level,
-            "output_files": output_files,
             "duration_seconds": duration,
             "duration": f"{int(duration // 60)}m {int(duration % 60)}s" if duration is not None else None,
             "finished": datetime.now().isoformat(),
+            "output_files": output_files,
+            "leaderboard": lb_data,
         }
         print(json.dumps(result_json, indent=2))
         return

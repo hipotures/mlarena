@@ -160,6 +160,9 @@ def print_next_steps(
         experiment_id: Experiment identifier to reuse.
         console: Optional Rich console instance.
     """
+    if console is not None and hasattr(console, "quiet") and console.quiet:
+        return
+
     if console is None:
         from rich.console import Console
         console = Console()

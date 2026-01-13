@@ -70,6 +70,10 @@ def train(
     preset = config.hyperparameters.presets or "medium"
     time_limit = config.hyperparameters.time_limit or 300
     use_gpu = bool(config.hyperparameters.use_gpu)
+    verbosity = config.hyperparameters.verbosity
+
+    if verbosity == 0:
+        console.quiet = True
 
     # Check for orig_df, sample_weight, tuning_df, and eval_df in artifacts
     orig_df = None

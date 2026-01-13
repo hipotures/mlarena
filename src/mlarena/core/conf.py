@@ -125,6 +125,23 @@ class ConfigBuilder:
         # 6. Merge all layers
         merged_conf = OmegaConf.merge(*layers)
         
+        # 6b. Enforce quiet flags if json_output is true
+        if merged_conf.get("json_output"):
+            # Ensure module sections exist
+            for section in ["preprocess", "model"]:
+                if section not in merged_conf:
+                    merged_conf[section] = {}
+            
+            merged_conf.preprocess.quiet_preprocess_panel = True
+            merged_conf.model.quiet_model_panel = True
+            merged_conf.model.verbosity = 0
+            
+            # Also common parameters
+            if "common" not in merged_conf:
+                merged_conf.common = {}
+            # Some models might use verbosity from common
+            merged_conf.common.verbosity = 0
+
         # 7. Convert to Pydantic for validation
         container = OmegaConf.to_container(merged_conf, resolve=True)
         config = GlobalConfig(**container)

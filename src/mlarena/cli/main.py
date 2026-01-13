@@ -871,14 +871,16 @@ def run_auto_flow(
     if not skip_git:
         _create_auto_flow_commit(project_name, results, console)
 
-    console.print("\n[bold green]✓ Auto-flow completed successfully[/bold green]\n")
+    if not config.json_output:
+        console.print("\n[bold green]✓ Auto-flow completed successfully[/bold green]\n")
     return 0
 
     # All modules succeeded - create git commit
     if not skip_git:
         _create_auto_flow_commit(project_name, results, console)
 
-    console.print("\n[bold green]✓ Auto-flow completed successfully[/bold green]\n")
+    if not config.json_output:
+        console.print("\n[bold green]✓ Auto-flow completed successfully[/bold green]\n")
     return 0
 
 
@@ -1034,6 +1036,18 @@ def main(argv: List[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
     json_output_enabled = "--json-output" in argv
     console = Console(force_terminal=True, quiet=json_output_enabled)
+
+    if json_output_enabled:
+        import logging
+        import warnings
+        import os
+        # Silence major loggers
+        logging.getLogger("autogluon").setLevel(logging.ERROR)
+        logging.getLogger("mlarena").setLevel(logging.ERROR)
+        warnings.filterwarnings("ignore")
+        
+        # Redirect stderr to devnull
+        sys.stderr = open(os.devnull, 'w')
     
     # Discover modules
     if not ModuleRegistry.available():
@@ -1123,6 +1137,8 @@ def main(argv: List[str] | None = None) -> int:
             overrides.insert(0, f"profile={args.profile}")
         if args.force:
             overrides.append("force=true")
+        if args.json_output:
+            overrides.append("json_output=true")
         if args.exp_id:
             overrides.append(f"experiment_id={args.exp_id}")
             
@@ -1168,7 +1184,7 @@ def main(argv: List[str] | None = None) -> int:
         except Exception as e:
             if e.__class__.__name__ == "OverwriteLockedError":
                 from rich.console import Console
-                console = Console(force_terminal=True)
+                console = Console(force_terminal=True, quiet=config.json_output)
                 console.print(f"[bold red]✗ {str(e)}[/bold red]")
                 return 1
             raise
@@ -1211,7 +1227,7 @@ def main(argv: List[str] | None = None) -> int:
             params = params.copy()
 
         # Inject top-level config fields
-        for field in ["force", "lock"]:
+        for field in ["force", "json_output", "lock"]:
             if hasattr(config, field):
                 params[field] = getattr(config, field)
 
@@ -1222,7 +1238,7 @@ def main(argv: List[str] | None = None) -> int:
     # Special case: preprocess chain (even if run as single command)
     if command == "preprocess":
         from rich.console import Console
-        console = Console(force_terminal=True)
+        console = Console(force_terminal=True, quiet=config.json_output)
 
         # Check if project exists
         if not project_root.exists():
@@ -1237,7 +1253,7 @@ def main(argv: List[str] | None = None) -> int:
         except Exception as e:
             if e.__class__.__name__ == "OverwriteLockedError":
                 from rich.console import Console
-                console = Console(force_terminal=True)
+                console = Console(force_terminal=True, quiet=config.json_output)
                 console.print(f"[bold red]✗ {str(e)}[/bold red]")
                 return 1
             raise
@@ -1248,7 +1264,7 @@ def main(argv: List[str] | None = None) -> int:
     final_preprocess_exp_dir = None
     if command in ["model", "predict", "submit", "fetch-score", "tune", "stack"]:
         from rich.console import Console
-        console = Console(force_terminal=True)
+        console = Console(force_terminal=True, quiet=config.json_output)
 
         # Resolve preprocess template (CLI arg or from model template)
         resolved_preprocess_template = config.preprocess_template

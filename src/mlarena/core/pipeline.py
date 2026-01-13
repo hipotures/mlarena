@@ -456,7 +456,7 @@ class PipelineExecutor:
         visit(target_module)
         return order
 
-    def run_module(self, module_name: str, force: bool = False, skip_deps: bool = False) -> Dict[str, ModuleResult]:
+    def run_module(self, module_name: str, force: bool = False, skip_deps: bool = False, console: Console = None) -> Dict[str, ModuleResult]:
         """
         Execute a module (and optionally its dependencies) with rich header/footer output.
 
@@ -464,11 +464,19 @@ class PipelineExecutor:
             module_name: Name of the primary module to run.
             force: Re-run the target even if previously completed.
             skip_deps: Skip dependency resolution and run only the target module.
-
-        Returns:
-            Mapping of module name to ``ModuleResult`` for executed steps.
+            console: Rich console for output.
         """
-        results: Dict[str, ModuleResult] = {}
+        if console is None:
+            # Try to infer quiet mode from first module's params
+            is_quiet = False
+            if self.modules:
+                first_module = next(iter(self.modules.values()))
+                if hasattr(first_module, "invocation_params"):
+                    is_quiet = first_module.invocation_params.get("json_output", False)
+            
+            console = Console(force_terminal=True, quiet=is_quiet)
+
+        results = {}
         execution_plan = [module_name] if skip_deps else self._resolve_execution_order(module_name)
         executed_in_session = set()
 
@@ -690,7 +698,6 @@ class PipelineExecutor:
                 module.context.state.save()
 
             module_state = module.context.state.modules.get(name)
-            console = Console(force_terminal=True)
 
             try:
                 header_data = self._collect_module_header_data(name, module)

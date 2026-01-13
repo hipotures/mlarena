@@ -39,6 +39,7 @@ class PredictModule(BaseModule):
             ModuleResult containing submission file path and feature count metadata.
         """
         import pandas as pd
+        console = Console(quiet=self.invocation_params.get("json_output", False))
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         config = self.context.config_module or load_project_config(self.context.project_root)

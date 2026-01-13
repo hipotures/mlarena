@@ -732,6 +732,11 @@ def _suppress_module_panels(
 ) -> bool:
     if not cli_invocation:
         return False
+
+    # Global suppression for machine-readable output
+    if cli_invocation.get("json_output"):
+        return True
+
     if module_name == "preprocess":
         return bool(
             cli_invocation.get("quiet_preprocess_panel")

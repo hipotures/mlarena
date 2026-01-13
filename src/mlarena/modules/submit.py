@@ -244,6 +244,7 @@ class SubmitModule(BaseModule):
         """
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        console = Console(quiet=self.invocation_params.get("json_output", False))
         skip = bool(self.invocation_params.get("skip_submit", False))
         queue_submit = bool(self.invocation_params.get("queue_submit", False))
         try:

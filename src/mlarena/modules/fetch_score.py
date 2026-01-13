@@ -128,7 +128,7 @@ class FetchScoreModule(BaseModule):
         from rich.console import Console
         from mlarena.core.module import print_next_steps
 
-        console = Console()
+        console = Console(quiet=self.invocation_params.get("json_output", False))
 
         # If a specific submission was requested but not found, return failure
         if (submission_id or submission_file) and matched is None:

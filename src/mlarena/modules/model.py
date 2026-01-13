@@ -318,10 +318,71 @@ def _print_training_summary(
     best_model: str | None,
     preprocess_template: str | None,
     leaderboard_path: Path | None,
+    duration: float | None = None,
+    json_output: bool = False,
 ):
-    """Print rich training summary with next steps."""
+    """Print rich training summary with next steps or JSON output."""
     from rich.table import Table
     from mlarena.core.module import print_next_steps
+    import json
+    import pandas as pd
+    from datetime import datetime
+
+    if json_output:
+        # Collect data for JSON
+        lb_data = []
+        top1_model = None
+        top1_score = None
+        eval_metric = None
+        stack_level = None
+
+        if leaderboard_path and leaderboard_path.exists():
+            try:
+                import numpy as np
+                lb = pd.read_csv(leaderboard_path, compression="infer")
+                if not lb.empty:
+                    # autogluon models and score_val
+                    cols = [c for c in ["model", "score_val", "eval_metric", "stack_level"] if c in lb.columns]
+                    # Replace all types of nulls with None for JSON compliance
+                    lb_data = lb[cols].replace({np.nan: None, pd.NA: None}).to_dict(orient="records")
+                    
+                    top1_model = lb.iloc[0]["model"]
+                    top1_val = lb.iloc[0].get("score_val")
+                    top1_score = float(top1_val) if top1_val is not None and not pd.isna(top1_val) else None
+                    eval_metric = lb.iloc[0].get("eval_metric")
+                    stack_val = lb.iloc[0].get("stack_level")
+                    stack_level = int(stack_val) if stack_val is not None and not pd.isna(stack_val) else None
+            except Exception:
+                pass
+
+        output_files = {}
+        if leaderboard_path:
+            artifact_dir = leaderboard_path.parent
+            output_files["leaderboard"] = str(leaderboard_path.relative_to(project_root))
+            output_files["artifact_dir"] = str(artifact_dir.relative_to(project_root))
+
+        result_json = {
+            "project": project_name,
+            "experiment_id": experiment_id,
+            "template": template_name,
+            "preset": preset,
+            "time_limit": time_limit,
+            "use_gpu": use_gpu,
+            "preprocessing_template": preprocess_template,
+            "best_model_implementation": best_model,
+            "local_cv": local_cv_score,
+            "leaderboard": lb_data,
+            "top1_model": top1_model,
+            "top1_score": top1_score,
+            "eval_metric": eval_metric,
+            "stack_level": stack_level,
+            "output_files": output_files,
+            "duration_seconds": duration,
+            "duration": f"{int(duration // 60)}m {int(duration % 60)}s" if duration is not None else None,
+            "finished": datetime.now().isoformat(),
+        }
+        print(json.dumps(result_json, indent=2))
+        return
 
     def _print_leaderboard_table(path: Path, columns: list[str]) -> None:
         import numbers
@@ -563,8 +624,13 @@ class ModelModule(BaseModule):
         """
         import pandas as pd
         from rich.table import Table
+        import time
 
+        start_time = time.perf_counter()
         template_name = self.invocation_params.get("model_template", "gpu-dev-5m")
+        json_output = self.invocation_params.get("json_output", False)
+        if json_output:
+            console.quiet = True
 
         # Handle --model-template list
         if template_name == "list":
@@ -774,6 +840,7 @@ class ModelModule(BaseModule):
             except Exception:
                 pass
 
+        duration = time.perf_counter() - start_time
         _print_training_summary(
             project_root=self.context.project_root,
             experiment_id=self.context.experiment_id,
@@ -786,6 +853,8 @@ class ModelModule(BaseModule):
             best_model=model_implementation,
             preprocess_template=preprocess_template,
             leaderboard_path=lb_path,
+            duration=duration,
+            json_output=json_output,
         )
 
         mla_retention = self.invocation_params.get("mla_retention", False)

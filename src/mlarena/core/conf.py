@@ -41,6 +41,7 @@ class GlobalConfig(BaseModel):
     
     # Execution control
     force: bool = False
+    json_output: bool = False
     lock: bool = False  # Create overwrite.lock after successful completion
     skip_deps: bool = False
     show_payload: bool = False

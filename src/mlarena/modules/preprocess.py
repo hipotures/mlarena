@@ -528,7 +528,7 @@ class PreprocessModule(BaseModule):
         processed_test = artifact_dir / "test_processed.csv.gz"
         processed_tuning = artifact_dir / "tuning_processed.csv.gz"
 
-        console = Console(force_terminal=True)
+        console = Console(force_terminal=True, quiet=self.invocation_params.get("json_output", False))
 
         if cache_ok and processed_train.exists() and processed_test.exists():
             console.print(f"\n[bold yellow]Using cached preprocessed data[/bold yellow]")

@@ -255,6 +255,7 @@ def _build_parser(add_help: bool = True) -> argparse.ArgumentParser:
     parser.add_argument("--exp-id", "-e", help="Experiment ID to resume")
     parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
     parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
+    parser.add_argument("--json-output", action="store_true", help="Output results in JSON format (silent mode)")
     parser.add_argument("--classic", action="store_true", help="Execute chain step-by-step using intermediate files (legacy mode)")
     return parser
 
@@ -587,7 +588,10 @@ def run_preprocess_chain(
                 template_config=first_config,
                 project_root=project_root,
                 project_name=project_name,
-                cli_invocation={"quiet_preprocess_panel": quiet_preprocess_panel},
+                cli_invocation={
+                    "quiet_preprocess_panel": quiet_preprocess_panel,
+                    "json_output": config.json_output
+                },
                 console=console
             )
 
@@ -606,6 +610,7 @@ def run_preprocess_chain(
                 "chain_exp_id": f"{chain_exp_id}/{combined_hash}",
                 "input_source": input_source,
                 "quiet_preprocess_panel": quiet_preprocess_panel,
+                "json_output": config.json_output,
             }
             if final_state_file.exists():
                 try:
@@ -674,6 +679,7 @@ def run_preprocess_chain(
             "chain_exp_id": f"{chain_exp_id}/{combined_hash}",
             "is_last_in_chain": is_last_in_chain,
             "force": force,
+            "json_output": config.json_output,
             "lock": config.lock,
             "quiet_preprocess_panel": quiet_preprocess_panel,
         })
@@ -710,7 +716,7 @@ def run_auto_flow(
     from mlarena.core.module import ModuleResult
     from mlarena.utils.project import load_project_config
 
-    console = Console(force_terminal=True)
+    console = Console(force_terminal=True, quiet=config.json_output)
     results: Dict[str, ModuleResult] = {}
 
     model_template = config.model_template
@@ -793,6 +799,7 @@ def run_auto_flow(
         "preprocess_template": final_preprocess_template,
         "preprocess_exp_dir": str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None,
         "force": force,
+        "json_output": config.json_output,
         "lock": config.lock,
     }
     # Backward compat for some model modules that still use dict
@@ -804,7 +811,7 @@ def run_auto_flow(
     model_module.set_invocation_params(model_params)
 
     executor = PipelineExecutor({"model": model_module})
-    module_results = executor.run_module("model", force=force, skip_deps=True)
+    module_results = executor.run_module("model", force=force, skip_deps=True, console=console)
     result = module_results.get("model")
     results["model"] = result
 
@@ -831,13 +838,20 @@ def run_auto_flow(
         module_cls = ModuleRegistry.get(module_name)
         module = module_cls(context)
 
+        # Inject json_output into all modules
+        invocation_params = {"json_output": config.json_output}
+
         if module_name == "submit":
-            module.set_invocation_params({"skip_submit": skip_submit})
+            invocation_params["skip_submit"] = skip_submit
+            module.set_invocation_params(invocation_params)
         elif module_name == "predict":
-            module.set_invocation_params({
+            invocation_params.update({
                 "preprocess_template": final_preprocess_template,
                 "preprocess_exp_dir": str(final_preprocess_exp_dir) if final_preprocess_exp_dir else None,
             })
+            module.set_invocation_params(invocation_params)
+        else:
+            module.set_invocation_params(invocation_params)
 
         all_modules[module_name] = module
 
@@ -847,7 +861,7 @@ def run_auto_flow(
             console.print(f"\n[dim]Waiting {wait_seconds}s for Kaggle processing...[/dim]")
             time.sleep(wait_seconds)
 
-        module_results = executor.run_module(module_name, force=force, skip_deps=True)
+        module_results = executor.run_module(module_name, force=force, skip_deps=True, console=console)
         result = module_results.get(module_name)
         results[module_name] = result
 
@@ -1016,10 +1030,11 @@ def main(argv: List[str] | None = None) -> int:
     Main CLI entry point using GlobalConfig.
     """
     from rich.console import Console
-    console = Console(force_terminal=True)
     
     argv = argv or sys.argv[1:]
-
+    json_output_enabled = "--json-output" in argv
+    console = Console(force_terminal=True, quiet=json_output_enabled)
+    
     # Discover modules
     if not ModuleRegistry.available():
         ModuleRegistry.discover()
@@ -1284,7 +1299,7 @@ def main(argv: List[str] | None = None) -> int:
             params = params.copy()
         
         # Inject top-level config fields that modules expect
-        for field in ["model_template", "preprocess_template", "force", "skip_submit", "lock"]:
+        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock"]:
             if hasattr(config, field):
                 if name == "preprocess-tune" and field == "model_template":
                     continue
@@ -1312,7 +1327,7 @@ def main(argv: List[str] | None = None) -> int:
 
     executor = PipelineExecutor(modules)
     try:
-        results = executor.run_module(command, force=config.force, skip_deps=config.skip_deps)
+        results = executor.run_module(command, force=config.force, skip_deps=config.skip_deps, console=console)
         last = results.get(command)
         return 0 if (last and last.success) else 1
     except Exception as e:

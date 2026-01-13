@@ -31,7 +31,7 @@
     - [ ] Sub-task: Write unit tests using a `FakeExecutor` to verify tree growth and stats updates.
 
 ## Phase 3: Persistence & Execution Infrastructure
-- [ ] Task: Implement SQLite Storage Layer
+- [x] Task: Implement SQLite Storage Layer [5582c25]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/storage.py`.
     - [ ] Sub-task: Implement DDL for tables (`studies`, `trials`, `trial_params`, `mcts_nodes`, etc.).
     - [ ] Sub-task: Implement methods for `create_study`, `add_trial`, `update_trial`.

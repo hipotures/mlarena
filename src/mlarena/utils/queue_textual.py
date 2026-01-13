@@ -47,8 +47,32 @@ def send_telegram_notification(message: str) -> None:
         print(f"Telegram Exception: {e}")
         pass
 
+from typing import Optional
+
 class TaskQueueTextual(TaskQueue):
     """TaskQueue specialized for TUI with plain-text logging."""
+
+    def __init__(self, project_root: Path):
+        super().__init__(project_root)
+        self.best_score: Optional[float] = None
+
+    def run_queue(
+        self,
+        console: Console,
+        max_tasks: Optional[int] = None,
+        continue_on_error: bool = True
+    ) -> dict[int, bool]:
+        """Override to initialize best score cache before running."""
+        # Initialize best score cache once at startup
+        if self.best_score is None:
+            console.print("[dim]Initializing best score cache...[/dim]")
+            self.best_score = self._get_best_score()
+            if self.best_score is not None:
+                console.print(f"[dim]Current best score: {self.best_score:.6f}[/dim]")
+            else:
+                console.print("[dim]No previous scores found (first run?)[/dim]")
+
+        return super().run_queue(console, max_tasks, continue_on_error)
 
     def _execute_task(self, task: dict, console: Console, total_pending: int | None = None) -> bool:
         """Execute task with NO_COLOR=1 to avoid 'smieci' in logs."""
@@ -195,25 +219,17 @@ class TaskQueueTextual(TaskQueue):
             
             if current_score is None: return
 
-            # 2. Compare with previous best (excluding current exp)
-            # This is slightly expensive, but only happens on task completion
-            all_scores = []
-            exp_dir = self.project_root / "experiments"
-            for state_file in exp_dir.glob("*/state.json"):
-                if exp_id in str(state_file): continue
-                try:
-                    with open(state_file) as f:
-                        d = json.load(f)
-                    for mod in d.get("modules", {}).values():
-                        s = mod.get("payload", {}).get("local_cv_score") or mod.get("payload", {}).get("local_cv")
-                        if s is not None:
-                            all_scores.append(abs(float(s)))
-                except: continue
-            
-            prev_best = min(all_scores) if all_scores else float('inf')
+            # 2. Compare with cached best score
+            # Initialize if somehow None (though run_queue handles it)
+            if self.best_score is None:
+                 self.best_score = float('inf')
+
+            prev_best = self.best_score
             
             if current_score < prev_best:
-                # NEW BEST!
+                # NEW BEST! Update cache immediately
+                self.best_score = current_score
+
                 task_id = task["id"]
                 template = "N/A"
                 cmd = task["command"]

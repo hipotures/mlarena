@@ -148,20 +148,10 @@ class MCTSStorage:
         state: TrialState = TrialState.WAITING
     ) -> int:
         with self._connect() as conn:
-            # Check for existing by signature? dedupe logic is usually higher level, but useful here.
-            # Assuming caller handles dedupe logic or we catch integrity error on signature.
-            # But trial_id is PK.
-            # mcts_nodes has UNIQUE signature.
-            # So if we try to insert node with existing sig, it fails.
-            
-            # Helper: check signature first
             cur = conn.cursor()
             cur.execute("SELECT trial_id FROM mcts_nodes WHERE pipeline_signature=?", (pipeline_signature,))
             existing = cur.fetchone()
             if existing:
-                # Return existing trial_id if found? 
-                # Or caller should have checked.
-                # Let's assume we return existing to support idempotency if wanted.
                 return existing[0]
 
             cur.execute(
@@ -232,15 +222,16 @@ class MCTSStorage:
                 return {"trial_id": res[0], "value": res[1]}
             return None
 
-    def add_evaluation(self, trial_id: int, fidelity: str, status: str, value: Optional[float], metric: str, duration: float):
+    def add_evaluation(self, trial_id: int, fidelity: str, status: str, value: Optional[float], metric: str, duration: float, details: Optional[Dict[str, Any]] = None):
+        details_json = json.dumps(details) if details else None
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO mcts_evaluations 
-                (trial_id, fidelity, status, value, metric_name, duration_sec)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (trial_id, fidelity, status, value, metric_name, duration_sec, details_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (trial_id, fidelity, status, value, metric, duration)
+                (trial_id, fidelity, status, value, metric, duration, details_json)
             )
 
     def get_evaluations(self, trial_id: int) -> List[Dict[str, Any]]:
@@ -251,7 +242,6 @@ class MCTSStorage:
             return [dict(row) for row in cur.fetchall()]
 
     def get_fidelity_history(self, study_id: int, fidelity: str) -> List[float]:
-        """Get all scores for a given fidelity in the study."""
         with self._connect() as conn:
             cur = conn.cursor()
             query = """

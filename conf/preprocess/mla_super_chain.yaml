@@ -225,3 +225,25 @@ preprocessors:
 evaluation:
   model: autogluon_thin_fast
   seed: 42
+
+mcts:
+  study_name: null  # Auto-generated based on project
+  direction: maximize
+  budget: 10
+  storage_url: sqlite:///experiments/db/mcts.db
+  selection_policy: puct
+  exploration_weight: 1.414
+  multi_fidelity:
+    enable: true
+    levels:
+      - name: F0
+        sample_frac: 0.2
+        cv_folds: 1
+        time_limit_sec: 15
+      - name: F2
+        sample_frac: 1.0
+        cv_folds: 3
+        time_limit_sec: 60
+    promotion:
+      strategy: asha
+      top_fraction: 0.25

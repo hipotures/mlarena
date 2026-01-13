@@ -56,6 +56,7 @@ class MCTSConfig(BaseModel):
     root_mode: Literal["no_preprocess", "harness_only"] = "harness_only"
     executor: Literal["cli", "task_queue"] = "cli"
     json_output: bool = True
+    debug: bool = True  # Enabled as requested
 
     # Feasibility
     allow_heavy_steps: bool = True

@@ -15,6 +15,8 @@
 - **Configuration Management:** 
   - **OmegaConf:** Hierarchical YAML configuration.
   - **Pydantic:** Data validation and settings management using Python type annotations.
+- **Storage:**
+  - **SQLite:** Lightweight local database for MCTS state and experiment tracking metadata.
 - **CLI & UI:**
   - **Rich:** For beautiful console formatting and tables.
   - **Textual:** For TUI-based task management and monitoring.

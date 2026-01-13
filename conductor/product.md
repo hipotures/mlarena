@@ -18,6 +18,7 @@ MLArena is a specialized machine learning framework designed to give Kaggle comp
 ## Key Features
 - **Centralized CLI (`mla`):** A single entry point for orchestrating the entire machine learning lifecycle.
 - **Modular Preprocessing Chains:** Flexible, template-driven preprocessing that uses dependency-based ordering to ensure logical consistency.
+- **MCTS Optimization Engine:** A Monte Carlo Tree Search based tuner for intelligent, budget-aware exploration of preprocessing pipelines.
 - **Automated Kaggle Integration:** Hands-free submission and public score fetching using Playwright/CDP.
 - **Smart Resource Management:** Automated cleanup of intermediate artifacts and intelligent feature selection to stay within time and memory bounds.
 - **Experiment & Submission Tracking:** A robust local database of every run, facilitating easy comparison and blending of top-performing models.

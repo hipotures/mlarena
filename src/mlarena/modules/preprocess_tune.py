@@ -24,6 +24,7 @@ from mlarena.core.module import ModuleContext
 from mlarena.core.pipeline import PipelineExecutor
 from mlarena.core.config import load_pipeline_def
 from mlarena.utils.project import load_project_config
+from mlarena.modules.mcts.runner import MCTSRunner
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -864,6 +865,11 @@ class PreprocessTuneModule(BaseModule):
             if hasattr(cfg, name):
                 return getattr(cfg, name)
             return default
+
+        # MCTS Routing
+        if bool(_param("mcts", False)):
+            runner = MCTSRunner(self.context, params)
+            return runner.run()
 
         super_chain_path = Path(_param("super_chain", DEFAULT_SUPER_CHAIN))
         super_chain = _load_yaml(super_chain_path)

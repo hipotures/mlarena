@@ -47,7 +47,7 @@
     - [ ] Sub-task: Implement stdout JSON parser to capture results.
     - [ ] Sub-task: Write unit tests for command generation and result parsing.
 
-## Phase 4: Integration & Refinement
+## Phase 4: Integration & Refinement [checkpoint: 3defeba]
 - [x] Task: End-to-End Integration [9c47227]
     - [ ] Sub-task: Connect `MCTSRunner` to `Storage`, `Materializer`, and `Executor`.
     - [ ] Sub-task: Implement the main optimization loop (Selection -> Expansion -> Execution -> Backprop).

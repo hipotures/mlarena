@@ -1,7 +1,7 @@
 # Plan: MCTS Preprocessing Search Implementation
 
 ## Phase 1: Foundation & Configuration
-- [ ] Task: Create `MCTSRunner` Stub & CLI Routing
+- [x] Task: Create `MCTSRunner` Stub & CLI Routing [bbb7c35]
     - [ ] Sub-task: Create `src/mlarena/modules/mcts/runner.py` with a basic `MCTSRunner` class.
     - [ ] Sub-task: Update `src/mlarena/modules/preprocess_tune.py` to handle the `--mcts` flag and instantiate `MCTSRunner`.
     - [ ] Sub-task: Write unit test to verify CLI routing.

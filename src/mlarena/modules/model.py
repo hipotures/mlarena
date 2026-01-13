@@ -320,6 +320,7 @@ def _print_training_summary(
     leaderboard_path: Path | None,
     duration: float | None = None,
     json_output: bool = False,
+    greater_is_better: bool | None = None,
 ):
     """Print rich training summary with next steps or JSON output."""
     from rich.table import Table
@@ -361,6 +362,10 @@ def _print_training_summary(
             output_files["leaderboard"] = str(leaderboard_path.relative_to(project_root))
             output_files["artifact_dir"] = str(artifact_dir.relative_to(project_root))
 
+        direction = None
+        if greater_is_better is not None:
+            direction = "maximize" if greater_is_better else "minimize"
+
         result_json = {
             "project": project_name,
             "experiment_id": experiment_id,
@@ -375,6 +380,8 @@ def _print_training_summary(
             "best_model": top1_model,
             "best_value": top1_score,
             "eval_metric": eval_metric,
+            "greater_is_better": greater_is_better,
+            "direction": direction,
             "stack_level": stack_level,
             "output_files": output_files,
             "duration_seconds": duration,
@@ -830,6 +837,10 @@ class ModelModule(BaseModule):
             predictor, training_summary = train_result, {}
 
         local_cv_score = training_summary.get("local_cv_score")
+        
+        greater_is_better = None
+        if hasattr(predictor, 'eval_metric') and hasattr(predictor.eval_metric, 'greater_is_better'):
+            greater_is_better = predictor.eval_metric.greater_is_better
 
         lb_path = None
         leaderboard = training_summary.pop("leaderboard", None)
@@ -855,6 +866,7 @@ class ModelModule(BaseModule):
             leaderboard_path=lb_path,
             duration=duration,
             json_output=json_output,
+            greater_is_better=greater_is_better,
         )
 
         mla_retention = self.invocation_params.get("mla_retention", False)

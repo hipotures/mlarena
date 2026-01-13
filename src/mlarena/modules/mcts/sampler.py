@@ -57,6 +57,27 @@ class ParameterSampler:
         elif ptype == "fixed":
             return spec.get("value")
             
+        elif ptype == "subset":
+            values = spec.get("values", [])
+            if not values:
+                return []
+            min_items = int(spec.get("min_items", 1))
+            max_items = int(spec.get("max_items", len(values)))
+            
+            # Ensure bounds are within list size
+            max_items = min(max_items, len(values))
+            min_items = min(min_items, max_items)
+            
+            k = self.rng.randint(min_items, max_items)
+            chosen = self.rng.sample(values, k)
+            
+            if bool(spec.get("sort", False)):
+                try:
+                    chosen.sort()
+                except Exception:
+                    pass
+            return chosen
+            
         else:
             # Unknown type, return None or raise? 
             # For robustness, returning None or ignoring might be safer than crashing search.

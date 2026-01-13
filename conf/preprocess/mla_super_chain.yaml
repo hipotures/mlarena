@@ -21,6 +21,7 @@ preprocessors:
   meta:
     heavy_step: false
     default_enabled_fast: true
+    fixed: true
 - name: train_fraction
   group: train_fraction_fixed
   template: train_fraction
@@ -77,7 +78,7 @@ preprocessors:
     heavy_variants: []
     # - knn
     # - iterative
-    fixed: true
+    #fixed: true
 - name: rare_category_handler
   group: rare_category
   template: rare_category_handler
@@ -203,7 +204,7 @@ preprocessors:
   enabled: true
   meta:
     heavy_step: false
-    fixed: true
+    fixed: false
   fixed_config:
     selection_method: mi
     n_features: 0.5
@@ -237,17 +238,6 @@ mcts:
   cleanup_processed: false
   selection_policy: puct
   exploration_weight: 1.414
-  multi_fidelity:
-    enable: true
-    levels:
-      - name: F0
-        sample_frac: 0.2
-        cv_folds: 1
-        time_limit_sec: 15
-      - name: F2
-        sample_frac: 1.0
-        cv_folds: 3
-        time_limit_sec: 60
-    promotion:
-      strategy: asha
-      top_fraction: 0.25
+  expansion_width: 2.0
+  expansion_alpha: 0.5
+  seed: 42

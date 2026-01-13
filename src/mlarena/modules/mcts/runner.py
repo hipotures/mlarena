@@ -171,7 +171,12 @@ class MCTSRunner:
                     self.logger.info(msg)
             else:
                 print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
-                self.logger.error(f"  -> Trial {trial_id} failed. Details: {result.details}")
+                
+                # Get a brief error summary from stderr or stdout (last few lines)
+                error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
+                summary = "\n".join(error_text.strip().split("\n")[-5:])
+                
+                self.logger.error(f"  -> Trial {trial_id} failed. Error Summary:\n{summary}")
                 penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
                 self.tree.backpropagate(child, penalty)
                 self.storage.set_trial_state(trial_id, TrialState.FAIL)
@@ -197,7 +202,8 @@ class MCTSRunner:
             self.study_id, 0, "baseline", 0, {}, state=TrialState.RUNNING
         )
         state = PipelineState()
-        templates = self.materializer.materialize(state, node_id=0)
+        # Pass fixed steps to baseline materialization to ensure data preparation
+        templates = self.materializer.materialize(state, node_id=0, fixed_steps=self.space.fixed_steps)
         result = self._run_mla(templates, "baseline_exp")
         
         if result.success and result.value is not None:
@@ -211,7 +217,8 @@ class MCTSRunner:
             self.storage.set_trial_state(trial_id, TrialState.FAIL)
 
     def _execute_trial(self, node: MCTSNode, trial_id: int, fidelity: str) -> ExperimentResult:
-        templates = self.materializer.materialize(node.state, node_id=trial_id)
+        # Pass fixed steps from space to materializer
+        templates = self.materializer.materialize(node.state, node_id=trial_id, fixed_steps=self.space.fixed_steps)
         base_name = templates["base_name"]
         
         # Create a fidelity-specific template name to force MLA folder naming
@@ -225,11 +232,7 @@ class MCTSRunner:
         # Experiment ID for model: exp-mcts_s0002_..._F0
         exp_id = f"exp-{fid_template_name}"
         
-        fid_cfg = next((l for l in self.config.multi_fidelity.levels if l["name"] == fidelity), {})
-        
         overrides = {}
-        if "cv_folds" in fid_cfg: overrides["model.cv_folds"] = fid_cfg["cv_folds"]
-        if "time_limit_sec" in fid_cfg: overrides["model.time_limit"] = fid_cfg["time_limit_sec"]
         
         # Add verbosity and retention
         if self.config.model_verbosity is not None:
@@ -238,7 +241,7 @@ class MCTSRunner:
             # map model_cleanup to mla_retention
             overrides["model.mla_retention"] = "true"
             
-        return self._run_mla(templates, exp_id, overrides)
+        return self._run_mla_with_fid(fid_template_name, exp_id, overrides)
 
     def _run_mla_with_fid(self, preprocess_template: str, exp_id: str, overrides: Dict[str, Any] = {}) -> ExperimentResult:
         model_template = self.params.get("model_template") or "baseline"

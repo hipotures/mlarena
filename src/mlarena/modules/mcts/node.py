@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 @dataclass
 class Action:
     step_name: str
+    template_name: str # Added to lookup search space
     variant_name: str
     config: Dict[str, Any]
     step_index: int  # Index in the super-chain

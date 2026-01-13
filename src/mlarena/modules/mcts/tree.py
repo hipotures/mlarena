@@ -96,24 +96,23 @@ class MCTSTree:
         action = node.untried_actions.pop()
         
         # Sample parameters for the action
-        # The action from space.py is a stub. We need to fill `config`.
-        # We need to look up the search space for this step/variant.
-        # This logic probably belongs partly in Space or Sampler, but Tree orchestrates it.
-        
-        # For now, let's assume we can get the spec from space
-        step_template = action.step_name # simplified, could be template name
-        # We need mapping from action to search space variants.
-        # Let's assume action.variant_name is enough to find it in `space.search_spaces[template]`
-        
-        # TODO: Implement proper config sampling using self.sampler and self.space
-        # For the test pass, we just use empty config or whatever is in action
         sampled_config = {} 
-        # (Real impl would iterate params in variant spec and call sampler.sample)
+        
+        # Look up search space for this template and variant
+        space = self.space.search_spaces.get(action.template_name, {})
+        variants = space.get("variants", [])
+        variant_spec = next((v for v in variants if v.get("name") == action.variant_name), None)
+        
+        if variant_spec:
+            params_spec = variant_spec.get("params", {})
+            for p_name, p_spec in params_spec.items():
+                if isinstance(p_spec, dict):
+                    sampled_config[p_name] = self.sampler.sample(f"{action.step_name}.{p_name}", p_spec)
         
         # Update action with sampled config
-        # Action is a dataclass, so replace or modify
         final_action = Action(
             step_name=action.step_name,
+            template_name=action.template_name,
             variant_name=action.variant_name,
             config=sampled_config,
             step_index=action.step_index

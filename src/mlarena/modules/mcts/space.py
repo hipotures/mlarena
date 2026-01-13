@@ -29,8 +29,24 @@ class SuperChainActionSpace:
     def __init__(self, super_chain_path: Path):
         self.super_chain_path = super_chain_path
         self.super_chain_config = _load_yaml(super_chain_path)
-        self.steps = self.super_chain_config.get("preprocessors", []) or []
+        self.all_steps = self.super_chain_config.get("preprocessors", []) or []
         self.search_spaces = _load_search_spaces()
+        
+        # Split steps into fixed harness and searched transforms
+        self.fixed_steps = []
+        self.searched_steps = []
+        
+        for idx, step in enumerate(self.all_steps):
+            meta = step.get("meta", {}) or {}
+            if meta.get("fixed") and step.get("enabled", True):
+                self.fixed_steps.append({"index": idx, "config": step})
+            else:
+                self.searched_steps.append({"index": idx, "config": step})
+        
+        # For MCTS logic, we only iterate over searched_steps
+        self.steps = [s["config"] for s in self.searched_steps]
+        # Map original index
+        self.searched_index_map = {i: s["index"] for i, s in enumerate(self.searched_steps)}
 
     @property
     def total_steps_count(self) -> int:
@@ -40,44 +56,33 @@ class SuperChainActionSpace:
         """Generate possible next actions from the current state."""
         actions: List[Action] = []
         
-        # We can pick any step that comes AFTER the last used step index
+        # We can pick any searched step that comes AFTER the last used searched step index
+        # state.last_step_index refers to the index in self.steps (searched_steps)
         start_index = state.last_step_index + 1
         
-        for idx in range(start_index, len(self.steps)):
-            step_def = self.steps[idx]
+        for i in range(start_index, len(self.steps)):
+            step_def = self.steps[i]
             step_name = step_def.get("name")
             group = step_def.get("group") or step_name
             
-            # Constraint: One step per group
             if group in state.used_groups:
                 continue
             
-            # TODO: Add EDA gating, heavy step check, etc.
-            
-            # Get variants for this step
-            space = self.search_spaces.get(step_def.get("template") or step_name, {})
+            template_name = step_def.get("template") or step_name
+            space = self.search_spaces.get(template_name, {})
             variants = space.get("variants", [])
             
-            # If no variants defined, maybe it's fixed or single default?
-            # For MCTS search, we usually want explicit choices.
-            # If variants empty but step is valid, we might add a "default" variant.
-            # For now, let's assume variants exist or we skip.
-            
             if not variants:
-                # If no variants, check if it's a fixed step we can just enable?
-                # The prompt implies we pick variants.
-                # Let's add a "fixed" variant if none exist but it's a valid step?
-                # Or just skip. Let's iterate variants.
-                pass
+                variants = [{"name": "fixed", "params": {}}]
 
             for variant in variants:
                 vname = variant.get("name")
-                # Create action stub (params will be sampled later)
                 action = Action(
                     step_name=step_name,
+                    template_name=template_name,
                     variant_name=vname,
-                    config={}, # Config will be sampled during expansion
-                    step_index=idx
+                    config={}, 
+                    step_index=i # Index in self.steps
                 )
                 actions.append(action)
                 

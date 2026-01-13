@@ -11,32 +11,55 @@ class TemplateMaterializer:
         self.templates_dir = project_root / "templates" / "preprocess"
         self.templates_dir.mkdir(parents=True, exist_ok=True)
 
-    def materialize(self, state: PipelineState, node_id: int) -> Dict[str, Any]:
-        """Convert state to YAML templates."""
+    def materialize(self, state: PipelineState, node_id: int, fixed_steps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Convert state to YAML templates, including fixed harness steps."""
         sig8 = state.signature[:8]
         depth = state.depth
         base_name = f"{self.run_id}_n{node_id:06d}_d{depth:02d}_{sig8}"
         
+        # Combine fixed steps and searched steps
+        # We need to maintain original order from super-chain
+        # fixed_steps is list of {"index": original_idx, "config": step_def}
+        
+        all_pipeline_steps = []
+        
+        # 1. Add fixed steps
+        if fixed_steps:
+            for fs in fixed_steps:
+                cfg = fs["config"]
+                all_pipeline_steps.append({
+                    "name": cfg["name"],
+                    "module": cfg.get("template") or cfg.get("module"),
+                    "config": cfg.get("fixed_config", {}),
+                    "is_fixed": True
+                })
+        
+        # 2. Add searched steps from state
+        for s in state.steps:
+            all_pipeline_steps.append({
+                "name": s["name"],
+                "module": s.get("module") or s.get("template"),
+                "config": s.get("config", {}),
+                "is_fixed": False
+            })
+            
+        # 3. Sort by something? Actually, fixed steps usually come first (init, eda, fraction)
+        # For now, we prepend fixed steps as requested.
+        
         chain_list: List[str] = []
         step_files: List[str] = []
         
-        for i, step in enumerate(state.steps):
-            step_name = step.get("name", f"step_{i}")
-            # Ensure name is safe for filesystem
+        for i, step in enumerate(all_pipeline_steps):
+            step_name = step["name"]
             step_safe = "".join(c if c.isalnum() else "_" for c in step_name)
             
-            # Fix: Use single underscore or dash to avoid sklearn pipeline error
+            # Use simple numeric index for all steps to avoid MLA parsing issues
             tpl_name = f"{base_name}_{i:02d}_{step_safe}"
             tpl_path = self.templates_dir / f"{tpl_name}.yaml"
             
-            module = step.get("module") or step.get("template")
-            config = step.get("config", {})
-            
             payload = {
-                "module": module,
-                "config": config,
-                # Include meta for debugging?
-                # "meta": step.get("meta")
+                "module": step["module"],
+                "config": step["config"]
             }
             tpl_path.write_text(yaml.safe_dump(payload, sort_keys=False))
             

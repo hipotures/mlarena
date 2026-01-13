@@ -33,12 +33,9 @@ class MlaCliExecutor:
             "uv", "run", "python", "scripts/mla.py", module,
             "--project", project,
             "--exp-id", exp_id,
-            "--force"
+            "--force",
+            "--json-output"
         ]
-        
-        # Only add json-output for model
-        if module == "model":
-            cmd.append("--json-output")
         
         if model_template:
             cmd.append(f"model_template={model_template}")
@@ -87,14 +84,19 @@ class MlaCliExecutor:
 
     def run(self, cmd: List[str], timeout: Optional[int] = None, require_json: bool = True) -> ExperimentResult:
         try:
-            # Use capture_output=True - simple and reliable for getting JSON/errors
+            # Set environment variables to disable colors
+            env = dict(subprocess.os.environ)
+            env["TERM"] = "dumb"
+            env["NO_COLOR"] = "1"
+            
             proc = subprocess.run(
                 cmd, 
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                check=False
+                check=False,
+                env=env
             )
             
             if proc.returncode != 0:

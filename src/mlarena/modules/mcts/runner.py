@@ -412,7 +412,16 @@ class MCTSRunner:
                         self.notifier.send(msg)
                     
                     if not self.mcts_live:
-                        print(success_msg)
+                        # Rich styling for success message
+                        txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
+                        txt.append("✅ ", style="green")
+                        txt.append(f"Trial={trial_id} Depth={child.state.depth}: ", style="dim")
+                        txt.append(f"{result.value:.4f}", style="bold white")
+                        
+                        if is_new_best:
+                            txt.append(f" 🏆 {best_so_far:.4f}", style="bold yellow")
+                            
+                        self.console.print(txt)
                     
                     # Cleanup templates unless it's new best
                     self._cleanup_templates(trial_templates, fidelity, keep=is_new_best)

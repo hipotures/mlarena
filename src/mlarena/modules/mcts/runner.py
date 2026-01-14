@@ -21,7 +21,8 @@ from mlarena.utils.notification import TelegramNotifier
 
 from rich.tree import Tree
 from rich.live import Live
-from rich.console import Group
+from rich.console import Group, Console
+from rich.table import Table
 from rich.text import Text
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -32,6 +33,7 @@ class MCTSRunner:
         self.context = context
         self.params = params
         self.mcts_live = bool(params.get("mcts_live") or context.config.mcts_live)
+        self.console = Console()
         
         super_chain_path = Path(params.get("super_chain", DEFAULT_SUPER_CHAIN))
         if not super_chain_path.is_absolute():
@@ -102,7 +104,23 @@ class MCTSRunner:
                     if row: base_score = row[0]
                 
                 base_val_str = f"{base_score:.4f}" if base_score is not None else "N/A"
-                print(f"  -> Resume Stats: {len(nodes)} trials found, Baseline Score: {base_val_str}, Best Score: {best_val_str}", flush=True)
+                
+                # Fetch metric name from any evaluation
+                metric_name = "Unknown"
+                with self.storage._connect() as conn:
+                    row = conn.execute("SELECT metric_name FROM mcts_evaluations WHERE metric_name IS NOT NULL LIMIT 1").fetchone()
+                    if row and row[0]: metric_name = row[0]
+
+                table = Table(title="MCTS Resume Statistics")
+                table.add_column("Statistic", style="cyan")
+                table.add_column("Value", style="magenta")
+                
+                table.add_row("Evaluation Metric", metric_name)
+                table.add_row("Trials Found", str(len(nodes)))
+                table.add_row("Baseline Score", base_val_str)
+                table.add_row("Best Score", best_val_str)
+                
+                self.console.print(table)
         
         self.run_id = f"mcts_s{self.study_id:04d}"
         
@@ -240,9 +258,9 @@ class MCTSRunner:
                     untried = self.tree._get_untried_actions(node)
                     
                     # --- Extended Diagnostics for Skips ---
-                    searched_len = len(self.space.steps)
+                    total_steps = self.space.total_steps_count
                     start_idx = node.state.last_step_index + 1
-                    end_reached = (start_idx >= searched_len)
+                    end_reached = (start_idx >= total_steps)
                     
                     analysis = self.space.analyze_next_actions(node.state)
                     
@@ -261,7 +279,7 @@ class MCTSRunner:
                     diag_info = (
                         f"Trial={node.trial_id or 'Root'} N={node.n_visits} children={len(node.children)} untried={len(untried)} "
                         f"depth={node.state.depth} last_idx={node.state.last_step_index} groups={len(node.state.used_groups)} "
-                        f"End={end_reached} Candidates={analysis['total_candidates']} "
+                        f"End={end_reached} ({start_idx}/{total_steps}) Candidates={analysis['total_candidates']} "
                         f"Filtered(Group)={analysis['filtered_by_group']} Emitted={analysis['emitted_actions']} "
                         f"PW={pw_limit:.2f}"
                     )
@@ -572,7 +590,7 @@ class MCTSRunner:
             self.storage.update_node_stats(trial_id, self.tree.root.n_visits, self.tree.root.value_sum, self.tree.root.value_best)
             
             if not self.mcts_live:
-                print(f"🏁 Baseline: {result.value:.4f} ({result.metric})", flush=True)
+                print(f"🏁 Baseline: {result.value:.4f}", flush=True)
             self.logger.info(f"Baseline Score: {result.value}")
             
             # Initial best score notification

@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 class Action:
     step_name: str
     template_name: str # Added to lookup search space
+    group_name: str    # Added to respect exclusions
     variant_name: str
     config: Dict[str, Any]
     step_index: int  # Index in the super-chain
@@ -44,19 +45,10 @@ class PipelineState:
         new_step = {
             "name": action.step_name,
             "template": action.template_name,
-            "group": action.step_name, # Default, might be overridden if we had full step info
+            "group": action.group_name, 
             "variant": action.variant_name,
             "config": action.config,
-            # We might want to store step_index here too
         }
-        # Ideally, we should look up the group from the action definition, 
-        # but for now we assume the caller ensures validity.
-        # But wait, PipelineState needs to know the group to update used_groups.
-        # We'll rely on the fact that used_groups is updated in __post_init__ 
-        # if we pass the full list.
-        
-        # However, to be precise, we need the group info in the new_step.
-        # Let's assume action creation includes looking up the group.
         
         new_steps = list(self.steps) + [new_step]
         new_state = PipelineState(

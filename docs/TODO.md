@@ -46,3 +46,12 @@
 - [ ] Default pipeline mode: `mla --project X` starts the auto-flow without specifying a module.
 - [ ] Implement `--from <module>` to resume auto-flow from a specific stage.
 - [ ] Add `mla status` for a quick summary of recent runs.
+
+## MCTS Preprocessing Search
+
+### Visualization & Monitoring
+- [ ] **Focused Live View**: Update `--live` to only render the 'Best Path' and 'Active Path' to maintain readability when tree exceeds 100+ nodes.
+- [ ] **Rich Layout Dashboard**: Create a multi-pane CLI dashboard showing the tree on top and a "Top-K Leaderboard" at the bottom.
+- [ ] **Interactive HTML Export**: Implement a script to export the SQLite search tree to a D3.js or Plotly based interactive HTML for deep offline analysis.
+- [ ] **Surrogate Value Model**: Integrate a simple regressor to predict node values and guide search (surrogate-assisted MCTS).
+- [ ] **Dynamic Time Penalty**: Replace fixed `time_lambda` with a dynamic penalty based on running average/std-dev of trial durations.

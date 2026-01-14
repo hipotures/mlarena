@@ -96,6 +96,7 @@ class MCTSTree:
                 action = Action(
                     step_name=action_dict["step_name"],
                     template_name=action_dict.get("template_name") or action_dict["step_name"],
+                    group_name=action_dict.get("group_name") or action_dict["step_name"], # Fallback to name if missing
                     variant_name=action_dict["variant"],
                     config=action_dict["config"],
                     step_index=0 # Placeholder
@@ -175,6 +176,7 @@ class MCTSTree:
         final_action = Action(
             step_name=action_description(action.step_name),
             template_name=action.template_name,
+            group_name=action.group_name,
             variant_name=action.variant_name,
             config=sampled_config,
             step_index=action.step_index

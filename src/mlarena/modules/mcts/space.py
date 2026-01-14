@@ -80,6 +80,7 @@ class SuperChainActionSpace:
                 action = Action(
                     step_name=step_name,
                     template_name=template_name,
+                    group_name=group, # Use the actual group name from super-chain
                     variant_name=vname,
                     config={}, 
                     step_index=i # Index in self.steps

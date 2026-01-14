@@ -37,8 +37,11 @@ class SuperChainActionSpace:
         self.searched_steps = []
         
         for idx, step in enumerate(self.all_steps):
+            if not step.get("enabled", True):
+                continue
+                
             meta = step.get("meta", {}) or {}
-            if meta.get("fixed") and step.get("enabled", True):
+            if meta.get("fixed"):
                 self.fixed_steps.append({"index": idx, "config": step})
             else:
                 self.searched_steps.append({"index": idx, "config": step})

@@ -51,7 +51,16 @@ class MCTSTree:
         self.config = config
         self.space = space
         self.sampler = sampler
-        self.root = MCTSNode(state=PipelineState())
+        
+        # Initialize root state with groups from fixed steps
+        initial_groups = {}
+        for fs in space.fixed_steps:
+            cfg = fs["config"]
+            group = cfg.get("group") or cfg.get("name")
+            if group:
+                initial_groups[group] = cfg.get("name")
+        
+        self.root = MCTSNode(state=PipelineState(used_groups=initial_groups))
 
     def rebuild_tree(self, nodes_data: List[Dict[str, Any]], edges_data: List[Dict[str, Any]]):
         """Reconstruct the tree structure from database records."""

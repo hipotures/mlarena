@@ -173,8 +173,7 @@ class MCTSTree:
                 tried_keys.add(key)
         
         untried = [
-            a for action in [node.untried_actions] # Flatten check
-            for a in action 
+            a for a in node.untried_actions 
             if (a.searched_index, a.step_name, a.variant_name) not in tried_keys
         ]
                 

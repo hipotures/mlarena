@@ -68,11 +68,19 @@ class PipelineState:
 
     @property
     def signature(self) -> str:
-        """Canonical signature of the pipeline state."""
-        # Use a stable JSON serialization of steps
-        # We assume 'steps' contains only JSON-serializable data
-        # To be safe, we sort keys in dictionaries
-        serialized = json.dumps(self.steps, sort_keys=True)
+        """Canonical signature of the pipeline state (ignores metadata like indices)."""
+        # To maintain compatibility with existing databases and ignore 
+        # index metadata, we hash only the core pipeline definition.
+        canonical_steps = []
+        for s in self.steps:
+            canonical_steps.append({
+                "name": s["name"],
+                "template": s.get("template") or s["name"],
+                "variant": s["variant"],
+                "config": s["config"]
+            })
+            
+        serialized = json.dumps(canonical_steps, sort_keys=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def add_action(self, action: Action) -> PipelineState:

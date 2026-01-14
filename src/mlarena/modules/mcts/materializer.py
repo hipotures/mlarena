@@ -36,8 +36,10 @@ class TemplateMaterializer:
         
         # 2. Add searched steps from state with their recorded index
         for s in state.steps:
+            # Fallback for legacy records that might only have 'step_index'
+            orig_idx = s.get("original_index", s.get("step_index", 0))
             all_pipeline_steps.append({
-                "original_index": s.get("original_index", 0), # Default to 0 if missing
+                "original_index": orig_idx,
                 "name": s["name"],
                 "module": s.get("module") or s.get("template"),
                 "config": s.get("config", {}),

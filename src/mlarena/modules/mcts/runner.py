@@ -4,6 +4,7 @@ import logging
 import json
 import math
 import random
+import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -74,6 +75,7 @@ class MCTSRunner:
                 initial_groups[group] = cfg.get("name")
         
         self.tree = MCTSTree(self.config, self.space, self.sampler)
+        self.tree.initial_groups = initial_groups
         self.tree.root = MCTSNode(state=PipelineState(used_groups=initial_groups))
         
         self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
@@ -164,8 +166,7 @@ class MCTSRunner:
                     if not self.mcts_live:
                         print(f"Iteration {i+1}/{self.config.budget} -> Skipped (terminal/limits)")
                     continue
-                
-                # ... (trial creation logic) ...
+                    
                 # 1. Create trial and edge in one transaction
                 with self.storage.atomic() as conn:
                     trial_id = self.storage.create_trial(
@@ -203,9 +204,38 @@ class MCTSRunner:
                 
                 if result.success and result.value is not None:
                     # Success path
-                    # ... (penalty and message logic) ...
-                    # [Applying final_value and backprop]
+                    raw = result.details.get("raw_json", {})
+                    final_value = result.value
                     
+                    # 1. Feature Penalty
+                    feat_lambda = self.config.penalties.features_lambda
+                    feat_penalty = 0.0
+                    if feat_lambda > 0:
+                        shapes = raw.get("shapes", {})
+                        if not shapes:
+                            shapes = (result.details.get("payload") or {}).get("shapes", {})
+                        
+                        in_cols = shapes.get("train_before", [0, 13])[1] if shapes.get("train_before") else 13
+                        out_cols = shapes.get("train_after", [0, 13])[1] if shapes.get("train_after") else 13
+                        
+                        if out_cols > in_cols:
+                            feat_penalty = feat_lambda * math.log10(out_cols / in_cols)
+                            final_value -= feat_penalty
+                    
+                    # 2. Time Penalty
+                    time_lambda = self.config.penalties.time_lambda
+                    time_penalty = 0.0
+                    if time_lambda > 0:
+                        duration_min = result.duration / 60.0
+                        time_penalty = time_lambda * duration_min
+                        final_value -= time_penalty
+                    
+                    if feat_penalty > 0 or time_penalty > 0:
+                        self.logger.debug(
+                            f"[PENALTY] Node {trial_id}: Original={result.value:.4f}, "
+                            f"FeatPenalty={feat_penalty:.4f}, TimePenalty={time_penalty:.4f}, Final={final_value:.4f}"
+                        )
+
                     # 2. Persist results and backprop stats in one transaction
                     with self.storage.atomic() as conn:
                         self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, result.details, conn=conn)
@@ -217,11 +247,67 @@ class MCTSRunner:
                         # PERSIST to database
                         self._persist_node_stats_path(child, conn)
 
-                        self.storage.set_trial_value(trial_id, result.value, conn=conn) 
-                
+                        self.storage.set_trial_value(trial_id, result.value, conn=conn) # Keep original score in DB for reporting
+                    
+                    # Save raw JSON to file for debugging
+                    raw = result.details.get("raw_json", {})
+                    if raw:
+                        json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
+                        json_path.write_text(json.dumps(raw, indent=2))
+                    
+                    success_msg = f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) SUCCESS: {result.value:.4f} ({result.metric})"
+                    
+                    is_new_best = False
+                    if self.direction == StudyDirection.MAXIMIZE:
+                        if result.value > best_so_far: is_new_best = True
+                    else:
+                        if result.value < best_so_far: is_new_best = True
+                            
+                    if is_new_best:
+                        best_so_far = result.value
+                        success_msg += f" -> NEW BEST: {best_so_far:.4f}"
+                        self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) ***")
+                        
+                        # Send Telegram Notification
+                        proj_name = self.context.project_name or "Unknown Project"
+                        msg = (
+                            f"🚀 <b>New Best Score!</b>\n\n"
+                            f"<b>Project:</b> {proj_name}\n"
+                            f"<b>Study:</b> {self.config.study_name}\n"
+                            f"<b>Trial:</b> {trial_id}\n"
+                            f"<b>Score:</b> {best_so_far:.5f}\n"
+                            f"<b>Metric:</b> {result.metric}"
+                        )
+                        self.notifier.send(msg)
+                    
+                    if not self.mcts_live:
+                        print(success_msg)
+                    
+                    # Cleanup templates unless it's new best
+                    self._cleanup_templates(trial_templates, fidelity, keep=is_new_best)
+                    
+                    best_model = raw.get("best_model", "N/A")
+                    exp_id_res = raw.get("experiment_id", "N/A")
+                    
+                    self.logger.info(
+                        f"  -> Trial {trial_id} Success: {result.value:.4f} | Model: {best_model} | ExpID: {exp_id_res}"
+                    )
+                    
+                    target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
+                    if fidelity == target_fid:
+                        self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
                 else:
-                    # Fail path
-                    # ... (error logging) ...
+                    if not self.mcts_live:
+                        print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
+                    
+                    # Extract error from JSON if available, otherwise fallback to stderr
+                    error_msg = result.details.get("error")
+                    if not error_msg:
+                        error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
+                        error_msg = "\n".join(error_text.strip().split("\n")[-10:])
+                    
+                    self.logger.error(f"  -> Trial {trial_id} failed. Error: {error_msg}")
+                    
                     with self.storage.atomic() as conn:
                         penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
                         self.tree.backpropagate(child, penalty)
@@ -229,6 +315,12 @@ class MCTSRunner:
                         self.storage.add_evaluation(trial_id, fidelity, "FAIL", None, "", 0.0, result.details, conn=conn)
                         # PERSIST failure penalty
                         self._persist_node_stats_path(child, conn)
+                    
+                    # Cleanup templates on failure (respect configuration)
+                    keep_on_fail = self.config.templates.retain_failures
+                    self._cleanup_templates(trial_templates, fidelity, keep=keep_on_fail)
+                
+                if self.live: self.live.update(self._render_tree(best_so_far))
         finally:
             if self.live:
                 self.live.stop()
@@ -239,6 +331,15 @@ class MCTSRunner:
             print(msg)
         self.logger.info(msg)
         return ModuleResult(success=True, payload={"best_trial": best})
+
+    def _persist_node_stats_path(self, node: MCTSNode, conn: sqlite3.Connection):
+        """Helper to sync all nodes from current back to root in the database."""
+        curr = node
+        while curr is not None:
+            tid = curr.trial_id
+            if tid:
+                self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best, conn=conn)
+            curr = curr.parent
 
     def _render_tree(self, best_score: float) -> Tree:
         root_label = f"MCTS Study: {self.config.study_name}"
@@ -429,15 +530,6 @@ class MCTSRunner:
             
         self.logger.debug(f"Executing MLA: {' '.join(cmd)}")
         return self.executor.run(cmd)
-
-    def _persist_node_stats_path(self, node: MCTSNode, conn: sqlite3.Connection):
-        """Helper to sync all nodes from current back to root in the database."""
-        curr = node
-        while curr is not None:
-            tid = curr.trial_id
-            if tid:
-                self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best, conn=conn)
-            curr = curr.parent
 
     def _get_next_fidelity(self, node: MCTSNode, trial_id: int) -> Optional[str]:
         levels = self.config.multi_fidelity.levels

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-import shlex
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -23,11 +22,10 @@ class MlaCliExecutor:
     def build_command(
         self, 
         project: str, 
-        module: str,
+        module: str, # This should be 'model'
         model_template: Optional[str], 
         preprocess_template: Optional[str], 
-        exp_id: str,
-        timeout: Optional[int] = None
+        exp_id: str
     ) -> List[str]:
         cmd = [
             "uv", "run", "python", "scripts/mla.py", module,
@@ -46,12 +44,10 @@ class MlaCliExecutor:
 
     def parse_result(self, stdout: str) -> ExperimentResult:
         try:
-            # MLA --json-output can sometimes be preceded by logs
-            # Find the first '{' and parse from there
+            # Find JSON in potential noise
             start_idx = stdout.find('{')
             if start_idx != -1:
-                json_str = stdout[start_idx:]
-                data = json.loads(json_str)
+                data = json.loads(stdout[start_idx:])
             else:
                 data = json.loads(stdout)
             
@@ -59,10 +55,7 @@ class MlaCliExecutor:
             if value is None:
                 value = data.get("best_value")
                 
-            metric = data.get("eval_metric")
-            if not metric:
-                metrics = data.get("metrics", {})
-                metric = metrics.get("metric_name")
+            metric = data.get("eval_metric") or (data.get("metrics") or {}).get("metric_name")
             
             return ExperimentResult(
                 experiment_id=data.get("experiment_id", "unknown"),
@@ -82,9 +75,8 @@ class MlaCliExecutor:
                 details={"error": str(e), "stdout": stdout}
             )
 
-    def run(self, cmd: List[str], timeout: Optional[int] = None, require_json: bool = True) -> ExperimentResult:
+    def run(self, cmd: List[str], timeout: Optional[int] = None) -> ExperimentResult:
         try:
-            # Set environment variables to disable colors
             env = dict(subprocess.os.environ)
             env["TERM"] = "dumb"
             env["NO_COLOR"] = "1"
@@ -109,27 +101,8 @@ class MlaCliExecutor:
                     details={"returncode": proc.returncode, "stderr": proc.stderr, "stdout": proc.stdout}
                 )
                 
-            if not require_json:
-                return ExperimentResult(
-                    experiment_id="success",
-                    value=None,
-                    metric="unknown",
-                    duration=0.0,
-                    success=True,
-                    details={"stdout": proc.stdout}
-                )
-
             return self.parse_result(proc.stdout)
             
-        except subprocess.TimeoutExpired:
-             return ExperimentResult(
-                experiment_id="timeout",
-                value=None,
-                metric="unknown",
-                duration=timeout or 0.0,
-                success=False,
-                details={"error": "timeout"}
-            )
         except Exception as e:
             return ExperimentResult(
                 experiment_id="failed",

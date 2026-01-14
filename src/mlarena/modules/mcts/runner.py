@@ -16,7 +16,7 @@ from mlarena.modules.mcts.materializer import TemplateMaterializer
 from mlarena.modules.mcts.executor import MlaCliExecutor, ExperimentResult
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_SUPER_CHAIN = REPO_ROOT / "conf" / "preprocess" / "mla_super_chain.yaml"
+DEFAULT_SUPER_CHAIN = REPO_ROOT / "conf/preprocess/mla_super_chain.yaml"
 
 class MCTSRunner:
     def __init__(self, context: ModuleContext, params: Dict[str, Any]):
@@ -60,7 +60,6 @@ class MCTSRunner:
         self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
         self.study_id = self.storage.create_study(self.config.study_name, self.direction)
         
-        # Run ID Prefix: mcts_s{study_id:04d}
         self.run_id = f"mcts_s{self.study_id:04d}"
         
         self.materializer = TemplateMaterializer(
@@ -125,12 +124,11 @@ class MCTSRunner:
                 continue
             
             self.logger.info(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity})")
-            self.logger.info(f"  -> Trial {trial_id} (Fid: {fidelity}): Executing...")
             
-            # Log selected steps for debugging
+            # Log selected steps and their full config for debugging
             steps_desc = " -> ".join([f"{s['name']}:{s['variant']}" for s in child.state.steps]) or "No Preprocessing"
-            self.logger.debug(f"  -> Trial {trial_id} Pipeline: {steps_desc}")
-            self.logger.debug(f"  -> Signature: {child.state.signature}")
+            self.logger.info(f"  -> Trial {trial_id} ({fidelity}): {steps_desc}")
+            self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps, indent=2)}")
             
             result = self._execute_trial(child, trial_id, fidelity)
             
@@ -139,19 +137,19 @@ class MCTSRunner:
                 self.tree.backpropagate(child, result.value)
                 self.storage.set_trial_value(trial_id, result.value)
                 
+                # Save raw JSON to file for debugging
+                raw = result.details.get("raw_json", {})
+                if raw:
+                    json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
+                    json_path.write_text(json.dumps(raw, indent=2))
+                
                 print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) SUCCESS: {result.value:.4f} ({result.metric})")
                 
-                raw = result.details.get("raw_json", {})
                 best_model = raw.get("best_model", "N/A")
-                preset = raw.get("preset", "N/A")
-                t_limit = raw.get("time_limit", "N/A")
-                local_cv = raw.get("local_cv", "N/A")
-                exp_id = raw.get("experiment_id", "N/A")
+                exp_id_res = raw.get("experiment_id", "N/A")
                 
                 self.logger.info(
-                    f"  -> Trial {trial_id} Success: {result.value:.4f} ({result.metric}) | "
-                    f"Model: {best_model} | Preset: {preset} | TimeLimit: {t_limit}s | "
-                    f"CV: {local_cv} | Dur: {result.duration:.1f}s | ExpID: {exp_id}"
+                    f"  -> Trial {trial_id} Success: {result.value:.4f} | Model: {best_model} | ExpID: {exp_id_res}"
                 )
                 
                 target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
@@ -171,12 +169,10 @@ class MCTSRunner:
                     self.logger.info(msg)
             else:
                 print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
-                
-                # Get a brief error summary from stderr or stdout (last few lines)
                 error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
                 summary = "\n".join(error_text.strip().split("\n")[-5:])
-                
                 self.logger.error(f"  -> Trial {trial_id} failed. Error Summary:\n{summary}")
+                
                 penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
                 self.tree.backpropagate(child, penalty)
                 self.storage.set_trial_state(trial_id, TrialState.FAIL)
@@ -191,20 +187,39 @@ class MCTSRunner:
     def _evaluate_baseline(self):
         print("Evaluating Baseline (Model Zero)")
         self.logger.info("Evaluating Baseline (Model Zero)")
+        
         with self.storage._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT trial_id FROM trials WHERE study_id=? AND number=0", (self.study_id,))
+            cur.execute("SELECT trial_id FROM trials WHERE study_id=? AND number=0 AND state=?", (self.study_id, TrialState.COMPLETE.value))
             if cur.fetchone():
-                self.logger.info("Baseline already exists, skipping.")
+                self.logger.info("Baseline already exists and is complete.")
                 return
 
         trial_id = self.storage.create_trial(
             self.study_id, 0, "baseline", 0, {}, state=TrialState.RUNNING
         )
+        
         state = PipelineState()
-        # Pass fixed steps to baseline materialization to ensure data preparation
         templates = self.materializer.materialize(state, node_id=0, fixed_steps=self.space.fixed_steps)
-        result = self._run_mla(templates, "baseline_exp")
+        
+        exp_id = "exp-baseline"
+        model_template = self.params.get("model_template") or "baseline"
+        
+        # Use the base chain name for baseline
+        preprocess_template = templates["base_name"]
+        
+        cmd = self.executor.build_command(
+            project=self.context.project_name,
+            module="model",
+            model_template=model_template,
+            preprocess_template=preprocess_template,
+            exp_id=exp_id
+        )
+        if self.config.model_verbosity is not None:
+            cmd.append(f"model.verbosity={self.config.model_verbosity}")
+            
+        self.logger.debug(f"Executing Baseline MLA: {' '.join(cmd)}")
+        result = self.executor.run(cmd)
         
         if result.success and result.value is not None:
             self.storage.set_trial_value(trial_id, result.value)
@@ -217,108 +232,48 @@ class MCTSRunner:
             self.storage.set_trial_state(trial_id, TrialState.FAIL)
 
     def _execute_trial(self, node: MCTSNode, trial_id: int, fidelity: str) -> ExperimentResult:
-        # Pass fixed steps from space to materializer
+        # 1. Materialize templates
         templates = self.materializer.materialize(node.state, node_id=trial_id, fixed_steps=self.space.fixed_steps)
         base_name = templates["base_name"]
         
-        # Create a fidelity-specific template name to force MLA folder naming
-        fid_template_name = f"{base_name}_{fidelity}"
-        fid_template_path = templates["chain_path"].parent / f"{fid_template_name}.yaml"
+        # 2. Preprocess template is the CHAIN name, not a step name
+        preprocess_template = f"{base_name}_{fidelity}"
         
-        # Copy original template content to the fidelity-specific one
-        if not fid_template_path.exists():
-            fid_template_path.write_text(templates["chain_path"].read_text())
+        # Create fidelity-specific chain YAML copy
+        fid_path = templates["chain_path"].parent / f"{preprocess_template}.yaml"
+        if not fid_path.exists():
+            fid_path.write_text(templates["chain_path"].read_text())
             
-        # Experiment ID for model: exp-mcts_s0002_..._F0
-        exp_id = f"exp-{fid_template_name}"
+        exp_id = f"exp-{preprocess_template}"
         
-        overrides = {}
+        model_template = self.params.get("model_template") or "baseline"
         
-        # Add verbosity and retention
+        cmd = self.executor.build_command(
+            project=self.context.project_name,
+            module="model",
+            model_template=model_template,
+            preprocess_template=preprocess_template,
+            exp_id=exp_id
+        )
+        
         if self.config.model_verbosity is not None:
-            overrides["model.verbosity"] = self.config.model_verbosity
+            cmd.append(f"model.verbosity={self.config.model_verbosity}")
         if self.config.model_cleanup:
-            # map model_cleanup to mla_retention
-            overrides["model.mla_retention"] = "true"
+            cmd.append("model.mla_retention=true")
             
-        return self._run_mla_with_fid(fid_template_name, exp_id, overrides)
-
-    def _run_mla_with_fid(self, preprocess_template: str, exp_id: str, overrides: Dict[str, Any] = {}) -> ExperimentResult:
-        model_template = self.params.get("model_template") or "baseline"
-        extra_args = [f"{k}={v}" for k, v in overrides.items()]
-        
-        # 1. Run Preprocess
-        cmd_pre = self.executor.build_command(
-            project=self.context.project_name,
-            module="preprocess",
-            model_template="",
-            preprocess_template=preprocess_template,
-            exp_id=f"pre-{preprocess_template}"
-        )
-        self.logger.debug(f"Executing Preprocess: {' '.join(cmd_pre)}")
-        res_pre = self.executor.run(cmd_pre)
-        
-        if not res_pre.success:
-            self.logger.error(f"Preprocessing failed: {res_pre.details}")
-            return res_pre
-
-        # 2. Run Model
-        cmd_model = self.executor.build_command(
-            project=self.context.project_name,
-            module="model",
-            model_template=model_template,
-            preprocess_template=preprocess_template,
-            exp_id=exp_id
-        )
-        cmd_model.extend(extra_args)
-        
-        self.logger.debug(f"Executing Model: {' '.join(cmd_model)}")
-        return self.executor.run(cmd_model)
-
-    def _run_mla(self, templates: Dict[str, Any], exp_id: str, overrides: Dict[str, Any] = {}) -> ExperimentResult:
-        model_template = self.params.get("model_template") or "baseline"
-        extra_args = [f"{k}={v}" for k, v in overrides.items()]
-        preprocess_tpl = templates["chain_path"].stem
-        
-        # 1. Run Preprocess
-        # We invoke 'preprocess' module first to generate artifacts
-        # We don't pass model overrides to preprocess
-        cmd_pre = self.executor.build_command(
-            project=self.context.project_name,
-            module="preprocess",
-            model_template="", # Not needed for preprocess module execution
-            preprocess_template=preprocess_tpl,
-            exp_id=f"pre-{preprocess_tpl}" # Explicit naming to match MLA convention
-        )
-        
-        self.logger.debug(f"Executing Preprocess: {' '.join(cmd_pre)}")
-        res_pre = self.executor.run(cmd_pre, require_json=False)
-        
-        if not res_pre.success:
-            self.logger.error(f"Preprocessing failed: {res_pre.details}")
-            return res_pre
-
-        # 2. Run Model
-        cmd_model = self.executor.build_command(
-            project=self.context.project_name,
-            module="model",
-            model_template=model_template,
-            preprocess_template=preprocess_tpl,
-            exp_id=exp_id
-        )
-        cmd_model.extend(extra_args)
-        
-        self.logger.debug(f"Executing Model: {' '.join(cmd_model)}")
-        return self.executor.run(cmd_model)
+        self.logger.debug(f"Executing MLA: {' '.join(cmd)}")
+        return self.executor.run(cmd)
 
     def _get_next_fidelity(self, node: MCTSNode, trial_id: int) -> Optional[str]:
         levels = self.config.multi_fidelity.levels
         if not self.config.multi_fidelity.enable or not levels:
             evals = self.storage.get_evaluations(trial_id)
-            if any(e["fidelity"] == "F2" for e in evals): return None
+            if any(e["fidelity"] == "F2" for e in evals if e["status"] == "COMPLETE"): return None
             return "F2"
+            
         evals = self.storage.get_evaluations(trial_id)
         completed_fids = {e["fidelity"] for e in evals if e["status"] == "COMPLETE"}
+        
         for i, level in enumerate(levels):
             name = level["name"]
             if name in completed_fids: continue
@@ -331,7 +286,6 @@ class MCTSRunner:
             top_frac = self.config.multi_fidelity.promotion.get("top_fraction", 0.25)
             if self._should_promote(prev_score, history, top_frac): return name
             else:
-                self.logger.debug(f"Trial {trial_id}: {name} PRUNED")
                 self.storage.add_evaluation(trial_id, name, "PRUNED", None, "pruned", 0.0)
                 return None
         return None

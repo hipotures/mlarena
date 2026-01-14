@@ -792,7 +792,8 @@ def run_auto_flow(
     model_cls = ModuleRegistry.get("model")
     model_module = model_cls(model_context)
 
-    final_preprocess_template = preprocess_templates[-1] if preprocess_templates else resolved_preprocess_template
+    # Use the full resolved template name (e.g. the chain name) for reporting
+    final_preprocess_template = resolved_preprocess_template
     
     model_params = {
         "model_template": model_template,
@@ -1287,7 +1288,8 @@ def main(argv: List[str] | None = None) -> int:
             if exit_code != 0:
                 return exit_code
 
-            final_preprocess_template = preprocess_templates[-1] if preprocess_templates else resolved_preprocess_template
+            # Use the full resolved template name (e.g. the chain name) for reporting
+            final_preprocess_template = resolved_preprocess_template
 
     state = ExperimentState.load_or_create(
         project_root=project_root,

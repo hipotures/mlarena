@@ -13,6 +13,29 @@ class Action:
     config: Dict[str, Any]
     step_index: int  # Index in the super-chain
 
+    def to_record(self) -> Dict[str, Any]:
+        """Convert action to a stable dictionary format for database storage."""
+        return {
+            "step_name": self.step_name,
+            "template_name": self.template_name,
+            "group_name": self.group_name,
+            "variant": self.variant_name,
+            "config": self.config,
+            "step_index": self.step_index,
+        }
+
+    @staticmethod
+    def from_record(d: Dict[str, Any]) -> Action:
+        """Create an Action from a database record, handling legacy/variant keys."""
+        return Action(
+            step_name=d["step_name"],
+            template_name=d.get("template_name") or d["step_name"],
+            group_name=d.get("group_name") or d.get("group") or d["step_name"],
+            variant_name=d.get("variant") or d.get("variant_name"),
+            config=d.get("config") or {},
+            step_index=int(d.get("step_index", 0)),
+        )
+
 @dataclass
 class PipelineState:
     steps: List[Dict[str, Any]] = field(default_factory=list)

@@ -102,14 +102,7 @@ class MCTSTree:
                 child = node_map[child_sig]
                 
                 action_dict = json.loads(edge["action_json"])
-                action = Action(
-                    step_name=action_dict["step_name"],
-                    template_name=action_dict.get("template_name") or action_dict["step_name"],
-                    group_name=action_dict.get("group_name") or action_dict["step_name"], # Fallback to name if missing
-                    variant_name=action_dict["variant"],
-                    config=action_dict["config"],
-                    step_index=0 # Placeholder
-                )
+                action = Action.from_record(action_dict)
                 
                 child.parent = parent
                 child.action_from_parent = action

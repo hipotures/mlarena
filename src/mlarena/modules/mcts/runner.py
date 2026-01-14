@@ -176,14 +176,7 @@ class MCTSRunner:
                 )
                 
                 if parent_trial_id:
-                    action_data = {
-                        "step_name": child.action_from_parent.step_name,
-                        "template_name": child.action_from_parent.template_name,
-                        "group_name": child.action_from_parent.group_name,
-                        "variant": child.action_from_parent.variant_name,
-                        "config": child.action_from_parent.config
-                    }
-                    self.storage.add_edge(parent_trial_id, trial_id, action_data)
+                    self.storage.add_edge(parent_trial_id, trial_id, child.action_from_parent.to_record())
 
                 fidelity = self._get_next_fidelity(child, trial_id)
                 if not fidelity:

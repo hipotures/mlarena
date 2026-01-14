@@ -60,6 +60,7 @@ class MCTSTree:
             if group:
                 initial_groups[group] = cfg.get("name")
         
+        self.initial_groups = initial_groups # Store for rebuild_tree
         self.root = MCTSNode(state=PipelineState(used_groups=initial_groups))
 
     def rebuild_tree(self, nodes_data: List[Dict[str, Any]], edges_data: List[Dict[str, Any]]):
@@ -73,7 +74,9 @@ class MCTSTree:
         
         for n in nodes_data:
             sig = n["pipeline_signature"]
-            node = MCTSNode(state=PipelineState()) 
+            # Important: Baseline needs initial_groups to preserve constraints after resume
+            state_groups = self.initial_groups if sig == "baseline" else {}
+            node = MCTSNode(state=PipelineState(used_groups=state_groups)) 
             node.trial_id = n["trial_id"]
             node.n_visits = n["n_visits"]
             node.value_sum = n["value_sum"]

@@ -97,7 +97,8 @@ def main():
         for p in params:
             try:
                 d = json.loads(p[0])
-                steps.append(f"{d['name']}")
+                # Show both name and variant for better clarity
+                steps.append(f"{d['name']}:{d.get('variant', 'default')}")
             except: continue
         
         pipeline_desc = " -> ".join(steps) if steps else "Baseline"

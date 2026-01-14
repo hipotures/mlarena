@@ -194,16 +194,17 @@ class MCTSStorage:
         max_retries = 10
         
         def _exec(c):
-            # 1. Check if signature exists in this study (IDEMPOTENCY)
-            query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
             cur = c.cursor()
-            cur.execute(query, (study_id, pipeline_signature))
-            existing = cur.fetchone()
-            if existing:
-                return existing[0]
-
-            # 2. Assign and Insert with Retry
+            
+            # Assignment and Insert with Retry
             for attempt in range(max_retries):
+                # 1. Re-check if signature exists (handles concurrent inserts)
+                query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
+                cur.execute(query, (study_id, pipeline_signature))
+                existing = cur.fetchone()
+                if existing:
+                    return existing[0]
+
                 try:
                     # Inner savepoint for retry
                     c.execute(f"SAVEPOINT trial_creation_{attempt}")
@@ -238,9 +239,8 @@ class MCTSStorage:
                     
                 except sqlite3.IntegrityError:
                     c.execute(f"ROLLBACK TO SAVEPOINT trial_creation_{attempt}")
-                    # If it's a signature collision, it will be caught by the SELECT at the top 
-                    # in next retry or if we check it again.
-                    # If it's a number collision, we just retry.
+                    # In next iteration of the loop, we will re-check signature 
+                    # and potentially return existing trial_id.
                     if attempt == max_retries - 1:
                         raise
                     time.sleep(random.uniform(0.01, 0.1)) # Backoff
@@ -255,13 +255,19 @@ class MCTSStorage:
                 c.commit()
                 return res
 
-    def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str) -> Optional[int]:
-        with self._connect() as conn:
-            cur = conn.cursor()
+    def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str, conn: Optional[sqlite3.Connection] = None) -> Optional[int]:
+        def _exec(c):
+            cur = c.cursor()
             query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
             cur.execute(query, (study_id, pipeline_signature))
             row = cur.fetchone()
             return row[0] if row else None
+
+        if conn:
+            return _exec(conn)
+        else:
+            with self._connect() as conn_local:
+                return _exec(conn_local)
 
     def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any], conn: Optional[sqlite3.Connection] = None):
         if conn:

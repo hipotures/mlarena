@@ -92,3 +92,41 @@ class SuperChainActionSpace:
                 actions.append(action)
                 
         return actions
+
+    def analyze_next_actions(self, state: PipelineState) -> Dict[str, int]:
+        """Diagnostic method to understand why actions are filtered."""
+        stats = {
+            "total_candidates": 0,
+            "filtered_by_group": 0,
+            "filtered_by_no_variants": 0,
+            "emitted_actions": 0,
+            "steps_checked": 0
+        }
+        
+        start_index = state.last_step_index + 1
+        stats["total_candidates"] = len(self.steps) - start_index
+        
+        for i in range(start_index, len(self.steps)):
+            stats["steps_checked"] += 1
+            step_def = self.steps[i]
+            step_name = step_def.get("name")
+            group = step_def.get("group") or step_name
+            
+            if group in state.used_groups:
+                stats["filtered_by_group"] += 1
+                continue
+            
+            template_name = step_def.get("template") or step_name
+            space = self.search_spaces.get(template_name, {})
+            variants = space.get("variants", [])
+            
+            if not variants:
+                # In next_actions we default to 'fixed', so this isn't strictly a filter there
+                # unless we change logic. Count it if empty but treated as 1 action.
+                # Currently next_actions adds 1 action.
+                pass
+
+            count = len(variants) if variants else 1
+            stats["emitted_actions"] += count
+                
+        return stats

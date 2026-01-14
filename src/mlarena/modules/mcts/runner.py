@@ -215,7 +215,16 @@ class MCTSRunner:
                 if best_trial:
                     best_so_far = best_trial["value"]
 
-            for i in range(self.config.budget):
+            n_executed = 0
+            iteration = 0
+            max_iterations = self.config.budget * 10  # Safety limit
+            
+            while n_executed < self.config.budget:
+                if iteration >= max_iterations:
+                    self.logger.warning(f"Reached max safety iterations ({max_iterations}) with only {n_executed} trials. Tree might be fully explored.")
+                    break
+
+                iteration += 1
                 node = self.tree.select(self.tree.root)
                 child = self.tree.expand(node)
                 
@@ -229,14 +238,36 @@ class MCTSRunner:
                         self._persist_node_stats_path(node, conn)
                     
                     untried = self.tree._get_untried_actions(node)
-                    st = node.state
+                    
+                    # --- Extended Diagnostics for Skips ---
+                    searched_len = len(self.space.steps)
+                    start_idx = node.state.last_step_index + 1
+                    end_reached = (start_idx >= searched_len)
+                    
+                    analysis = self.space.analyze_next_actions(node.state)
+                    
+                    # PW details
+                    pw_limit_raw = self.config.expansion_width * (node.n_visits ** self.config.expansion_alpha)
+                    pw_limit = max(1.0, pw_limit_raw)
+                    
+                    # Detailed skip reason
+                    if not node.children and not untried:
+                        reason = "terminal (leaf)"
+                    elif not untried:
+                        reason = "fully_expanded (pw_limit?)"
+                    else:
+                        reason = "pw_limit (untried available)"
+
                     diag_info = (
                         f"Trial={node.trial_id or 'Root'} N={node.n_visits} children={len(node.children)} untried={len(untried)} "
-                        f"depth={st.depth} last_idx={st.last_step_index} groups={len(st.used_groups)}"
+                        f"depth={node.state.depth} last_idx={node.state.last_step_index} groups={len(node.state.used_groups)} "
+                        f"End={end_reached} Candidates={analysis['total_candidates']} "
+                        f"Filtered(Group)={analysis['filtered_by_group']} Emitted={analysis['emitted_actions']} "
+                        f"PW={pw_limit:.2f}"
                     )
                     if not self.mcts_live:
-                        print(f"Iteration {i+1}/{self.config.budget} -> Skipped (terminal/limits) [{diag_info}]")
-                    self.logger.debug(f"Iteration {i+1} skipped: {diag_info}")
+                        print(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) -> Skipped ({reason}) [{diag_info}]")
+                    self.logger.debug(f"Iter {iteration} skipped ({reason}): {diag_info}")
                     continue
                     
                 # 1. Create trial and edge in one transaction
@@ -265,20 +296,13 @@ class MCTSRunner:
                     # Pruned/Done path
                     self.logger.info(f"  -> Trial {trial_id}: Pruned or done")
                     
-                    # If PRUNED, we should update stats to reflect the visit (even if no result value)
-                    # to encourage UCT to explore other paths.
-                    evals = self.storage.get_evaluations(trial_id)
-                    if any(e["status"] == "PRUNED" for e in evals):
-                         # Backpropagate mean to avoid bias, fallback to root mean
-                         val = child.value_mean if child.n_visits > 0 else self.tree.root.value_mean
-                         self.tree.backpropagate(child, val)
-                         with self.storage.atomic() as conn:
-                             self._persist_node_stats_path(child, conn)
-
+                    # NOTE: Backpropagation for PRUNED is handled in _get_next_fidelity to ensure correctness
+                    
                     if self.live: self.live.update(self._render_tree(best_so_far))
+                    n_executed += 1
                     continue
                 
-                self.logger.info(f"Iteration {i+1}/{self.config.budget} -> Trial={trial_id} Depth={child.state.depth}")
+                self.logger.info(f"Iter {iteration} (Trials {n_executed + 1}/{self.config.budget}) -> Trial={trial_id} Depth={child.state.depth}")
                 if self.logger.isEnabledFor(logging.DEBUG):
                     try:
                         self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
@@ -288,6 +312,8 @@ class MCTSRunner:
                 # Materialize and execute
                 trial_templates = self.materializer.materialize(child.state, node_id=trial_id, fixed_steps=self.space.fixed_steps)
                 result = self._execute_trial_with_templates(trial_templates, trial_id, fidelity)
+                
+                n_executed += 1
                 
                 if result.success and result.value is not None:
                     # Success path
@@ -342,7 +368,7 @@ class MCTSRunner:
                         json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
                         json_path.write_text(json.dumps(raw, indent=2))
                     
-                    success_msg = f"Iteration {i+1}/{self.config.budget} -> Trial={trial_id} Depth={child.state.depth} SUCCESS: {result.value:.4f} ({result.metric})"
+                    success_msg = f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) -> Trial={trial_id} Depth={child.state.depth} SUCCESS: {result.value:.4f} ({result.metric})"
                     
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:
@@ -385,7 +411,7 @@ class MCTSRunner:
                         self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
                 else:
                     if not self.mcts_live:
-                        print(f"Iteration {i+1}/{self.config.budget} -> Trial={trial_id} Depth={child.state.depth} FAILED")
+                        print(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) -> Trial={trial_id} Depth={child.state.depth} FAILED")
                     
                     # Extract error from JSON if available, otherwise fallback to stderr
                     error_msg = result.details.get("error")
@@ -653,6 +679,9 @@ class MCTSRunner:
             if self._should_promote(prev_score, history, top_frac): return name
             else:
                 self.storage.add_evaluation(trial_id, name, "PRUNED", None, "pruned", 0.0)
+                # Ensure the trial is marked as PRUNED in the main table
+                self.storage.set_trial_state(trial_id, TrialState.PRUNED)
+                
                 if prev_score is not None:
                     # Backpropagate previous score to update visits/means, acknowledging we explored this path
                     self.tree.backpropagate(node, prev_score)

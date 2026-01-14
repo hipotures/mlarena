@@ -155,7 +155,14 @@ class MCTSTree:
         if node.untried_actions is None:
             # Lazy initialize all possible next actions
             node.untried_actions = self.space.next_actions(node.state)
-            random.shuffle(node.untried_actions)
+            
+            # Use deterministic shuffle based on node signature or ID to ensure reproducibility
+            # even across resumes. Global random.shuffle would be non-deterministic if not re-seeded identically.
+            seed_base = f"{self.config.seed}_{node.trial_id or 'root'}_{node.state.signature}"
+            import hashlib
+            seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16)
+            rng = random.Random(seed_hash)
+            rng.shuffle(node.untried_actions)
             
         # Use a stable key to identify "tried" actions (step + variant)
         # instead of state signature which varies with sampled config.

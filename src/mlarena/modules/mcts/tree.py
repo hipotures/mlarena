@@ -153,6 +153,24 @@ class MCTSTree:
                 
             current = self._best_child(current)
 
+    def _get_untried_actions(self, node: MCTSNode) -> List[Action]:
+        """Return actions from the search space that haven't been tried yet for this node."""
+        if node.untried_actions is None:
+            # Lazy initialize all possible next actions
+            node.untried_actions = self.space.next_actions(node.state)
+            
+        # Filter out actions that already have a child node
+        tried_signatures = {child.state.signature for child in node.children}
+        
+        untried = []
+        for action in node.untried_actions:
+            # Predict signature without creating state to avoid overhead
+            potential_state = node.state.add_action(action)
+            if potential_state.signature not in tried_signatures:
+                untried.append(action)
+                
+        return untried
+
     def expand(self, node: MCTSNode) -> MCTSNode:
         """Expand a node by adding a new child with a sampled action."""
         untried_actions = self._get_untried_actions(node)

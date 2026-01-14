@@ -2,6 +2,8 @@ from __future__ import annotations
 import time
 import logging
 import json
+import math
+import random
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -62,7 +64,17 @@ class MCTSRunner:
         self.storage = MCTSStorage(self.config.storage_url)
         self.space = SuperChainActionSpace(super_chain_path)
         self.sampler = ParameterSampler(seed=self.config.seed)
+        
+        # Initialize root state with groups from fixed steps
+        initial_groups = {}
+        for fs in self.space.fixed_steps:
+            cfg = fs["config"]
+            group = cfg.get("group") or cfg.get("name")
+            if group:
+                initial_groups[group] = cfg.get("name")
+        
         self.tree = MCTSTree(self.config, self.space, self.sampler)
+        self.tree.root = MCTSNode(state=PipelineState(used_groups=initial_groups))
         
         self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
         self.study_id, self.is_new_study = self.storage.create_study(self.config.study_name, self.direction)
@@ -77,22 +89,7 @@ class MCTSRunner:
             if not self.mcts_live:
                 best = self.storage.get_best_trial(self.study_id)
                 best_val_str = f"{best['value']:.4f}" if best else "N/A"
-                
-                # Find baseline score explicitly for display
-                base_val_str = "N/A"
-                if self.tree.root.n_visits > 0:
-                    base_val_str = f"{self.tree.root.value_best:.4f}"
-                else:
-                    # Fallback: check storage directly if tree root is somehow not updated
-                    base_id = self.storage.get_trial_id_by_signature(self.study_id, "baseline")
-                    if base_id:
-                        evals = self.storage.get_evaluations(base_id)
-                        base_val = next((e["value"] for e in evals if e["fidelity"] == "F2" and e["status"] == "COMPLETE"), None)
-                        if base_val is not None:
-                            base_val_str = f"{base_val:.4f}"
-                            self.tree.root.value_best = base_val
-                            self.tree.root.n_visits = 1
-
+                base_val_str = f"{self.tree.root.value_best:.4f}" if self.tree.root.n_visits > 0 else "N/A"
                 print(f"  -> Resume Stats: {len(nodes)} trials found, Baseline Score: {base_val_str}, Best Score: {best_val_str}", flush=True)
         
         self.run_id = f"mcts_s{self.study_id:04d}"
@@ -110,27 +107,19 @@ class MCTSRunner:
         self._setup_logging()
 
     def _setup_logging(self):
-        # Path according to @docs/MCTS.md: experiments/mcts_runs/{run_id}/
-        self.study_dir = self.context.project_root / "experiments" / "mcts_runs" / self.run_id
-        self.study_dir.mkdir(parents=True, exist_ok=True)
+        log_dir = self.context.project_root / "experiments" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
         
         self.logger = logging.getLogger(f"mcts.{self.run_id}")
-        self.logger.setLevel(logging.DEBUG) # Always capture debug in files
+        self.logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
         self.logger.handlers = []
         
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
         
-        # 1. INFO log (status study)
-        info_handler = logging.FileHandler(self.study_dir / "mcts.log")
-        info_handler.setLevel(logging.INFO)
-        info_handler.setFormatter(formatter)
-        self.logger.addHandler(info_handler)
-        
-        # 2. DEBUG log (full analysis)
-        debug_handler = logging.FileHandler(self.study_dir / "mcts.debug.log")
-        debug_handler.setLevel(logging.DEBUG)
-        debug_handler.setFormatter(formatter)
-        self.logger.addHandler(debug_handler)
+        file_handler = logging.FileHandler(log_dir / "mcts.log")
+        file_handler.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
         
         self.logger.info(f"--- MCTS Study Started (Run ID: {self.run_id}) ---")
 
@@ -219,10 +208,14 @@ class MCTSRunner:
                     feat_penalty = 0.0
                     if feat_lambda > 0:
                         shapes = raw.get("shapes", {})
-                        in_cols = shapes.get("train_before", [0, 13])[1] or 13 # Fallback
-                        out_cols = shapes.get("train_after", [0, 13])[1] or 13
+                        # Try to get shapes from payload if not in raw_json
+                        if not shapes:
+                            shapes = (result.details.get("payload") or {}).get("shapes", {})
+                        
+                        in_cols = shapes.get("train_before", [0, 13])[1] if shapes.get("train_before") else 13
+                        out_cols = shapes.get("train_after", [0, 13])[1] if shapes.get("train_after") else 13
+                        
                         if out_cols > in_cols:
-                            import math
                             feat_penalty = feat_lambda * math.log10(out_cols / in_cols)
                             final_value -= feat_penalty
                     
@@ -242,7 +235,18 @@ class MCTSRunner:
 
                     self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, result.details)
                     self.logger.debug(f"[BACKPROP] Propagating value {final_value:.4f} (original: {result.value:.4f}) from node {trial_id}")
+                    
+                    # Update in-memory tree
                     self.tree.backpropagate(child, final_value)
+                    
+                    # PERSIST to database: update all nodes on the path
+                    curr = child
+                    while curr is not None:
+                        tid = curr.trial_id
+                        if tid:
+                            self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best)
+                        curr = curr.parent
+
                     self.storage.set_trial_value(trial_id, result.value) # Keep original score in DB for reporting
                     
                     # Save raw JSON to file for debugging
@@ -296,7 +300,7 @@ class MCTSRunner:
                     if not self.mcts_live:
                         print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
                     error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
-                    summary = "\n".join(error_text.strip().split("\n")[-5:])
+                    summary = "\n".join(error_text.strip().split("\n")[-10:])
                     self.logger.error(f"  -> Trial {trial_id} failed. Error Summary:\n{summary}")
                     
                     penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
@@ -304,8 +308,9 @@ class MCTSRunner:
                     self.storage.set_trial_state(trial_id, TrialState.FAIL)
                     self.storage.add_evaluation(trial_id, fidelity, "FAIL", None, "", 0.0, result.details)
                     
-                    # Cleanup templates on failure
-                    self._cleanup_templates(trial_templates, fidelity, keep=False)
+                    # Cleanup templates on failure (respect configuration)
+                    keep_on_fail = self.config.templates.retain_failures
+                    self._cleanup_templates(trial_templates, fidelity, keep=keep_on_fail)
                 
                 if self.live: self.live.update(self._render_tree(best_so_far))
         finally:
@@ -323,7 +328,7 @@ class MCTSRunner:
         root_label = f"MCTS Study: {self.config.study_name}"
         root_tree = Tree(f"[bold cyan]{root_label}[/bold cyan]")
         
-        # Add Baseline as the first virtual node in the tree representation
+        # Add Baseline as the first virtual node
         base_score = self.tree.root.value_best
         base_score_str = f"{base_score:.4f}" if base_score > -float('inf') and base_score != 0.0 else "N/A"
         
@@ -389,7 +394,7 @@ class MCTSRunner:
         state = PipelineState()
         templates = self.materializer.materialize(state, node_id=0, fixed_steps=self.space.fixed_steps)
         
-        # Use consistent naming for baseline experiment
+        # Consistent naming for baseline
         base_name = templates["base_name"]
         preprocess_template = f"{base_name}_F2"
         
@@ -420,6 +425,10 @@ class MCTSRunner:
             self.storage.add_evaluation(trial_id, "F2", "COMPLETE", result.value, result.metric, result.duration, result.details)
             self.logger.debug(f"[BACKPROP] Propagating baseline value {result.value:.4f}")
             self.tree.root.update(result.value)
+            
+            # PERSIST root stats
+            self.storage.update_node_stats(trial_id, self.tree.root.n_visits, self.tree.root.value_sum, self.tree.root.value_best)
+            
             if not self.mcts_live:
                 print(f"Baseline Score: {result.value:.4f} ({result.metric})", flush=True)
             self.logger.info(f"Baseline Score: {result.value}")

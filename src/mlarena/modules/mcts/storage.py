@@ -239,6 +239,13 @@ class MCTSStorage:
             cur.execute(query, (study_id,))
             return [dict(row) for row in cur.fetchall()]
 
+    def update_node_stats(self, trial_id: int, n_visits: int, value_sum: float, value_best: float):
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
+                (n_visits, value_sum, value_best, trial_id)
+            )
+
     def set_trial_value(self, trial_id: int, value: float):
         with self._connect() as conn:
             conn.execute(

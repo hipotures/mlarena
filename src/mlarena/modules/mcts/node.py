@@ -51,8 +51,15 @@ class PipelineState:
         }
         
         new_steps = list(self.steps) + [new_step]
+        
+        # Explicitly propagate and update used_groups to preserve fixed step constraints
+        new_used = dict(self.used_groups)
+        new_used[action.group_name] = action.step_name
+        
         new_state = PipelineState(
             steps=new_steps,
+            depth=len(new_steps),
+            used_groups=new_used,
             last_step_index=action.step_index
         )
         return new_state

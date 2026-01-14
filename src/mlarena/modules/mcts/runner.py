@@ -386,7 +386,7 @@ class MCTSRunner:
                         json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
                         json_path.write_text(json.dumps(raw, indent=2))
                     
-                    success_msg = f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ✅ Trial={trial_id} Depth={child.state.depth}: {result.value:.4f} ({result.metric})"
+                    success_msg = f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ✅ Trial={trial_id} Depth={child.state.depth}: {result.value:.4f}"
                     
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:

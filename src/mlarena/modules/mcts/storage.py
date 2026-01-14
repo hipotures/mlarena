@@ -322,6 +322,19 @@ class MCTSStorage:
                 )
                 c.commit()
 
+    def update_node_stats_many(self, updates: List[tuple[int, int, float, float]], conn: Optional[sqlite3.Connection] = None):
+        """Batch update node stats. updates is list of (trial_id, n_visits, value_sum, value_best)."""
+        query = "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?"
+        # Reorder params to match query: (n_visits, value_sum, value_best, trial_id)
+        params = [(u[1], u[2], u[3], u[0]) for u in updates]
+        
+        if conn:
+            conn.executemany(query, params)
+        else:
+            with self._connect() as c:
+                c.executemany(query, params)
+                c.commit()
+
     def set_trial_value(self, trial_id: int, value: float, conn: Optional[sqlite3.Connection] = None):
         if conn:
             conn.execute(

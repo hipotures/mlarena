@@ -62,6 +62,9 @@ class MCTSRunner:
             db_dir.mkdir(parents=True, exist_ok=True)
             self.config.storage_url = f"sqlite:///{db_dir / 'mcts.db'}"
 
+        # Apply overrides from params (e.g. mcts.budget, mcts.multi_fidelity.enable)
+        self._apply_overrides(params)
+
         self.storage = MCTSStorage(self.config.storage_url)
         self.space = SuperChainActionSpace(super_chain_path)
         self.sampler = ParameterSampler(seed=self.config.seed)
@@ -114,6 +117,54 @@ class MCTSRunner:
             self.notifier.send_test(source="MCTSRunner")
         
         self._setup_logging()
+
+    def _apply_overrides(self, params: Dict[str, Any]):
+        """Apply CLI parameters to config, supporting 'mcts.section.key' notation."""
+        # 1. Explicit short args
+        if "budget" in params:
+            self.config.budget = int(params["budget"])
+        if "seed" in params:
+            self.config.seed = int(params["seed"])
+            
+        # 2. Dotted mcts.* args
+        for key, value in params.items():
+            if key.startswith("mcts."):
+                path = key[5:] # remove "mcts."
+                self._set_config_value(self.config, path, value)
+
+    def _set_config_value(self, obj: Any, path: str, value: Any):
+        """Recursively set value in Pydantic model or dict using dot notation."""
+        parts = path.split(".")
+        current = obj
+        
+        # Traverse to parent
+        for part in parts[:-1]:
+            if hasattr(current, part):
+                current = getattr(current, part)
+            elif isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return # Path not found
+        
+        # Set value on leaf
+        last = parts[-1]
+        if hasattr(current, last):
+            # Attempt naive type casting based on existing value
+            existing = getattr(current, last)
+            if isinstance(existing, bool):
+                # Handle bool strings from CLI
+                if isinstance(value, str):
+                    value = value.lower() in ("true", "1", "yes")
+            elif isinstance(existing, int):
+                try: value = int(value)
+                except: pass
+            elif isinstance(existing, float):
+                try: value = float(value)
+                except: pass
+            
+            setattr(current, last, value)
+        elif isinstance(current, dict):
+            current[last] = value
 
     def _setup_logging(self):
         log_dir = self.context.project_root / "experiments" / "logs"
@@ -213,7 +264,7 @@ class MCTSRunner:
                     if self.live: self.live.update(self._render_tree(best_so_far))
                     continue
                 
-                self.logger.info(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity})")
+                self.logger.info(f"Iteration {i+1}/{self.config.budget} -> Trial={trial_id} Depth={child.state.depth}")
                 if self.logger.isEnabledFor(logging.DEBUG):
                     try:
                         self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
@@ -277,7 +328,7 @@ class MCTSRunner:
                         json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
                         json_path.write_text(json.dumps(raw, indent=2))
                     
-                    success_msg = f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) SUCCESS: {result.value:.4f} ({result.metric})"
+                    success_msg = f"Iteration {i+1}/{self.config.budget} -> Trial={trial_id} Depth={child.state.depth} SUCCESS: {result.value:.4f} ({result.metric})"
                     
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:
@@ -288,7 +339,7 @@ class MCTSRunner:
                     if is_new_best:
                         best_so_far = result.value
                         success_msg += f" -> NEW BEST: {best_so_far:.4f}"
-                        self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) ***")
+                        self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (Trial={trial_id}, Depth={child.state.depth}) ***")
                         
                         # Send Telegram Notification
                         proj_name = self.context.project_name or "Unknown Project"
@@ -320,7 +371,7 @@ class MCTSRunner:
                         self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
                 else:
                     if not self.mcts_live:
-                        print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
+                        print(f"Iteration {i+1}/{self.config.budget} -> Trial={trial_id} Depth={child.state.depth} FAILED")
                     
                     # Extract error from JSON if available, otherwise fallback to stderr
                     error_msg = result.details.get("error")
@@ -358,6 +409,8 @@ class MCTSRunner:
         """Helper to sync all nodes from current back to root in the database."""
         seen = set()
         curr = node
+        updates = []
+        
         while curr is not None:
             if id(curr) in seen:
                 self.logger.error(f"Cycle detected in MCTS parent chain (Node ID: {id(curr)}); aborting stats persist.")
@@ -366,8 +419,12 @@ class MCTSRunner:
             
             tid = curr.trial_id
             if tid:
-                self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best, conn=conn)
+                # Collect update: (trial_id, n_visits, value_sum, value_best)
+                updates.append((tid, curr.n_visits, curr.value_sum, curr.value_best))
             curr = curr.parent
+            
+        if updates:
+            self.storage.update_node_stats_many(updates, conn=conn)
 
     def _render_tree(self, best_score: float) -> Tree:
         root_label = f"MCTS Study: {self.config.study_name}"
@@ -582,6 +639,11 @@ class MCTSRunner:
             if self._should_promote(prev_score, history, top_frac): return name
             else:
                 self.storage.add_evaluation(trial_id, name, "PRUNED", None, "pruned", 0.0)
+                if prev_score is not None:
+                    # Backpropagate previous score to update visits/means, acknowledging we explored this path
+                    self.tree.backpropagate(node, prev_score)
+                    with self.storage.atomic() as conn:
+                        self._persist_node_stats_path(node, conn)
                 return None
         return None
 

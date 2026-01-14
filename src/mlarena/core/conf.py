@@ -51,6 +51,7 @@ class GlobalConfig(BaseModel):
     
     # Sections
     common: CommonConfig = Field(default_factory=CommonConfig)
+    mcts_section: Dict[str, Any] = Field(default_factory=dict, alias="mcts_config")
     
     # Modules - dynamic sections
     init: Dict[str, Any] = Field(default_factory=dict)
@@ -147,6 +148,25 @@ class ConfigBuilder:
 
         # 7. Convert to Pydantic for validation
         container = OmegaConf.to_container(merged_conf, resolve=True)
+        
+        # Split mcts boolean vs dict
+        if "mcts" in container:
+            val = container["mcts"]
+            if isinstance(val, dict):
+                # It's a dictionary (from mcts.budget=10 etc)
+                container["mcts_config"] = val
+                # Check if it also contains a boolean flag (from mcts=true)
+                if "enabled" in val:
+                     container["mcts"] = bool(val.pop("enabled"))
+                else:
+                     # If it's a dict, we assume it's NOT the flag unless explicitly set
+                     # but wait, if user passed --mcts it might have been merged into this dict by OmegaConf
+                     # if it was mcts=true. 
+                     container["mcts"] = False 
+            elif isinstance(val, bool):
+                container["mcts"] = val
+                container["mcts_config"] = {}
+
         config = GlobalConfig(**container)
         
         # Set runtime state

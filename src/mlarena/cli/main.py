@@ -1155,6 +1155,10 @@ def main(argv: List[str] | None = None) -> int:
             overrides.append("json_output=true")
         if args.exp_id:
             overrides.append(f"experiment_id={args.exp_id}")
+        if args.mcts:
+            overrides.append("mcts.enabled=true")
+        if args.mcts_live:
+            overrides.append("mcts_live=true")
             
         config = get_config(project or "default", overrides)
     except Exception as e:
@@ -1330,11 +1334,21 @@ def main(argv: List[str] | None = None) -> int:
             params = params.copy()
         
         # Inject top-level config fields that modules expect
-        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts", "mcts_live"]:
+        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts_live"]:
             if hasattr(config, field):
                 if name == "preprocess-tune" and field == "model_template":
                     continue
                 params[field] = getattr(config, field)
+        
+        # Explicitly handle renamed mcts_enabled -> mcts for module compatibility
+        if hasattr(config, "mcts"):
+            params["mcts"] = config.mcts
+
+        # Inject all fields from 'mcts' section if mcts is active
+        if config.mcts and hasattr(config, "mcts_section"):
+            if isinstance(config.mcts_section, dict):
+                for k, v in config.mcts_section.items():
+                    params[f"mcts.{k}"] = v
 
         # Also inject common fields (these override template defaults if explicitly set via CLI)
         for field, value in config.common.model_dump().items():

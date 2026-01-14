@@ -85,6 +85,12 @@ class PipelineState:
 
     def add_action(self, action: Action) -> PipelineState:
         """Return a new state with the action applied."""
+        if action.group_name in self.used_groups:
+            raise ValueError(f"Group '{action.group_name}' already used by '{self.used_groups[action.group_name]}'")
+            
+        if action.searched_index <= self.last_step_index:
+            raise ValueError(f"Action index {action.searched_index} violates order (last: {self.last_step_index})")
+
         new_step = {
             "name": action.step_name,
             "template": action.template_name,

@@ -856,6 +856,7 @@ class PreprocessTuneModule(BaseModule):
         cfg = self.context.config
 
         # MCTS Routing - Check both params and global config explicitly
+        # Note: 'mcts' is the boolean flag in GlobalConfig.
         use_mcts = params.get("mcts") or getattr(cfg, "mcts", False)
         if use_mcts:
             runner = MCTSRunner(self.context, params)

@@ -47,7 +47,12 @@ def test_tree_expansion_widening(config, mock_space, mock_sampler):
     root.n_visits = 1
     
     # Mock next_actions to return many possibilities
-    actions = [MagicMock(step_name=f"s{i}") for i in range(10)]
+    actions = []
+    for i in range(10):
+        m = MagicMock(step_name=f"s{i}")
+        m.searched_index = i
+        m.group_name = f"g{i}"
+        actions.append(m)
     mock_space.next_actions.return_value = actions
     
     # 1. Select should return root (to expand), because children (0) < limit (2)

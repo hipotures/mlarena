@@ -70,7 +70,7 @@ def train(
     preset = config.hyperparameters.presets or "medium"
     time_limit = config.hyperparameters.time_limit or 300
     use_gpu = bool(config.hyperparameters.use_gpu)
-    verbosity = config.hyperparameters.verbosity
+    verbosity = getattr(config.hyperparameters, 'verbosity', 2)
 
     if verbosity == 0:
         console.quiet = True
@@ -265,7 +265,7 @@ def train(
         # Set use_bag_holdout if bagging enabled
         num_bag_folds = getattr(config.hyperparameters, "num_bag_folds", 0)
         num_bag_sets = getattr(config.hyperparameters, "num_bag_sets", None)
-        bagging_enabled = (num_bag_folds and num_bag_folds > 0) or (num_bag_sets and num_bag_sets > 0)
+        bagging_enabled = (num_bag_folds and num_bag_folds > 0) or (num_bag_sets is not None and num_bag_sets > 0)
 
         if bagging_enabled:
             use_bag_holdout = True  # Default

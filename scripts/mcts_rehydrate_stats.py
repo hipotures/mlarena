@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-MCTS Stat Rehydration Script.
+MCTS Stat Rehydration Script (Updated for Dual Indices).
 Recalculates n_visits, value_sum, and value_best from existing trial results and tree structure.
+Handles migration from 'step_index' to 'searched_index'/'original_index'.
 Usage: python scripts/mcts_rehydrate_stats.py --project playground-series-s6e1 --study s6e1_001
 """
 
@@ -97,7 +98,6 @@ def main():
         curr = tid
         while curr is not None:
             if curr not in node_stats:
-                # Should not happen if DB is consistent, but let's be safe
                 node_stats[curr] = {'visits': 0, 'sum': 0.0, 'best': -float('inf') if maximize else float('inf')}
             
             stats = node_stats[curr]
@@ -115,21 +115,45 @@ def main():
     if args.dry_run:
         print("\nDRY RUN: No changes will be saved.")
     else:
-        print("\nUpdating database...")
+        print("\nUpdating database stats...")
         for tid, stats in node_stats.items():
             if stats['visits'] > 0:
                 conn.execute(
                     "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
                     (stats['visits'], stats['sum'], stats['best'], tid)
                 )
-        conn.commit()
-        print("Success! All stats rehydrated.")
+        
+        print("Migrating legacy edges to new index format...")
+        # Optional: Migrate JSON in mcts_edges to include searched_index/original_index
+        edges_to_update = conn.execute("SELECT parent_trial_id, child_trial_id, action_json FROM mcts_edges").fetchall()
+        for e in edges_to_update:
+            d = json.loads(e['action_json'])
+            dirty = False
+            # Fallback logic for legacy keys
+            if 'searched_index' not in d:
+                d['searched_index'] = d.get('step_index', 0)
+                dirty = True
+            if 'original_index' not in d:
+                d['original_index'] = d.get('step_index', 0)
+                dirty = True
+            if 'variant' not in d and 'variant_name' in d:
+                d['variant'] = d['variant_name']
+                dirty = True
+                
+            if dirty:
+                conn.execute(
+                    "UPDATE mcts_edges SET action_json=? WHERE parent_trial_id=? AND child_trial_id=?",
+                    (json.dumps(d), e['parent_trial_id'], e['child_trial_id'])
+                )
 
-    # Show a few top nodes as verification
-    print("\nTop 5 nodes after rehydration:")
+        conn.commit()
+        print("Success! Stats rehydrated and edges migrated.")
+
+    # Show verification
+    print("\nTop nodes after rehydration:")
     sorted_nodes = sorted(node_stats.items(), key=lambda x: x[1]['visits'], reverse=True)
-    for tid, s in sorted_nodes[:5]:
-        print(f"Node {tid}: Visits={s['visits']}, Best={s['best']:.4f}, Sum={s['sum']:.4f}")
+    for tid, s in sorted_nodes[:10]:
+        print(f"Node {tid}: Visits={s['visits']}, Best={s['best']:.4f}")
 
 if __name__ == "__main__":
     main()

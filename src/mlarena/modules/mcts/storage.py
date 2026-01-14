@@ -238,7 +238,9 @@ class MCTSStorage:
                     return trial_id
                     
                 except sqlite3.IntegrityError:
+                    # Explicitly rollback and release if needed (SQLite release happens automatically on commit/rollback of parent, but we use sub-savepoints)
                     c.execute(f"ROLLBACK TO SAVEPOINT trial_creation_{attempt}")
+                    c.execute(f"RELEASE SAVEPOINT trial_creation_{attempt}")
                     # In next iteration of the loop, we will re-check signature 
                     # and potentially return existing trial_id.
                     if attempt == max_retries - 1:
@@ -270,17 +272,16 @@ class MCTSStorage:
                 return _exec(conn_local)
 
     def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any], conn: Optional[sqlite3.Connection] = None):
+        query = """
+            INSERT INTO mcts_edges (parent_trial_id, child_trial_id, action_json) 
+            VALUES (?, ?, ?)
+            ON CONFLICT(parent_trial_id, child_trial_id) DO UPDATE SET action_json=excluded.action_json
+        """
         if conn:
-            conn.execute(
-                "INSERT OR IGNORE INTO mcts_edges (parent_trial_id, child_trial_id, action_json) VALUES (?, ?, ?)",
-                (parent_trial_id, child_trial_id, json.dumps(action))
-            )
+            conn.execute(query, (parent_trial_id, child_trial_id, json.dumps(action)))
         else:
             with self._connect() as c:
-                c.execute(
-                    "INSERT OR IGNORE INTO mcts_edges (parent_trial_id, child_trial_id, action_json) VALUES (?, ?, ?)",
-                    (parent_trial_id, child_trial_id, json.dumps(action))
-                )
+                c.execute(query, (parent_trial_id, child_trial_id, json.dumps(action)))
                 c.commit()
 
     def get_all_edges(self, study_id: int) -> List[Dict[str, Any]]:

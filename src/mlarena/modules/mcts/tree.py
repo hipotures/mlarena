@@ -162,15 +162,21 @@ class MCTSTree:
             # Lazy initialize all possible next actions
             node.untried_actions = self.space.next_actions(node.state)
             
-        # Filter out actions that already have a child node
-        tried_signatures = {child.state.signature for child in node.children}
+        # Use a stable key to identify "tried" actions (step + variant)
+        # instead of state signature which varies with sampled config.
+        tried_keys = set()
+        for child in node.children:
+            act = child.action_from_parent
+            if act:
+                # Key: (searched_index, name, variant)
+                key = (act.searched_index, act.step_name, act.variant_name)
+                tried_keys.add(key)
         
-        untried = []
-        for action in node.untried_actions:
-            # Predict signature without creating state to avoid overhead
-            potential_state = node.state.add_action(action)
-            if potential_state.signature not in tried_signatures:
-                untried.append(action)
+        untried = [
+            a for action in [node.untried_actions] # Flatten check
+            for a in action 
+            if (a.searched_index, a.step_name, a.variant_name) not in tried_keys
+        ]
                 
         return untried
 
@@ -180,19 +186,17 @@ class MCTSTree:
         if not untried_actions:
             return node
             
-        action = random.choice(untried_actions)
+        # Selection from untried: shuffle happened during lazy init in _get_untried_actions
+        # or we just pick the first one from the list.
+        action = untried_actions[0]
         
-        # Determine a stable seed for this specific expansion to ensure 
-        # reproducibility across restarts (Resume).
-        # We combine global seed, parent trial_id and action name.
+        # Determine a stable seed for this specific expansion
         action_seed_base = f"{self.config.seed}_{node.trial_id}_{action.step_name}_{action.variant_name}"
         import hashlib
         seed_hash = int(hashlib.md5(action_seed_base.encode()).hexdigest(), 16) % (2**32)
-        
-        # Use a local Random instance to not pollute global RNG state
         local_rng = random.Random(seed_hash)
         
-        # We need to pass the RNG and the search spaces to the sampler
+        # Pass RNG and search spaces
         sampled_config = self.sampler.sample(
             action.template_name, 
             action.variant_name, 
@@ -206,12 +210,18 @@ class MCTSTree:
             group_name=action.group_name,
             variant_name=action.variant_name,
             config=sampled_config,
-            step_index=action.step_index
+            searched_index=action.searched_index,
+            original_index=action.original_index
         )
         
         new_state = node.state.add_action(final_action)
         child_node = MCTSNode(state=new_state, parent=node, action_from_parent=final_action)
         node.children.append(child_node)
+        
+        # Remove from untried to prevent immediate re-selection in same session
+        if node.untried_actions:
+            node.untried_actions = [a for a in node.untried_actions if a != action]
+            
         return child_node
 
     def backpropagate(self, node: MCTSNode, value: float):

@@ -7,11 +7,12 @@ from typing import List, Dict, Any, Optional
 @dataclass
 class Action:
     step_name: str
-    template_name: str # Added to lookup search space
-    group_name: str    # Added to respect exclusions
+    template_name: str
+    group_name: str
     variant_name: str
     config: Dict[str, Any]
-    step_index: int  # Index in the super-chain
+    searched_index: int  # Index in the searched_steps list (for MCTS order)
+    original_index: int  # Index in the full super-chain (for Materializer sorting)
 
     def to_record(self) -> Dict[str, Any]:
         """Convert action to a stable dictionary format for database storage."""
@@ -21,7 +22,8 @@ class Action:
             "group_name": self.group_name,
             "variant": self.variant_name,
             "config": self.config,
-            "step_index": self.step_index,
+            "searched_index": self.searched_index,
+            "original_index": self.original_index
         }
 
     @staticmethod
@@ -33,7 +35,9 @@ class Action:
             group_name=d.get("group_name") or d.get("group") or d["step_name"],
             variant_name=d.get("variant") or d.get("variant_name"),
             config=d.get("config") or {},
-            step_index=int(d.get("step_index", 0)),
+            # Robust index recovery
+            searched_index=int(d.get("searched_index", d.get("step_index", 0))),
+            original_index=int(d.get("original_index", d.get("step_index", 0)))
         )
 
 @dataclass
@@ -42,22 +46,25 @@ class PipelineState:
     depth: int = 0
     # Mapping of group_name -> step_name used in this pipeline
     used_groups: Dict[str, str] = field(default_factory=dict)
-    # Index of the last step added (from super-chain), to enforce order
+    # Index of the last searched step added, to enforce order
     last_step_index: int = -1
 
     def __post_init__(self):
         # Auto-calculate depth and groups if not provided but steps are
-        if self.steps and not self.used_groups:
+        if self.steps:
             self.depth = len(self.steps)
-            for step in self.steps:
-                group = step.get("group") or step.get("name")
-                if group:
-                    self.used_groups[group] = step.get("name")
-                
-                # Restore last_step_index from the highest index in steps
-                s_idx = step.get("step_index", -1)
-                if s_idx > self.last_step_index:
-                    self.last_step_index = s_idx
+            if not self.used_groups:
+                for step in self.steps:
+                    group = step.get("group") or step.get("name")
+                    if group:
+                        self.used_groups[group] = step.get("name")
+            
+            # ALWAYS recover last_step_index from steps if it's unset (-1)
+            if self.last_step_index == -1:
+                for step in self.steps:
+                    s_idx = step.get("searched_index", -1)
+                    if s_idx > self.last_step_index:
+                        self.last_step_index = s_idx
 
     @property
     def signature(self) -> str:
@@ -76,7 +83,8 @@ class PipelineState:
             "group": action.group_name, 
             "variant": action.variant_name,
             "config": action.config,
-            "step_index": action.step_index  # Added for sorting in materializer
+            "searched_index": action.searched_index,
+            "original_index": action.original_index
         }
         
         new_steps = list(self.steps) + [new_step]
@@ -89,6 +97,6 @@ class PipelineState:
             steps=new_steps,
             depth=len(new_steps),
             used_groups=new_used,
-            last_step_index=action.step_index
+            last_step_index=action.searched_index
         )
         return new_state

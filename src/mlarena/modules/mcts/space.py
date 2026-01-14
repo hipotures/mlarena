@@ -86,7 +86,8 @@ class SuperChainActionSpace:
                     group_name=group, # Use the actual group name from super-chain
                     variant_name=vname,
                     config={}, 
-                    step_index=i # Index in self.steps
+                    searched_index=i, # Index in self.steps
+                    original_index=self.searched_index_map[i] # Original index in super-chain
                 )
                 actions.append(action)
                 

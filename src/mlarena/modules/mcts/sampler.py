@@ -69,7 +69,8 @@ class ParameterSampler:
                 
             step = spec.get("step")
             if step:
-                val = round(val / step) * step
+                step_val = float(step)
+                val = round(val / step_val) * step_val
                 
             return float(val)
             

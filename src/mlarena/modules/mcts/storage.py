@@ -2,6 +2,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import contextlib
+import time
+import random
 from enum import IntEnum
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -75,21 +77,24 @@ CREATE TABLE IF NOT EXISTS trial_user_attributes (
   trial_id   INTEGER NOT NULL,
   key        TEXT NOT NULL,
   value_json TEXT NOT NULL,
-  PRIMARY KEY (trial_id, key),
+  PRIMARY KEY (study_id, key),
   FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
 );
 
 -- MCTS Nodes
 CREATE TABLE IF NOT EXISTS mcts_nodes (
   trial_id          INTEGER PRIMARY KEY,
+  study_id          INTEGER NOT NULL,
   depth             INTEGER NOT NULL,
   pipeline_signature TEXT NOT NULL,
   n_visits          INTEGER NOT NULL DEFAULT 0,
   value_sum         REAL NOT NULL DEFAULT 0.0,
   value_best        REAL,
-  FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
+  UNIQUE (study_id, pipeline_signature),
+  FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
+  FOREIGN KEY (study_id) REFERENCES studies(study_id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_mcts_nodes_sig ON mcts_nodes(pipeline_signature);
+CREATE INDEX IF NOT EXISTS idx_mcts_nodes_sig ON mcts_nodes(study_id, pipeline_signature);
 
 -- MCTS Edges (Parent -> Child relations)
 CREATE TABLE IF NOT EXISTS mcts_edges (
@@ -127,7 +132,11 @@ class MCTSStorage:
 
     def _connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        return sqlite3.connect(self.path)
+        # Higher timeout for NFS/Contention
+        conn = sqlite3.connect(self.path, timeout=30.0)
+        # Enable WAL for better concurrency
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
 
     @contextlib.contextmanager
     def atomic(self):
@@ -173,45 +182,63 @@ class MCTSStorage:
         state: TrialState = TrialState.WAITING,
         conn: Optional[sqlite3.Connection] = None
     ) -> int:
+        
+        # Max retries for number collision
+        max_retries = 10
+        
         def _exec(c):
+            # 1. Check if signature exists in this study (IDEMPOTENCY)
+            query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
             cur = c.cursor()
-            # 1. Check if signature exists in this study
-            query = """
-                SELECT t.trial_id FROM trials t
-                JOIN mcts_nodes n ON n.trial_id = t.trial_id
-                WHERE t.study_id = ? AND n.pipeline_signature = ?
-            """
             cur.execute(query, (study_id, pipeline_signature))
             existing = cur.fetchone()
             if existing:
                 return existing[0]
 
-            # 2. Assign trial number
-            if number is None:
-                cur.execute("SELECT MAX(number) FROM trials WHERE study_id=?", (study_id,))
-                res = cur.fetchone()
-                trial_number = (res[0] or 0) + 1
-            else:
-                trial_number = number
+            # 2. Assign and Insert with Retry
+            for attempt in range(max_retries):
+                try:
+                    # Inner savepoint for retry
+                    c.execute(f"SAVEPOINT trial_creation_{attempt}")
+                    
+                    if number is None:
+                        cur.execute("SELECT MAX(number) FROM trials WHERE study_id=?", (study_id,))
+                        res = cur.fetchone()
+                        trial_number = (res[0] or 0) + 1
+                    else:
+                        trial_number = number
 
-            cur.execute(
-                "INSERT INTO trials (study_id, number, state, datetime_start) VALUES (?, ?, ?, datetime('now'))",
-                (study_id, trial_number, state.value)
-            )
-            trial_id = cur.lastrowid
-            
-            if params:
-                for k, v in params.items():
                     cur.execute(
-                        "INSERT INTO trial_params (trial_id, param_name, param_value) VALUES (?, ?, ?)",
-                        (trial_id, k, json.dumps(v))
+                        "INSERT INTO trials (study_id, number, state, datetime_start) VALUES (?, ?, ?, datetime('now'))",
+                        (study_id, trial_number, state.value)
                     )
+                    trial_id = cur.lastrowid
+                    
+                    if params:
+                        for k, v in params.items():
+                            cur.execute(
+                                "INSERT INTO trial_params (trial_id, param_name, param_value) VALUES (?, ?, ?)",
+                                (trial_id, k, json.dumps(v))
+                            )
+                    
+                    cur.execute(
+                        "INSERT INTO mcts_nodes (trial_id, study_id, depth, pipeline_signature) VALUES (?, ?, ?, ?)",
+                        (trial_id, study_id, depth, pipeline_signature)
+                    )
+                    
+                    c.execute(f"RELEASE SAVEPOINT trial_creation_{attempt}")
+                    return trial_id
+                    
+                except sqlite3.IntegrityError:
+                    c.execute(f"ROLLBACK TO SAVEPOINT trial_creation_{attempt}")
+                    # If it's a signature collision, it will be caught by the SELECT at the top 
+                    # in next retry or if we check it again.
+                    # If it's a number collision, we just retry.
+                    if attempt == max_retries - 1:
+                        raise
+                    time.sleep(random.uniform(0.01, 0.1)) # Backoff
             
-            cur.execute(
-                "INSERT INTO mcts_nodes (trial_id, depth, pipeline_signature) VALUES (?, ?, ?)",
-                (trial_id, depth, pipeline_signature)
-            )
-            return trial_id
+            return -1 # Should not happen
 
         if conn:
             return _exec(conn)
@@ -224,11 +251,7 @@ class MCTSStorage:
     def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str) -> Optional[int]:
         with self._connect() as conn:
             cur = conn.cursor()
-            query = """
-                SELECT t.trial_id FROM trials t
-                JOIN mcts_nodes n ON n.trial_id = t.trial_id
-                WHERE t.study_id = ? AND n.pipeline_signature = ?
-            """
+            query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
             cur.execute(query, (study_id, pipeline_signature))
             row = cur.fetchone()
             return row[0] if row else None

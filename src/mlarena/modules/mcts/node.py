@@ -43,6 +43,7 @@ class PipelineState:
         """Return a new state with the action applied."""
         new_step = {
             "name": action.step_name,
+            "template": action.template_name,
             "group": action.step_name, # Default, might be overridden if we had full step info
             "variant": action.variant_name,
             "config": action.config,

@@ -864,18 +864,21 @@ def print_module_header(
 
     if input_paths:
         lines.append("")
-        if module_name == "predict":
-            preprocessing = input_paths.get("preprocessing")
-            model_template = input_paths.get("model_template")
-            if preprocessing or model_template:
-                lines.append(f"[{COLOR_KEY}]Configuration:[/{COLOR_KEY}]")
-                if preprocessing:
-                    lines.append(f"  [{COLOR_KEY}]Preprocessing:[/{COLOR_KEY}] {preprocessing}")
-                if model_template:
-                    lines.append(f"  [{COLOR_KEY}]Model Template:[/{COLOR_KEY}] {model_template}")
-                lines.append("")
-
         shapes_meta = input_paths.get("__shapes__")
+        
+        # Check for configuration keys that should be shown explicitly
+        preprocessing = input_paths.get("preprocessing")
+        model_template = input_paths.get("model_template")
+        
+        # Display configuration section for relevant modules (predict, preprocess-tune, etc.)
+        if preprocessing or model_template:
+            lines.append(f"[{COLOR_KEY}]Configuration:[/{COLOR_KEY}]")
+            if preprocessing:
+                lines.append(f"  [{COLOR_KEY}]Preprocessing:[/{COLOR_KEY}] {preprocessing}")
+            if model_template:
+                lines.append(f"  [{COLOR_KEY}]Model Template:[/{COLOR_KEY}] {model_template}")
+            lines.append("")
+
         lines.extend(_render_grouped_paths(input_paths, shapes_meta, title="Input"))
 
     if output_paths:

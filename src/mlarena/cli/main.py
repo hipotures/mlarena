@@ -1334,10 +1334,8 @@ def main(argv: List[str] | None = None) -> int:
             params = params.copy()
         
         # Inject top-level config fields that modules expect
-        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts_live"]:
+        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts_live", "n_trials"]:
             if hasattr(config, field):
-                if name == "preprocess-tune" and field == "model_template":
-                    continue
                 params[field] = getattr(config, field)
         
         # Explicitly handle renamed mcts_enabled -> mcts for module compatibility

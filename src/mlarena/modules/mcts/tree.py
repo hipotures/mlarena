@@ -131,30 +131,9 @@ class MCTSTree:
             # But "expand" is a separate step in MCTS loop.
             # "Select" usually descends until it hits a node that needs expansion.
             
-            # If untried actions are None, generate them
-            if current.untried_actions is None:
-                actions = self.space.next_actions(current.state)
-                
-                # Filter out actions already present in children (crucial for resume)
-                existing_keys = set()
-                for child in current.children:
-                    if child.action_from_parent:
-                        act = child.action_from_parent
-                        # Key: (searched_index, variant) - sufficient for uniqueness in this space
-                        existing_keys.add((act.searched_index, act.variant_name))
-                
-                current.untried_actions = [
-                    a for a in actions 
-                    if (a.searched_index, a.variant_name) not in existing_keys
-                ]
-                # Shuffle to ensure random selection order
-                random.shuffle(current.untried_actions)
-
-            # Condition to stop selection and Expand:
-            # 1. We have untried actions AND we are allowed to add more children (PW limit)
-            # 2. Or node has no children (must expand)
-            
-            is_expandable = len(current.untried_actions) > 0
+            # Check if we can expand based on ACTUAL untried actions
+            untried = self._get_untried_actions(current)
+            is_expandable = len(untried) > 0
             current_children_count = len(current.children)
             
             # If we haven't reached the width limit yet, we stop here to Expand
@@ -176,6 +155,7 @@ class MCTSTree:
         if node.untried_actions is None:
             # Lazy initialize all possible next actions
             node.untried_actions = self.space.next_actions(node.state)
+            random.shuffle(node.untried_actions)
             
         # Use a stable key to identify "tried" actions (step + variant)
         # instead of state signature which varies with sampled config.

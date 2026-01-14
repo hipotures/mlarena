@@ -123,6 +123,10 @@ class MCTSRunner:
         # 1. Explicit short args
         if "budget" in params:
             self.config.budget = int(params["budget"])
+        elif "n_trials" in params:
+            # Map standard tune flag to budget for UX consistency
+            self.config.budget = int(params["n_trials"])
+            
         if "seed" in params:
             self.config.seed = int(params["seed"])
             
@@ -216,13 +220,23 @@ class MCTSRunner:
                 child = self.tree.expand(node)
                 
                 if child == node:
-                    # Skip path
-                    self.tree.backpropagate(node, node.value_best if node.value_best > -float('inf') else 0.0)
+                    # Skip path (terminal/limits)
+                    # Use mean (not best) to avoid optimistic replay bias, fallback to root mean if no visits
+                    val = node.value_mean if node.n_visits > 0 else self.tree.root.value_mean
+                    
+                    self.tree.backpropagate(node, val)
                     with self.storage.atomic() as conn:
                         self._persist_node_stats_path(node, conn)
                     
+                    untried = self.tree._get_untried_actions(node)
+                    st = node.state
+                    diag_info = (
+                        f"Trial={node.trial_id or 'Root'} N={node.n_visits} children={len(node.children)} untried={len(untried)} "
+                        f"depth={st.depth} last_idx={st.last_step_index} groups={len(st.used_groups)}"
+                    )
                     if not self.mcts_live:
-                        print(f"Iteration {i+1}/{self.config.budget} -> Skipped (terminal/limits)")
+                        print(f"Iteration {i+1}/{self.config.budget} -> Skipped (terminal/limits) [{diag_info}]")
+                    self.logger.debug(f"Iteration {i+1} skipped: {diag_info}")
                     continue
                     
                 # 1. Create trial and edge in one transaction
@@ -255,8 +269,8 @@ class MCTSRunner:
                     # to encourage UCT to explore other paths.
                     evals = self.storage.get_evaluations(trial_id)
                     if any(e["status"] == "PRUNED" for e in evals):
-                         # Backpropagate current best value (or 0) to increment visit count
-                         val = child.value_best if child.value_best > -float('inf') else 0.0
+                         # Backpropagate mean to avoid bias, fallback to root mean
+                         val = child.value_mean if child.n_visits > 0 else self.tree.root.value_mean
                          self.tree.backpropagate(child, val)
                          with self.storage.atomic() as conn:
                              self._persist_node_stats_path(child, conn)

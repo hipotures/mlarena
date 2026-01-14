@@ -110,19 +110,27 @@ class MCTSRunner:
         self._setup_logging()
 
     def _setup_logging(self):
-        log_dir = self.context.project_root / "experiments" / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
+        # Path according to @docs/MCTS.md: experiments/mcts_runs/{run_id}/
+        self.study_dir = self.context.project_root / "experiments" / "mcts_runs" / self.run_id
+        self.study_dir.mkdir(parents=True, exist_ok=True)
         
         self.logger = logging.getLogger(f"mcts.{self.run_id}")
-        self.logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
+        self.logger.setLevel(logging.DEBUG) # Always capture debug in files
         self.logger.handlers = []
         
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
         
-        file_handler = logging.FileHandler(log_dir / "mcts.log")
-        file_handler.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+        # 1. INFO log (status study)
+        info_handler = logging.FileHandler(self.study_dir / "mcts.log")
+        info_handler.setLevel(logging.INFO)
+        info_handler.setFormatter(formatter)
+        self.logger.addHandler(info_handler)
+        
+        # 2. DEBUG log (full analysis)
+        debug_handler = logging.FileHandler(self.study_dir / "mcts.debug.log")
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.setFormatter(formatter)
+        self.logger.addHandler(debug_handler)
         
         self.logger.info(f"--- MCTS Study Started (Run ID: {self.run_id}) ---")
 
@@ -380,7 +388,15 @@ class MCTSRunner:
         state = PipelineState()
         templates = self.materializer.materialize(state, node_id=0, fixed_steps=self.space.fixed_steps)
         
-        preprocess_template = templates["base_name"]
+        # Use consistent naming for baseline experiment
+        base_name = templates["base_name"]
+        preprocess_template = f"{base_name}_F2"
+        
+        # Create fidelity-specific chain YAML copy
+        fid_path = templates["chain_path"].parent / f"{preprocess_template}.yaml"
+        if not fid_path.exists():
+            fid_path.write_text(templates["chain_path"].read_text())
+            
         exp_id = f"exp-{preprocess_template}"
         model_template = self.params.get("model_template") or "baseline"
         
@@ -461,10 +477,15 @@ class MCTSRunner:
     def _execute_trial_with_templates(self, templates: Dict[str, Any], trial_id: int, fidelity: str) -> ExperimentResult:
         base_name = templates["base_name"]
         
-        # Use the main chain template directly
-        preprocess_template = base_name
-        exp_id = f"exp-{base_name}_{fidelity}"
+        # Use fidelity-specific template name for consistent pre- folder naming
+        preprocess_template = f"{base_name}_{fidelity}"
         
+        # Create fidelity-specific chain YAML copy
+        fid_path = templates["chain_path"].parent / f"{preprocess_template}.yaml"
+        if not fid_path.exists():
+            fid_path.write_text(templates["chain_path"].read_text())
+            
+        exp_id = f"exp-{preprocess_template}"
         model_template = self.params.get("model_template") or "baseline"
         
         cmd = self.executor.build_command(

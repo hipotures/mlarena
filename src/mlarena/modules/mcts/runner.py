@@ -175,7 +175,8 @@ class MCTSRunner:
                     # Record the edge
                     parent_trial_id = self.storage.get_trial_id_by_signature(
                         self.study_id, 
-                        node.state.signature if node != self.tree.root else "baseline"
+                        node.state.signature if node != self.tree.root else "baseline",
+                        conn=conn
                     )
                     
                     if parent_trial_id:
@@ -297,9 +298,14 @@ class MCTSRunner:
                 else:
                     if not self.mcts_live:
                         print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
-                    error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
-                    summary = "\n".join(error_text.strip().split("\n")[-10:])
-                    self.logger.error(f"  -> Trial {trial_id} failed. Error Summary:\n{summary}")
+                    
+                    # Extract error from JSON if available, otherwise fallback to stderr
+                    error_msg = result.details.get("error")
+                    if not error_msg:
+                        error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
+                        error_msg = "\n".join(error_text.strip().split("\n")[-10:])
+                    
+                    self.logger.error(f"  -> Trial {trial_id} failed. Error: {error_msg}")
                     
                     with self.storage.atomic() as conn:
                         penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0

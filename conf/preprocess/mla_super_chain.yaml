@@ -52,7 +52,7 @@ preprocessors:
 - name: datetime_handler
   group: datetime
   template: datetime_handler
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
 - name: time_series_features
@@ -228,7 +228,7 @@ evaluation:
   seed: 42
 
 mcts:
-  study_name: null  # Auto-generated based on project
+  study_name: study001
   direction: maximize
   budget: 10
   storage_url: sqlite:///experiments/db/mcts.db

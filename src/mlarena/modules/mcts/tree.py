@@ -154,29 +154,33 @@ class MCTSTree:
             current = self._best_child(current)
 
     def expand(self, node: MCTSNode) -> MCTSNode:
-        """Add a new child to the node."""
-        if not node.untried_actions:
-            return node # Cannot expand
+        """Expand a node by adding a new child with a sampled action."""
+        untried_actions = self._get_untried_actions(node)
+        if not untried_actions:
+            return node
             
-        action = node.untried_actions.pop()
+        action = random.choice(untried_actions)
         
-        # Sample parameters for the action
-        sampled_config = {} 
+        # Determine a stable seed for this specific expansion to ensure 
+        # reproducibility across restarts (Resume).
+        # We combine global seed, parent trial_id and action name.
+        action_seed_base = f"{self.config.seed}_{node.trial_id}_{action.step_name}_{action.variant_name}"
+        import hashlib
+        seed_hash = int(hashlib.md5(action_seed_base.encode()).hexdigest(), 16) % (2**32)
         
-        # Look up search space for this template and variant
-        space = self.space.search_spaces.get(action.template_name, {})
-        variants = space.get("variants", [])
-        variant_spec = next((v for v in variants if v.get("name") == action.variant_name), None)
+        # Use a local Random instance to not pollute global RNG state
+        local_rng = random.Random(seed_hash)
         
-        if variant_spec:
-            params_spec = variant_spec.get("params", {})
-            for p_name, p_spec in params_spec.items():
-                if isinstance(p_spec, dict):
-                    sampled_config[p_name] = self.sampler.sample(f"{action.step_name}.{p_name}", p_spec)
+        # We need to pass the RNG and the search spaces to the sampler
+        sampled_config = self.sampler.sample(
+            action.template_name, 
+            action.variant_name, 
+            search_spaces=self.space.search_spaces, 
+            rng=local_rng
+        )
         
-        # Update action with sampled config
         final_action = Action(
-            step_name=action_description(action.step_name),
+            step_name=action.step_name,
             template_name=action.template_name,
             group_name=action.group_name,
             variant_name=action.variant_name,
@@ -185,17 +189,9 @@ class MCTSTree:
         )
         
         new_state = node.state.add_action(final_action)
-        child = MCTSNode(
-            state=new_state,
-            parent=node,
-            action_from_parent=final_action
-        )
-        
-        logger.debug(f"[EXPANSION] Node {node.trial_id or 'Root'} -> Added child: {final_action.step_name}:{final_action.variant_name}")
-        logger.debug(f"  -> Config: {json.dumps(sampled_config)}")
-        
-        node.children.append(child)
-        return child
+        child_node = MCTSNode(state=new_state, parent=node, action_from_parent=final_action)
+        node.children.append(child_node)
+        return child_node
 
     def backpropagate(self, node: MCTSNode, value: float):
         """Update stats from node to root."""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import sqlite3
+import contextlib
 from enum import IntEnum
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -128,6 +129,19 @@ class MCTSStorage:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         return sqlite3.connect(self.path)
 
+    @contextlib.contextmanager
+    def atomic(self):
+        """Context manager for a single transaction across multiple storage calls."""
+        conn = self._connect()
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
     def _init_db(self):
         with self._connect() as conn:
             conn.executescript(SCHEMA)
@@ -156,10 +170,11 @@ class MCTSStorage:
         depth: int,
         number: Optional[int] = None,
         params: Optional[Dict[str, Any]] = None,
-        state: TrialState = TrialState.WAITING
+        state: TrialState = TrialState.WAITING,
+        conn: Optional[sqlite3.Connection] = None
     ) -> int:
-        with self._connect() as conn:
-            cur = conn.cursor()
+        def _exec(c):
+            cur = c.cursor()
             # 1. Check if signature exists in this study
             query = """
                 SELECT t.trial_id FROM trials t
@@ -175,11 +190,13 @@ class MCTSStorage:
             if number is None:
                 cur.execute("SELECT MAX(number) FROM trials WHERE study_id=?", (study_id,))
                 res = cur.fetchone()
-                number = (res[0] or 0) + 1
+                trial_number = (res[0] or 0) + 1
+            else:
+                trial_number = number
 
             cur.execute(
                 "INSERT INTO trials (study_id, number, state, datetime_start) VALUES (?, ?, ?, datetime('now'))",
-                (study_id, number, state.value)
+                (study_id, trial_number, state.value)
             )
             trial_id = cur.lastrowid
             
@@ -196,6 +213,14 @@ class MCTSStorage:
             )
             return trial_id
 
+        if conn:
+            return _exec(conn)
+        else:
+            with self._connect() as c:
+                res = _exec(c)
+                c.commit()
+                return res
+
     def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str) -> Optional[int]:
         with self._connect() as conn:
             cur = conn.cursor()
@@ -208,12 +233,19 @@ class MCTSStorage:
             row = cur.fetchone()
             return row[0] if row else None
 
-    def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any]):
-        with self._connect() as conn:
+    def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any], conn: Optional[sqlite3.Connection] = None):
+        if conn:
             conn.execute(
                 "INSERT OR IGNORE INTO mcts_edges (parent_trial_id, child_trial_id, action_json) VALUES (?, ?, ?)",
                 (parent_trial_id, child_trial_id, json.dumps(action))
             )
+        else:
+            with self._connect() as c:
+                c.execute(
+                    "INSERT OR IGNORE INTO mcts_edges (parent_trial_id, child_trial_id, action_json) VALUES (?, ?, ?)",
+                    (parent_trial_id, child_trial_id, json.dumps(action))
+                )
+                c.commit()
 
     def get_all_edges(self, study_id: int) -> List[Dict[str, Any]]:
         with self._connect() as conn:
@@ -239,36 +271,57 @@ class MCTSStorage:
             cur.execute(query, (study_id,))
             return [dict(row) for row in cur.fetchall()]
 
-    def update_node_stats(self, trial_id: int, n_visits: int, value_sum: float, value_best: float):
-        with self._connect() as conn:
+    def update_node_stats(self, trial_id: int, n_visits: int, value_sum: float, value_best: float, conn: Optional[sqlite3.Connection] = None):
+        if conn:
             conn.execute(
                 "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
                 (n_visits, value_sum, value_best, trial_id)
             )
+        else:
+            with self._connect() as c:
+                c.execute(
+                    "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
+                    (n_visits, value_sum, value_best, trial_id)
+                )
+                c.commit()
 
-    def set_trial_value(self, trial_id: int, value: float):
-        with self._connect() as conn:
+    def set_trial_value(self, trial_id: int, value: float, conn: Optional[sqlite3.Connection] = None):
+        if conn:
             conn.execute(
                 "INSERT OR REPLACE INTO trial_values (trial_id, objective, value) VALUES (?, ?, ?)",
                 (trial_id, 0, value)
             )
+        else:
+            with self._connect() as c:
+                c.execute(
+                    "INSERT OR REPLACE INTO trial_values (trial_id, objective, value) VALUES (?, ?, ?)",
+                    (trial_id, 0, value)
+                )
+                c.commit()
 
-    def set_trial_state(self, trial_id: int, state: str):
+    def set_trial_state(self, trial_id: int, state: str | TrialState, conn: Optional[sqlite3.Connection] = None):
         if isinstance(state, str):
             state_enum = getattr(TrialState, state.upper())
         else:
             state_enum = state
             
-        with self._connect() as conn:
-            conn.execute(
+        def _exec(c):
+            c.execute(
                 "UPDATE trials SET state=? WHERE trial_id=?",
                 (state_enum.value, trial_id)
             )
             if state_enum in (TrialState.COMPLETE, TrialState.FAIL, TrialState.PRUNED):
-                conn.execute(
+                c.execute(
                     "UPDATE trials SET datetime_complete=datetime('now') WHERE trial_id=?",
                     (trial_id,)
                 )
+
+        if conn:
+            _exec(conn)
+        else:
+            with self._connect() as c:
+                _exec(c)
+                c.commit()
 
     def get_best_trial(self, study_id: int) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
@@ -295,9 +348,9 @@ class MCTSStorage:
                 return {"trial_id": res[0], "value": res[1]}
             return None
 
-    def add_evaluation(self, trial_id: int, fidelity: str, status: str, value: Optional[float], metric: str, duration: float, details: Optional[Dict[str, Any]] = None):
+    def add_evaluation(self, trial_id: int, fidelity: str, status: str, value: Optional[float], metric: str, duration: float, details: Optional[Dict[str, Any]] = None, conn: Optional[sqlite3.Connection] = None):
         details_json = json.dumps(details) if details else None
-        with self._connect() as conn:
+        if conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO mcts_evaluations 
@@ -306,6 +359,17 @@ class MCTSStorage:
                 """,
                 (trial_id, fidelity, status, value, metric, duration, details_json)
             )
+        else:
+            with self._connect() as c:
+                c.execute(
+                    """
+                    INSERT OR REPLACE INTO mcts_evaluations 
+                    (trial_id, fidelity, status, value, metric_name, duration_sec, details_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (trial_id, fidelity, status, value, metric, duration, details_json)
+                )
+                c.commit()
 
     def get_evaluations(self, trial_id: int) -> List[Dict[str, Any]]:
         with self._connect() as conn:

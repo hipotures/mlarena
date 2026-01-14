@@ -161,22 +161,25 @@ class MCTSRunner:
                         print(f"Iteration {i+1}/{self.config.budget} -> Skipped (terminal/limits)")
                     continue
                     
-                trial_id = self.storage.create_trial(
-                    study_id=self.study_id,
-                    pipeline_signature=child.state.signature,
-                    depth=child.state.depth,
-                    params=self._state_to_params(child.state)
-                )
-                child.trial_id = trial_id # For visualization
-                
-                # Record the edge
-                parent_trial_id = self.storage.get_trial_id_by_signature(
-                    self.study_id, 
-                    node.state.signature if node != self.tree.root else "baseline"
-                )
-                
-                if parent_trial_id:
-                    self.storage.add_edge(parent_trial_id, trial_id, child.action_from_parent.to_record())
+                # 1. Create trial and edge in one transaction
+                with self.storage.atomic() as conn:
+                    trial_id = self.storage.create_trial(
+                        study_id=self.study_id,
+                        pipeline_signature=child.state.signature,
+                        depth=child.state.depth,
+                        params=self._state_to_params(child.state),
+                        conn=conn
+                    )
+                    child.trial_id = trial_id # For visualization
+                    
+                    # Record the edge
+                    parent_trial_id = self.storage.get_trial_id_by_signature(
+                        self.study_id, 
+                        node.state.signature if node != self.tree.root else "baseline"
+                    )
+                    
+                    if parent_trial_id:
+                        self.storage.add_edge(parent_trial_id, trial_id, child.action_from_parent.to_record(), conn=conn)
 
                 fidelity = self._get_next_fidelity(child, trial_id)
                 if not fidelity:
@@ -226,21 +229,23 @@ class MCTSRunner:
                             f"FeatPenalty={feat_penalty:.4f}, TimePenalty={time_penalty:.4f}, Final={final_value:.4f}"
                         )
 
-                    self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, result.details)
-                    self.logger.debug(f"[BACKPROP] Propagating value {final_value:.4f} (original: {result.value:.4f}) from node {trial_id}")
-                    
-                    # Update in-memory tree
-                    self.tree.backpropagate(child, final_value)
-                    
-                    # PERSIST to database: update all nodes on the path
-                    curr = child
-                    while curr is not None:
-                        tid = curr.trial_id
-                        if tid:
-                            self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best)
-                        curr = curr.parent
+                    # 2. Persist results and backprop stats in one transaction
+                    with self.storage.atomic() as conn:
+                        self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, result.details, conn=conn)
+                        self.logger.debug(f"[BACKPROP] Propagating value {final_value:.4f} (original: {result.value:.4f}) from node {trial_id}")
+                        
+                        # Update in-memory tree
+                        self.tree.backpropagate(child, final_value)
+                        
+                        # PERSIST to database: update all nodes on the path
+                        curr = child
+                        while curr is not None:
+                            tid = curr.trial_id
+                            if tid:
+                                self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best, conn=conn)
+                            curr = curr.parent
 
-                    self.storage.set_trial_value(trial_id, result.value) # Keep original score in DB for reporting
+                        self.storage.set_trial_value(trial_id, result.value, conn=conn) # Keep original score in DB for reporting
                     
                     # Save raw JSON to file for debugging
                     raw = result.details.get("raw_json", {})
@@ -296,10 +301,11 @@ class MCTSRunner:
                     summary = "\n".join(error_text.strip().split("\n")[-10:])
                     self.logger.error(f"  -> Trial {trial_id} failed. Error Summary:\n{summary}")
                     
-                    penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
-                    self.tree.backpropagate(child, penalty)
-                    self.storage.set_trial_state(trial_id, TrialState.FAIL)
-                    self.storage.add_evaluation(trial_id, fidelity, "FAIL", None, "", 0.0, result.details)
+                    with self.storage.atomic() as conn:
+                        penalty = -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
+                        self.tree.backpropagate(child, penalty)
+                        self.storage.set_trial_state(trial_id, TrialState.FAIL, conn=conn)
+                        self.storage.add_evaluation(trial_id, fidelity, "FAIL", None, "", 0.0, result.details, conn=conn)
                     
                     # Cleanup templates on failure (respect configuration)
                     keep_on_fail = self.config.templates.retain_failures

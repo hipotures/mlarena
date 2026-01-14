@@ -10,6 +10,10 @@ from mlarena.modules.mcts.node import PipelineState, Action
 from mlarena.modules.mcts.space import SuperChainActionSpace
 from mlarena.modules.mcts.sampler import ParameterSampler
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 @dataclass
 class MCTSNode:
     state: PipelineState
@@ -17,6 +21,7 @@ class MCTSNode:
     action_from_parent: Optional[Action] = None
     children: List[MCTSNode] = field(default_factory=list)
     
+    trial_id: Optional[int] = None
     n_visits: int = 0
     value_sum: float = 0.0
     value_best: float = -float('inf')
@@ -59,7 +64,8 @@ class MCTSTree:
         
         for n in nodes_data:
             sig = n["pipeline_signature"]
-            node = MCTSNode(state=PipelineState()) # Placeholder state, will be updated below
+            node = MCTSNode(state=PipelineState()) 
+            node.trial_id = n["trial_id"]
             node.n_visits = n["n_visits"]
             node.value_sum = n["value_sum"]
             node.value_best = n["value_best"] if n["value_best"] is not None else -float('inf')
@@ -167,7 +173,7 @@ class MCTSTree:
         
         # Update action with sampled config
         final_action = Action(
-            step_name=action.step_name,
+            step_name=action_description(action.step_name),
             template_name=action.template_name,
             variant_name=action.variant_name,
             config=sampled_config,
@@ -180,6 +186,10 @@ class MCTSTree:
             parent=node,
             action_from_parent=final_action
         )
+        
+        logger.debug(f"[EXPANSION] Node {node.trial_id or 'Root'} -> Added child: {final_action.step_name}:{final_action.variant_name}")
+        logger.debug(f"  -> Config: {json.dumps(sampled_config)}")
+        
         node.children.append(child)
         return child
 
@@ -201,6 +211,8 @@ class MCTSTree:
         c = self.config.exploration_weight
         ln_n = math.log(node.n_visits) if node.n_visits > 0 else 0
         
+        logger.debug(f"[SELECTION] Evaluating {len(node.children)} children of node {node.trial_id or 'Root'}:")
+        
         for child in node.children:
             exploit = child.value_mean
             if child.n_visits > 0:
@@ -211,6 +223,11 @@ class MCTSTree:
             
             score = exploit + explore
             
+            # Action description
+            act = child.action_from_parent
+            act_desc = f"{act.step_name}:{act.variant_name}" if act else "unknown"
+            logger.debug(f"  -> Child {child.trial_id or '?'}: {act_desc} | Q={exploit:.4f}, N={child.n_visits}, Explore={explore:.4f}, Total={score:.4f}")
+            
             if score > best_score:
                 best_score = score
                 best_nodes = [child]
@@ -220,4 +237,10 @@ class MCTSTree:
         if not best_nodes:
             return node.children[0] if node.children else None
             
-        return random.choice(best_nodes)
+        selected = random.choice(best_nodes)
+        logger.debug(f"  -> Selected child {selected.trial_id or '?'}")
+        return selected
+
+def action_description(name: str) -> str:
+    # Helper to clean up name if needed
+    return name

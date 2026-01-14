@@ -855,6 +855,12 @@ class PreprocessTuneModule(BaseModule):
         params = self.invocation_params or {}
         cfg = self.context.config
 
+        # MCTS Routing - Check both params and global config explicitly
+        use_mcts = params.get("mcts") or getattr(cfg, "mcts", False)
+        if use_mcts:
+            runner = MCTSRunner(self.context, params)
+            return runner.run()
+
         def _param(name: str, default: Any) -> Any:
             if name in params:
                 return params[name]
@@ -865,11 +871,6 @@ class PreprocessTuneModule(BaseModule):
             if hasattr(cfg, name):
                 return getattr(cfg, name)
             return default
-
-        # MCTS Routing
-        if bool(_param("mcts", False)):
-            runner = MCTSRunner(self.context, params)
-            return runner.run()
 
         super_chain_path = Path(_param("super_chain", DEFAULT_SUPER_CHAIN))
         super_chain = _load_yaml(super_chain_path)

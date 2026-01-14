@@ -196,7 +196,9 @@ class MCTSRunner:
                 self.logger.info(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity})")
                 self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
                 
-                result = self._execute_trial(child, trial_id, fidelity)
+                # Materialize and execute
+                trial_templates = self.materializer.materialize(child.state, node_id=trial_id, fixed_steps=self.space.fixed_steps)
+                result = self._execute_trial_with_templates(trial_templates, trial_id, fidelity)
                 
                 if result.success and result.value is not None:
                     # Calculate penalties
@@ -268,6 +270,9 @@ class MCTSRunner:
                     if not self.mcts_live:
                         print(success_msg)
                     
+                    # Cleanup templates unless it's new best
+                    self._cleanup_templates(trial_templates, fidelity, keep=is_new_best)
+                    
                     best_model = raw.get("best_model", "N/A")
                     exp_id_res = raw.get("experiment_id", "N/A")
                     
@@ -289,6 +294,9 @@ class MCTSRunner:
                     self.tree.backpropagate(child, penalty)
                     self.storage.set_trial_state(trial_id, TrialState.FAIL)
                     self.storage.add_evaluation(trial_id, fidelity, "FAIL", None, "", 0.0, result.details)
+                    
+                    # Cleanup templates on failure
+                    self._cleanup_templates(trial_templates, fidelity, keep=False)
                 
                 if self.live: self.live.update(self._render_tree(best_so_far))
         finally:
@@ -418,16 +426,45 @@ class MCTSRunner:
             self.logger.error(f"Baseline failed: {result.details}")
             self.storage.set_trial_state(trial_id, TrialState.FAIL)
 
-    def _execute_trial(self, node: MCTSNode, trial_id: int, fidelity: str) -> ExperimentResult:
-        templates = self.materializer.materialize(node.state, node_id=trial_id, fixed_steps=self.space.fixed_steps)
-        base_name = templates["base_name"]
-        preprocess_template = f"{base_name}_{fidelity}"
-        
-        fid_path = templates["chain_path"].parent / f"{preprocess_template}.yaml"
-        if not fid_path.exists():
-            fid_path.write_text(templates["chain_path"].read_text())
+    def _cleanup_templates(self, templates: Dict[str, Any], fidelity: str, keep: bool = False):
+        """Delete template files if they are not the best."""
+        if keep:
+            return
             
-        exp_id = f"exp-{preprocess_template}"
+        policy = self.config.templates.retention
+        if policy == "all":
+            return
+            
+        base_name = templates.get("base_name")
+        if not base_name or not fidelity:
+            self.logger.warning(f"Cleanup skipped: empty base_name or fidelity")
+            return
+
+        templates_dir = self.materializer.templates_dir.resolve()
+            
+        try:
+            # 1. Delete chain YAML
+            chain_path = Path(templates["chain_path"]).resolve()
+            if chain_path.exists() and chain_path.is_relative_to(templates_dir):
+                chain_path.unlink()
+                self.logger.debug(f"[CLEANUP] Deleted chain template: {chain_path}")
+            
+            # 2. Delete step YAMLs
+            for p in templates["step_paths"]:
+                step_path = Path(p).resolve()
+                if step_path.exists() and step_path.is_relative_to(templates_dir):
+                    step_path.unlink()
+                    self.logger.debug(f"[CLEANUP] Deleted step template: {step_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to cleanup templates: {e}")
+
+    def _execute_trial_with_templates(self, templates: Dict[str, Any], trial_id: int, fidelity: str) -> ExperimentResult:
+        base_name = templates["base_name"]
+        
+        # Use the main chain template directly
+        preprocess_template = base_name
+        exp_id = f"exp-{base_name}_{fidelity}"
+        
         model_template = self.params.get("model_template") or "baseline"
         
         cmd = self.executor.build_command(

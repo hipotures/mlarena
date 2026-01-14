@@ -256,6 +256,9 @@ def _build_parser(add_help: bool = True) -> argparse.ArgumentParser:
     parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
     parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
     parser.add_argument("--json-output", action="store_true", help="Output results in JSON format (silent mode)")
+    parser.add_argument("--mcts", action="store_true", help="Use MCTS for search")
+    parser.add_argument("--mcts-live", "--live", action="store_true", dest="mcts_live", help="Enable live tree visualization for MCTS")
+    parser.add_argument("--telegram-test", action="store_true", help="Send a test Telegram message on startup")
     parser.add_argument("--classic", action="store_true", help="Execute chain step-by-step using intermediate files (legacy mode)")
     return parser
 
@@ -1072,6 +1075,16 @@ def main(argv: List[str] | None = None) -> int:
 
     # Convert --flag value to key=value for OmegaConf
     overrides = _convert_dash_args_to_overrides(overrides)
+    
+    # Merge argparse known flags into overrides so they reach GlobalConfig
+    for key, value in vars(args).items():
+        if value is True: # Only add enabled boolean flags
+            if not any(o.startswith(f"{key}=") for o in overrides):
+                overrides.append(f"{key}=true")
+        elif value is not None and not isinstance(value, bool):
+            # For non-boolean args like --project or --profile, add if not already in overrides
+            if not any(o.startswith(f"{key}=") for o in overrides):
+                overrides.append(f"{key}={value}")
 
     # Detect command from overrides (first non-override argument)
     command = None
@@ -1317,7 +1330,7 @@ def main(argv: List[str] | None = None) -> int:
             params = params.copy()
         
         # Inject top-level config fields that modules expect
-        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock"]:
+        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts", "mcts_live"]:
             if hasattr(config, field):
                 if name == "preprocess-tune" and field == "model_template":
                     continue

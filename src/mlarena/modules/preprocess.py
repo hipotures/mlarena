@@ -34,9 +34,10 @@ try:
     from sklearn.base import BaseEstimator, TransformerMixin
 except ImportError:
     # Optional dependency, but required for pipeline mode
-    Pipeline = object
-    BaseEstimator = object
-    TransformerMixin = object
+    # Use distinct placeholders to avoid TypeError: duplicate base class object
+    class Pipeline: pass
+    class BaseEstimator: pass
+    class TransformerMixin: pass
 
 from dataclasses import dataclass, field
 

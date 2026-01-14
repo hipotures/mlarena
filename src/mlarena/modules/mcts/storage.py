@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS trial_user_attributes (
   trial_id   INTEGER NOT NULL,
   key        TEXT NOT NULL,
   value_json TEXT NOT NULL,
-  PRIMARY KEY (study_id, key),
+  PRIMARY KEY (trial_id, key),
   FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
 );
 
@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS mcts_nodes (
   FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
   FOREIGN KEY (study_id) REFERENCES studies(study_id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_mcts_nodes_study ON mcts_nodes(study_id);
 CREATE INDEX IF NOT EXISTS idx_mcts_nodes_sig ON mcts_nodes(study_id, pipeline_signature);
 
 -- MCTS Edges (Parent -> Child relations)
@@ -105,6 +106,7 @@ CREATE TABLE IF NOT EXISTS mcts_edges (
   FOREIGN KEY (parent_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
   FOREIGN KEY (child_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_mcts_edges_child ON mcts_edges(child_trial_id);
 
 -- MCTS Evaluations (Multi-fidelity)
 CREATE TABLE IF NOT EXISTS mcts_evaluations (

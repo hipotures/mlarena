@@ -53,6 +53,11 @@ class PipelineState:
                 group = step.get("group") or step.get("name")
                 if group:
                     self.used_groups[group] = step.get("name")
+                
+                # Restore last_step_index from the highest index in steps
+                s_idx = step.get("step_index", -1)
+                if s_idx > self.last_step_index:
+                    self.last_step_index = s_idx
 
     @property
     def signature(self) -> str:
@@ -71,6 +76,7 @@ class PipelineState:
             "group": action.group_name, 
             "variant": action.variant_name,
             "config": action.config,
+            "step_index": action.step_index  # Added for sorting in materializer
         }
         
         new_steps = list(self.steps) + [new_step]

@@ -23,28 +23,28 @@ class TemplateMaterializer:
         
         all_pipeline_steps = []
         
-        # 1. Add fixed steps
+        # 1. Add fixed steps with their original index
         if fixed_steps:
             for fs in fixed_steps:
                 cfg = fs["config"]
                 all_pipeline_steps.append({
+                    "original_index": fs["index"],
                     "name": cfg["name"],
                     "module": cfg.get("template") or cfg.get("module"),
                     "config": cfg.get("fixed_config", {}),
-                    "is_fixed": True
                 })
         
-        # 2. Add searched steps from state
+        # 2. Add searched steps from state with their recorded index
         for s in state.steps:
             all_pipeline_steps.append({
+                "original_index": s.get("step_index", 0), # Default to 0 if missing
                 "name": s["name"],
                 "module": s.get("module") or s.get("template"),
                 "config": s.get("config", {}),
-                "is_fixed": False
             })
             
-        # 3. Sort by something? Actually, fixed steps usually come first (init, eda, fraction)
-        # For now, we prepend fixed steps as requested.
+        # 3. Sort by original index to maintain super-chain order
+        all_pipeline_steps.sort(key=lambda x: x["original_index"])
         
         chain_list: List[str] = []
         step_files: List[str] = []

@@ -43,11 +43,12 @@ def _render_grouped_paths(paths_dict: Dict[str, str], shapes_meta: Optional[Dict
     lines = [f"[{COLOR_KEY}]{title}:[/{COLOR_KEY}]"]
     
     # Separate special entries
-    clean_paths = {k: v for k, v in paths_dict.items() if k not in ["__shapes__", "preprocessing", "model_template", "pipeline", "flow"]}
+    excluded_keys = ["__shapes__", "preprocessing", "model_template", "pipeline", "flow", "n_trials"]
+    clean_paths = {k: v for k, v in paths_dict.items() if k not in excluded_keys}
     if not clean_paths:
         # Fallback for meta-info only
         for k, v in paths_dict.items():
-            if k == "__shapes__": continue
+            if k in excluded_keys: continue
             lines.append(f"  [{COLOR_KEY}]{k.replace('_', ' ').title()}:[/{COLOR_KEY}] {v}")
         return lines
 

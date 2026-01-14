@@ -180,8 +180,9 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 "ignored_columns": getattr(self.context.config_module, "IGNORED_COLUMNS", []),
                 "problem_type": getattr(self.context.config_module, "AUTOGLUON_PROBLEM_TYPE", "binary"),
             }
-            # Pass aggregated original features
-            preprocess_config["_original_features"] = X.state.get("custom_module_state", {}).get("original_features")
+            # Pass aggregated original features - Ensure correct lookup
+            orig_feat_list = X.state.get("custom_module_state", {}).get("original_features")
+            preprocess_config["_original_features"] = orig_feat_list
 
             # 3. Execute fit_transform
             import inspect
@@ -245,12 +246,26 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
                 else:
                     new_test = combined_res
 
-            # Update container
-            if new_train is not None: X.train = new_train
-            if new_test is not None: X.test = new_test
-            X.val = new_val if new_val is not None else X.val
-            X.eval = new_eval if new_eval is not None else X.eval
-            X.orig = new_orig if new_orig is not None else X.orig
+            # Update container with index reset to prevent alignment spikes
+            if new_train is not None: X.train = new_train.reset_index(drop=True)
+            if new_test is not None: X.test = new_test.reset_index(drop=True)
+            if new_val is not None: X.val = new_val.reset_index(drop=True)
+            if new_eval is not None: X.eval = new_eval.reset_index(drop=True)
+            if new_orig is not None: X.orig = new_orig.reset_index(drop=True)
+            
+            # Feature Guard: Check for explosion immediately
+            max_feats = getattr(self.context.config, "max_features_out", 5000)
+            current_feats = X.train.shape[1]
+            if current_feats > max_feats:
+                raise RuntimeError(
+                    f"[FEATURE_EXPLOSION] Step '{self.step_name}' generated {current_feats} features, "
+                    f"exceeding the safety limit of {max_feats}."
+                )
+
+            # Explicitly free memory
+            del new_train, new_test, new_val, new_eval, new_orig, result
+            import gc
+            gc.collect()
             
             # 5. Merge State
             if "custom_module_state" not in X.state:
@@ -687,173 +702,185 @@ class PreprocessModule(BaseModule):
         if pipeline_definition is None and template_cfg.get("chain") and not is_classic:
             pipeline_definition = template_cfg.get("chain")
 
+        # If steps is provided, we execute the whole chain in-memory
         if pipeline_definition:
-            # Always show start message on stdout (unless quiet_mode is enabled)
-            console_out = Console(file=sys.__stdout__, force_terminal=True, quiet=quiet_mode)
-            console_out.print(f"\n[bold magenta]Starting Unified Pipeline Execution[/bold magenta] (In-Memory)")
-            
-            # 1. Initialize Container
-            container = MLArenaDataContainer(
-                train=train_df,
-                test=test_df,
-                val=tuning_df,
-                eval=eval_df,
-                orig=orig_df,
-                state={"custom_module_state": prev_custom_state.copy()},
-                initial_shapes={
-                    "train": orig_train_shape,
-                    "test": orig_test_shape,
-                    "val": orig_tuning_shape,
-                    "eval": orig_eval_shape,
-                    "orig": orig_orig_shape,
-                }
-            )
-            
-            if original_features and "original_features" not in container.state["custom_module_state"]:
-                container.state["custom_module_state"]["original_features"] = original_features
-            
-            # 2. Build Pipeline & Initialize State
-            pipeline_steps = []
-            state_steps = []
-            for idx, step_item in enumerate(pipeline_definition):
-                if isinstance(step_item, str):
-                    step_cfg = {"template": step_item}
-                    step_name = f"{idx}-{step_item}"
-                    module_name_for_step = step_item # Fallback
-                elif isinstance(step_item, dict):
-                    step_cfg = step_item
-                    raw_name = step_cfg.get("name") or step_cfg.get("template") or f"step_{idx}"
-                    # Robust check for prefix (e.g. "0-", "10-")
-                    if not (raw_name and re.match(r"^\d+-", str(raw_name))):
-                        step_name = f"{idx}-{raw_name}"
-                    else:
-                        step_name = raw_name
-                    module_name_for_step = step_cfg.get("module") or step_cfg.get("template") or "unknown"
-                else:
-                    raise ValueError(f"Invalid step format: {step_item}")
+            try:
+                # 1. Initialize Container
+                # Capture original shapes for reporting
+                orig_train_shape = train_df.shape
+                orig_test_shape = test_df.shape
+                orig_orig_shape = orig_df.shape if orig_df is not None else None
+                orig_tuning_shape = tuning_df.shape if tuning_df is not None else None
+                orig_eval_shape = eval_df.shape if eval_df is not None else None
 
-                wrapper = MLArenaStepWrapper(step_name, idx, step_cfg, self.context, self)
-                pipeline_steps.append((step_name, wrapper))
-                state_steps.append(PipelineStep(name=step_name, module=module_name_for_step))
-            
-            if self.context.state:
-                # IMPORTANT: Move state.json to parent directory (hash level) for unified pipeline
-                # as per docs/preprocessing_state_schema.md
-                original_exp_dir = self.context.state.experiment_dir
-                self.context.state.experiment_dir = original_exp_dir.parent
-                
-                # Update experiment_id to reflect hash level (remove the last component)
-                exp_id_parts = self.context.state.experiment_id.split("/")
-                if len(exp_id_parts) > 1:
-                    self.context.state.experiment_id = "/".join(exp_id_parts[:-1])
-
-                self.context.state.pipeline_progress = PipelineProgress(
-                    status="running",
-                    total_steps=len(pipeline_definition),
-                    current_step_idx=0,
-                    start_time=utc_now_iso(),
-                    steps=state_steps
+                container = MLArenaDataContainer(
+                    train=train_df,
+                    test=test_df,
+                    val=tuning_df,
+                    eval=eval_df,
+                    orig=orig_df,
+                    state={"custom_module_state": prev_custom_state.copy()},
+                    initial_shapes={
+                        "train": orig_train_shape,
+                        "test": orig_test_shape,
+                        "val": orig_tuning_shape,
+                        "eval": orig_eval_shape,
+                        "orig": orig_orig_shape,
+                    }
                 )
-                self.context.state.status = "running"
-                self.context.state.save()
+                
+                # Critical: Propagate original features list
+                if original_features:
+                    if "custom_module_state" not in container.state:
+                        container.state["custom_module_state"] = {}
+                    container.state["custom_module_state"]["original_features"] = original_features
+                
+                # 2. Build Pipeline & Initialize State
+                pipeline_steps = []
+                state_steps = []
+                for idx, step_item in enumerate(pipeline_definition):
+                    if isinstance(step_item, str):
+                        step_cfg = {"template": step_item}
+                        step_name = f"{idx}-{step_item}"
+                        module_name_for_step = step_item # Fallback
+                    elif isinstance(step_item, dict):
+                        step_cfg = step_item
+                        raw_name = step_cfg.get("name") or step_cfg.get("template") or f"step_{idx}"
+                        # Robust check for prefix (e.g. "0-", "10-")
+                        if not (raw_name and re.match(r"^\d+-", str(raw_name))):
+                            step_name = f"{idx}-{raw_name}"
+                        else:
+                            step_name = raw_name
+                        module_name_for_step = step_cfg.get("module") or step_cfg.get("template") or "unknown"
+                    else:
+                        raise ValueError(f"Invalid step format: {step_item}")
 
-            pipeline = Pipeline(pipeline_steps)
-            
-            # 3. Execute
-            if quiet_mode:
-                with contextlib.redirect_stdout(io.StringIO()):
+                    # Pass loader instance for module loading
+                    wrapper = MLArenaStepWrapper(step_name, idx, step_cfg, self.context, self)
+                    pipeline_steps.append((step_name, wrapper))
+                    state_steps.append(PipelineStep(name=step_name, module=module_name_for_step))
+                
+                if self.context.state:
+                    # IMPORTANT: Move state.json to parent directory (hash level) for unified pipeline
+                    # as per docs/preprocessing_state_schema.md
+                    original_exp_dir = self.context.state.experiment_dir
+                    self.context.state.experiment_dir = original_exp_dir.parent
+                    
+                    # Update experiment_id to reflect hash level (remove the last component)
+                    exp_id_parts = self.context.state.experiment_id.split("/")
+                    if len(exp_id_parts) > 1:
+                        self.context.state.experiment_id = "/".join(exp_id_parts[:-1])
+
+                    self.context.state.pipeline_progress = PipelineProgress(
+                        status="running",
+                        total_steps=len(pipeline_definition),
+                        current_step_idx=0,
+                        start_time=utc_now_iso(),
+                        steps=state_steps
+                    )
+                    self.context.state.status = "running"
+                    self.context.state.save()
+
+                pipeline = Pipeline(pipeline_steps)
+                
+                # 3. Execute
+                if quiet_mode:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        final_container = pipeline.fit_transform(container)
+                else:
                     final_container = pipeline.fit_transform(container)
-            else:
-                final_container = pipeline.fit_transform(container)
-            
-            # 4. Finalize State
-            if self.context.state and self.context.state.pipeline_progress:
-                self.context.state.pipeline_progress.status = "completed"
-                self.context.state.pipeline_progress.end_time = utc_now_iso()
-                self.context.state.status = "completed"
-                self.context.state.save()
+                
+                # 4. Finalize State
+                if self.context.state and self.context.state.pipeline_progress:
+                    self.context.state.pipeline_progress.status = "completed"
+                    self.context.state.pipeline_progress.end_time = utc_now_iso()
+                    self.context.state.status = "completed"
+                    self.context.state.save()
 
-            # 5. Determine Target Directory
-            # Since main.py now points context.artifact_dir to the last step,
-            # we can use it directly for final datasets.
-            # But we still want to ensure step folder consistency.
-            
-            target_dir = self.context.artifact_dir
-            target_dir.mkdir(parents=True, exist_ok=True)
-            
-            # The last step name is from the pipeline_steps list
-            last_step_full_name = pipeline_steps[-1][0]
-            
-            if not quiet_mode:
-                console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts to [cyan]{last_step_full_name}[/cyan]...")
-            
-            # Use Parquet for performance (no string conversion, fast binary write)
-            final_container.train.to_parquet(target_dir / "train_processed.parquet", index=False)
-            final_container.test.to_parquet(target_dir / "test_processed.parquet", index=False)
-            
-            processed_eval = None
-            if final_container.eval is not None:
-                processed_eval = target_dir / "eval_processed.parquet"
-                final_container.eval.to_parquet(processed_eval, index=False)
-                # Update path in state
-                if "custom_module_state" not in final_container.state:
-                    final_container.state["custom_module_state"] = {}
-                final_container.state["custom_module_state"]["eval_path"] = str(processed_eval)
+                # 5. Determine Target Directory
+                target_dir = self.context.artifact_dir
+                target_dir.mkdir(parents=True, exist_ok=True)
                 
-            processed_orig = None
-            if final_container.orig is not None:
-                processed_orig = target_dir / "orig_processed.parquet"
-                final_container.orig.to_parquet(processed_orig, index=False)
+                last_step_full_name = pipeline_steps[-1][0]
                 
-            processed_tuning_final = None
-            if final_container.val is not None:
-                processed_tuning_final = target_dir / "tuning_processed.parquet"
-                final_container.val.to_parquet(processed_tuning_final, index=False)
+                if not quiet_mode:
+                    console.print(f"\n[bold green]Pipeline Completed.[/bold green] Saving final artifacts to [cyan]{last_step_full_name}[/cyan]...")
                 
-            # 5. Build Result Payload
-            shapes_dict = {
-                "train_before": final_container.initial_shapes.get("train"),
-                "train_after": final_container.train.shape,
-                "test_before": final_container.initial_shapes.get("test"),
-                "test_after": final_container.test.shape,
-                "val_before": final_container.initial_shapes.get("val"),
-                "val_after": final_container.val.shape if final_container.val is not None else None,
-                "eval_before": final_container.initial_shapes.get("eval"),
-                "eval_after": final_container.eval.shape if final_container.eval is not None else None,
-                "orig_before": final_container.initial_shapes.get("orig"),
-                "orig_after": final_container.orig.shape if final_container.orig is not None else None,
-                "pipeline_mode": True,
-                "last_step": last_step_full_name,
-            }
-            
-            payload = {
-                "train_processed": str((target_dir / "train_processed.parquet").resolve()),
-                "test_processed": str((target_dir / "test_processed.parquet").resolve()),
-                "orig_processed": str((target_dir / "orig_processed.parquet").resolve()) if final_container.orig is not None else None,
-                "tuning_processed": str((target_dir / "tuning_processed.parquet").resolve()) if final_container.val is not None else None,
-                "eval_processed": str((target_dir / "eval_processed.parquet").resolve()) if final_container.eval is not None else None,
-                "ignored_columns": ignored,
-                "template": template_name,
-                "input_source": input_source,
-                "cached": False,
-                "shapes": shapes_dict,
-                "custom_module_state": final_container.state.get("custom_module_state", {}),
-                "pipeline_steps": final_container.state.get("pipeline_steps", [])
-            }
-            
-            # Note: state.json for the last step is handled by the executor itself
-            # because this module IS the last step in its context.
+                # Use Parquet for performance
+                final_container.train.to_parquet(target_dir / "train_processed.parquet", index=False)
+                final_container.test.to_parquet(target_dir / "test_processed.parquet", index=False)
+                
+                processed_eval = None
+                if final_container.eval is not None:
+                    processed_eval = target_dir / "eval_processed.parquet"
+                    final_container.eval.to_parquet(processed_eval, index=False)
+                    if "custom_module_state" not in final_container.state:
+                        final_container.state["custom_module_state"] = {}
+                    final_container.state["custom_module_state"]["eval_path"] = str(processed_eval)
+                    
+                processed_orig = None
+                if final_container.orig is not None:
+                    processed_orig = target_dir / "orig_processed.parquet"
+                    final_container.orig.to_parquet(processed_orig, index=False)
+                    
+                processed_tuning_final = None
+                if final_container.val is not None:
+                    processed_tuning_final = target_dir / "tuning_processed.parquet"
+                    final_container.val.to_parquet(processed_tuning_final, index=False)
+                    
+                shapes_dict = {
+                    "train_before": final_container.initial_shapes.get("train"),
+                    "train_after": final_container.train.shape,
+                    "test_before": final_container.initial_shapes.get("test"),
+                    "test_after": final_container.test.shape,
+                    "val_before": final_container.initial_shapes.get("val"),
+                    "val_after": final_container.val.shape if final_container.val is not None else None,
+                    "eval_before": final_container.initial_shapes.get("eval"),
+                    "eval_after": final_container.eval.shape if final_container.eval is not None else None,
+                    "orig_before": final_container.initial_shapes.get("orig"),
+                    "orig_after": final_container.orig.shape if final_container.orig is not None else None,
+                    "pipeline_mode": True,
+                    "last_step": last_step_full_name,
+                }
+                
+                payload = {
+                    "train_processed": str((target_dir / "train_processed.parquet").resolve()),
+                    "test_processed": str((target_dir / "test_processed.parquet").resolve()),
+                    "orig_processed": str((target_dir / "orig_processed.parquet").resolve()) if final_container.orig is not None else None,
+                    "tuning_processed": str((target_dir / "tuning_processed.parquet").resolve()) if final_container.val is not None else None,
+                    "eval_processed": str((target_dir / "eval_processed.parquet").resolve()) if final_container.eval is not None else None,
+                    "ignored_columns": ignored,
+                    "template": template_name,
+                    "input_source": input_source,
+                    "cached": False,
+                    "shapes": shapes_dict,
+                    "custom_module_state": final_container.state.get("custom_module_state", {}),
+                    "pipeline_steps": final_container.state.get("pipeline_steps", [])
+                }
+                
+                artifacts_list = [target_dir / "train_processed.parquet", target_dir / "test_processed.parquet"]
+                if final_container.orig is not None: artifacts_list.append(target_dir / "orig_processed.parquet")
+                if final_container.val is not None: artifacts_list.append(target_dir / "tuning_processed.parquet")
+                if final_container.eval is not None: artifacts_list.append(target_dir / "eval_processed.parquet")
+                
+                return ModuleResult(success=True, payload=payload, artifacts=artifacts_list)
 
-            artifacts_list = [target_dir / "train_processed.parquet", target_dir / "test_processed.parquet"]
-            if final_container.orig is not None: artifacts_list.append(target_dir / "orig_processed.parquet")
-            if final_container.val is not None: artifacts_list.append(target_dir / "tuning_processed.parquet")
-            if final_container.eval is not None: artifacts_list.append(target_dir / "eval_processed.parquet")
-            
-            return ModuleResult(
-                success=True,
-                payload=payload,
-                artifacts=artifacts_list,
-            )
+            except Exception as e:
+                # CATCH ALL ERRRORS (including Feature Explosion)
+                error_msg = str(e)
+                # Fallback shapes if container exists
+                shapes_dict = {}
+                if 'container' in locals():
+                    shapes_dict = {
+                        "train_before": container.initial_shapes.get("train"),
+                        "train_after": container.train.shape if hasattr(container, 'train') else None,
+                    }
+                
+                return ModuleResult(
+                    success=False, 
+                    error=error_msg, 
+                    payload={"shapes": shapes_dict, "exception": type(e).__name__}
+                )
         # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK END <<<<<<
 
         custom_module_name = template_cfg.get("module") if template_cfg else None

@@ -40,14 +40,20 @@ class OverwriteLockedError(RuntimeError):
         )
 
 
-def _relativize_paths(data: Any, project_root: Path) -> Any:
+def _relativize_paths(data: Any, project_root: Path, seen=None) -> Any:
     """
     Recursively convert absolute paths within a project to project-relative paths.
     """
+    if seen is None: seen = set()
+    if id(data) in seen:
+        return data # Avoid cycle
+    
     if isinstance(data, dict):
-        return {k: _relativize_paths(v, project_root) for k, v in data.items()}
+        seen.add(id(data))
+        return {k: _relativize_paths(v, project_root, seen) for k, v in data.items()}
     elif isinstance(data, list):
-        return [_relativize_paths(v, project_root) for v in data]
+        seen.add(id(data))
+        return [_relativize_paths(v, project_root, seen) for v in data]
     elif isinstance(data, (str, Path)) and data:
         try:
             p = Path(data)
@@ -61,15 +67,21 @@ def _relativize_paths(data: Any, project_root: Path) -> Any:
     return data
 
 
-def _reconstruct_paths(data: Any, project_root: Path) -> Any:
+def _reconstruct_paths(data: Any, project_root: Path, seen=None) -> Any:
     """
     Recursively convert project-relative paths back to absolute paths.
     Only converts strings that look like relative paths and exist relative to project_root or REPO_ROOT.
     """
+    if seen is None: seen = set()
+    if id(data) in seen:
+        return data
+        
     if isinstance(data, dict):
-        return {k: _reconstruct_paths(v, project_root) for k, v in data.items()}
+        seen.add(id(data))
+        return {k: _reconstruct_paths(v, project_root, seen) for k, v in data.items()}
     elif isinstance(data, list):
-        return [_reconstruct_paths(v, project_root) for v in data]
+        seen.add(id(data))
+        return [_reconstruct_paths(v, project_root, seen) for v in data]
     elif isinstance(data, str) and data and not os.path.isabs(data):
         # Safety check: if it contains newlines, is too long, or has null bytes, it is not a path
         if "\n" in data or "\0" in data or len(data) > 1024:

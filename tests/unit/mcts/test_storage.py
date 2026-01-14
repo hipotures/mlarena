@@ -6,8 +6,9 @@ def test_create_study(tmp_path):
     db_path = tmp_path / "test.db"
     storage = MCTSStorage(f"sqlite:///{db_path}")
     
-    study_id = storage.create_study("my_study", StudyDirection.MAXIMIZE)
+    study_id, is_new = storage.create_study("my_study", StudyDirection.MAXIMIZE)
     assert study_id == 1
+    assert is_new is True
     
     # Verify DB content
     conn = sqlite3.connect(db_path)
@@ -21,13 +22,14 @@ def test_create_study(tmp_path):
 def test_create_trial(tmp_path):
     db_path = tmp_path / "test.db"
     storage = MCTSStorage(f"sqlite:///{db_path}")
-    study_id = storage.create_study("my_study", StudyDirection.MINIMIZE)
+    study_id, _ = storage.create_study("my_study", StudyDirection.MINIMIZE)
     
+    # Sig: (study_id, pipeline_signature, depth, number=None, params=None)
     trial_id = storage.create_trial(
         study_id=study_id,
-        number=0,
         pipeline_signature="sig1",
         depth=0,
+        number=0,
         params={"p1": "v1"}
     )
     assert trial_id == 1
@@ -43,12 +45,12 @@ def test_get_best_trial(tmp_path):
     storage = MCTSStorage(f"sqlite:///{db_path}")
     
     # Maximize
-    s1 = storage.create_study("max_study", StudyDirection.MAXIMIZE)
-    t1 = storage.create_trial(s1, 0, "s1", 0)
+    s1, _ = storage.create_study("max_study", StudyDirection.MAXIMIZE)
+    t1 = storage.create_trial(study_id=s1, pipeline_signature="s1", depth=0, number=0)
     storage.set_trial_value(t1, 0.5)
     storage.set_trial_state(t1, "COMPLETE")
     
-    t2 = storage.create_trial(s1, 1, "s2", 0)
+    t2 = storage.create_trial(study_id=s1, pipeline_signature="s2", depth=0, number=1)
     storage.set_trial_value(t2, 0.9)
     storage.set_trial_state(t2, "COMPLETE")
     
@@ -57,12 +59,12 @@ def test_get_best_trial(tmp_path):
     assert best["value"] == 0.9
     
     # Minimize
-    s2 = storage.create_study("min_study", StudyDirection.MINIMIZE)
-    t3 = storage.create_trial(s2, 0, "s3", 0)
+    s2, _ = storage.create_study("min_study", StudyDirection.MINIMIZE)
+    t3 = storage.create_trial(study_id=s2, pipeline_signature="s3", depth=0, number=0)
     storage.set_trial_value(t3, 0.5)
     storage.set_trial_state(t3, "COMPLETE")
     
-    t4 = storage.create_trial(s2, 1, "s4", 0)
+    t4 = storage.create_trial(study_id=s2, pipeline_signature="s4", depth=0, number=1)
     storage.set_trial_value(t4, 0.9)
     storage.set_trial_state(t4, "COMPLETE")
     

@@ -8,6 +8,7 @@ def test_build_command():
     executor = MlaCliExecutor(project_root=Path("/app"))
     cmd = executor.build_command(
         project="test_proj",
+        module="model",
         model_template="model_v1",
         preprocess_template="chain_v1",
         exp_id="my_exp"

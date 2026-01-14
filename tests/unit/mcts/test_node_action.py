@@ -37,6 +37,7 @@ def test_next_actions_ordering():
     real_space.steps = space.steps
     real_space.search_spaces = space.search_spaces
     real_space.super_chain_config = {}
+    real_space.searched_index_map = {i: i for i in range(len(space.steps))}
     
     # Empty state -> can pick s1, s2, s3
     state0 = PipelineState(steps=[])
@@ -72,6 +73,7 @@ def test_next_actions_group_constraint():
         "s2": {"variants": [{"name": "v"}]},
     }
     real_space.super_chain_config = {}
+    real_space.searched_index_map = {0: 0, 1: 1, 2: 2}
 
     state = PipelineState(
         steps=[{"name": "s1a", "group": "g1", "variant": "v", "config": {}}],

@@ -230,7 +230,7 @@ evaluation:
 mcts:
   study_name: study001
   direction: maximize
-  budget: 10
+  budget: 300
   storage_url: sqlite:///experiments/db/mcts.db
   debug: true
   model_verbosity: 0

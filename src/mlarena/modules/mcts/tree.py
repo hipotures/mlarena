@@ -85,6 +85,8 @@ class MCTSTree:
             node_map[sig] = node
             
             if sig == "baseline":
+                # Ensure baseline preserves initial groups constraints
+                node.state.used_groups = self.initial_groups.copy()
                 self.root = node
 
         # 2. Link them using edges and reconstruct states
@@ -131,7 +133,20 @@ class MCTSTree:
             
             # If untried actions are None, generate them
             if current.untried_actions is None:
-                current.untried_actions = self.space.next_actions(current.state)
+                actions = self.space.next_actions(current.state)
+                
+                # Filter out actions already present in children (crucial for resume)
+                existing_keys = set()
+                for child in current.children:
+                    if child.action_from_parent:
+                        act = child.action_from_parent
+                        # Key: (searched_index, variant) - sufficient for uniqueness in this space
+                        existing_keys.add((act.searched_index, act.variant_name))
+                
+                current.untried_actions = [
+                    a for a in actions 
+                    if (a.searched_index, a.variant_name) not in existing_keys
+                ]
                 # Shuffle to ensure random selection order
                 random.shuffle(current.untried_actions)
 
@@ -225,8 +240,13 @@ class MCTSTree:
 
     def backpropagate(self, node: MCTSNode, value: float):
         """Update stats from node to root."""
+        seen = set()
         current = node
         while current is not None:
+            if id(current) in seen:
+                # Use standard print or logger if available
+                break
+            seen.add(id(current))
             current.update(value)
             current = current.parent
 

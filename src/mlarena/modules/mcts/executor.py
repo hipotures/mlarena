@@ -92,13 +92,32 @@ class MlaCliExecutor:
             )
             
             if proc.returncode != 0:
+                # Truncate output to avoid massive log files but keep enough context
+                err_summary = proc.stderr[-1000:] if proc.stderr else ""
+                out_summary = proc.stdout[-1000:] if proc.stdout else ""
+                
+                # Try to parse JSON even on failure (preprocess might have emitted failure JSON)
+                try:
+                    res = self.parse_result(proc.stdout)
+                    if res.success: # Should not happen if returncode != 0 but let's be safe
+                        return res
+                    error_msg = res.details.get("error", f"Exit Code: {proc.returncode}")
+                except:
+                    error_msg = f"Exit Code: {proc.returncode}"
+
                 return ExperimentResult(
                     experiment_id="failed",
                     value=None,
                     metric="unknown",
                     duration=0.0,
                     success=False,
-                    details={"returncode": proc.returncode, "stderr": proc.stderr, "stdout": proc.stdout}
+                    details={
+                        "error": error_msg,
+                        "returncode": proc.returncode, 
+                        "stderr": err_summary, 
+                        "stdout": out_summary,
+                        "cmd": " ".join(cmd)
+                    }
                 )
                 
             return self.parse_result(proc.stdout)

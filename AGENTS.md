@@ -77,3 +77,14 @@
 -   **Workflow**: `docs/MLA_WORKFLOW_GUIDE.md`
 -   **Submodules**: `docs/submodules/README.md`
 -   **Config**: `docs/configs.md`
+
+## 🧠 Recently Added Memories
+
+- **Submissions Tracker**: The `scripts/submissions_tracker.py` script now scans `experiments/*/state.json` to populate the submissions list, merging with `submissions/submissions.json`. It supports both legacy and new experiment schemas. IDs are preserved for existing entries, and new entries get sequential IDs. Sorting by public_score is fixed.
+- **Config Fixes**: Fixed missing `requires_preproc: [{group: imputer}]` for `polynomial` and `mixed` feature engineering variants in `random_preprocess_config_titanic.yaml` and `random_preprocess_config.yaml` to prevent PolynomialFeatures from failing on NaNs.
+- **Experiment Generation**: Fixed bug in `generate_random_preprocess_experiments.py` where `_order_by_requires` did not skip imputer requirements when EDA indicated no missing values, causing a ValueError.
+- **TUI Usability**: User resolved a Textual TUI mouse issue (hover works, click ignores) by enabling 'mouse reporting' in their terminal configuration.
+- **CC Usage Script**: The `scripts/cc_usage_web.py` script now handles "Page not found" on the usage page as a valid "free_plan" state, returning null usage stats instead of an error.
+- **Manual Experimentation**: Created documentation for manual experimentation in 'docs/manual_experimentation/', including 'HOWTO.md' and a 'GEMINI.md' summary. This documents the workflow for cloning experiments, file naming (suffix _01, _02...), full file isolation, and queueing with 'scripts/task_queue.py'.
+- **CLI Help**: The `mla` CLI uses a hybrid help system: `main.py` handles global help, while `experiments` and `submissions` modules have internal `argparse` parsers. patched `main.py` to pass `--help` through to these specific modules to expose their custom flags (like `--sort-by`). Other modules (model, preprocess) rely on global help.
+- **In-Memory Pipeline**: Implemented 'Functional In-Memory Pipeline' in 'src/mlarena/modules/preprocess.py'. It allows defining a preprocessing template with a 'steps' list, which is executed as a single 'sklearn.pipeline.Pipeline' without intermediate file I/O, while preserving all module states.

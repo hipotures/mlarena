@@ -91,7 +91,14 @@ class MCTSRunner:
             if not self.mcts_live:
                 best = self.storage.get_best_trial(self.study_id)
                 best_val_str = f"{best['value']:.4f}" if best else "N/A"
-                base_val_str = f"{self.tree.root.value_best:.4f}" if self.tree.root.n_visits > 0 else "N/A"
+                
+                # Fetch actual baseline score (Trial 0) instead of root record
+                base_score = None
+                with self.storage._connect() as conn:
+                    row = conn.execute("SELECT value FROM trial_values WHERE trial_id = (SELECT trial_id FROM trials WHERE study_id=? AND number=0)", (self.study_id,)).fetchone()
+                    if row: base_score = row[0]
+                
+                base_val_str = f"{base_score:.4f}" if base_score is not None else "N/A"
                 print(f"  -> Resume Stats: {len(nodes)} trials found, Baseline Score: {base_val_str}, Best Score: {best_val_str}", flush=True)
         
         self.run_id = f"mcts_s{self.study_id:04d}"
@@ -192,11 +199,26 @@ class MCTSRunner:
                 if not fidelity:
                     # Pruned/Done path
                     self.logger.info(f"  -> Trial {trial_id}: Pruned or done")
+                    
+                    # If PRUNED, we should update stats to reflect the visit (even if no result value)
+                    # to encourage UCT to explore other paths.
+                    evals = self.storage.get_evaluations(trial_id)
+                    if any(e["status"] == "PRUNED" for e in evals):
+                         # Backpropagate current best value (or 0) to increment visit count
+                         val = child.value_best if child.value_best > -float('inf') else 0.0
+                         self.tree.backpropagate(child, val)
+                         with self.storage.atomic() as conn:
+                             self._persist_node_stats_path(child, conn)
+
                     if self.live: self.live.update(self._render_tree(best_so_far))
                     continue
                 
                 self.logger.info(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity})")
-                self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    try:
+                        self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
+                    except Exception:
+                        self.logger.debug(f"  -> Trial {trial_id} Full Config (Raw): {child.state.steps}")
                 
                 # Materialize and execute
                 trial_templates = self.materializer.materialize(child.state, node_id=trial_id, fixed_steps=self.space.fixed_steps)
@@ -334,8 +356,14 @@ class MCTSRunner:
 
     def _persist_node_stats_path(self, node: MCTSNode, conn: sqlite3.Connection):
         """Helper to sync all nodes from current back to root in the database."""
+        seen = set()
         curr = node
         while curr is not None:
+            if id(curr) in seen:
+                self.logger.error(f"Cycle detected in MCTS parent chain (Node ID: {id(curr)}); aborting stats persist.")
+                break
+            seen.add(id(curr))
+            
             tid = curr.trial_id
             if tid:
                 self.storage.update_node_stats(tid, curr.n_visits, curr.value_sum, curr.value_best, conn=conn)

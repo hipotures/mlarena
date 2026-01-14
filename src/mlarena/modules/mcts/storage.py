@@ -82,11 +82,22 @@ CREATE TABLE IF NOT EXISTS trial_user_attributes (
 CREATE TABLE IF NOT EXISTS mcts_nodes (
   trial_id          INTEGER PRIMARY KEY,
   depth             INTEGER NOT NULL,
-  pipeline_signature TEXT NOT NULL UNIQUE,
+  pipeline_signature TEXT NOT NULL,
   n_visits          INTEGER NOT NULL DEFAULT 0,
   value_sum         REAL NOT NULL DEFAULT 0.0,
   value_best        REAL,
   FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_mcts_nodes_sig ON mcts_nodes(pipeline_signature);
+
+-- MCTS Edges (Parent -> Child relations)
+CREATE TABLE IF NOT EXISTS mcts_edges (
+  parent_trial_id   INTEGER NOT NULL,
+  child_trial_id    INTEGER NOT NULL,
+  action_json       TEXT NOT NULL,
+  PRIMARY KEY (parent_trial_id, child_trial_id),
+  FOREIGN KEY (parent_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
+  FOREIGN KEY (child_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
 );
 
 -- MCTS Evaluations (Multi-fidelity)
@@ -121,13 +132,13 @@ class MCTSStorage:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
 
-    def create_study(self, study_name: str, direction: StudyDirection) -> int:
+    def create_study(self, study_name: str, direction: StudyDirection) -> tuple[int, bool]:
         with self._connect() as conn:
             cur = conn.cursor()
             cur.execute("SELECT study_id FROM studies WHERE study_name=?", (study_name,))
             row = cur.fetchone()
             if row:
-                return row[0]
+                return row[0], False
             
             cur.execute("INSERT INTO studies (study_name) VALUES (?)", (study_name,))
             study_id = cur.lastrowid
@@ -136,7 +147,7 @@ class MCTSStorage:
                 "INSERT INTO study_directions (study_id, objective, direction) VALUES (?, ?, ?)",
                 (study_id, 0, direction.value)
             )
-            return study_id
+            return study_id, True
 
     def create_trial(
         self, 
@@ -149,7 +160,13 @@ class MCTSStorage:
     ) -> int:
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT trial_id FROM mcts_nodes WHERE pipeline_signature=?", (pipeline_signature,))
+            # Fix: Scope signature check to current study
+            query = """
+                SELECT t.trial_id FROM trials t
+                JOIN mcts_nodes n ON n.trial_id = t.trial_id
+                WHERE t.study_id = ? AND n.pipeline_signature = ?
+            """
+            cur.execute(query, (study_id, pipeline_signature))
             existing = cur.fetchone()
             if existing:
                 return existing[0]
@@ -172,6 +189,37 @@ class MCTSStorage:
                 (trial_id, depth, pipeline_signature)
             )
             return trial_id
+
+    def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any]):
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO mcts_edges (parent_trial_id, child_trial_id, action_json) VALUES (?, ?, ?)",
+                (parent_trial_id, child_trial_id, json.dumps(action))
+            )
+
+    def get_all_edges(self, study_id: int) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            query = """
+                SELECT e.* FROM mcts_edges e
+                JOIN trials t ON t.trial_id = e.child_trial_id
+                WHERE t.study_id = ?
+            """
+            cur.execute(query, (study_id,))
+            return [dict(row) for row in cur.fetchall()]
+
+    def get_all_nodes(self, study_id: int) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            query = """
+                SELECT n.* FROM mcts_nodes n
+                JOIN trials t ON t.trial_id = n.trial_id
+                WHERE t.study_id = ?
+            """
+            cur.execute(query, (study_id,))
+            return [dict(row) for row in cur.fetchall()]
 
     def set_trial_value(self, trial_id: int, value: float):
         with self._connect() as conn:

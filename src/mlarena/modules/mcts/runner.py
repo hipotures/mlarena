@@ -58,7 +58,18 @@ class MCTSRunner:
         self.tree = MCTSTree(self.config, self.space, self.sampler)
         
         self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
-        self.study_id = self.storage.create_study(self.config.study_name, self.direction)
+        self.study_id, self.is_new_study = self.storage.create_study(self.config.study_name, self.direction)
+        
+        # Rebuild tree from database if resuming
+        if not self.is_new_study:
+            nodes = self.storage.get_all_nodes(self.study_id)
+            edges = self.storage.get_all_edges(self.study_id)
+            self.tree.rebuild_tree(nodes, edges)
+            
+            # Print brief resume stats
+            best = self.storage.get_best_trial(self.study_id)
+            best_val = f"{best['value']:.4f}" if best else "N/A"
+            print(f"  -> Resume Stats: {len(nodes)} trials found, Best Score: {best_val}")
         
         self.run_id = f"mcts_s{self.study_id:04d}"
         
@@ -88,8 +99,9 @@ class MCTSRunner:
         self.logger.info(f"--- MCTS Study Started (Run ID: {self.run_id}) ---")
 
     def run(self) -> ModuleResult:
-        print(f"Starting MCTS Study: {self.config.study_name} (Budget: {self.config.budget})")
-        self.logger.info(f"Starting MCTS Study: {self.config.study_name} (Budget: {self.config.budget})")
+        status_msg = "Starting NEW MCTS Study" if self.is_new_study else "Resuming EXISTING MCTS Study"
+        print(f"{status_msg}: {self.config.study_name} (Budget: {self.config.budget})")
+        self.logger.info(f"{status_msg}: {self.config.study_name} (Budget: {self.config.budget})")
         
         self._evaluate_baseline()
         
@@ -117,6 +129,33 @@ class MCTSRunner:
                 params=self._state_to_params(child.state)
             )
             
+            # Record the edge if it's not the root
+            if node != self.tree.root:
+                # We need the parent's trial_id. node is the parent of child.
+                # node.state.signature should identify the parent trial.
+                parent_trial_id = self.storage.create_trial(
+                    self.study_id,
+                    number=0, # Dummy, won't create if exists
+                    pipeline_signature=node.state.signature,
+                    depth=node.state.depth
+                )
+                action_data = {
+                    "step_name": child.action_from_parent.step_name,
+                    "variant": child.action_from_parent.variant_name,
+                    "config": child.action_from_parent.config
+                }
+                self.storage.add_edge(parent_trial_id, trial_id, action_data)
+            elif node == self.tree.root:
+                # Root to first level edge
+                # Root trial_id is the baseline (trial 0)
+                root_trial_id = self.storage.create_trial(self.study_id, 0, "baseline", 0)
+                action_data = {
+                    "step_name": child.action_from_parent.step_name,
+                    "variant": child.action_from_parent.variant_name,
+                    "config": child.action_from_parent.config
+                }
+                self.storage.add_edge(root_trial_id, trial_id, action_data)
+
             fidelity = self._get_next_fidelity(child, trial_id)
             if not fidelity:
                 self.logger.info(f"  -> Trial {trial_id}: Pruned or done")
@@ -128,7 +167,7 @@ class MCTSRunner:
             # Log selected steps and their full config for debugging
             steps_desc = " -> ".join([f"{s['name']}:{s['variant']}" for s in child.state.steps]) or "No Preprocessing"
             self.logger.info(f"  -> Trial {trial_id} ({fidelity}): {steps_desc}")
-            self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps, indent=2)}")
+            self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
             
             result = self._execute_trial(child, trial_id, fidelity)
             
@@ -143,19 +182,8 @@ class MCTSRunner:
                     json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
                     json_path.write_text(json.dumps(raw, indent=2))
                 
-                print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) SUCCESS: {result.value:.4f} ({result.metric})")
+                success_msg = f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) SUCCESS: {result.value:.4f} ({result.metric})"
                 
-                best_model = raw.get("best_model", "N/A")
-                exp_id_res = raw.get("experiment_id", "N/A")
-                
-                self.logger.info(
-                    f"  -> Trial {trial_id} Success: {result.value:.4f} | Model: {best_model} | ExpID: {exp_id_res}"
-                )
-                
-                target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
-                if fidelity == target_fid:
-                    self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
-                    
                 is_new_best = False
                 if self.direction == StudyDirection.MAXIMIZE:
                     if result.value > best_so_far: is_new_best = True
@@ -164,10 +192,12 @@ class MCTSRunner:
                         
                 if is_new_best:
                     best_so_far = result.value
-                    msg = f"*** NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) ***"
-                    print(f"\n{msg}\n")
-                    self.logger.info(msg)
-            else:
+                    success_msg += f" -> NEW BEST: {best_so_far:.4f}"
+                    self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (Trial {trial_id}, Fid: {fidelity}) ***")
+                
+                print(success_msg)
+                
+                best_model = raw.get("best_model", "N/A")
                 print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
                 error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
                 summary = "\n".join(error_text.strip().split("\n")[-5:])
@@ -185,15 +215,26 @@ class MCTSRunner:
         return ModuleResult(success=True, payload={"best_trial": best})
 
     def _evaluate_baseline(self):
-        print("Evaluating Baseline (Model Zero)")
-        self.logger.info("Evaluating Baseline (Model Zero)")
-        
+        # If tree was rebuilt and root has visits, we already have the baseline
+        if self.tree.root.n_visits > 0:
+            self.logger.info(f"Baseline already exists (visits: {self.tree.root.n_visits}, best: {self.tree.root.value_best}).")
+            return
+
         with self.storage._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT trial_id FROM trials WHERE study_id=? AND number=0 AND state=?", (self.study_id, TrialState.COMPLETE.value))
+            # Check by signature in current study for maximum robustness
+            query = """
+                SELECT t.trial_id FROM trials t
+                JOIN mcts_nodes n ON n.trial_id = t.trial_id
+                WHERE t.study_id=? AND n.pipeline_signature='baseline' AND t.state=?
+            """
+            cur.execute(query, (self.study_id, TrialState.COMPLETE.value))
             if cur.fetchone():
-                self.logger.info("Baseline already exists and is complete.")
+                self.logger.info("Baseline already exists in database and is complete.")
                 return
+
+        print("Evaluating Baseline (Model Zero)")
+        self.logger.info("Evaluating Baseline (Model Zero)")
 
         trial_id = self.storage.create_trial(
             self.study_id, 0, "baseline", 0, {}, state=TrialState.RUNNING
@@ -226,6 +267,7 @@ class MCTSRunner:
             self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
             self.storage.add_evaluation(trial_id, "F2", "COMPLETE", result.value, result.metric, result.duration, result.details)
             self.tree.root.update(result.value)
+            print(f"Baseline Score: {result.value:.4f} ({result.metric})")
             self.logger.info(f"Baseline Score: {result.value}")
         else:
             self.logger.error(f"Baseline failed: {result.details}")

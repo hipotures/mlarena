@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import random
+import json
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
 
@@ -46,6 +47,61 @@ class MCTSTree:
         self.space = space
         self.sampler = sampler
         self.root = MCTSNode(state=PipelineState())
+
+    def rebuild_tree(self, nodes_data: List[Dict[str, Any]], edges_data: List[Dict[str, Any]]):
+        """Reconstruct the tree structure from database records."""
+        if not nodes_data:
+            return
+
+        # 1. Create all nodes first
+        # Map: signature -> MCTSNode
+        node_map: Dict[str, MCTSNode] = {}
+        
+        for n in nodes_data:
+            sig = n["pipeline_signature"]
+            node = MCTSNode(state=PipelineState()) # Placeholder state, will be updated below
+            node.n_visits = n["n_visits"]
+            node.value_sum = n["value_sum"]
+            node.value_best = n["value_best"] if n["value_best"] is not None else -float('inf')
+            
+            node_map[sig] = node
+            
+            if sig == "baseline":
+                self.root = node
+
+        # 2. Link them using edges and reconstruct states
+        # Map: trial_id -> signature
+        id_to_sig = {n["trial_id"]: n["pipeline_signature"] for n in nodes_data}
+
+        # We need to process edges in an order that builds the tree from top to bottom.
+        # Sorting by child depth (which we have in nodes_data) is a good proxy.
+        node_depths = {n["pipeline_signature"]: n["depth"] for n in nodes_data}
+        sorted_edges = sorted(edges_data, key=lambda e: node_depths.get(id_to_sig.get(e["child_trial_id"], ""), 0))
+
+        for edge in sorted_edges:
+            parent_sig = id_to_sig.get(edge["parent_trial_id"])
+            child_sig = id_to_sig.get(edge["child_trial_id"])
+            
+            if parent_sig and child_sig:
+                parent = node_map[parent_sig]
+                child = node_map[child_sig]
+                
+                action_dict = json.loads(edge["action_json"])
+                action = Action(
+                    step_name=action_dict["step_name"],
+                    template_name=action_dict.get("template_name") or action_dict["step_name"],
+                    variant_name=action_dict["variant"],
+                    config=action_dict["config"],
+                    step_index=0 # Placeholder
+                )
+                
+                child.parent = parent
+                child.action_from_parent = action
+                # Reconstruct child state from parent + action
+                child.state = parent.state.add_action(action)
+                
+                if child not in parent.children:
+                    parent.children.append(child)
 
     def select(self, node: MCTSNode) -> MCTSNode:
         """Select a leaf node to expand using UCT/PUCT."""

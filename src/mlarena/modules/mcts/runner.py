@@ -68,8 +68,24 @@ class MCTSRunner:
             
             # Print brief resume stats
             best = self.storage.get_best_trial(self.study_id)
-            best_val = f"{best['value']:.4f}" if best else "N/A"
-            print(f"  -> Resume Stats: {len(nodes)} trials found, Best Score: {best_val}")
+            best_val_str = f"{best['value']:.4f}" if best else "N/A"
+            
+            # Find baseline score explicitly for display
+            base_val_str = "N/A"
+            if self.tree.root.n_visits > 0:
+                base_val_str = f"{self.tree.root.value_best:.4f}"
+            else:
+                # Fallback: check storage directly if tree root is somehow not updated
+                base_id = self.storage.get_trial_id_by_signature(self.study_id, "baseline")
+                if base_id:
+                    evals = self.storage.get_evaluations(base_id)
+                    base_val = next((e["value"] for e in evals if e["fidelity"] == "F2" and e["status"] == "COMPLETE"), None)
+                    if base_val is not None:
+                        base_val_str = f"{base_val:.4f}"
+                        self.tree.root.value_best = base_val
+                        self.tree.root.n_visits = 1
+
+            print(f"  -> Resume Stats: {len(nodes)} trials found, Baseline Score: {base_val_str}, Best Score: {best_val_str}", flush=True)
         
         self.run_id = f"mcts_s{self.study_id:04d}"
         
@@ -122,39 +138,27 @@ class MCTSRunner:
                 continue
                 
             trial_id = self.storage.create_trial(
-                self.study_id,
-                number=self._get_next_trial_number(),
+                study_id=self.study_id,
                 pipeline_signature=child.state.signature,
                 depth=child.state.depth,
                 params=self._state_to_params(child.state)
             )
             
-            # Record the edge if it's not the root
-            if node != self.tree.root:
-                # We need the parent's trial_id. node is the parent of child.
-                # node.state.signature should identify the parent trial.
-                parent_trial_id = self.storage.create_trial(
-                    self.study_id,
-                    number=0, # Dummy, won't create if exists
-                    pipeline_signature=node.state.signature,
-                    depth=node.state.depth
-                )
+            # Record the edge
+            # Parent trial ID should already exist if the tree was correctly navigated or rebuilt
+            parent_trial_id = self.storage.get_trial_id_by_signature(
+                self.study_id, 
+                node.state.signature if node != self.tree.root else "baseline"
+            )
+            
+            if parent_trial_id:
                 action_data = {
                     "step_name": child.action_from_parent.step_name,
+                    "template_name": child.action_from_parent.template_name,
                     "variant": child.action_from_parent.variant_name,
                     "config": child.action_from_parent.config
                 }
                 self.storage.add_edge(parent_trial_id, trial_id, action_data)
-            elif node == self.tree.root:
-                # Root to first level edge
-                # Root trial_id is the baseline (trial 0)
-                root_trial_id = self.storage.create_trial(self.study_id, 0, "baseline", 0)
-                action_data = {
-                    "step_name": child.action_from_parent.step_name,
-                    "variant": child.action_from_parent.variant_name,
-                    "config": child.action_from_parent.config
-                }
-                self.storage.add_edge(root_trial_id, trial_id, action_data)
 
             fidelity = self._get_next_fidelity(child, trial_id)
             if not fidelity:
@@ -198,6 +202,16 @@ class MCTSRunner:
                 print(success_msg)
                 
                 best_model = raw.get("best_model", "N/A")
+                exp_id_res = raw.get("experiment_id", "N/A")
+                
+                self.logger.info(
+                    f"  -> Trial {trial_id} Success: {result.value:.4f} | Model: {best_model} | ExpID: {exp_id_res}"
+                )
+                
+                target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
+                if fidelity == target_fid:
+                    self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
+            else:
                 print(f"Iteration {i+1}/{self.config.budget} -> Trial {trial_id} ({fidelity}) FAILED")
                 error_text = result.details.get("stderr", "") or result.details.get("stdout", "")
                 summary = "\n".join(error_text.strip().split("\n")[-5:])
@@ -237,17 +251,21 @@ class MCTSRunner:
         self.logger.info("Evaluating Baseline (Model Zero)")
 
         trial_id = self.storage.create_trial(
-            self.study_id, 0, "baseline", 0, {}, state=TrialState.RUNNING
+            self.study_id, 
+            pipeline_signature="baseline", 
+            depth=0, 
+            number=0, 
+            state=TrialState.RUNNING
         )
         
         state = PipelineState()
         templates = self.materializer.materialize(state, node_id=0, fixed_steps=self.space.fixed_steps)
         
-        exp_id = "exp-baseline"
-        model_template = self.params.get("model_template") or "baseline"
-        
-        # Use the base chain name for baseline
+        # Use consistent naming for baseline experiment
         preprocess_template = templates["base_name"]
+        exp_id = f"exp-{preprocess_template}"
+        
+        model_template = self.params.get("model_template") or "baseline"
         
         cmd = self.executor.build_command(
             project=self.context.project_name,
@@ -267,9 +285,13 @@ class MCTSRunner:
             self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
             self.storage.add_evaluation(trial_id, "F2", "COMPLETE", result.value, result.metric, result.duration, result.details)
             self.tree.root.update(result.value)
-            print(f"Baseline Score: {result.value:.4f} ({result.metric})")
+            print(f"Baseline Score: {result.value:.4f} ({result.metric})", flush=True)
             self.logger.info(f"Baseline Score: {result.value}")
         else:
+            error_msg = f"Baseline Failed! Check mcts.log for details."
+            if result.details.get("error"):
+                error_msg = f"Baseline Failed: {result.details['error']}"
+            print(error_msg, flush=True)
             self.logger.error(f"Baseline failed: {result.details}")
             self.storage.set_trial_state(trial_id, TrialState.FAIL)
 
@@ -344,13 +366,6 @@ class MCTSRunner:
             cutoff_idx = int(len(valid_history) * top_fraction)
             if cutoff_idx >= len(valid_history): cutoff_idx = len(valid_history) - 1
             return value <= valid_history[cutoff_idx]
-
-    def _get_next_trial_number(self) -> int:
-        with self.storage._connect() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT MAX(number) FROM trials WHERE study_id=?", (self.study_id,))
-            res = cur.fetchone()
-            return (res[0] or 0) + 1
 
     def _state_to_params(self, state: PipelineState) -> Dict[str, Any]:
         params = {}

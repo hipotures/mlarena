@@ -152,15 +152,15 @@ class MCTSStorage:
     def create_trial(
         self, 
         study_id: int, 
-        number: int, 
         pipeline_signature: str,
         depth: int,
+        number: Optional[int] = None,
         params: Optional[Dict[str, Any]] = None,
         state: TrialState = TrialState.WAITING
     ) -> int:
         with self._connect() as conn:
             cur = conn.cursor()
-            # Fix: Scope signature check to current study
+            # 1. Check if signature exists in this study
             query = """
                 SELECT t.trial_id FROM trials t
                 JOIN mcts_nodes n ON n.trial_id = t.trial_id
@@ -170,6 +170,12 @@ class MCTSStorage:
             existing = cur.fetchone()
             if existing:
                 return existing[0]
+
+            # 2. Assign trial number
+            if number is None:
+                cur.execute("SELECT MAX(number) FROM trials WHERE study_id=?", (study_id,))
+                res = cur.fetchone()
+                number = (res[0] or 0) + 1
 
             cur.execute(
                 "INSERT INTO trials (study_id, number, state, datetime_start) VALUES (?, ?, ?, datetime('now'))",
@@ -189,6 +195,18 @@ class MCTSStorage:
                 (trial_id, depth, pipeline_signature)
             )
             return trial_id
+
+    def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str) -> Optional[int]:
+        with self._connect() as conn:
+            cur = conn.cursor()
+            query = """
+                SELECT t.trial_id FROM trials t
+                JOIN mcts_nodes n ON n.trial_id = t.trial_id
+                WHERE t.study_id = ? AND n.pipeline_signature = ?
+            """
+            cur.execute(query, (study_id, pipeline_signature))
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any]):
         with self._connect() as conn:

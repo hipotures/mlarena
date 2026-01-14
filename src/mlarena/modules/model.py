@@ -359,8 +359,10 @@ def _print_training_summary(
         output_files = {}
         if leaderboard_path:
             artifact_dir = leaderboard_path.parent
-            output_files["leaderboard"] = str(leaderboard_path.relative_to(project_root))
-            output_files["artifact_dir"] = str(artifact_dir.relative_to(project_root))
+            # Use resolve() to handle symlinks and case-insensitive filesystem issues
+            project_root_resolved = project_root.resolve()
+            output_files["leaderboard"] = str(leaderboard_path.resolve().relative_to(project_root_resolved))
+            output_files["artifact_dir"] = str(artifact_dir.resolve().relative_to(project_root_resolved))
 
         direction = None
         if greater_is_better is not None:
@@ -447,7 +449,7 @@ def _print_training_summary(
     # Artifacts
     console.print(f"\n[bold green]✓[/bold green] Training completed:")
     if leaderboard_path and leaderboard_path.exists():
-        console.print(f"  Leaderboard: [cyan]{leaderboard_path.relative_to(project_root)}[/cyan]")
+        console.print(f"  Leaderboard: [cyan]{leaderboard_path.resolve().relative_to(project_root.resolve())}[/cyan]")
         _print_leaderboard_table(
             leaderboard_path,
             ["model", "score_test", "score_val", "eval_metric", "stack_level"],

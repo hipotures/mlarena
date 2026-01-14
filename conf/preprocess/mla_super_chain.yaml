@@ -241,3 +241,7 @@ mcts:
   expansion_width: 2.0
   expansion_alpha: 0.5
   seed: 42
+
+  penalties:
+    features_lambda: 0.01
+    time_lambda: 0.0

@@ -92,7 +92,9 @@ def test_cli_rejects_unknown_command(monkeypatch, tmp_path, capsys):
     exit_code = main(["preproc", "--project", "demo"])
     assert exit_code == 1
     out = capsys.readouterr().out
-    assert "Unknown command: preproc" in out
+    # Use substring checks that avoid ANSI codes between words
+    assert "Unknown command" in out
+    assert "preproc" in out
 
 
 def test_cli_preprocess_chain_unpacking(monkeypatch, tmp_path):
@@ -106,16 +108,10 @@ def test_cli_preprocess_chain_unpacking(monkeypatch, tmp_path):
     exit_code = main(["preprocess", "--project", "demo", "preprocess_template=cli_minimal"])
     assert exit_code == 0
 
-    output_path = (
-        project_root
-        / "experiments"
-        / "pre-cli_minimal"
-        / "0-cli_minimal"
-        / "artifacts"
-        / "preprocess"
-        / "train_processed.csv"
-    )
-    assert output_path.exists()
+    # Search for the output file using glob because path includes a hash segment
+    output_files = list((project_root / "experiments" / "pre-cli_minimal").glob("**/0-cli_minimal/artifacts/preprocess/train_processed.csv.gz"))
+    assert output_files, "Preprocessed output file not found (checked glob with hash)"
+    assert output_files[0].exists()
 
 
 def _mark_setup_completed(project_root: Path) -> None:

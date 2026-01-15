@@ -30,7 +30,7 @@ def _isolate_tests(monkeypatch):
 
     # Clear cached project modules
     for name in list(sys.modules.keys()):
-        if name.startswith("utils.config") or name == "template_loader":
+        if name.startswith("utils.config") or name == "utils" or name == "template_loader":
             sys.modules.pop(name, None)
 
     # Clean DummyPredictor store

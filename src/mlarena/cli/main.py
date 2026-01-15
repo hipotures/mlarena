@@ -773,7 +773,7 @@ def run_auto_flow(
     if resolved_preprocess_template:
         config.preprocess_template = resolved_preprocess_template
         exit_code, chain_results, final_preprocess_exp_dir, preprocess_templates = run_preprocess_chain(
-            project_root, project_name, config, config_module, pipeline_def, argv or [], console
+            project_root, project_name, config, config_module, pipeline_def, argv or [], console, standalone=False
         )
         results.update(chain_results)
         if exit_code != 0:

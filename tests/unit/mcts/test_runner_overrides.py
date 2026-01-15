@@ -4,10 +4,11 @@ from mlarena.modules.mcts.runner import MCTSRunner
 from mlarena.modules.mcts.config import MCTSConfig
 from mlarena.core.module import ModuleContext
 
-def test_runner_config_overrides():
+def test_runner_config_overrides(tmp_path):
     # Mock context
     ctx = MagicMock(spec=ModuleContext)
-    ctx.project_root = MagicMock()
+    ctx.project_root = tmp_path
+    ctx.project_name = "demo"
     ctx.config = MagicMock()
     ctx.config.mcts_live = False
     
@@ -18,10 +19,13 @@ def test_runner_config_overrides():
     from unittest.mock import patch
     
     with patch("mlarena.modules.mcts.runner.load_mcts_config", return_value=default_config), \
-         patch("mlarena.modules.mcts.runner.MCTSStorage"), \
+         patch("mlarena.modules.mcts.runner.MCTSStorage") as MockStorage, \
          patch("mlarena.modules.mcts.runner.SuperChainActionSpace"), \
          patch("mlarena.modules.mcts.runner.ParameterSampler"), \
          patch("mlarena.modules.mcts.runner.MCTSTree"):
+         
+        # Mock storage return values
+        MockStorage.return_value.create_study.return_value = (1, True)
          
         # Case 1: Short args
         params = {"budget": "50", "study_name": "test_study"}

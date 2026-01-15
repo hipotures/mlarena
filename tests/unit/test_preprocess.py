@@ -59,8 +59,8 @@ def _patch_templates(monkeypatch, template_dict):
         def load(self, name):
             return template_dict.get(name, {})
 
-    # Patch TemplateLoader inside module
-    monkeypatch.setattr("mlarena.modules.preprocess.TemplateLoader", StubLoader)
+    # Patch TemplateLoader where it is defined to cover local imports
+    monkeypatch.setattr("mlarena.core.config.TemplateLoader", StubLoader)
     # Patch template_loader.load_templates used inside execute/can_run
     monkeypatch.setitem(
         __import__("sys").modules,

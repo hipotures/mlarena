@@ -26,7 +26,7 @@ def test_fetch_score_uses_placeholder(monkeypatch, tmp_path):
     ctx = _ctx(project_root, state)
     module = FetchScoreModule(ctx)
     module.set_invocation_params({"score_placeholder": 0.123})
-    monkeypatch.setattr(FetchScoreModule, "_fetch_latest_submission", lambda self, comp: {"publicScore": "0.456"})
+    monkeypatch.setattr("mlarena.modules.fetch_score.fetch_submissions", lambda comp: [{"publicScore": "0.456"}])
     res = module.execute()
     assert res.success is True
     assert res.payload["score"] == 0.456
@@ -38,7 +38,7 @@ def test_fetch_score_handles_missing(monkeypatch, tmp_path):
     state = ExperimentState.load_or_create(project_root, "demo")
     ctx = _ctx(project_root, state)
     module = FetchScoreModule(ctx)
-    monkeypatch.setattr(FetchScoreModule, "_fetch_latest_submission", lambda self, comp: None)
+    monkeypatch.setattr("mlarena.modules.fetch_score.fetch_submissions", lambda comp: [])
     res = module.execute()
     assert res.success is False
     assert res.payload["score"] is None

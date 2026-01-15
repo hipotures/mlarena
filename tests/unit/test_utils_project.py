@@ -73,8 +73,8 @@ def test_load_project_config_fallback(tmp_path, monkeypatch):
     assert cfg.TARGET_COLUMN == "target"
     assert cfg.ID_COLUMN == "id"
     train, test = data_paths(cfg)
-    assert train.name == "train.csv"
-    assert test.name == "test.csv"
+    assert train.name == "train.csv.gz"
+    assert test.name == "test.csv.gz"
     assert train.parent == project_root / "data"
 
 
@@ -82,4 +82,4 @@ def test_data_paths_default_to_data_dir(tmp_path):
     cfg = types.SimpleNamespace(DATA_DIR=tmp_path, TRAIN_PATH=None, TEST_PATH=None)
     train, test = data_paths(cfg)
     assert train == tmp_path / "train.csv.gz"
-    assert test == tmp_path / "test.csv"
+    assert test == tmp_path / "test.csv.gz"

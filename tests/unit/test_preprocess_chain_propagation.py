@@ -45,7 +45,7 @@ def _patch_templates(monkeypatch, template_dict):
         def __init__(self, *a, **k): pass
         def load(self, name): return template_dict.get(name, {})
 
-    monkeypatch.setattr("mlarena.modules.preprocess.TemplateLoader", StubLoader)
+    monkeypatch.setattr("mlarena.core.config.TemplateLoader", StubLoader)
     
     # Patch load_templates used in can_run and execute via sys.modules injection
     # This works because preprocess.py does 'from template_loader import load_templates'

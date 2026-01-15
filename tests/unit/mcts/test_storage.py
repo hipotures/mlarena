@@ -71,3 +71,28 @@ def test_get_best_trial(tmp_path):
     best_min = storage.get_best_trial(s2)
     assert best_min["trial_id"] == t3
     assert best_min["value"] == 0.5
+
+def test_tree_structure_idempotency(tmp_path):
+    storage = MCTSStorage(f"sqlite:///{tmp_path}/tree.db")
+    s, _ = storage.create_study("tree_test", StudyDirection.MAXIMIZE)
+    
+    # Root (Trial 1)
+    root_id = storage.create_trial(s, "baseline", 0)
+    assert root_id == 1
+    
+    # Child A under Root (Trial 2)
+    child_a_id = storage.create_trial(s, "sig_a", 1, parent_trial_id=root_id)
+    assert child_a_id == 2
+    
+    # Re-inserting Child A under Root returns SAME trial_id (Idempotency)
+    child_a_retry_id = storage.create_trial(s, "sig_a", 1, parent_trial_id=root_id)
+    assert child_a_retry_id == child_a_id
+    
+    # Child B under Root (Trial 3)
+    child_b_id = storage.create_trial(s, "sig_b", 1, parent_trial_id=root_id)
+    assert child_b_id == 3
+    
+    # Child A under Child B (Trial 4) - Allowed because parents are different!
+    child_a_under_b_id = storage.create_trial(s, "sig_a", 2, parent_trial_id=child_b_id)
+    assert child_a_under_b_id == 4
+    assert child_a_under_b_id != child_a_id

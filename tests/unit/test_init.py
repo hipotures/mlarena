@@ -53,6 +53,8 @@ def test_init_respects_existing_project(tmp_path, monkeypatch):
     _stub_detection(monkeypatch)
     project_root = tmp_path / "projects" / "kaggle" / "demo"
     (project_root / "code" / "utils").mkdir(parents=True, exist_ok=True)
+    (project_root / "code" / "__init__.py").write_text("")
+    (project_root / "code" / "utils" / "__init__.py").write_text("")
     (project_root / "code" / "utils" / "config.py").write_text(
         "\n".join(
             [

@@ -40,7 +40,7 @@ def test_runner_loop(mock_context, config):
         
         mock_storage_inst = MockStorage.return_value
         mock_storage_inst.create_study.return_value = (1, True)
-        mock_storage_inst.create_trial.return_value = 2
+        mock_storage_inst.create_trial.return_value = (2, 2)
         mock_storage_inst.get_best_trial.return_value = None
         
         # Ensure baseline check in _evaluate_baseline returns None

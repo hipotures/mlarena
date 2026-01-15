@@ -44,7 +44,7 @@ def test_best_score_logging(mock_context):
              patch.object(runner.storage, "create_trial") as mock_create_trial, \
              patch.object(runner, "_execute_trial_with_templates") as mock_exec:
              
-             mock_create_trial.return_value = 2  # integer ID
+             mock_create_trial.return_value = (2, 2)  # (id, number)
              
              mock_child = MagicMock()
              mock_child.state.signature = "sig1"

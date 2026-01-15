@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from mlarena.modules.mcts.tree import MCTSTree, MCTSNode
-from mlarena.modules.mcts.node import PipelineState
+from mlarena.modules.mcts.node import PipelineState, Action
 from mlarena.modules.mcts.config import MCTSConfig
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def mock_space():
 @pytest.fixture
 def mock_sampler():
     sampler = MagicMock()
-    sampler.sample.return_value = 1
+    sampler.sample.return_value = {} # Return empty dict instead of int for config
     return sampler
 
 @pytest.fixture
@@ -25,12 +25,12 @@ def config():
 def test_node_stats_update():
     """Verify backprop updates values correctly."""
     node = MCTSNode(state=PipelineState())
-    node.update(value=0.5)
+    node.update(value=0.5, direction="maximize")
     assert node.n_visits == 1
     assert node.value_sum == 0.5
     assert node.value_mean == 0.5
     
-    node.update(value=0.8)
+    node.update(value=0.8, direction="maximize")
     assert node.n_visits == 2
     assert node.value_sum == 1.3
     assert node.value_mean == 0.65
@@ -46,13 +46,19 @@ def test_tree_expansion_widening(config, mock_space, mock_sampler):
     root = tree.root
     root.n_visits = 1
     
-    # Mock next_actions to return many possibilities
+    # Use real Action objects to avoid JSON serialization issues in signature
     actions = []
     for i in range(10):
-        m = MagicMock(step_name=f"s{i}")
-        m.searched_index = i
-        m.group_name = f"g{i}"
-        actions.append(m)
+        a = Action(
+            step_name=f"s{i}",
+            template_name=f"s{i}",
+            group_name=f"g{i}",
+            variant_name="v1",
+            config={},
+            searched_index=i,
+            original_index=i
+        )
+        actions.append(a)
     mock_space.next_actions.return_value = actions
     
     # 1. Select should return root (to expand), because children (0) < limit (2)

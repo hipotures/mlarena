@@ -1,0 +1,6 @@
+module: pseudo_labeling
+cache: true
+config:
+  model_type: logreg
+  confidence_threshold: 0.9
+  max_pseudo_fraction: 0.2

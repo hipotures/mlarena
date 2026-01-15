@@ -1,0 +1,45 @@
+group: dae_embeddings
+template: dae_embeddings
+
+base_config:
+  include_cols: null
+  exclude_cols: []
+  use_original_features_only: true
+  embedding_dim: 16
+  hidden_layers: null
+  activation: relu
+  max_iter: 200
+  batch_size: 256
+  learning_rate_init: 0.001
+  alpha: 0.0001
+  early_stopping: true
+  validation_fraction: 0.1
+  random_state: 42
+  noise_type: swap
+  swap_prob: 0.15
+  gaussian_sigma: 0.01
+  gaussian_scale_by_std: true
+  fit_on: train_test
+  max_rows: null
+  scale: true
+  missing_strategy: mean
+  add_original: true
+  drop_original: false
+  prefix: dae
+
+variants:
+  - name: swap_small
+    params:
+      noise_type: {type: choice, values: [swap]}
+      swap_prob: {type: float_range, min: 0.05, max: 0.2, step: 0.05}
+      embedding_dim: {type: int_range, min: 8, max: 32, step: 8}
+  - name: swap_large
+    params:
+      noise_type: {type: choice, values: [swap]}
+      swap_prob: {type: float_range, min: 0.2, max: 0.4, step: 0.05}
+      embedding_dim: {type: int_range, min: 16, max: 64, step: 16}
+  - name: gaussian
+    params:
+      noise_type: {type: choice, values: [gaussian]}
+      gaussian_sigma: {type: float_range, min: 0.005, max: 0.05, log: true}
+      embedding_dim: {type: int_range, min: 8, max: 32, step: 8}

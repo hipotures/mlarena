@@ -178,6 +178,22 @@ preprocessors:
     heavy_step: false
   overrides:
     force_global_only: true
+- name: dae_embeddings
+  group: dae_embeddings
+  template: dae_embeddings
+  enabled: false
+  meta:
+    heavy_step: true
+    default_enabled_fast: false
+    timeout_sec: 900
+- name: knn_graph_features
+  group: knn_graph_features
+  template: knn_graph_features
+  enabled: false
+  meta:
+    heavy_step: true
+    default_enabled_fast: false
+    timeout_sec: 600
 - name: dimensionality_reducer
   group: dimensionality_reducer
   template: dimensionality_reducer
@@ -198,6 +214,26 @@ preprocessors:
   enabled: true
   meta:
     heavy_step: false
+- name: noise_injection
+  group: noise_injection
+  template: noise_injection
+  enabled: false
+  meta:
+    heavy_step: false
+- name: mixup_augmentation
+  group: mixup_augmentation
+  template: mixup_augmentation
+  enabled: false
+  meta:
+    heavy_step: false
+- name: pseudo_labeling
+  group: pseudo_labeling
+  template: pseudo_labeling
+  enabled: false
+  meta:
+    heavy_step: true
+    default_enabled_fast: false
+    timeout_sec: 600
 - name: feature_selector
   group: feature_selector
   template: feature_selector
@@ -237,9 +273,12 @@ mcts:
   model_cleanup: true
   cleanup_processed: false
   selection_policy: puct
-  exploration_weight: 1.414
-  expansion_width: 2.0
-  expansion_alpha: 0.5
+  expansion_width: 0.75
+  expansion_alpha: 0.35
+  param_expansion_max_samples: 4
+  param_expansion_alpha: 0.35
+  param_expansion_width: 1.0
+  max_depth: 7
   seed: 42
 
   penalties:

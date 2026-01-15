@@ -1,0 +1,6 @@
+module: noise_injection
+cache: true
+config:
+  noise_type: gaussian
+  augment_ratio: 0.3
+  gaussian_sigma: 0.01

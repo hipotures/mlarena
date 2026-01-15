@@ -137,6 +137,8 @@ Detailed documentation for each sub-module:
 - **[groupwise_normalizer.md](groupwise_normalizer.md)**: Group-relative normalization features.
 - **[dimensionality_reducer.md](dimensionality_reducer.md)**: PCA/SVD component features.
 - **[clustering_features.md](clustering_features.md)**: KMeans-based cluster features.
+- **[dae_embeddings.md](dae_embeddings.md)**: Denoising autoencoder embeddings for numeric data.
+- **[knn_graph_features.md](knn_graph_features.md)**: KNN distance and density features.
 - **[time_series_features.md](time_series_features.md)**: Lags and rolling-window features for time series.
 - **[feature_selector.md](feature_selector.md)**: Automated feature selection using multiple methods.
 - **[imbalance_handler.md](imbalance_handler.md)**: Handling class imbalance via weighting or resampling.
@@ -144,6 +146,9 @@ Detailed documentation for each sub-module:
 - **[datetime_handler.md](datetime_handler.md)**: Parsing and expanding datetime columns.
 - **[target_transformer.md](target_transformer.md)**: Transformations for regression target columns.
 - **[adversarial_validation.md](adversarial_validation.md)**: Distribution shift handling via AV weighting.
+- **[noise_injection.md](noise_injection.md)**: Gaussian/swap noise augmentation for training data.
+- **[mixup_augmentation.md](mixup_augmentation.md)**: MixUp sample augmentation for training data.
+- **[pseudo_labeling.md](pseudo_labeling.md)**: Pseudo-labeling for semi-supervised augmentation.
 - **[external_dataset.md](external_dataset.md)**: Loading and aligning external/original datasets.
 - **[train_fraction.md](train_fraction.md)**: Training data subsampling and validation/evaluation splitting.
 - **[utility_modules.md](utility_modules.md)**: Minimal modules like `noop` and `identity` for testing.

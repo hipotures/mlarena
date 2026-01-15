@@ -1,0 +1,8 @@
+module: knn_graph_features
+cache: true
+config:
+  k: 5
+  metric: euclidean
+  fit_on: train
+  scale: true
+  add_density: true

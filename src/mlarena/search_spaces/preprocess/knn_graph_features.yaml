@@ -1,0 +1,30 @@
+group: knn_graph_features
+template: knn_graph_features
+
+base_config:
+  include_cols: null
+  exclude_cols: []
+  use_original_features_only: true
+  k: 5
+  metric: euclidean
+  fit_on: train
+  scale: true
+  missing_strategy: median
+  include_self: false
+  add_density: true
+  prefix: knn
+  random_state: 42
+
+variants:
+  - name: k5_euclidean
+    params:
+      k: {type: int_range, min: 3, max: 7, step: 2}
+      metric: {type: choice, values: [euclidean]}
+  - name: k10_euclidean
+    params:
+      k: {type: int_range, min: 8, max: 12, step: 2}
+      metric: {type: choice, values: [euclidean]}
+  - name: k5_manhattan
+    params:
+      k: {type: int_range, min: 3, max: 7, step: 2}
+      metric: {type: choice, values: [manhattan]}

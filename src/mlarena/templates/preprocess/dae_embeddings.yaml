@@ -1,0 +1,8 @@
+module: dae_embeddings
+cache: true
+config:
+  embedding_dim: 16
+  noise_type: swap
+  swap_prob: 0.15
+  fit_on: train_test
+  scale: true

@@ -86,13 +86,15 @@ class MlaCliExecutor:
 
     def parse_result(self, stdout: str) -> ExperimentResult:
         try:
-            # Find JSON in potential noise
+            # Find the outermost JSON object
             start_idx = stdout.find('{')
-            if start_idx != -1:
-                # Try to find the LAST occurrence of { to avoid picking up logs/noise
-                last_idx = stdout.rfind('{')
-                data = json.loads(stdout[last_idx:])
+            end_idx = stdout.rfind('}')
+            
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                json_str = stdout[start_idx:end_idx + 1]
+                data = json.loads(json_str)
             else:
+                # Fallback to direct parse if markers not found
                 data = json.loads(stdout)
             
             value = data.get("local_cv")

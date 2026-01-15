@@ -33,3 +33,17 @@ def test_executor_filters_rich_noise(tmp_path):
     # Should skip the bottom border and pick the actual error line
     assert "Critical: Missing Columns" in result.details.get("error")
     assert "┗" not in result.details.get("error")
+
+def test_executor_handles_nested_json_with_noise(tmp_path):
+    executor = MlaCliExecutor(project_root=tmp_path)
+    
+    # Mocking nested JSON with noise after it
+    json_data = '{"success": true, "details": {"inner": "value"}, "experiment_id": "nested_exp"}'
+    output = f"log line 1\n{json_data}\nFinalizing panels..."
+    cmd = ["python3", "-c", f"import sys; print('''{output}'''); sys.exit(0)"]
+    
+    result = executor.run(cmd)
+    
+    assert result.success is True
+    assert result.experiment_id == "nested_exp"
+    assert result.details["raw_json"]["details"]["inner"] == "value"

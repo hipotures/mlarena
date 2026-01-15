@@ -336,7 +336,7 @@ class MCTSRunner:
                         self._persist_node_stats_path(node, conn)
 
                     if not self.mcts_live:
-                        txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
+                        txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
                         txt.append(" → ", style="bold white")
                         txt.append(" ", style="dim") # spacer
                         txt.append(diag_info, style="dim")
@@ -374,7 +374,7 @@ class MCTSRunner:
                     # n_executed += 1 
                     continue
                 
-                self.logger.info(f"Iter {iteration} (Trials {n_executed + 1}/{self.config.budget}) -> Trial={trial_id} Depth={child.state.depth}")
+                self.logger.info(f"I={iteration} (Ts={n_executed + 1}/{self.config.budget}) -> T={trial_id} D={child.state.depth}")
                 if self.logger.isEnabledFor(logging.DEBUG):
                     try:
                         self.logger.debug(f"  -> Trial {trial_id} Full Config: {json.dumps(child.state.steps)}")
@@ -452,7 +452,7 @@ class MCTSRunner:
                             
                     if is_new_best:
                         best_so_far = result.value
-                        self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (Trial={trial_id}, Depth={child.state.depth}) ***")
+                        self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (T={trial_id}, D={child.state.depth}) ***")
                         
                         # Send Telegram Notification
                         proj_name = self.context.project_name or "Unknown Project"
@@ -468,9 +468,9 @@ class MCTSRunner:
                     
                     if not self.mcts_live:
                         # Rich styling for success message
-                        txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
+                        txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
                         txt.append(" ✓ ", style="bold green")
-                        txt.append(f" Trial={trial_id} Depth={child.state.depth} ", style="dim")
+                        txt.append(f" T={trial_id} D={child.state.depth} ", style="dim")
                         txt.append(f"{act_info}: ", style="cyan")
                         
                         val_style = "bold yellow" if is_new_best else "bold white"
@@ -496,9 +496,9 @@ class MCTSRunner:
                         self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
                 else:
                     if not self.mcts_live:
-                        txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
+                        txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
                         txt.append(" ✗ ", style="bold red")
-                        txt.append(f" Trial={trial_id} Depth={child.state.depth}", style="bold red")
+                        txt.append(f" T={trial_id} D={child.state.depth}", style="bold red")
                         self.console.print(txt)
                     
                     # Extract error from JSON if available, otherwise fallback to stderr

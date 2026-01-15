@@ -69,8 +69,8 @@ class MCTSTree:
             return
 
         # 1. Create all nodes first
-        # Map: signature -> MCTSNode
-        node_map: Dict[str, MCTSNode] = {}
+        # Map: trial_id -> MCTSNode (tree-safe; signatures may repeat under different parents)
+        node_map: Dict[int, MCTSNode] = {}
         
         for n in nodes_data:
             sig = n["pipeline_signature"]
@@ -82,30 +82,26 @@ class MCTSTree:
             node.value_sum = n["value_sum"]
             node.value_best = n["value_best"] if n["value_best"] is not None else -float('inf')
             
-            node_map[sig] = node
+            node_map[node.trial_id] = node
             
-            if sig == "baseline":
+            if sig == "baseline" and node.trial_id is not None:
                 # Ensure baseline preserves initial groups constraints
                 node.state.used_groups = self.initial_groups.copy()
                 self.root = node
 
         # 2. Link them using edges and reconstruct states
-        # Map: trial_id -> signature
-        id_to_sig = {n["trial_id"]: n["pipeline_signature"] for n in nodes_data}
-
+        # Map: trial_id -> depth for sorting (optional, but good for stability)
+        node_depths = {n["trial_id"]: n["depth"] for n in nodes_data}
+        
         # We need to process edges in an order that builds the tree from top to bottom.
         # Sorting by child depth (which we have in nodes_data) is a good proxy.
-        node_depths = {n["pipeline_signature"]: n["depth"] for n in nodes_data}
-        sorted_edges = sorted(edges_data, key=lambda e: node_depths.get(id_to_sig.get(e["child_trial_id"], ""), 0))
+        sorted_edges = sorted(edges_data, key=lambda e: node_depths.get(e["child_trial_id"], 0))
 
         for edge in sorted_edges:
-            parent_sig = id_to_sig.get(edge["parent_trial_id"])
-            child_sig = id_to_sig.get(edge["child_trial_id"])
+            parent = node_map.get(edge["parent_trial_id"])
+            child = node_map.get(edge["child_trial_id"])
             
-            if parent_sig and child_sig:
-                parent = node_map[parent_sig]
-                child = node_map[child_sig]
-                
+            if parent and child:
                 action_dict = json.loads(edge["action_json"])
                 action = Action.from_record(action_dict)
                 

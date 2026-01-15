@@ -24,6 +24,7 @@ Command-line toolkit for running reproducible Kaggle experiments with modular pr
    modules/preprocessing
    modules/models
    model_templates.md
+   scripts.md
    faq.md
    contributing.md
    MLA_WORKFLOW_GUIDE.md

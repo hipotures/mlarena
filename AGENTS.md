@@ -72,6 +72,7 @@
 3.  **ALWAYS check `projects/kaggle/<proj>/code/utils/config.py`** before assuming column names (e.g., `TARGET_COLUMN`).
 4.  **Respect `mla_retention`**. If disk space is low, suggest using this flag for AutoGluon models.
 5.  **Always check `/mnt/mlarena` for experiment results** if the local `experiments/` folder is empty. Use 1:1 path mapping between the local repository and the NFS mount point.
+6.  **Console output should use `rich`** for improved visualization of data/logs.
 
 ## 📚 Documentation Index
 -   **Workflow**: `docs/MLA_WORKFLOW_GUIDE.md`

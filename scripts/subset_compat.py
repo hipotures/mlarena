@@ -39,6 +39,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
 
 # ----------------------------
@@ -283,24 +284,29 @@ def make_stratify_bins_for_target(y: pd.Series, problem_type: str, n_bins: int =
 
 
 def stratified_sample_indices(
-    n: int,
+    n_total: int,
+    n_sample: int,
     stratify_labels: Optional[np.ndarray],
     seed: int,
 ) -> np.ndarray:
     rng = np.random.default_rng(seed)
-    idx = np.arange(n)
+    idx = np.arange(n_total)
 
     if stratify_labels is None:
-        return rng.choice(idx, size=n, replace=False)
+        return rng.choice(idx, size=n_sample, replace=False)
 
     # sample proportionally per stratum
     labels = np.asarray(stratify_labels)
+    if len(labels) != n_total:
+        raise ValueError(
+            f"stratify_labels length ({len(labels)}) does not match n_total ({n_total})"
+        )
     uniq, counts = np.unique(labels, return_counts=True)
     # desired counts per stratum (rounded, with adjustment)
-    desired = np.floor(counts / counts.sum() * n).astype(int)
+    desired = np.floor(counts / counts.sum() * n_sample).astype(int)
 
     # fix rounding so total == n
-    diff = n - desired.sum()
+    diff = n_sample - desired.sum()
     if diff > 0:
         # distribute remaining to largest strata
         order = np.argsort(-counts)
@@ -325,12 +331,12 @@ def stratified_sample_indices(
 
     chosen = np.array(chosen, dtype=int)
     # if due to edge cases we have less/more, fix by random fill/trim
-    if len(chosen) < n:
+    if len(chosen) < n_sample:
         remaining = np.setdiff1d(idx, chosen, assume_unique=False)
-        extra = rng.choice(remaining, size=n - len(chosen), replace=False)
+        extra = rng.choice(remaining, size=n_sample - len(chosen), replace=False)
         chosen = np.concatenate([chosen, extra])
-    elif len(chosen) > n:
-        chosen = rng.choice(chosen, size=n, replace=False)
+    elif len(chosen) > n_sample:
+        chosen = rng.choice(chosen, size=n_sample, replace=False)
 
     return chosen
 
@@ -424,103 +430,119 @@ def evaluate_fractions(
     if fractions[-1] != round(step, 2):
         fractions.append(round(step, 2))
 
-    for frac in fractions:
-        n_sub = int(round(n_total * frac))
-        n_sub = max(1, min(n_sub, n_total))
-        n_rest = n_total - n_sub
+    progress = Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+    )
+    with progress:
+        task = progress.add_task("subset-compat", total=len(fractions))
+        for frac in fractions:
+            n_sub = int(round(n_total * frac))
+            n_sub = max(1, min(n_sub, n_total))
+            n_rest = n_total - n_sub
 
-        notes: List[str] = []
+            notes: List[str] = []
 
-        if frac == 1.0:
+            if frac == 1.0:
+                results.append(FractionResult(
+                    fraction=frac,
+                    n_subset=n_sub,
+                    n_rest=n_rest,
+                    pass_fail="PASS",
+                    adv_auc=None,
+                    max_psi=0.0,
+                    bad_psi_frac=0.0,
+                    target_psi=0.0,
+                    top_drifting_features=[],
+                    notes=["fraction=1.0: subset == full; metrics skipped"],
+                ))
+                progress.advance(task)
+                continue
+
+            if n_rest < min_rest_rows:
+                # still compute (might be noisy), but flag
+                notes.append(f"small_rest(n_rest={n_rest}) may be noisy")
+
+            sub_idx = stratified_sample_indices(
+                n_total,
+                n_sub,
+                stratify_labels=strat_labels,
+                seed=seed + int(frac * 1000),
+            )
+            mask = np.zeros(n_total, dtype=bool)
+            mask[sub_idx] = True
+
+            df_sub = df.loc[mask].reset_index(drop=True)
+            df_rest = df.loc[~mask].reset_index(drop=True)
+
+            # PSI features (subset vs rest)
+            psi_map = compute_psi_bundle(df_sub, df_rest, used_num, used_cat, bins=psi_bins)
+            psi_vals = np.array(list(psi_map.values()), dtype=float) if psi_map else np.array([], dtype=float)
+
+            max_psi = float(np.nanmax(psi_vals)) if psi_vals.size else float("nan")
+            bad_frac = float(np.mean(psi_vals > thresholds.psi_max)) if psi_vals.size else float("nan")
+
+            # target PSI
+            if pd.api.types.is_numeric_dtype(df[target_col]):
+                target_psi = psi_numeric(df_rest[target_col], df_sub[target_col], bins=psi_bins)
+            else:
+                target_psi = psi_categorical(df_rest[target_col], df_sub[target_col])
+
+            # Adversarial AUC
+            X_sub = df_sub[used_num + used_cat].copy()
+            X_rest = df_rest[used_num + used_cat].copy()
+            adv_auc = adversarial_auc(
+                X_sub, X_rest,
+                numeric_cols=used_num,
+                categorical_cols=used_cat,
+                seed=seed + int(frac * 1000),
+                n_splits=adv_cv_splits,
+                max_rows_per_side=adv_max_rows_per_side,
+            )
+
+            # top drifting features
+            top = sorted(psi_map.items(), key=lambda kv: kv[1], reverse=True)[:10]
+
+            # PASS/FAIL
+            checks = []
+            if not math.isnan(adv_auc):
+                checks.append(adv_auc <= thresholds.adv_auc_max)
+            else:
+                notes.append("adv_auc=nan (insufficient rows?)")
+                checks.append(False)
+
+            if not math.isnan(max_psi):
+                checks.append(max_psi <= thresholds.psi_max)
+            else:
+                notes.append("max_psi=nan")
+                checks.append(False)
+
+            if not math.isnan(bad_frac):
+                checks.append(bad_frac <= thresholds.psi_bad_frac_max)
+            else:
+                notes.append("bad_psi_frac=nan")
+                checks.append(False)
+
+            checks.append(target_psi <= thresholds.target_psi_max)
+
+            pass_fail = "PASS" if all(checks) else "FAIL"
+
             results.append(FractionResult(
                 fraction=frac,
                 n_subset=n_sub,
                 n_rest=n_rest,
-                pass_fail="PASS",
-                adv_auc=None,
-                max_psi=0.0,
-                bad_psi_frac=0.0,
-                target_psi=0.0,
-                top_drifting_features=[],
-                notes=["fraction=1.0: subset == full; metrics skipped"],
+                pass_fail=pass_fail,
+                adv_auc=float(adv_auc) if not math.isnan(adv_auc) else None,
+                max_psi=float(max_psi) if not math.isnan(max_psi) else None,
+                bad_psi_frac=float(bad_frac) if not math.isnan(bad_frac) else None,
+                target_psi=float(target_psi),
+                top_drifting_features=[(k, float(v)) for k, v in top],
+                notes=notes,
             ))
-            continue
-
-        if n_rest < min_rest_rows:
-            # still compute (might be noisy), but flag
-            notes.append(f"small_rest(n_rest={n_rest}) may be noisy")
-
-        sub_idx = stratified_sample_indices(n_sub, stratify_labels=strat_labels, seed=seed + int(frac * 1000))
-        mask = np.zeros(n_total, dtype=bool)
-        mask[sub_idx] = True
-
-        df_sub = df.loc[mask].reset_index(drop=True)
-        df_rest = df.loc[~mask].reset_index(drop=True)
-
-        # PSI features (subset vs rest)
-        psi_map = compute_psi_bundle(df_sub, df_rest, used_num, used_cat, bins=psi_bins)
-        psi_vals = np.array(list(psi_map.values()), dtype=float) if psi_map else np.array([], dtype=float)
-
-        max_psi = float(np.nanmax(psi_vals)) if psi_vals.size else float("nan")
-        bad_frac = float(np.mean(psi_vals > thresholds.psi_max)) if psi_vals.size else float("nan")
-
-        # target PSI
-        if pd.api.types.is_numeric_dtype(df[target_col]):
-            target_psi = psi_numeric(df_rest[target_col], df_sub[target_col], bins=psi_bins)
-        else:
-            target_psi = psi_categorical(df_rest[target_col], df_sub[target_col])
-
-        # Adversarial AUC
-        X_sub = df_sub[used_num + used_cat].copy()
-        X_rest = df_rest[used_num + used_cat].copy()
-        adv_auc = adversarial_auc(
-            X_sub, X_rest,
-            numeric_cols=used_num,
-            categorical_cols=used_cat,
-            seed=seed + int(frac * 1000),
-            n_splits=adv_cv_splits,
-            max_rows_per_side=adv_max_rows_per_side,
-        )
-
-        # top drifting features
-        top = sorted(psi_map.items(), key=lambda kv: kv[1], reverse=True)[:10]
-
-        # PASS/FAIL
-        checks = []
-        if not math.isnan(adv_auc):
-            checks.append(adv_auc <= thresholds.adv_auc_max)
-        else:
-            notes.append("adv_auc=nan (insufficient rows?)")
-            checks.append(False)
-
-        if not math.isnan(max_psi):
-            checks.append(max_psi <= thresholds.psi_max)
-        else:
-            notes.append("max_psi=nan")
-            checks.append(False)
-
-        if not math.isnan(bad_frac):
-            checks.append(bad_frac <= thresholds.psi_bad_frac_max)
-        else:
-            notes.append("bad_psi_frac=nan")
-            checks.append(False)
-
-        checks.append(target_psi <= thresholds.target_psi_max)
-
-        pass_fail = "PASS" if all(checks) else "FAIL"
-
-        results.append(FractionResult(
-            fraction=frac,
-            n_subset=n_sub,
-            n_rest=n_rest,
-            pass_fail=pass_fail,
-            adv_auc=float(adv_auc) if not math.isnan(adv_auc) else None,
-            max_psi=float(max_psi) if not math.isnan(max_psi) else None,
-            bad_psi_frac=float(bad_frac) if not math.isnan(bad_frac) else None,
-            target_psi=float(target_psi),
-            top_drifting_features=[(k, float(v)) for k, v in top],
-            notes=notes,
-        ))
+            progress.advance(task)
 
     return results
 
@@ -622,4 +644,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

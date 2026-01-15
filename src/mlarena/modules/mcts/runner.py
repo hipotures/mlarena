@@ -498,7 +498,7 @@ class MCTSRunner:
                         txt.append(f"{act_info}: ", style="cyan")
                         
                         val_style = "bold yellow" if is_new_best else "bold white"
-                        txt.append(f"{result.value:.4f}", style=val_style)
+                        txt.append(f"{result.value:.5f}", style=val_style)
                         
                         if is_new_best:
                             txt.append(" ★", style="bold yellow")
@@ -693,7 +693,7 @@ class MCTSRunner:
                 txt.append(" ✓ ", style="bold green")
                 txt.append(f" T={trial_id} P=0 D=0 ", style="dim")
                 txt.append("Action=[step=baseline var=fixed sid=0]: ", style="cyan")
-                txt.append(f"{result.value:.4f}", style="bold white")
+                txt.append(f"{result.value:.5f}", style="bold white")
                 txt.append(" =", style="bold blue")
                 self.console.print(txt)
             self.logger.info(f"Baseline Score: {result.value}")

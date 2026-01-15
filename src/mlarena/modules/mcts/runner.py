@@ -352,20 +352,15 @@ class MCTSRunner:
                         study_id=self.study_id,
                         pipeline_signature=child.state.signature,
                         depth=child.state.depth,
+                        parent_trial_id=node.trial_id, # Link directly to the selected parent node
                         params=self._state_to_params(child.state),
                         conn=conn
                     )
                     child.trial_id = trial_id # For visualization
                     
                     # Record the edge
-                    parent_trial_id = self.storage.get_trial_id_by_signature(
-                        self.study_id, 
-                        node.state.signature if node != self.tree.root else "baseline",
-                        conn=conn
-                    )
-                    
-                    if parent_trial_id:
-                        self.storage.add_edge(parent_trial_id, trial_id, child.action_from_parent.to_record(), conn=conn)
+                    if node.trial_id is not None:
+                        self.storage.add_edge(node.trial_id, trial_id, child.action_from_parent.to_record(), conn=conn)
 
                 fidelity = self._get_next_fidelity(child, trial_id)
                 if not fidelity:
@@ -620,6 +615,7 @@ class MCTSRunner:
             study_id=self.study_id, 
             pipeline_signature="baseline", 
             depth=0, 
+            parent_trial_id=None, # Root has no parent
             number=0, 
             state=TrialState.RUNNING
         )

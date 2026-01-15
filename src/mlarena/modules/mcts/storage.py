@@ -85,28 +85,31 @@ CREATE TABLE IF NOT EXISTS trial_user_attributes (
 CREATE TABLE IF NOT EXISTS mcts_nodes (
   trial_id          INTEGER PRIMARY KEY,
   study_id          INTEGER NOT NULL,
+  parent_trial_id   INTEGER, -- NULL for root/baseline
   depth             INTEGER NOT NULL,
   pipeline_signature TEXT NOT NULL,
   n_visits          INTEGER NOT NULL DEFAULT 0,
   value_sum         REAL NOT NULL DEFAULT 0.0,
   value_best        REAL,
-  UNIQUE (study_id, pipeline_signature),
+  UNIQUE (study_id, parent_trial_id, pipeline_signature),
   FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
   FOREIGN KEY (study_id) REFERENCES studies(study_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_mcts_nodes_study ON mcts_nodes(study_id);
 CREATE INDEX IF NOT EXISTS idx_mcts_nodes_sig ON mcts_nodes(study_id, pipeline_signature);
+CREATE INDEX IF NOT EXISTS idx_mcts_nodes_parent ON mcts_nodes(parent_trial_id);
 
 -- MCTS Edges (Parent -> Child relations)
 CREATE TABLE IF NOT EXISTS mcts_edges (
   parent_trial_id   INTEGER NOT NULL,
-  child_trial_id    INTEGER NOT NULL,
+  child_trial_id    INTEGER NOT NULL UNIQUE, -- Enforce Tree: one parent per child
   action_json       TEXT NOT NULL,
   PRIMARY KEY (parent_trial_id, child_trial_id),
   FOREIGN KEY (parent_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE,
   FOREIGN KEY (child_trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_mcts_edges_child ON mcts_edges(child_trial_id);
+CREATE INDEX IF NOT EXISTS idx_mcts_edges_parent ON mcts_edges(parent_trial_id);
 
 -- MCTS Evaluations (Multi-fidelity)
 CREATE TABLE IF NOT EXISTS mcts_evaluations (
@@ -184,6 +187,7 @@ class MCTSStorage:
         study_id: int, 
         pipeline_signature: str,
         depth: int,
+        parent_trial_id: Optional[int] = None,
         number: Optional[int] = None,
         params: Optional[Dict[str, Any]] = None,
         state: TrialState = TrialState.WAITING,
@@ -198,9 +202,14 @@ class MCTSStorage:
             
             # Assignment and Insert with Retry
             for attempt in range(max_retries):
-                # 1. Re-check if signature exists (handles concurrent inserts)
-                query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
-                cur.execute(query, (study_id, pipeline_signature))
+                # 1. Re-check if signature exists UNDER THIS PARENT (handles concurrent inserts)
+                if parent_trial_id is not None:
+                    query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND parent_trial_id = ? AND pipeline_signature = ?"
+                    cur.execute(query, (study_id, parent_trial_id, pipeline_signature))
+                else:
+                    query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND parent_trial_id IS NULL AND pipeline_signature = ?"
+                    cur.execute(query, (study_id, pipeline_signature))
+                
                 existing = cur.fetchone()
                 if existing:
                     return existing[0]
@@ -230,8 +239,8 @@ class MCTSStorage:
                             )
                     
                     cur.execute(
-                        "INSERT INTO mcts_nodes (trial_id, study_id, depth, pipeline_signature) VALUES (?, ?, ?, ?)",
-                        (trial_id, study_id, depth, pipeline_signature)
+                        "INSERT INTO mcts_nodes (trial_id, study_id, parent_trial_id, depth, pipeline_signature) VALUES (?, ?, ?, ?, ?)",
+                        (trial_id, study_id, parent_trial_id, depth, pipeline_signature)
                     )
                     
                     c.execute(f"RELEASE SAVEPOINT trial_creation_{attempt}")

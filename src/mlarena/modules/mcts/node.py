@@ -80,6 +80,7 @@ class PipelineState:
             canonical_steps.append({
                 "name": s["name"],
                 "template": s.get("template") or s["name"],
+                "group": s.get("group") or s.get("name"),
                 "variant": s["variant"],
                 "config": s["config"]
             })

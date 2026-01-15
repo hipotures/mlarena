@@ -72,9 +72,9 @@ class PipelineState:
 
     @property
     def signature(self) -> str:
-        """Canonical signature of the pipeline state (ignores metadata like indices)."""
-        # To maintain compatibility with existing databases and ignore 
-        # index metadata, we hash only the core pipeline definition.
+        """Canonical signature of the pipeline state.
+        Includes searched_index/original_index/param_sample_id to ensure strict-tree uniqueness.
+        """
         canonical_steps = []
         for s in self.steps:
             canonical_steps.append({

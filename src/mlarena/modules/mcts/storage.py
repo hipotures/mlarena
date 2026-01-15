@@ -320,13 +320,17 @@ class MCTSStorage:
 
                         # Prefer semantic compare; fallback to canonical-string compare if parsing fails.
                         if existing_obj is not None:
-                            if existing_obj != action:
+                            # Normalize both sides to canonical Action record to avoid legacy-key mismatches
+                            from mlarena.modules.mcts.node import Action as MCTSAction
+                            existing_norm = MCTSAction.from_record(existing_obj).to_record()
+                            action_norm = MCTSAction.from_record(action).to_record()
+                            if existing_norm != action_norm:
                                 # Detailed diff logging
-                                diff_keys = set(existing_obj.keys()) | set(action.keys())
+                                diff_keys = set(existing_norm.keys()) | set(action_norm.keys())
                                 diff_report = []
                                 for k in sorted(diff_keys):
-                                    v_old = existing_obj.get(k)
-                                    v_new = action.get(k)
+                                    v_old = existing_norm.get(k)
+                                    v_new = action_norm.get(k)
                                     if v_old != v_new:
                                         diff_report.append(f"  [{k}]: DB={v_old!r} vs NEW={v_new!r}")
                                 

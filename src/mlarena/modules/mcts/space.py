@@ -79,6 +79,18 @@ class SuperChainActionSpace:
                 variants = [{"name": "fixed", "params": {}}]
 
             for variant in variants:
+                # Check for dependencies (requires_preproc)
+                requirements = variant.get("requires_preproc", [])
+                met = True
+                for req in requirements:
+                    req_group = req.get("group")
+                    if req_group and req_group not in state.used_groups:
+                        met = False
+                        break
+                
+                if not met:
+                    continue
+
                 vname = variant.get("name")
                 action = Action(
                     step_name=step_name,

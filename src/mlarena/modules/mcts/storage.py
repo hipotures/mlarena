@@ -100,6 +100,13 @@ CREATE INDEX IF NOT EXISTS idx_mcts_nodes_study ON mcts_nodes(study_id);
 CREATE INDEX IF NOT EXISTS idx_mcts_nodes_sig ON mcts_nodes(study_id, pipeline_signature);
 CREATE INDEX IF NOT EXISTS idx_mcts_nodes_parent ON mcts_nodes(parent_trial_id);
 
+-- IMPORTANT (SQLite): UNIQUE constraints treat NULL != NULL, so the table-level UNIQUE
+-- does NOT prevent duplicates when parent_trial_id IS NULL (root/baseline).
+-- This partial UNIQUE index enforces root-level uniqueness per (study_id, pipeline_signature).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_mcts_nodes_root_sig
+  ON mcts_nodes(study_id, pipeline_signature)
+  WHERE parent_trial_id IS NULL;
+
 -- MCTS Edges (Parent -> Child relations)
 CREATE TABLE IF NOT EXISTS mcts_edges (
   parent_trial_id   INTEGER NOT NULL,
@@ -285,14 +292,57 @@ class MCTSStorage:
                 return _exec(conn_local)
 
     def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any], conn: Optional[sqlite3.Connection] = None):
+        # Edge should be immutable: (parent, child) must always map to the same action.
+        # We use DO NOTHING on conflict and verify semantic equality of JSON objects.
         query = """
-            INSERT INTO mcts_edges (parent_trial_id, child_trial_id, action_json) 
+            INSERT INTO mcts_edges (parent_trial_id, child_trial_id, action_json)
             VALUES (?, ?, ?)
-            ON CONFLICT(parent_trial_id, child_trial_id) DO UPDATE SET action_json=excluded.action_json
+            ON CONFLICT(parent_trial_id, child_trial_id) DO NOTHING
         """
         def _exec(c):
             try:
-                c.execute(query, (parent_trial_id, child_trial_id, json.dumps(action)))
+                # Canonicalize new writes (stable order, no whitespace). Old rows may still use default formatting.
+                action_json = json.dumps(action, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                cur = c.execute(query, (parent_trial_id, child_trial_id, action_json))
+
+                # If conflict happened (row already existed), validate immutability semantically.
+                if cur.rowcount == 0:
+                    row = c.execute(
+                        "SELECT action_json FROM mcts_edges WHERE parent_trial_id=? AND child_trial_id=?",
+                        (parent_trial_id, child_trial_id),
+                    ).fetchone()
+                    if row:
+                        existing_raw = row[0]
+                        try:
+                            existing_obj = json.loads(existing_raw)
+                        except Exception:
+                            existing_obj = None
+
+                        # Prefer semantic compare; fallback to canonical-string compare if parsing fails.
+                        if existing_obj is not None:
+                            if existing_obj != action:
+                                # Detailed diff logging
+                                diff_keys = set(existing_obj.keys()) | set(action.keys())
+                                diff_report = []
+                                for k in sorted(diff_keys):
+                                    v_old = existing_obj.get(k)
+                                    v_new = action.get(k)
+                                    if v_old != v_new:
+                                        diff_report.append(f"  [{k}]: DB={v_old!r} vs NEW={v_new!r}")
+                                
+                                diff_str = "\n".join(diff_report)
+                                raise sqlite3.IntegrityError(
+                                    f"Edge already exists with different action_json. "
+                                    f"(parent={parent_trial_id}, child={child_trial_id})\nDifferences:\n{diff_str}"
+                                )
+                        else:
+                            # Worst case: compare canonicalized strings if the stored JSON is malformed.
+                            existing_canon = existing_raw.strip()
+                            if existing_canon != action_json:
+                                raise sqlite3.IntegrityError(
+                                    f"Edge already exists with different action_json. "
+                                    f"(parent={parent_trial_id}, child={child_trial_id})"
+                                )
             except sqlite3.IntegrityError as e:
                 # Check if it's a UNIQUE constraint violation on child_trial_id
                 if "UNIQUE constraint failed: mcts_edges.child_trial_id" in str(e):

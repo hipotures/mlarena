@@ -139,7 +139,12 @@ class MCTSTree:
         """
         if node.action_pool is None:
             node.action_pool = self.space.next_actions(node.state)
-            random.shuffle(node.action_pool)
+            # Deterministic shuffle per node (reproducible across resume/runs)
+            import hashlib
+            seed_base = f"{self.config.seed}|pool|{node.state.signature}|last={node.state.last_step_index}"
+            seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16) % (2**32)
+            rng = random.Random(seed_hash)
+            rng.shuffle(node.action_pool)
 
         def op_key(a: Action):
             return (a.searched_index, a.step_name, a.variant_name)
@@ -231,12 +236,21 @@ class MCTSTree:
                     param_sample_id=sid,
                 ))
 
-        random.shuffle(untried)
+        return untried
+
+    def _get_untried_actions_random_shuffle(self, node: MCTSNode, untried: List[Action]) -> List[Action]:
+        """Deterministic shuffle for untried actions list."""
+        if not untried: return untried
+        import hashlib
+        seed_base = f"{self.config.seed}|untried|{node.state.signature}|n={node.n_visits}"
+        seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16) % (2**32)
+        rng = random.Random(seed_hash)
+        rng.shuffle(untried)
         return untried
 
     def expand(self, node: MCTSNode) -> MCTSNode:
         """Expand a node by adding a new child with a sampled action."""
-        untried_actions = self._get_untried_actions(node)
+        untried_actions = self._get_untried_actions_random_shuffle(node, self._get_untried_actions(node))
         if not untried_actions:
             return node
             

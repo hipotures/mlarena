@@ -442,7 +442,7 @@ class MCTSRunner:
                     
                     # Log action details
                     act = child.action_from_parent
-                    act_info = f"Action=[idx={act.searched_index} var={act.variant_name} sid={act.param_sample_id}]"
+                    act_info = f"Action=[step={act.step_name} var={act.variant_name} sid={act.param_sample_id}]"
 
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:
@@ -470,7 +470,8 @@ class MCTSRunner:
                         # Rich styling for success message
                         txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
                         txt.append(" ✓ ", style="bold green")
-                        txt.append(f" T={trial_id} D={child.state.depth} ", style="dim")
+                        parent_id = node.trial_id if node.trial_id is not None else "Root"
+                        txt.append(f" T={trial_id} P={parent_id} D={child.state.depth} ", style="dim")
                         txt.append(f"{act_info}: ", style="cyan")
                         
                         val_style = "bold yellow" if is_new_best else "bold white"
@@ -486,9 +487,10 @@ class MCTSRunner:
                     
                     best_model = raw.get("best_model", "N/A")
                     exp_id_res = raw.get("experiment_id", "N/A")
+                    parent_id = node.trial_id if node.trial_id is not None else "Root"
                     
                     self.logger.info(
-                        f"  -> Trial {trial_id} Success: {result.value:.4f} | {act_info} | Model: {best_model} | ExpID: {exp_id_res}"
+                        f"  -> Trial {trial_id} (Parent: {parent_id}) Success: {result.value:.4f} | {act_info} | Model: {best_model} | ExpID: {exp_id_res}"
                     )
                     
                     target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
@@ -498,7 +500,8 @@ class MCTSRunner:
                     if not self.mcts_live:
                         txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
                         txt.append(" ✗ ", style="bold red")
-                        txt.append(f" T={trial_id} D={child.state.depth}", style="bold red")
+                        parent_id = node.trial_id if node.trial_id is not None else "Root"
+                        txt.append(f" T={trial_id} P={parent_id} D={child.state.depth}", style="bold red")
                         self.console.print(txt)
                     
                     # Extract error from JSON if available, otherwise fallback to stderr
@@ -609,7 +612,7 @@ class MCTSRunner:
                 return
 
         if not self.mcts_live:
-            print("Evaluating Baseline (Model Zero)")
+            pass
         self.logger.info("Evaluating Baseline (Model Zero)")
 
         trial_id = self.storage.create_trial(
@@ -661,8 +664,12 @@ class MCTSRunner:
             self.storage.update_node_stats(trial_id, self.tree.root.n_visits, self.tree.root.value_sum, self.tree.root.value_best)
             
             if not self.mcts_live:
-                txt = Text(" = ", style="bold blue")
-                txt.append(f" Baseline: {result.value:.4f}", style="bold white")
+                txt = Text(f"I=0 (Ts=0/{self.config.budget}) ", style="dim")
+                txt.append(" ✓ ", style="bold green")
+                txt.append(f" T={trial_id} P=0 D=0 ", style="dim")
+                txt.append("Action=[step=baseline var=fixed sid=0]: ", style="cyan")
+                txt.append(f"{result.value:.4f}", style="bold white")
+                txt.append(" =", style="bold blue")
                 self.console.print(txt)
             self.logger.info(f"Baseline Score: {result.value}")
             

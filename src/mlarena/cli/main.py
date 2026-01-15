@@ -461,14 +461,35 @@ def run_preprocess_chain(
 
         executor = PipelineExecutor({"preprocess": module})
         # We only run the final step "module", but inside it executes everything
-        module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
-        result = module_results.get("preprocess")
+        try:
+            module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
+            result = module_results.get("preprocess")
+        except Exception as e:
+            if config.json_output:
+                import json
+                print(json.dumps({
+                    "experiment_id": config.experiment_id or "failed",
+                    "success": False,
+                    "error": str(e),
+                    "exception_type": e.__class__.__name__
+                }))
+            return 1, {}, None, []
         
         # Populate results for all steps to satisfy the contract
         for tpl in preprocess_templates:
             results[f"preprocess-{tpl}"] = result
             
         final_preprocess_exp_dir = chain_base_dir / final_sub_id
+
+        if not result.success and config.json_output:
+            import json
+            print(json.dumps({
+                "experiment_id": config.experiment_id or "failed",
+                "success": False,
+                "error": result.error or "Fused preprocessing failed",
+                "payload": result.payload
+            }))
+
         return (0 if result.success else 1), results, final_preprocess_exp_dir, preprocess_templates
 
 
@@ -527,15 +548,36 @@ def run_preprocess_chain(
         })
         
         executor = PipelineExecutor({"preprocess": module})
-        module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
-        result = module_results.get("preprocess")
+        try:
+            module_results = executor.run_module("preprocess", force=force, skip_deps=False, console=console)
+            result = module_results.get("preprocess")
+        except Exception as e:
+            if config.json_output:
+                import json
+                print(json.dumps({
+                    "experiment_id": config.experiment_id or "failed",
+                    "success": False,
+                    "error": str(e),
+                    "exception_type": e.__class__.__name__
+                }))
+            return 1, {}, None, []
         
-        # Map result to all virtual steps for the return value
+        # Populate results for all steps to satisfy the contract
         for tpl in preprocess_templates:
             results[f"preprocess-{tpl}"] = result
             
         # The physical results are in the last step folder (handled inside preprocess.py)
         final_exp_dir = chain_base_dir / last_step_subpath
+
+        if not result.success and config.json_output:
+            import json
+            print(json.dumps({
+                "experiment_id": config.experiment_id or "failed",
+                "success": False,
+                "error": result.error or "Preprocessing failed",
+                "payload": result.payload
+            }))
+
         return (0 if result.success else 1), results, final_exp_dir, preprocess_templates
 
     execution_start_idx = 0
@@ -860,17 +902,38 @@ def run_auto_flow(
         all_modules[module_name] = module
 
     executor = PipelineExecutor(all_modules)
-    for module_name in remaining_modules:
-        if module_name == "fetch-score" and wait_seconds > 0:
-            console.print(f"\n[dim]Waiting {wait_seconds}s for Kaggle processing...[/dim]")
-            time.sleep(wait_seconds)
+    try:
+        for module_name in remaining_modules:
+            if module_name == "fetch-score" and wait_seconds > 0:
+                console.print(f"\n[dim]Waiting {wait_seconds}s for Kaggle processing...[/dim]")
+                time.sleep(wait_seconds)
 
-        module_results = executor.run_module(module_name, force=force, skip_deps=True, console=console)
-        result = module_results.get(module_name)
-        results[module_name] = result
+            module_results = executor.run_module(module_name, force=force, skip_deps=True, console=console)
+            result = module_results.get(module_name)
+            results[module_name] = result
 
-        if not result or not result.success:
+            if not result or not result.success:
+                if config.json_output:
+                    import json
+                    print(json.dumps({
+                        "experiment_id": config.experiment_id or "failed",
+                        "success": False,
+                        "error": result.error if result else "Module execution failed",
+                        "failed_module": module_name,
+                        "payload": result.payload if result else {}
+                    }))
+                return 1
+    except Exception as e:
+        if config.json_output:
+            import json
+            print(json.dumps({
+                "experiment_id": config.experiment_id or "failed",
+                "success": False,
+                "error": str(e),
+                "exception_type": e.__class__.__name__
+            }))
             return 1
+        raise
 
     if not skip_git:
         _create_auto_flow_commit(project_name, results, console)
@@ -1374,6 +1437,16 @@ def main(argv: List[str] | None = None) -> int:
         last = results.get(command)
         return 0 if (last and last.success) else 1
     except Exception as e:
+        if config.json_output:
+            import json
+            print(json.dumps({
+                "experiment_id": config.experiment_id or "failed",
+                "success": False,
+                "error": str(e),
+                "exception_type": e.__class__.__name__
+            }))
+            return 1
+
         if e.__class__.__name__ == "OverwriteLockedError":
             from rich.console import Console
             console = Console(force_terminal=True)

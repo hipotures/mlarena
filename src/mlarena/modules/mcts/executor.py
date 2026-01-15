@@ -42,12 +42,56 @@ class MlaCliExecutor:
             
         return cmd
 
+    def _clean_error_msg(self, text: str, default: str = "Unknown error") -> str:
+        if not text:
+            return default
+            
+        import re
+        # Remove ANSI escape sequences
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        text = ansi_escape.sub('', text)
+        
+        # Define box-drawing characters to strip
+        box_chars_re = re.compile(r'[\u2500-\u257f┃┏┓┗┛━]')
+        
+        lines = []
+        for line in text.splitlines():
+            # Strip box characters and extra whitespace
+            l = box_chars_re.sub('', line).strip()
+            if not l: continue
+            
+            # Skip common noise
+            if any(x in l for x in ["Traceback", "File \"", "python3 -c", "uv run", "MLA: uv run"]): continue
+            
+            # Skip very short lines or purely decorative ones (e.g. "----------")
+            if len(l) > 10 and len(set(l.replace(" ", ""))) <= 2: continue
+            
+            lines.append(l)
+
+        if lines:
+            # 1. Priority: Look for lines containing "Error" or "Exception"
+            for l in reversed(lines):
+                # Check for common error markers (case-insensitive)
+                lower_l = l.lower()
+                if "error" in lower_l or "exception" in lower_l or "fail" in lower_l or "critical" in lower_l:
+                    # If it's just the word "ERROR" (like a header), keep looking for something more descriptive
+                    if len(l) < 10 and lower_l == "error":
+                        continue
+                    return l
+            
+            # 2. Fallback: Take the last non-empty line
+            return lines[-1]
+            
+        return default
+
     def parse_result(self, stdout: str) -> ExperimentResult:
         try:
             # Find JSON in potential noise
             start_idx = stdout.find('{')
             if start_idx != -1:
-                data = json.loads(stdout[start_idx:])
+                # Try to find the LAST occurrence of { to avoid picking up logs/noise
+                last_idx = stdout.rfind('{')
+                data = json.loads(stdout[last_idx:])
             else:
                 data = json.loads(stdout)
             
@@ -56,14 +100,16 @@ class MlaCliExecutor:
                 value = data.get("best_value")
                 
             metric = data.get("eval_metric") or (data.get("metrics") or {}).get("metric_name")
+            success = bool(data.get("success", True))
+            error = data.get("error")
             
             return ExperimentResult(
                 experiment_id=data.get("experiment_id", "unknown"),
                 value=float(value) if value is not None else None,
                 metric=metric or "unknown",
                 duration=float(data.get("duration_seconds", 0.0)),
-                success=True,
-                details={"raw_json": data}
+                success=success,
+                details={"raw_json": data, "error": error}
             )
         except Exception as e:
             return ExperimentResult(
@@ -72,7 +118,11 @@ class MlaCliExecutor:
                 metric="unknown",
                 duration=0.0,
                 success=False,
-                details={"error": str(e), "stdout": stdout}
+                details={
+                    "error": str(e), # Keep technical error here
+                    "stdout": stdout, 
+                    "original_exception": str(e)
+                }
             )
 
     def run(self, cmd: List[str], timeout: Optional[int] = None) -> ExperimentResult:
@@ -91,19 +141,26 @@ class MlaCliExecutor:
                 env=env
             )
             
+            err_content = proc.stderr or ""
+            out_content = proc.stdout or ""
+            combined_output = err_content + "\n" + out_content
+
             if proc.returncode != 0:
-                # Truncate output to avoid massive log files but keep enough context
-                err_summary = proc.stderr[-1000:] if proc.stderr else ""
-                out_summary = proc.stdout[-1000:] if proc.stdout else ""
+                # Try to parse JSON even on failure
+                res = self.parse_result(out_content)
                 
-                # Try to parse JSON even on failure (preprocess might have emitted failure JSON)
-                try:
-                    res = self.parse_result(proc.stdout)
-                    if res.success: # Should not happen if returncode != 0 but let's be safe
-                        return res
-                    error_msg = res.details.get("error", f"Exit Code: {proc.returncode}")
-                except:
-                    error_msg = f"Exit Code: {proc.returncode}"
+                # If we have a structured failure from JSON (and NOT just a parsing error), return it
+                is_parsing_error = "Expecting value" in str(res.details.get("original_exception", ""))
+                if res.success is False and not is_parsing_error and (res.experiment_id != "failed" or res.details.get("error")):
+                    res.details.update({
+                        "returncode": proc.returncode,
+                        "stderr": err_content[-2000:],
+                        "cmd": " ".join(cmd)
+                    })
+                    return res
+                
+                # Fallback to cleaning text output
+                error_msg = self._clean_error_msg(combined_output, f"Exit Code: {proc.returncode}")
 
                 return ExperimentResult(
                     experiment_id="failed",
@@ -114,13 +171,13 @@ class MlaCliExecutor:
                     details={
                         "error": error_msg,
                         "returncode": proc.returncode, 
-                        "stderr": err_summary, 
-                        "stdout": out_summary,
+                        "stderr": err_content[-2000:], 
+                        "stdout": out_content[-2000:],
                         "cmd": " ".join(cmd)
                     }
                 )
                 
-            return self.parse_result(proc.stdout)
+            return self.parse_result(out_content)
             
         except Exception as e:
             return ExperimentResult(

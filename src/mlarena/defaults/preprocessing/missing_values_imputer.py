@@ -87,7 +87,11 @@ def fit_transform(
 
     # Impute numeric columns
     if numeric_cols:
-        num_imputer = SimpleImputer(strategy=numeric_strategy, fill_value=fill_value)
+        try:
+            num_imputer = SimpleImputer(strategy=numeric_strategy, fill_value=fill_value, keep_empty_features=True)
+        except TypeError:
+            num_imputer = SimpleImputer(strategy=numeric_strategy, fill_value=fill_value)
+
         train_df[numeric_cols] = num_imputer.fit_transform(train_df[numeric_cols])
         test_df[numeric_cols] = num_imputer.transform(test_df[numeric_cols])
         if val_df is not None:
@@ -101,7 +105,11 @@ def fit_transform(
 
     # Impute categorical columns
     if categorical_cols:
-        cat_imputer = SimpleImputer(strategy=categorical_strategy, fill_value="missing")
+        try:
+            cat_imputer = SimpleImputer(strategy=categorical_strategy, fill_value="missing", keep_empty_features=True)
+        except TypeError:
+            cat_imputer = SimpleImputer(strategy=categorical_strategy, fill_value="missing")
+
         train_df[categorical_cols] = cat_imputer.fit_transform(train_df[categorical_cols])
         test_df[categorical_cols] = cat_imputer.transform(test_df[categorical_cols])
         if val_df is not None:

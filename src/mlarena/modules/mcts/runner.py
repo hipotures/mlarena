@@ -472,11 +472,12 @@ class MCTSRunner:
                         txt.append(" ✓ ", style="bold green")
                         txt.append(f" Trial={trial_id} Depth={child.state.depth} ", style="dim")
                         txt.append(f"{act_info}: ", style="cyan")
-                        txt.append(f"{result.value:.4f}", style="bold white")
+                        
+                        val_style = "bold yellow" if is_new_best else "bold white"
+                        txt.append(f"{result.value:.4f}", style=val_style)
                         
                         if is_new_best:
-                            txt.append(" ★ ", style="bold yellow")
-                            txt.append(f"{best_so_far:.4f}", style="bold yellow")
+                            txt.append(" ★", style="bold yellow")
                             
                         self.console.print(txt)
                     

@@ -13,6 +13,8 @@ class Action:
     config: Dict[str, Any]
     searched_index: int  # Index in the searched_steps list (for MCTS order)
     original_index: int  # Index in the full super-chain (for Materializer sorting)
+    # 3rd dimension: multiple parameter samples for the same (step, variant)
+    param_sample_id: int = 0
 
     def to_record(self) -> Dict[str, Any]:
         """Convert action to a stable dictionary format for database storage."""
@@ -23,7 +25,8 @@ class Action:
             "variant": self.variant_name,
             "config": self.config,
             "searched_index": self.searched_index,
-            "original_index": self.original_index
+            "original_index": self.original_index,
+            "param_sample_id": int(self.param_sample_id),
         }
 
     @staticmethod
@@ -37,7 +40,8 @@ class Action:
             config=d.get("config") or {},
             # Robust index recovery
             searched_index=int(d.get("searched_index", d.get("step_index", 0))),
-            original_index=int(d.get("original_index", d.get("step_index", 0)))
+            original_index=int(d.get("original_index", d.get("step_index", 0))),
+            param_sample_id=int(d.get("param_sample_id", 0)),
         )
 
 @dataclass

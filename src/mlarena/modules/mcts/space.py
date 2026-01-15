@@ -87,7 +87,8 @@ class SuperChainActionSpace:
                     variant_name=vname,
                     config={}, 
                     searched_index=i, # Index in self.steps
-                    original_index=self.searched_index_map[i] # Original index in super-chain
+                    original_index=self.searched_index_map[i], # Original index in super-chain
+                    param_sample_id=0,
                 )
                 actions.append(action)
                 

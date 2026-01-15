@@ -26,8 +26,8 @@ class MCTSNode:
     value_sum: float = 0.0
     value_best: float = -float('inf')
     
-    # Untried actions for expansion (lazy generation)
-    untried_actions: Optional[List[Action]] = None
+    # Base action pool (operator candidates: step+variant) cached per node.
+    action_pool: Optional[List[Action]] = None
 
     @property
     def value_mean(self) -> float:
@@ -122,25 +122,11 @@ class MCTSTree:
         current = node
         
         while True:
-            # Check Progressive Widening limits
-            # m(n) = k * N^alpha
-            limit = self.config.expansion_width * (current.n_visits ** self.config.expansion_alpha)
-            # Ensure at least 1 if visits > 0, but if visits=0 we still want to expand?
-            # Usually PW logic applies when we COULD expand more but choose not to.
-            # If current node is not fully expanded AND we are below limit -> Expand it
-            # But "expand" is a separate step in MCTS loop.
-            # "Select" usually descends until it hits a node that needs expansion.
-            
-            # Check if we can expand based on ACTUAL untried actions
+            # With 2-layer PW, _get_untried_actions() already enforces both:
+            # - operator PW (how many operators can be active)
+            # - param PW (how many param samples per active operator)
             untried = self._get_untried_actions(current)
-            is_expandable = len(untried) > 0
-            current_children_count = len(current.children)
-            
-            # If we haven't reached the width limit yet, we stop here to Expand
-            # Note: If visits=0, limit=0. We must ensure at least 1 child is tried.
-            if limit < 1.0: limit = 1.0
-            
-            if is_expandable and current_children_count < limit:
+            if untried:
                 return current
             
             # If we can't expand (fully expanded OR limited by PW), we descend to best child
@@ -151,34 +137,105 @@ class MCTSTree:
             current = self._best_child(current)
 
     def _get_untried_actions(self, node: MCTSNode) -> List[Action]:
-        """Return actions from the search space that haven't been tried yet for this node."""
-        if node.untried_actions is None:
-            # Lazy initialize all possible next actions
-            node.untried_actions = self.space.next_actions(node.state)
-            
-            # Use deterministic shuffle based on node signature or ID to ensure reproducibility
-            # even across resumes. Global random.shuffle would be non-deterministic if not re-seeded identically.
-            seed_base = f"{self.config.seed}_{node.trial_id or 'root'}_{node.state.signature}"
-            import hashlib
-            seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16)
-            rng = random.Random(seed_hash)
-            rng.shuffle(node.untried_actions)
-            
-        # Use a stable key to identify "tried" actions (step + variant)
-        # instead of state signature which varies with sampled config.
-        tried_keys = set()
-        for child in node.children:
-            act = child.action_from_parent
+        """Return untried actions using 2-layer PW:
+        (1) operator PW: how many distinct (searched_index, step_name, variant_name) are active
+        (2) param PW: how many param_sample_id per active operator
+        """
+        if node.action_pool is None:
+            node.action_pool = self.space.next_actions(node.state)
+            random.shuffle(node.action_pool)
+
+        def op_key(a: Action):
+            return (a.searched_index, a.step_name, a.variant_name)
+
+        # Map operator -> base action (for template/group/original_index)
+        op_to_base: Dict[tuple, Action] = {}
+        for a in node.action_pool:
+            k = op_key(a)
+            if k not in op_to_base:
+                op_to_base[k] = a
+
+        # Existing operators already present in children
+        existing_ops = set()
+        for ch in node.children:
+            act = ch.action_from_parent
             if act:
-                # Key: (searched_index, name, variant)
-                key = (act.searched_index, act.step_name, act.variant_name)
-                tried_keys.add(key)
-        
-        untried = [
-            a for a in node.untried_actions 
-            if (a.searched_index, a.step_name, a.variant_name) not in tried_keys
-        ]
-                
+                existing_ops.add(op_key(act))
+                if op_key(act) not in op_to_base:
+                    # In case action_pool is missing it for any reason
+                    op_to_base[op_key(act)] = act
+
+        # -------- Layer 1: operator PW --------
+        # m_ops = max(1, floor(k_ops * N^alpha))
+        k_ops = self.config.expansion_width
+        a_ops = self.config.expansion_alpha
+        n = max(1, node.n_visits)
+        m_ops = int(k_ops * (n ** a_ops))
+        if m_ops < 1:
+            m_ops = 1
+        # never less than existing operators
+        m_ops = max(m_ops, len(existing_ops))
+        m_ops = min(m_ops, len(op_to_base))
+
+        active_ops = list(existing_ops)
+        if len(active_ops) < m_ops:
+            # add new operators from pool until we reach m_ops
+            for a in node.action_pool:
+                k = op_key(a)
+                if k in existing_ops:
+                    continue
+                active_ops.append(k)
+                existing_ops.add(k)
+                if len(active_ops) >= m_ops:
+                    break
+
+        # -------- Layer 2: param PW per operator --------
+        k_p = self.config.param_expansion_width
+        a_p = self.config.param_expansion_alpha
+        max_p = int(self.config.param_expansion_max_samples)
+
+        untried: List[Action] = []
+        for ok in active_ops:
+            base = op_to_base.get(ok)
+            if base is None:
+                continue
+
+            # op_visits = sum visits over children that belong to this operator
+            op_children = []
+            op_visits = 0
+            tried_sids = set()
+            for ch in node.children:
+                act = ch.action_from_parent
+                if not act:
+                    continue
+                if op_key(act) == ok:
+                    op_children.append(ch)
+                    op_visits += ch.n_visits
+                    tried_sids.add(int(getattr(act, "param_sample_id", 0)))
+
+            # m_params = max(1, floor(k_p * (max(1, op_visits)^a_p)))
+            n_op = max(1, op_visits)
+            m_params = int(k_p * (n_op ** a_p))
+            if m_params < 1:
+                m_params = 1
+            if max_p > 0:
+                m_params = min(m_params, max_p)
+
+            for sid in range(m_params):
+                if sid in tried_sids:
+                    continue
+                untried.append(Action(
+                    step_name=base.step_name,
+                    template_name=base.template_name,
+                    group_name=base.group_name,
+                    variant_name=base.variant_name,
+                    config={},
+                    searched_index=base.searched_index,
+                    original_index=base.original_index,
+                    param_sample_id=sid,
+                ))
+
+        random.shuffle(untried)
         return untried
 
     def expand(self, node: MCTSNode) -> MCTSNode:
@@ -192,7 +249,9 @@ class MCTSTree:
         action = untried_actions[0]
         
         # Determine a stable seed for this specific expansion
-        action_seed_base = f"{self.config.seed}_{node.trial_id}_{action.step_name}_{action.variant_name}"
+        # Stable seed per (parent-state, operator, param_sample_id)
+        parent_sig = node.state.signature if node != self.root else "baseline"
+        action_seed_base = f"{self.config.seed}|{parent_sig}|{action.searched_index}|{action.step_name}|{action.variant_name}|sid={action.param_sample_id}"
         import hashlib
         seed_hash = int(hashlib.md5(action_seed_base.encode()).hexdigest(), 16) % (2**32)
         local_rng = random.Random(seed_hash)
@@ -212,17 +271,14 @@ class MCTSTree:
             variant_name=action.variant_name,
             config=sampled_config,
             searched_index=action.searched_index,
-            original_index=action.original_index
+            original_index=action.original_index,
+            param_sample_id=action.param_sample_id,
         )
         
         new_state = node.state.add_action(final_action)
         child_node = MCTSNode(state=new_state, parent=node, action_from_parent=final_action)
         node.children.append(child_node)
         
-        # Remove from untried to prevent immediate re-selection in same session
-        if node.untried_actions:
-            node.untried_actions = [a for a in node.untried_actions if a != action]
-            
         return child_node
 
     def backpropagate(self, node: MCTSNode, value: float):

@@ -52,6 +52,13 @@ class MCTSConfig(BaseModel):
     expansion_alpha: float = 0.5 # alpha
     seed: int = 42
 
+    # 2nd-layer PW: number of parameter samples per (operator=step+variant) at a node
+    # m_params(op) = max(1, floor(param_expansion_width * N_op^param_expansion_alpha))
+    param_expansion_width: float = 1.0
+    param_expansion_alpha: float = 0.5
+    # hard cap to avoid blow-up
+    param_expansion_max_samples: int = 16
+
     # Execution
     root_mode: Literal["no_preprocess", "harness_only"] = "harness_only"
     executor: Literal["cli", "task_queue"] = "cli"

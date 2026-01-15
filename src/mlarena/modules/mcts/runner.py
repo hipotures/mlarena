@@ -5,8 +5,10 @@ import json
 import math
 import random
 import sys
+import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+from collections import defaultdict
 
 from mlarena.core.module import ModuleContext, ModuleResult
 from mlarena.modules.mcts.config import load_mcts_config, MCTSConfig
@@ -247,46 +249,97 @@ class MCTSRunner:
                 child = self.tree.expand(node)
                 
                 if child == node:
-                    # Skip path (terminal/limits)
-                    # Use mean (not best) to avoid optimistic replay bias, fallback to root mean if no visits
+                    untried = self.tree._get_untried_actions(node)
+                    # ---------- Diagnostics (pre-backprop) ----------
+                    children_n = len(node.children)
+                    last_idx = getattr(node.state, "last_step_index", -1)
+                    total_steps = getattr(self.space, "total_steps_count", None)
+                    if total_steps is None:
+                        # fallback if property not present
+                        total_steps = len(getattr(self.space, "steps", []) or [])
+                    start_idx = (last_idx if last_idx is not None else -1) + 1
+                    end_reached = start_idx >= int(total_steps)
+
+                    # candidates in the underlying action space (operator candidates)
+                    try:
+                        candidates = len(self.space.next_actions(node.state))
+                    except Exception:
+                        candidates = -1
+
+                    # 2-layer PW: operator + param stats derived from existing children
+                    # (works even if you don't have 2-layer PW enabled; fields default)
+                    def _op_key(a):
+                        return (getattr(a, "searched_index", None), getattr(a, "step_name", None), getattr(a, "variant_name", None))
+
+                    op_children_visits = defaultdict(int)
+                    op_tried_sids = defaultdict(set)
+                    active_ops = set()
+                    for ch in node.children:
+                        a = ch.action_from_parent
+                        if not a:
+                            continue
+                        ok = _op_key(a)
+                        active_ops.add(ok)
+                        op_children_visits[ok] += int(getattr(ch, "n_visits", 0))
+                        sid = int(getattr(a, "param_sample_id", 0))
+                        op_tried_sids[ok].add(sid)
+
+                    # operator PW limit (layer 1)
+                    k_ops = float(getattr(self.config, "expansion_width", 2.0))
+                    a_ops = float(getattr(self.config, "expansion_alpha", 0.5))
+                    n_node = max(1, int(getattr(node, "n_visits", 0)))
+                    m_ops = int(k_ops * (n_node ** a_ops))
+                    if m_ops < 1:
+                        m_ops = 1
+
+                    # param PW limit (layer 2) — report max across active ops
+                    k_p = float(getattr(self.config, "param_expansion_width", 1.0))
+                    a_p = float(getattr(self.config, "param_expansion_alpha", 0.5))
+                    max_p = int(getattr(self.config, "param_expansion_max_samples", 16))
+                    max_m_params = 0
+                    max_op_visits = 0
+                    max_tried_sids = 0
+                    for ok, v in op_children_visits.items():
+                        n_op = max(1, int(v))
+                        m_params = int(k_p * (n_op ** a_p))
+                        if m_params < 1:
+                            m_params = 1
+                        if max_p > 0:
+                            m_params = min(m_params, max_p)
+                        max_m_params = max(max_m_params, m_params)
+                        max_op_visits = max(max_op_visits, int(v))
+                        max_tried_sids = max(max_tried_sids, len(op_tried_sids.get(ok, set())))
+
+                    # classify skip reason
+                    if children_n == 0 and len(untried) == 0:
+                        reason = "terminal (leaf)"
+                        if end_reached:
+                            reason += " / end"
+                    else:
+                        reason = "limits/fully-expanded"
+
+                    diag_info = (
+                        f"{reason} [Trial={node.trial_id or 'Root'} "
+                        f"N={node.n_visits} children={children_n} untried={len(untried)} "
+                        f"depth={getattr(node.state,'depth', '?')} last_idx={last_idx} "
+                        f"End={end_reached} ({start_idx}/{total_steps}) "
+                        f"Candidates={candidates} "
+                        f"PW_ops={m_ops} active_ops={len(active_ops)} "
+                        f"PW_params_max={max_m_params} op_visits_max={max_op_visits} tried_sids_max={max_tried_sids}]"
+                    )
+
+                    # ---------- Backprop (skip) ----------
+                    # Use mean (not best) to avoid optimistic replay bias; fallback to root mean if no visits.
                     val = node.value_mean if node.n_visits > 0 else self.tree.root.value_mean
-                    
                     self.tree.backpropagate(node, val)
                     with self.storage.atomic() as conn:
                         self._persist_node_stats_path(node, conn)
-                    
-                    untried = self.tree._get_untried_actions(node)
-                    
-                    # --- Extended Diagnostics for Skips ---
-                    total_steps = self.space.total_steps_count
-                    start_idx = node.state.last_step_index + 1
-                    end_reached = (start_idx >= total_steps)
-                    
-                    analysis = self.space.analyze_next_actions(node.state)
-                    
-                    # PW details
-                    pw_limit_raw = self.config.expansion_width * (node.n_visits ** self.config.expansion_alpha)
-                    pw_limit = max(1.0, pw_limit_raw)
-                    
-                    # Detailed skip reason
-                    if not node.children and not untried:
-                        reason = "terminal (leaf)"
-                    elif not untried:
-                        reason = "fully_expanded (pw_limit?)"
-                    else:
-                        reason = "pw_limit (untried available)"
 
-                    diag_info = (
-                        f"Trial={node.trial_id or 'Root'} N={node.n_visits} children={len(node.children)} untried={len(untried)} "
-                        f"depth={node.state.depth} last_idx={node.state.last_step_index} groups={len(node.state.used_groups)} "
-                        f"End={end_reached} ({start_idx}/{total_steps}) Candidates={analysis['total_candidates']} "
-                        f"Filtered(Group)={analysis['filtered_by_group']} Emitted={analysis['emitted_actions']} "
-                        f"PW={pw_limit:.2f}"
-                    )
                     if not self.mcts_live:
-                        print(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ⏭️  {reason} [{diag_info}]")
-                    self.logger.debug(f"Iter {iteration} skipped ({reason}): {diag_info}")
+                        print(f"Iteration {iteration}/{self.config.budget} -> Skipped [{diag_info}]")
+                    self.logger.debug(f"Iteration {iteration} skipped: {diag_info}")
                     continue
+
                     
                 # 1. Create trial and edge in one transaction
                 with self.storage.atomic() as conn:
@@ -317,7 +370,8 @@ class MCTSRunner:
                     # NOTE: Backpropagation for PRUNED is handled in _get_next_fidelity to ensure correctness
                     
                     if self.live: self.live.update(self._render_tree(best_so_far))
-                    n_executed += 1
+                    # Do NOT consume budget for skipped/done trials during resume traversal
+                    # n_executed += 1 
                     continue
                 
                 self.logger.info(f"Iter {iteration} (Trials {n_executed + 1}/{self.config.budget}) -> Trial={trial_id} Depth={child.state.depth}")
@@ -710,10 +764,12 @@ class MCTSRunner:
                 self.storage.set_trial_state(trial_id, TrialState.PRUNED)
                 
                 if prev_score is not None:
-                    # Backpropagate previous score to update visits/means, acknowledging we explored this path
-                    self.tree.backpropagate(node, prev_score)
-                    with self.storage.atomic() as conn:
-                        self._persist_node_stats_path(node, conn)
+                     # Backpropagate mean to increment visit count without artificial boosting/penalizing.
+                     # If the node has no visits yet, fall back to root mean (baseline scale).
+                     val = node.value_mean if node.n_visits > 0 else self.tree.root.value_mean
+                     self.tree.backpropagate(node, val)
+                     with self.storage.atomic() as conn:
+                         self._persist_node_stats_path(node, conn)
                 return None
         return None
 

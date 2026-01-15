@@ -229,16 +229,19 @@ class MCTSRunner:
 
         self.stop_requested = False
         def handler(signum, frame):
+            # Use local console to ensure Rich formatting works inside signal handler
+            from rich.console import Console
+            c = Console()
             if not self.stop_requested:
                 self.stop_requested = True
-                print("\n⚠️ [bold yellow]Ctrl+C detected. Finishing current trial and stopping gracefully...[/bold yellow]", flush=True)
+                c.print("\n⚠️ [bold yellow]Ctrl+C detected. Finishing current trial and stopping gracefully...[/bold yellow]")
                 self.logger.info("Interrupt requested. Stopping after current iteration.")
             else:
                 # Second Ctrl+C - force quit
-                print("\n⚠️ [bold red]Force quitting...[/bold red]", flush=True)
+                c.print("\n⚠️ [bold red]Force quitting...[/bold red]")
                 if hasattr(self.executor, "current_proc") and self.executor.current_proc:
                     try:
-                        print(f"⚠️ Killing current subprocess (PID: {self.executor.current_proc.pid})...")
+                        c.print(f"⚠️ Killing current subprocess (PID: {self.executor.current_proc.pid})...")
                         self.executor.current_proc.kill()
                     except Exception:
                         pass

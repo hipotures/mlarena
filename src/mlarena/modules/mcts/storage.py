@@ -266,11 +266,15 @@ class MCTSStorage:
                 c.commit()
                 return res
 
-    def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str, conn: Optional[sqlite3.Connection] = None) -> Optional[int]:
+    def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str, parent_trial_id: Optional[int] = None, conn: Optional[sqlite3.Connection] = None) -> Optional[int]:
         def _exec(c):
             cur = c.cursor()
-            query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND pipeline_signature = ?"
-            cur.execute(query, (study_id, pipeline_signature))
+            if parent_trial_id is not None:
+                query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND parent_trial_id = ? AND pipeline_signature = ?"
+                cur.execute(query, (study_id, parent_trial_id, pipeline_signature))
+            else:
+                query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND parent_trial_id IS NULL AND pipeline_signature = ?"
+                cur.execute(query, (study_id, pipeline_signature))
             row = cur.fetchone()
             return row[0] if row else None
 

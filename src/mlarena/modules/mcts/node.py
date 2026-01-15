@@ -83,7 +83,9 @@ class PipelineState:
                 "group": s.get("group") or s.get("name"),
                 "variant": s["variant"],
                 "config": s["config"],
-                "param_sample_id": int(s.get("param_sample_id", 0))
+                "searched_index": int(s.get("searched_index", -1)),
+                "original_index": int(s.get("original_index", -1)),
+                "param_sample_id": int(s.get("param_sample_id", 0)),
             })
             
         serialized = json.dumps(canonical_steps, sort_keys=True)
@@ -105,7 +107,7 @@ class PipelineState:
             "config": action.config,
             "searched_index": action.searched_index,
             "original_index": action.original_index,
-            "param_sample_id": action.param_sample_id
+            "param_sample_id": int(action.param_sample_id)
         }
         
         new_steps = list(self.steps) + [new_step]

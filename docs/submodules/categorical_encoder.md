@@ -79,7 +79,7 @@ categorical_boost:
 ```
 
 ## Notes & Tips
-- **Prerequisite**: Running `mla eda --project <project>` first is highly recommended as this module uses the generated `eda_summary.json`.
+- **Prerequisite**: Running `mla eda project=<project>` first is highly recommended as this module uses the generated `eda_summary.json`.
 - **Difference from `encoder`**: Unlike the `encoder` module which performs transformations like One-Hot or Target Encoding, this module only changes the pandas **dtype** to `category`. This is what GBDT models need for their internal categorical handling.
 - **Alignment**: It ensures that categorical levels are consistent across train, validation, and test sets.
 - **System Columns**: Automatically excludes `id` and the target column from conversion.

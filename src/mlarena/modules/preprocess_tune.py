@@ -854,6 +854,8 @@ class PreprocessTuneModule(BaseModule):
         # Resolve parameters (invocation params override config)
         params = self.invocation_params or {}
         cfg = self.context.config
+        optuna_section = getattr(cfg, "optuna", {}) or {}
+        legacy_section = getattr(cfg, "preprocess_tune", {}) or {}
 
         # MCTS Routing - Check both params and global config explicitly
         # Note: 'mcts' is the boolean flag in GlobalConfig.
@@ -865,10 +867,10 @@ class PreprocessTuneModule(BaseModule):
         def _param(name: str, default: Any) -> Any:
             if name in params:
                 return params[name]
-            if hasattr(cfg, "preprocess_tune"):
-                section = getattr(cfg, "preprocess_tune") or {}
-                if name in section:
-                    return section[name]
+            if isinstance(optuna_section, dict) and name in optuna_section:
+                return optuna_section[name]
+            if isinstance(legacy_section, dict) and name in legacy_section:
+                return legacy_section[name]
             if hasattr(cfg, name):
                 return getattr(cfg, name)
             return default
@@ -1381,9 +1383,9 @@ def run_optimization_loop(
             
             next_steps = (
                 f"[bold]1.[/] Run preprocess chain:\n"
-                f"   • [cyan]uv run python scripts/mla.py preprocess --project {project_name} preprocess_template={best_chain_name}[/cyan]\n"
+                f"   • [cyan]uv run python scripts/mla.py preprocess project={project_name} preprocess_template={best_chain_name}[/cyan]\n"
                 f"[bold]2.[/] Run FAST model on best chain:\n"
-                f"   • [cyan]uv run python scripts/mla.py model --project {project_name} model_template={model_template} preprocess_template={best_chain_name}[/cyan]\n"
+                f"   • [cyan]uv run python scripts/mla.py model project={project_name} model_template={model_template} preprocess_template={best_chain_name}[/cyan]\n"
                 f"[bold]3.[/] Templates saved:\n"
                 f"   • [dim]{best_chain_path}[/dim]"
             )

@@ -19,7 +19,7 @@ PRE_TEMPLATES=(
 )
 
 for tpl in "${PRE_TEMPLATES[@]}"; do
-  uv run python scripts/mla.py -p "$PROJECT" \
+  uv run python scripts/mla.py project="$PROJECT" \
     preprocess_template="$tpl" \
     model_template="$MODEL_TEMPLATE" \
     "${COMMON_ARGS[@]}"

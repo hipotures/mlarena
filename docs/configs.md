@@ -1,15 +1,15 @@
 # Configuration System
 
-## Magic Flags (CLI Shortcuts)
+## Common Overrides
 
-Certain top-level flags are automatically mapped to the `common` section for convenience. You can use them interchangeably with their full dotted paths.
+Use `key=value` overrides to set common defaults shared by modules.
 
-| CLI Flag | Unified Config Path | Default | Description |
-|:---------|:--------------------|:--------|:------------|
-| `--seed` | `common.seed` | 42 | Global random seed |
-| `--time-limit` | `common.time_limit` | None | Model training time limit (seconds) |
-| `--use-gpu` | `common.use_gpu` | False | Enable/disable GPU acceleration |
-| `--preset` | `common.preset` | medium | AutoGluon quality preset |
+| Config Path | Default | Description |
+|:------------|:--------|:------------|
+| `common.seed` | 42 | Global random seed |
+| `common.time_limit` | None | Model training time limit (seconds) |
+| `common.use_gpu` | False | Enable/disable GPU acceleration |
+| `common.preset` | medium | AutoGluon quality preset |
 
 ## Complete Parameter Reference
 
@@ -26,7 +26,7 @@ To protect high-value results from accidental overwriting, use the `lock=true` p
 
 **How it works:**
 1. Upon successful completion of a module, a file named `overwrite.lock` is created in the experiment directory (e.g., `experiments/exp-ID/overwrite.lock`).
-2. Any subsequent attempt to run this module (even with `--force`) will fail with an `OverwriteLockedError`.
+2. Any subsequent attempt to run this module (even with `force=true`) will fail with an `OverwriteLockedError`.
 3. **To unlock:** You must manually delete the `overwrite.lock` file from the disk.
 
 ---
@@ -97,7 +97,7 @@ Profiles allow you to switch between different execution modes quickly.
 
 ### Using a Profile
 ```bash
-uv run python scripts/mla.py model --project titanic --profile smoke
+uv run python scripts/mla.py model project=titanic profile=smoke
 ```
 
 ### Predefined Profiles
@@ -115,19 +115,19 @@ You can override any configuration value using dotted path notation.
 
 ### Simple Overrides
 ```bash
-uv run python scripts/mla.py --project titanic common.seed=777 force=true
+uv run python scripts/mla.py project=titanic common.seed=777 force=true
 ```
 
 ### Module-Specific Overrides
 ```bash
-uv run python scripts/mla.py model --project titanic \
+uv run python scripts/mla.py model project=titanic \
   model.time_limit=600 \
   model.included_model_types=["GBM", "CAT"]
 ```
 
 ### Nested Dictionary Overrides
 ```bash
-uv run python scripts/mla.py model --project titanic \
+uv run python scripts/mla.py model project=titanic \
   model.hyperparameters.GBM.num_boost_round=1000
 ```
 

@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class OverwriteLockedError(RuntimeError):
-    """Raised when attempting to overwrite a locked module with --force."""
+    """Raised when attempting to overwrite a locked module with force=true."""
 
     def __init__(self, module_name: str, lock_path: Path, lock_metadata: Dict[str, Any]):
         self.module_name = module_name

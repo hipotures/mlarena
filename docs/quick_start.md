@@ -26,43 +26,43 @@ uv run playwright install chromium
 
 ```bash
 # Downloads competition data and scaffolds projects/kaggle/<slug>
-uv run python scripts/mla.py init --project <competition-slug> --competition <kaggle-id>
+uv run python scripts/mla.py init project=<competition-slug> init.competition=<kaggle-id>
 ```
 
-The `--competition` flag defaults to the project name; override it when the Kaggle slug differs.
+`init.competition` defaults to the project name; override it when the Kaggle slug differs.
 
 ## Run the full pipeline
 
 ```bash
 # Auto-flow: init → eda → preprocess → model → predict → submit → fetch-score
-uv run python scripts/mla.py --project <competition-slug>
+uv run python scripts/mla.py project=<competition-slug>
 ```
 
-Useful flags:
+Useful overrides:
 
 - `model_template=<name>`: pick a model template (default: `baseline`).
 - `preprocess_template=<name>`: override preprocessing chain.
-- `--profile smoke`: fast presets for quick iterations.
+- `profile=smoke`: fast presets for quick iterations.
 - `skip_submit=true`: build the submission file without uploading to Kaggle.
-- `--force`: re-run completed modules.
+- `force=true`: re-run completed modules.
 
 Example (Titanic baseline with cached setup):
 
 ```bash
-uv run python scripts/mla.py -p Titanic model_template=cpu-dev-5m skip_submit=true
+uv run python scripts/mla.py project=Titanic model_template=cpu-dev-5m skip_submit=true
 ```
 
 Recommended end-to-end check on Titanic (no smoke mode needed):
 
 ```bash
-uv run python scripts/mla.py -p Titanic
+uv run python scripts/mla.py project=Titanic
 ```
 
 ## Run individual modules
 
 ```bash
-uv run python scripts/mla.py preprocess --project <slug> preprocess_template=baseline
-uv run python scripts/mla.py model --project <slug> model_template=cpu-fast-1m skip_submit=true
+uv run python scripts/mla.py preprocess project=<slug> preprocess_template=baseline
+uv run python scripts/mla.py model project=<slug> model_template=cpu-fast-1m skip_submit=true
 ```
 
 List available modules:
@@ -88,6 +88,7 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 - **[MLA Workflow Guide](MLA_WORKFLOW_GUIDE.md)** - Complete workflow examples
 - **[Architecture](architecture.md)** - System design and execution flow
 - **[Configuration System](configs.md)** - Parameter reference
+- **[CLI Arguments](CLI_ARGUMENTS.md)** - Command-line override syntax
 - **[Terminology Guide](TERMINOLOGY.md)** - Naming conventions
 - **[FAQ](faq.md)** - Common questions and troubleshooting
 

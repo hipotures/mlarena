@@ -23,13 +23,13 @@ MLArena CLI orchestrator. This is the primary interface for all pipeline operati
 
 ```bash
 # Run full auto-flow (init → eda → preprocess → model → predict → submit)
-uv run python scripts/mla.py -p Titanic
+uv run python scripts/mla.py project=Titanic
 
 # Run specific module
-uv run python scripts/mla.py model -p Titanic model_template=cpu-dev-5m
+uv run python scripts/mla.py model project=Titanic model_template=cpu-dev-5m
 
 # Use profile for quick testing
-uv run python scripts/mla.py -p Titanic --profile smoke
+uv run python scripts/mla.py project=Titanic profile=smoke
 
 # List available modules
 uv run python scripts/mla.py modules

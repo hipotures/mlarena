@@ -29,7 +29,6 @@ def _extract_module_argv(argv: List[str], module_name: str) -> List[str]:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project")
     parser.add_argument("command", nargs="?", default="list")
     parser.add_argument("--show-table", action="store_true")
     parser.add_argument("--show-table-compact", action="store_true")
@@ -132,7 +131,7 @@ class ExperimentsModule(BaseModule):
         if args.command != "list":
             return ModuleResult(success=False, error=f"Unknown command: {args.command}")
 
-        project_label = args.project or self.context.project_name
+        project_label = self.context.project_name
         project_root = self.context.project_root
         base_dir = project_root / "experiments"
         if not base_dir.exists():

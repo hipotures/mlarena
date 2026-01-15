@@ -30,10 +30,10 @@ class MlaCliExecutor:
     ) -> List[str]:
         cmd = [
             "uv", "run", "python", "scripts/mla.py", module,
-            "--project", project,
-            "--exp-id", exp_id,
-            "--force",
-            "--json-output"
+            f"project={project}",
+            f"experiment_id={exp_id}",
+            "force=true",
+            "json_output=true"
         ]
         
         if model_template:

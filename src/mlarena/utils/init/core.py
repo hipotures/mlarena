@@ -71,9 +71,9 @@ def init_project(
 
             next_steps = (
                 f"[bold]To work with this project:[/]\n"
-                f"[bold]1.[/] Run EDA: [cyan]uv run python scripts/mla.py eda --project {competition_slug}[/cyan]\n"
-                f"[bold]2.[/] Run auto-flow: [cyan]uv run python scripts/mla.py --project {competition_slug}[/cyan]\n\n"
-                f"[bold]To reinitialize:[/] Use [cyan]--force[/cyan] flag"
+                f"[bold]1.[/] Run EDA: [cyan]uv run python scripts/mla.py eda project={competition_slug}[/cyan]\n"
+                f"[bold]2.[/] Run auto-flow: [cyan]uv run python scripts/mla.py project={competition_slug}[/cyan]\n\n"
+                f"[bold]To reinitialize:[/] Use [cyan]force=true[/cyan]"
             )
             console.print(Panel(next_steps, title="Project Already Initialized", border_style="yellow"))
 
@@ -88,7 +88,7 @@ def init_project(
             }
         except Exception:
             # Fallback if config can't be loaded
-            console.print(f"[red]Error: Project '{competition_slug}' already exists. Use --force to overwrite.[/red]")
+            console.print(f"[red]Error: Project '{competition_slug}' already exists. Use force=true to overwrite.[/red]")
             return {"success": False, "error": "project_exists"}
 
     # Create directory structure
@@ -289,8 +289,8 @@ def init_project(
     # Next steps
     next_steps = (
         f"[bold]1.[/] Review configuration: [cyan]{project_root}/code/utils/config.py[/cyan]\n"
-        f"[bold]2.[/] Run EDA: [cyan]uv run python scripts/mla.py eda --project {competition_slug}[/cyan]\n"
-        f"[bold]3.[/] Run auto-flow: [cyan]uv run python scripts/mla.py --project {competition_slug}[/cyan]"
+        f"[bold]2.[/] Run EDA: [cyan]uv run python scripts/mla.py eda project={competition_slug}[/cyan]\n"
+        f"[bold]3.[/] Run auto-flow: [cyan]uv run python scripts/mla.py project={competition_slug}[/cyan]"
     )
     console.print(Panel(next_steps, title="Next Steps", border_style="yellow"))
 

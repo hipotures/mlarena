@@ -11,7 +11,7 @@ The `tune` module performs hyperparameter optimization using Optuna. It searches
 
 **Command**:
 ```bash
-uv run python scripts/mla.py tune --project <project> [options]
+uv run python scripts/mla.py tune project=<project> [options]
 ```
 
 ## Parameters

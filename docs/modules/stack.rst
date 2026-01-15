@@ -11,7 +11,7 @@ The `stack` module provides functionality for ensembling predictions from multip
 
 **Command**:
 ```bash
-uv run python scripts/mla.py stack --project <project> [options]
+uv run python scripts/mla.py stack project=<project> [options]
 ```
 
 ## Parameters
@@ -27,8 +27,8 @@ uv run python scripts/mla.py stack --project <project> [options]
 
 ### Manual Stacking
 ```bash
-uv run python scripts/mla.py stack -p Titanic \
-  prediction_files="['experiments/exp-1/sub.csv', 'experiments/exp-2/sub.csv']"
+uv run python scripts/mla.py stack project=Titanic \
+  stack.prediction_files='[experiments/exp-1/sub.csv,experiments/exp-2/sub.csv]'
 ```
 
 ### Auto-Stacking (Experimental)
@@ -36,4 +36,3 @@ If run in a pipeline after `predict`, it can automatically pick up the last pred
 
 ## Status
 **Experimental**. Please verify results manually.
-

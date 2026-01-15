@@ -83,7 +83,7 @@ class TaskQueue:
         Add task to queue.
 
         Args:
-            command: Full command string (e.g., "model --project X --template Y")
+            command: Full command string (e.g., "model project=X model_template=Y")
             priority: Task priority (1=highest, default=10)
 
         Returns:
@@ -146,18 +146,18 @@ class TaskQueue:
         # Determine command type
         if model_template:
             # Model template → auto-flow
-            cmd_parts = ["model", "--model-template", model_template]
+            cmd_parts = ["model", f"model_template={model_template}"]
 
             # Override preprocess if specified
             if preprocess_template:
-                cmd_parts.extend(["--preprocess-template", preprocess_template])
+                cmd_parts.append(f"preprocess_template={preprocess_template}")
 
             # Load mla settings from MODEL template
             mla = self._load_template_mla_settings("model", model_template)
 
         elif preprocess_template:
             # Standalone preprocess (no model)
-            cmd_parts = ["preprocess", "--preprocess-template", preprocess_template]
+            cmd_parts = ["preprocess", f"preprocess_template={preprocess_template}"]
 
             # Load mla settings from PREPROCESS template
             mla = self._load_template_mla_settings("preprocess", preprocess_template)
@@ -281,12 +281,13 @@ class TaskQueue:
 
             # Extract template name
             template = "-"
-            if "--model-template" in cmd_parts:
-                idx = cmd_parts.index("--model-template")
-                template = cmd_parts[idx + 1] if idx + 1 < len(cmd_parts) else "-"
-            elif "--preprocess-template" in cmd_parts:
-                idx = cmd_parts.index("--preprocess-template")
-                template = cmd_parts[idx + 1] if idx + 1 < len(cmd_parts) else "-"
+            for part in cmd_parts:
+                if part.startswith("model_template="):
+                    template = part.split("=", 1)[1]
+                    break
+                if part.startswith("preprocess_template="):
+                    template = part.split("=", 1)[1]
+                    break
 
             # Extract options (everything except module and template flags)
             options = []
@@ -295,8 +296,12 @@ class TaskQueue:
                 if skip_next:
                     skip_next = False
                     continue
-                if part in ["--model-template", "--preprocess-template", "--project", "-p"]:
+                if part in ["--project", "-p"]:
                     skip_next = True
+                    continue
+                if part.startswith("project="):
+                    continue
+                if part.startswith("model_template=") or part.startswith("preprocess_template="):
                     continue
                 options.append(part)
 
@@ -492,12 +497,11 @@ class TaskQueue:
         # Build command
         cmd_parts = task["command"].split()
 
-        # Add --project if not already present
-        if "--project" not in cmd_parts and "-p" not in cmd_parts:
-            # Insert --project after the module name (first element)
+        # Add project if not already present
+        if not any(part.startswith("project=") for part in cmd_parts):
+            # Insert project after the module name (first element)
             project_name = self.project_root.name
-            cmd_parts.insert(1, "--project")
-            cmd_parts.insert(2, project_name)
+            cmd_parts.insert(1, f"project={project_name}")
 
         # Execute via subprocess
         repo_root = self.project_root.parent.parent.parent

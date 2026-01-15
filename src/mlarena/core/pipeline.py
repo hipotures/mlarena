@@ -686,7 +686,7 @@ class PipelineExecutor:
 
                     json_output = getattr(module, "invocation_params", {}).get("json_output", False)
                     if not json_output:
-                        console.print(f"\n[dim]Use [cyan]--force[/cyan] to re-run this module[/dim]\n")
+                        console.print(f"\n[dim]Use [cyan]force=true[/cyan] to re-run this module[/dim]\n")
 
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)
                     continue

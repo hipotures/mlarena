@@ -90,7 +90,7 @@ def _read_eda_metadata(project_root: Path, train_df: pd.DataFrame) -> Dict[str, 
 
     raise FileNotFoundError(
         f"Could not find EDA summary matching the current dataframe columns.\n"
-        f"Run: uv run python scripts/mla.py eda --project <project-name> --force"
+        f"Run: uv run python scripts/mla.py eda project=<project-name> force=true"
     )
 
 

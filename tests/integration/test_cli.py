@@ -80,7 +80,7 @@ def _ensure_registry():
 def test_cli_lists_modules(monkeypatch, tmp_path, capsys):
     _ensure_registry()
     monkeypatch.chdir(tmp_path)
-    exit_code = main(["modules", "--project", "demo"])
+    exit_code = main(["modules", "project=demo"])
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "eda" in out and "model" in out
@@ -89,7 +89,7 @@ def test_cli_lists_modules(monkeypatch, tmp_path, capsys):
 def test_cli_rejects_unknown_command(monkeypatch, tmp_path, capsys):
     _ensure_registry()
     monkeypatch.chdir(tmp_path)
-    exit_code = main(["preproc", "--project", "demo"])
+    exit_code = main(["preproc", "project=demo"])
     assert exit_code == 1
     out = capsys.readouterr().out
     # Use substring checks that avoid ANSI codes between words
@@ -105,7 +105,7 @@ def test_cli_preprocess_chain_unpacking(monkeypatch, tmp_path):
     _write_minimal_project(project_root)
     _write_minimal_preprocess(project_root)
 
-    exit_code = main(["preprocess", "--project", "demo", "preprocess_template=cli_minimal"])
+    exit_code = main(["preprocess", "project=demo", "preprocess_template=cli_minimal"])
     assert exit_code == 0
 
     # Search for the output file using glob because path includes a hash segment
@@ -145,17 +145,12 @@ def test_cli_auto_flow_respects_time_limit(monkeypatch, tmp_path, mock_autogluon
 
     exit_code = main(
         [
-            "--project",
-            "demo",
-            "--model-template",
-            "baseline",
-            "--preprocess-template",
-            "cli_minimal",
-            "--time-limit",
-            "36000",
-            "--skip-submit",
-            "--wait-seconds",
-            "0",
+            "project=demo",
+            "model_template=baseline",
+            "preprocess_template=cli_minimal",
+            "common.time_limit=36000",
+            "skip_submit=true",
+            "wait_seconds=0",
         ]
     )
     assert exit_code == 0
@@ -181,7 +176,7 @@ def test_cli_runs_eda(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr("mlarena.modules.eda._safe_profile", _stub_profile)
 
-    exit_code = main(["eda", "--project", "demo", "eda.eda_notes=hello"])
+    exit_code = main(["eda", "project=demo", "eda.eda_notes=hello"])
     assert exit_code == 0
 
     exp_dir = project_root / "experiments" / "eda"

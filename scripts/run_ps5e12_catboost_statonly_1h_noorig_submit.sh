@@ -12,7 +12,7 @@ EXPS=(
 
 # Submit each experiment (no confirmation prompt), sleep 5s between submissions
 for exp_id in "${EXPS[@]}"; do
-  uv run python scripts/mla.py submit -p "$PROJECT" -e "$exp_id" \
+  uv run python scripts/mla.py submit project="$PROJECT" experiment_id="$exp_id" \
     submit.confirm_timeout=0 \
     skip_submit=false
   sleep 5
@@ -23,5 +23,5 @@ sleep 60
 
 # Fetch scores for the same experiments
 for exp_id in "${EXPS[@]}"; do
-  uv run python scripts/mla.py fetch-score -p "$PROJECT" -e "$exp_id" --force
+  uv run python scripts/mla.py fetch-score project="$PROJECT" experiment_id="$exp_id" force=true
 done

@@ -26,8 +26,8 @@ During the submit step, use `submit.queue_submit=true` to add to queue instead o
 
 ```bash
 uv run python scripts/mla.py submit \
-  --project <competition-slug> \
-  --exp-id <exp-id> \
+  project=<competition-slug> \
+  experiment_id=<experiment_id> \
   submit.queue_submit=true
 ```
 
@@ -207,9 +207,9 @@ submission_queue.py submit 2  # Process B (waits for lock)
 
 ```bash
 # During experiments:
-uv run python scripts/mla.py submit --project titanic --exp-id exp1 submit.queue_submit=true
-uv run python scripts/mla.py submit --project titanic --exp-id exp2 submit.queue_submit=true
-uv run python scripts/mla.py submit --project titanic --exp-id exp3 submit.queue_submit=true
+uv run python scripts/mla.py submit project=titanic experiment_id=exp1 submit.queue_submit=true
+uv run python scripts/mla.py submit project=titanic experiment_id=exp2 submit.queue_submit=true
+uv run python scripts/mla.py submit project=titanic experiment_id=exp3 submit.queue_submit=true
 
 # End of day: upload all at once
 python scripts/submission_queue.py --project titanic submit 1
@@ -223,7 +223,7 @@ python scripts/submission_queue.py --project titanic submit 3
 
 ```bash
 # Queue submissions during the day
-uv run python scripts/mla.py submit --project titanic --exp-id exp1 submit.queue_submit=true
+uv run python scripts/mla.py submit project=titanic experiment_id=exp1 submit.queue_submit=true
 # ... more experiments ...
 
 # Create overnight script: upload_all.sh
@@ -293,11 +293,11 @@ MLArena has **two separate queue systems** for different purposes:
 **Use both together:**
 ```bash
 # Phase 1: Queue training jobs
-uv run python scripts/mla.py queue add -p titanic model_template=cpu-best-8h --priority 1
-uv run python scripts/mla.py queue add -p titanic model_template=gpu-dev-5m --priority 2
+uv run python scripts/mla.py queue project=titanic add model_template=cpu-best-8h --priority 1
+uv run python scripts/mla.py queue project=titanic add model_template=gpu-dev-5m --priority 2
 
 # Phase 2: Run task queue (trains models, generates predictions, queues submissions)
-uv run python scripts/mla.py queue run -p titanic
+uv run python scripts/mla.py queue project=titanic run
 
 # Phase 3: Upload queued submissions with scores
 for i in {1..5}; do
@@ -315,7 +315,7 @@ done
 
 **Fix:** Queue at least one submission:
 ```bash
-uv run python scripts/mla.py submit --project titanic --exp-id eda submit.queue_submit=true
+uv run python scripts/mla.py submit project=titanic experiment_id=eda submit.queue_submit=true
 ```
 
 ---
@@ -326,8 +326,8 @@ uv run python scripts/mla.py submit --project titanic --exp-id eda submit.queue_
 
 **Fix:** Re-run predict and submit:
 ```bash
-uv run python scripts/mla.py predict --project titanic --exp-id <exp-id>
-uv run python scripts/mla.py submit --project titanic --exp-id <exp-id> submit.queue_submit=true
+uv run python scripts/mla.py predict project=titanic experiment_id=<experiment_id>
+uv run python scripts/mla.py submit project=titanic experiment_id=<experiment_id> submit.queue_submit=true
 ```
 
 ---

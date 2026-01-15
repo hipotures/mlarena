@@ -73,6 +73,18 @@ def _parse_preprocess_templates(template_arg: str, project_root: Path) -> Tuple[
     return templates, template_configs, chain_exp_id, combined_hash, is_meta
 
 
+def _flatten_dict(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
+    flattened: Dict[str, Any] = {}
+    for key, value in data.items():
+        clean_key = str(key).replace("-", "_")
+        path = f"{prefix}.{clean_key}" if prefix else clean_key
+        if isinstance(value, dict):
+            flattened.update(_flatten_dict(value, path))
+        else:
+            flattened[path] = value
+    return flattened
+
+
 def _is_within_path(base: Path, target: Path) -> bool:
     try:
         target.relative_to(base)
@@ -83,7 +95,7 @@ def _is_within_path(base: Path, target: Path) -> bool:
 
 def _safe_clear_preprocess_chain_dir(chain_base_dir: Path, project_root: Path, console) -> None:
     """
-    Clear prior preprocess step outputs for a chain when --force is used.
+    Clear prior preprocess step outputs for a chain when force=true is used.
 
     Safety rules:
     - Only operates inside <project_root>/experiments/<chain>/<hash>
@@ -145,7 +157,7 @@ def _validate_setup_modules(
     if not init_state_file.exists():
         return False, (
             "Project initialization not found.\n"
-            f"Run: mla init --project {project_root.name}"
+            f"Run: mla init project={project_root.name}"
         )
 
     try:
@@ -157,19 +169,19 @@ def _validate_setup_modules(
             if init_status != "completed":
                 return False, (
                     f"Project initialization incomplete (status: {init_status}).\n"
-                    f"Run: mla init --project {project_root.name} --force"
+                    f"Run: mla init project={project_root.name} force=true"
                 )
     except (json.JSONDecodeError, KeyError) as e:
         return False, (
             f"Invalid init state file: {e}\n"
-            f"Run: mla init --project {project_root.name} --force"
+            f"Run: mla init project={project_root.name} force=true"
         )
 
     eda_state_file = project_root / "experiments" / "eda" / "state.json"
     if not eda_state_file.exists():
         return False, (
             "Exploratory data analysis not found.\n"
-            f"Run: mla eda --project {project_root.name}"
+            f"Run: mla eda project={project_root.name}"
         )
 
     try:
@@ -181,12 +193,12 @@ def _validate_setup_modules(
             if eda_status != "completed":
                 return False, (
                     f"Exploratory data analysis incomplete (status: {eda_status}).\n"
-                    f"Run: mla eda --project {project_root.name} --force"
+                    f"Run: mla eda project={project_root.name} force=true"
                 )
     except (json.JSONDecodeError, KeyError) as e:
         return False, (
             f"Invalid eda state file: {e}\n"
-            f"Run: mla eda --project {project_root.name} --force"
+            f"Run: mla eda project={project_root.name} force=true"
         )
 
     return True, None
@@ -194,14 +206,16 @@ def _validate_setup_modules(
 
 def _resolve_preprocess_tune_study_name(config: GlobalConfig, project_root: Path) -> str:
     """Resolve study name for preprocess tuning (used for default exp-id)."""
+    optuna_section = getattr(config, "optuna", {}) or {}
+    if isinstance(optuna_section, dict) and optuna_section.get("study_name"):
+        return str(optuna_section["study_name"])
+
     section = getattr(config, "preprocess_tune", {}) or {}
     if isinstance(section, dict):
         if section.get("study_name"):
             return str(section["study_name"])
         if section.get("experiment_prefix"):
             return str(section["experiment_prefix"])
-    if hasattr(config, "study_name") and getattr(config, "study_name"):
-        return str(getattr(config, "study_name"))
 
     super_chain_path = None
     if isinstance(section, dict):
@@ -250,16 +264,6 @@ def _build_parser(add_help: bool = True) -> argparse.ArgumentParser:
     Build a simplified top-level CLI parser.
     """
     parser = argparse.ArgumentParser(prog="mla", description="MLArena pipeline runner", add_help=add_help)
-    # Command is handled manually to avoid greedy consumption of flag values
-    parser.add_argument("--project", "-p", help="Project name (e.g., Titanic)")
-    parser.add_argument("--exp-id", "-e", help="Experiment ID to resume")
-    parser.add_argument("--profile", "-s", help="Config profile (e.g., smoke, dev)")
-    parser.add_argument("--force", "-f", action="store_true", help="Re-run completed modules")
-    parser.add_argument("--json-output", action="store_true", help="Output results in JSON format (silent mode)")
-    parser.add_argument("--mcts", action="store_true", help="Use MCTS for search")
-    parser.add_argument("--mcts-live", "--live", action="store_true", dest="mcts_live", help="Enable live tree visualization for MCTS")
-    parser.add_argument("--telegram-test", action="store_true", help="Send a test Telegram message on startup")
-    parser.add_argument("--classic", action="store_true", help="Execute chain step-by-step using intermediate files (legacy mode)")
     return parser
 
 
@@ -494,25 +498,14 @@ def run_preprocess_chain(
 
 
     # Determine if we should run in UNIFIED PIPELINE mode (now the default)
-    # Disabled only if --classic is present or explicitly disabled in config
-    use_classic = bool(getattr(config, "classic", False)) or "--classic" in argv
+    # Disabled only if explicitly disabled in config
+    use_classic = bool(getattr(config, "classic", False))
     use_pipeline = not use_classic
     
     # Check for deprecated or unknown flags in argv
     if "--pipeline" in argv:
-        console.print("[bold red]✗ Error:[/bold red] The [yellow]--pipeline[/yellow] flag has been removed. Unified Pipeline is now the [bold]default[/bold] mode. Use [cyan]--classic[/cyan] for legacy behavior.")
+        console.print("[bold red]✗ Error:[/bold red] The [yellow]--pipeline[/yellow] flag has been removed. Unified Pipeline is now the [bold]default[/bold] mode. Use [cyan]classic=true[/cyan] for legacy behavior.")
         return 1, {}, None, []
-
-    if standalone:
-        allowed_flags = [
-            "--classic", "--force", "--lock", "--cache", "--preprocess-template",
-            "--project", "-p", "--exp-id", "--smoke", "--dev", "--preset",
-            "--time-limit", "--use-gpu", "--seed", "--mla-retention"
-        ]
-        unsupported_flags = [a for a in argv if a.startswith("--") and a not in allowed_flags]
-        if unsupported_flags:
-            console.print(f"[bold red]✗ Error:[/bold red] Unknown preprocessing arguments: [yellow]{', '.join(unsupported_flags)}[/yellow]")
-            return 1, {}, None, []
 
     if use_pipeline and len(preprocess_templates) > 1:
         console.print(f"[bold magenta]⚡ Unified Pipeline Enabled: Executing {len(preprocess_templates)} steps in-memory[/bold magenta]")
@@ -1033,32 +1026,29 @@ def _create_auto_flow_commit(
         console.print("[dim]You can commit manually if needed[/dim]")
 
 
-def _convert_dash_args_to_overrides(args_list: List[str]) -> List[str]:
+def _convert_dash_args_to_overrides(args_list: List[str]) -> Tuple[List[str], List[str]]:
     """
     Convert --flag value arguments to key=value format for OmegaConf.
-    Maps common parameters to their config sections.
     """
-    # Map common flags to their config paths
-    COMMON_PARAMS = {"time_limit", "use_gpu", "preset", "seed"}
-
     result = []
+    unsupported = []
     i = 0
     while i < len(args_list):
         arg = args_list[i]
 
+        if arg in ("-h", "--help"):
+            i += 1
+            continue
+
         # Already in key=value format (with or without --)
         if "=" in arg:
             if arg.startswith("--"):
-                key_val = arg.lstrip("-")
-                key, val = key_val.split("=", 1)
-                key = key.replace("-", "_")
+                unsupported.append(arg)
+                i += 1
+                continue
             else:
                 key, val = arg.split("=", 1)
                 key = key.replace("-", "_")
-
-            # Prefix with common. if needed
-            if key in COMMON_PARAMS and not key.startswith("common."):
-                key = f"common.{key}"
 
             result.append(f"{key}={val}")
             i += 1
@@ -1066,32 +1056,39 @@ def _convert_dash_args_to_overrides(args_list: List[str]) -> List[str]:
 
         # --flag value format
         if arg.startswith("--"):
-            key = arg.lstrip("-").replace("-", "_")
+            if i + 1 < len(args_list):
+                next_arg = args_list[i + 1]
+                has_inline_value = not next_arg.startswith("-")
+                if not has_inline_value:
+                    try:
+                        float(next_arg)
+                        has_inline_value = True
+                    except ValueError:
+                        has_inline_value = False
 
-            # Check if next item is the value
-            if i + 1 < len(args_list) and not args_list[i + 1].startswith("-"):
-                value = args_list[i + 1]
+                if has_inline_value:
+                    unsupported.append(f"{arg} {next_arg}")
+                    i += 2
+                    continue
 
-                # Prefix with common. if needed
-                if key in COMMON_PARAMS:
-                    key = f"common.{key}"
-
-                result.append(f"{key}={value}")
-                i += 2
-                continue
-            else:
-                # Boolean flag
-                if key in COMMON_PARAMS:
-                    key = f"common.{key}"
-                result.append(f"{key}=true")
-                i += 1
-                continue
+            unsupported.append(arg)
+            i += 1
+            continue
 
         # Plain value without flag
         result.append(arg)
         i += 1
 
-    return result
+    return result, unsupported
+
+
+def _detect_command_hint(argv: List[str]) -> Optional[str]:
+    aliases = {"exp": "experiments", "sub": "submissions", "pre": "preprocess"}
+    for arg in argv:
+        if arg.startswith("-") or "=" in arg:
+            continue
+        return aliases.get(arg, arg)
+    return None
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -1101,7 +1098,13 @@ def main(argv: List[str] | None = None) -> int:
     from rich.console import Console
     
     argv = argv or sys.argv[1:]
-    json_output_enabled = "--json-output" in argv
+    json_output_enabled = False
+    for arg in argv:
+        if not arg.startswith("json_output="):
+            continue
+        val = arg.split("=", 1)[1].strip().lower()
+        json_output_enabled = val in {"1", "true", "yes", "y", "on"}
+        break
     console = Console(force_terminal=True, quiet=json_output_enabled)
 
     if json_output_enabled:
@@ -1137,17 +1140,16 @@ def main(argv: List[str] | None = None) -> int:
     args, overrides = parser.parse_known_args(argv)
 
     # Convert --flag value to key=value for OmegaConf
-    overrides = _convert_dash_args_to_overrides(overrides)
-    
-    # Merge argparse known flags into overrides so they reach GlobalConfig
-    for key, value in vars(args).items():
-        if value is True: # Only add enabled boolean flags
-            if not any(o.startswith(f"{key}=") for o in overrides):
-                overrides.append(f"{key}=true")
-        elif value is not None and not isinstance(value, bool):
-            # For non-boolean args like --project or --profile, add if not already in overrides
-            if not any(o.startswith(f"{key}=") for o in overrides):
-                overrides.append(f"{key}={value}")
+    overrides, unsupported_flags = _convert_dash_args_to_overrides(overrides)
+    command_hint = _detect_command_hint(argv)
+    if unsupported_flags and not module_help_requested:
+        if command_hint not in ("experiments", "submissions", "queue"):
+            console.print(
+                "[bold red]✗ Error:[/bold red] Unsupported CLI flags: "
+                f"[yellow]{', '.join(unsupported_flags)}[/yellow]"
+            )
+            console.print("[dim]Use dotted overrides (e.g. preprocess_tune.study_name=..., mcts.budget=...)[/dim]")
+            return 1
 
     # Detect command from overrides (first non-override argument)
     command = None
@@ -1183,7 +1185,7 @@ def main(argv: List[str] | None = None) -> int:
             return 1
 
     # Detect project
-    project = args.project
+    project = None
 
     # Handle preprocess tune subcommand: "pre tune" or "pre ... tune"
     if command == "preprocess" and "tune" in overrides:
@@ -1192,7 +1194,6 @@ def main(argv: List[str] | None = None) -> int:
     
     # If project not in flags, try to find it in overrides (e.g., project=Titanic)
     if not project:
-        # Simple heuristic: look for project=... in overrides
         for override in overrides:
             if override.startswith("project="):
                 project = override.split("=", 1)[1]
@@ -1204,25 +1205,11 @@ def main(argv: List[str] | None = None) -> int:
 
     if not project and command != "modules":
         parser.print_help()
-        console.print("\n[bold red]✗ Error:[/bold red] [yellow]--project[/yellow] is required")
+        console.print("\n[bold red]✗ Error:[/bold red] [yellow]project=<slug>[/yellow] is required")
         return 1
 
     # Build Unified Config
     try:
-        # Combine profile and other overrides
-        if args.profile:
-            overrides.insert(0, f"profile={args.profile}")
-        if args.force:
-            overrides.append("force=true")
-        if args.json_output:
-            overrides.append("json_output=true")
-        if args.exp_id:
-            overrides.append(f"experiment_id={args.exp_id}")
-        if args.mcts:
-            overrides.append("mcts.enabled=true")
-        if args.mcts_live:
-            overrides.append("mcts_live=true")
-            
         config = get_config(project or "default", overrides)
     except Exception as e:
         console.print(f"[bold red]✗ Config error:[/bold red] {e}")
@@ -1239,7 +1226,16 @@ def main(argv: List[str] | None = None) -> int:
         # Note: Task Queue manages computation. For submissions, see scripts/submission_queue.py
         # Build arguments for task_queue.py (expects --project before subcommand)
         # Format: task_queue.py --project PROJECT subcommand [args]
-        queue_args = ["--project", project] + [arg for arg in sys.argv[1:] if arg != "queue" and arg not in ["-p", "--project", project]]
+        queue_args = [
+            "--project",
+            project,
+        ] + [
+            arg
+            for arg in sys.argv[1:]
+            if arg != "queue"
+            and arg not in ["-p", "--project", project]
+            and not arg.startswith("project=")
+        ]
         result = subprocess.run(
             ["python", "scripts/task_queue.py"] + queue_args,
             cwd=REPO_ROOT
@@ -1249,7 +1245,7 @@ def main(argv: List[str] | None = None) -> int:
     project_root = REPO_ROOT / "projects" / "kaggle" / project
 
     # Default experiment id for preprocess-tune
-    if command == "preprocess-tune" and not config.experiment_id:
+    if command == "preprocess-tune" and not config.experiment_id and not config.mcts:
         study_name = _resolve_preprocess_tune_study_name(config, project_root)
         config.experiment_id = f"optuna_{study_name}"
     
@@ -1282,7 +1278,7 @@ def main(argv: List[str] | None = None) -> int:
         config_module = load_project_config(project_root)
         pipeline_def, _ = load_pipeline_def("default", project_root=project_root)
     elif command != "init" and project != "_help_mode_dummy_":
-        console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init --project {project}[/cyan]")
+        console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init project={project}[/cyan]")
         return 1
 
     # Special case: list-style admin commands (avoid creating experiment dirs)
@@ -1323,7 +1319,7 @@ def main(argv: List[str] | None = None) -> int:
 
         # Check if project exists
         if not project_root.exists():
-            console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init --project {project}[/cyan]")
+            console.print(f"[bold red]✗ Error:[/bold red] Project '[yellow]{project}[/yellow]' not initialized. Run: [cyan]mla init project={project}[/cyan]")
             return 1
 
         try:
@@ -1397,7 +1393,7 @@ def main(argv: List[str] | None = None) -> int:
             params = params.copy()
         
         # Inject top-level config fields that modules expect
-        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts_live", "n_trials"]:
+        for field in ["model_template", "preprocess_template", "force", "json_output", "skip_submit", "lock", "mcts_live"]:
             if hasattr(config, field):
                 params[field] = getattr(config, field)
         
@@ -1408,7 +1404,7 @@ def main(argv: List[str] | None = None) -> int:
         # Inject all fields from 'mcts' section if mcts is active
         if config.mcts and hasattr(config, "mcts_section"):
             if isinstance(config.mcts_section, dict):
-                for k, v in config.mcts_section.items():
+                for k, v in _flatten_dict(config.mcts_section).items():
                     params[f"mcts.{k}"] = v
 
         # Also inject common fields (these override template defaults if explicitly set via CLI)
@@ -1423,7 +1419,18 @@ def main(argv: List[str] | None = None) -> int:
 
         if name == "preprocess-tune":
             section = getattr(config, "preprocess_tune", {}) or {}
-            if "model_template" not in section:
+            optuna_section = getattr(config, "optuna", {}) or {}
+            if isinstance(optuna_section, dict):
+                for k, v in optuna_section.items():
+                    params[k] = v
+
+            merged_section = {}
+            if isinstance(section, dict):
+                merged_section.update(section)
+            if isinstance(optuna_section, dict):
+                merged_section.update(optuna_section)
+
+            if "model_template" not in merged_section:
                 resolved_tpl = _resolve_preprocess_tune_model_template(config, project_root)
                 if resolved_tpl:
                     params["model_template"] = resolved_tpl

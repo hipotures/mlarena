@@ -137,8 +137,8 @@ def suggest_next_steps(
     for next_module in sorted(next_modules):
         cmd = (
             f"python scripts/mla.py {next_module} \\\n"
-            f"  --project {project_name} \\\n"
-            f"  --exp-id {experiment_id}"
+            f"  project={project_name} \\\n"
+            f"  experiment_id={experiment_id}"
         )
         commands.append(cmd)
 

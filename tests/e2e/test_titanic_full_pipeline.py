@@ -68,9 +68,9 @@ def test_titanic_predict_e2e(monkeypatch, titanic_e2e_setup, mock_autogluon):
         lambda self, name: {"preset": "fast", "time_limit": 1, "use_gpu": 0},
     )
 
-    eda_code = main(["eda", "--project", "titanic", "--eda-notes", "e2e-fast"])
+    eda_code = main(["eda", "project=titanic", "eda.eda_notes=e2e-fast"])
     assert eda_code == 0
-    exit_code = main(["predict", "--project", "titanic", "--predict-suffix", "e2e", "--force"])
+    exit_code = main(["predict", "project=titanic", "predict.predict_suffix=e2e", "force=true"])
     assert exit_code == 0
 
     submissions = list((project_root / "experiments").glob("exp-*/artifacts/predict/submission-e2e.csv"))
@@ -102,7 +102,7 @@ def test_titanic_preprocess_then_model(monkeypatch, titanic_e2e_setup, mock_auto
     )
 
     exit_code = main(
-        ["preprocess", "--project", "titanic", "--preprocess-template", "baseline", "--force"]
+        ["preprocess", "project=titanic", "preprocess_template=baseline", "force=true"]
     )
     assert exit_code == 0
 
@@ -115,15 +115,11 @@ def test_titanic_preprocess_then_model(monkeypatch, titanic_e2e_setup, mock_auto
     exit_code = main(
         [
             "model",
-            "--project",
-            "titanic",
-            "--preprocess-template",
-            "baseline",
-            "--model-template",
-            "gpu-dev-5m",
-            "--exp-id",
-            exp_id,
-            "--force",
+            "project=titanic",
+            "preprocess_template=baseline",
+            "model_template=gpu-dev-5m",
+            f"experiment_id={exp_id}",
+            "force=true",
         ]
     )
     assert exit_code == 0
@@ -132,13 +128,10 @@ def test_titanic_preprocess_then_model(monkeypatch, titanic_e2e_setup, mock_auto
     pred_exit = main(
         [
             "predict",
-            "--project",
-            "titanic",
-            "--exp-id",
-            exp_id,
-            "--predict-suffix",
-            "pre-e2e",
-            "--force",
+            "project=titanic",
+            f"experiment_id={exp_id}",
+            "predict.predict_suffix=pre-e2e",
+            "force=true",
         ]
     )
     assert pred_exit == 0
@@ -174,8 +167,8 @@ def test_titanic_reproducibility(monkeypatch, titanic_e2e_setup, mock_autogluon)
 
     monkeypatch.setattr(mock_autogluon, "leaderboard", _leaderboard_with_score, raising=False)
 
-    first = main(["model", "--project", "titanic", "--model-template", "gpu-dev-5m", "--exp-id", "exp-repro-1", "--force"])
-    second = main(["model", "--project", "titanic", "--model-template", "gpu-dev-5m", "--exp-id", "exp-repro-2", "--force"])
+    first = main(["model", "project=titanic", "model_template=gpu-dev-5m", "experiment_id=exp-repro-1", "force=true"])
+    second = main(["model", "project=titanic", "model_template=gpu-dev-5m", "experiment_id=exp-repro-2", "force=true"])
     assert first == 0 and second == 0
 
     state1 = project_root / "experiments" / "exp-repro-1" / "state.json"
@@ -202,7 +195,7 @@ def test_titanic_validation_errors(monkeypatch, titanic_e2e_setup, mock_autogluo
 
     monkeypatch.setattr("mlarena.modules.model.TemplateLoader.load", _missing_template)
 
-    exit_code = main(["predict", "--project", "titanic", "--predict-suffix", "err", "--force"])
+    exit_code = main(["predict", "project=titanic", "predict.predict_suffix=err", "force=true"])
     assert exit_code == 1
 
     failed_states = list(project_root.glob("experiments/exp-*/state.json"))

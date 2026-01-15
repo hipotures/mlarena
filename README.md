@@ -45,16 +45,16 @@ The recommended way to run a full experiment is using the auto-flow, which orche
 **Prerequisites** (one-time setup):
 ```bash
 # Initialize project structure and download data
-uv run python scripts/mla.py init --project <competition-slug>
+uv run python scripts/mla.py init project=<competition-slug>
 
 # Run exploratory data analysis
-uv run python scripts/mla.py eda --project <competition-slug>
+uv run python scripts/mla.py eda project=<competition-slug>
 ```
 
 **Run auto-flow pipeline**:
 ```bash
 # Run the pipeline: preprocess → model → predict → submit → fetch-score
-uv run python scripts/mla.py --project <competition-slug> model.mla_retention=true
+uv run python scripts/mla.py project=<competition-slug> model.mla_retention=true
 ```
 
 ---
@@ -63,19 +63,19 @@ uv run python scripts/mla.py --project <competition-slug> model.mla_retention=tr
 
 ### Execution Profiles
 Profiles allow you to switch between predefined sets of parameters quickly:
-- `--profile smoke`: Fast verification (short time limits, medium quality).
-- `--profile dev`: Standard development settings.
+- `profile=smoke`: Fast verification (short time limits, medium quality).
+- `profile=dev`: Standard development settings.
 
 Usage:
 ```bash
-uv run python scripts/mla.py --project titanic --profile smoke
+uv run python scripts/mla.py project=titanic profile=smoke
 ```
 
-### Magic Flags (CLI Shortcuts)
-Common parameters are automatically mapped for convenience:
-- `--seed 123` → `common.seed=123`
-- `--time-limit 300` → `common.time_limit=300`
-- `--use-gpu` → `common.use_gpu=true`
+### Common Overrides
+Set common defaults using dotted paths:
+- `common.seed=123`
+- `common.time_limit=300`
+- `common.use_gpu=true`
 
 ### Disk Space Management
 Use `model.mla_retention=true` to delete intermediate AutoGluon models and save up to 98% of disk space while keeping the best model for predictions.
@@ -84,17 +84,15 @@ Use `model.mla_retention=true` to delete intermediate AutoGluon models and save 
 
 ## MLArena (`mla.py`) Workflow
 
-`mla.py` is the single entry point for the entire ML pipeline. You can use standard CLI flags for control and **dotted paths** for configuration data.
+`mla.py` is the single entry point for the entire ML pipeline. Use `key=value` overrides (including dotted paths) for all configuration data.
 
-### CLI Flags vs. Dotted Overrides
+### CLI Overrides
 
-MLArena uses a hybrid approach for maximum flexibility:
+Examples:
 
-1.  **CLI Flags** (`--project`, `--profile`, `--force`): Fundamental controls visible in `--help`.
-    - Example: `--profile smoke` is a shortcut for loading a set of fast defaults.
-2.  **Dotted Overrides** (`key=value`): Precise control over any configuration parameter.
-    - Example: `model.time_limit=100` targets a specific module's setting.
-    - Example: `profile=smoke` is functionally identical to the flag but uses the data engine.
+- `project=titanic` selects the project.
+- `profile=smoke` loads a preset profile.
+- `model.time_limit=100` targets a specific module's setting.
 
 ---
 
@@ -156,8 +154,8 @@ For managing multiple submissions efficiently, use the submission queue script. 
 ```bash
 # Add to queue
 uv run python scripts/mla.py submit \
-  --project <competition-slug> \
-  --exp-id <exp-id> \
+  project=<competition-slug> \
+  experiment_id=<experiment_id> \
   submit.queue_submit=true
 
 # List queued submissions
@@ -180,16 +178,16 @@ The Task Queue (`mla queue`) manages computation tasks (training, preprocessing)
 **Basic Commands:**
 ```bash
 # List queued tasks
-uv run python scripts/mla.py queue list -p <competition-slug>
+uv run python scripts/mla.py queue project=<competition-slug> list
 
 # Add a task (e.g., train a model)
-uv run python scripts/mla.py queue add -p <competition-slug> model_template=<template-name>
+uv run python scripts/mla.py queue project=<competition-slug> add model_template=<template-name>
 
 # Add task with high priority (1=highest, 10=default)
-uv run python scripts/mla.py queue add -p <competition-slug> model_template=<template-name> --priority 1
+uv run python scripts/mla.py queue project=<competition-slug> add model_template=<template-name> --priority 1
 
 # Run the queue
-uv run python scripts/mla.py queue run -p <competition-slug>
+uv run python scripts/mla.py queue project=<competition-slug> run
 ```
 
 **Features:**
@@ -203,40 +201,40 @@ If you prefer more granular control, you can run each module individually.
 
 **1. Initialize a new competition project:**
 ```bash
-uv run python scripts/mla.py init --project <competition-slug>
+uv run python scripts/mla.py init project=<competition-slug>
 ```
 This creates a new directory under `projects/kaggle/<competition-slug>` with the required structure and downloads the competition data.
 
 **2. Run Exploratory Data Analysis (EDA):**
 ```bash
-uv run python scripts/mla.py eda --project <competition-slug>
+uv run python scripts/mla.py eda project=<competition-slug>
 ```
 
 **3. Preprocess Data:**
 ```bash
-uv run python scripts/mla.py preprocess --project <competition-slug> preprocess_template=<template-name>
+uv run python scripts/mla.py preprocess project=<competition-slug> preprocess_template=<template-name>
 ```
 
 **4. Train a Model:**
 ```bash
-uv run python scripts/mla.py model --project <competition-slug> model_template=<template-name>
+uv run python scripts/mla.py model project=<competition-slug> model_template=<template-name>
 ```
 
 **5. Train with Hyperparameter Optimization (HPO):**
 ```bash
 # Quick HPO (50 trials, 1-2h)
-uv run python scripts/mla.py model --project <competition-slug> model_template=hpo_boost_medium
+uv run python scripts/mla.py model project=<competition-slug> model_template=hpo_boost_medium
 
 # Advanced HPO (100 trials, 4-6h)
-uv run python scripts/mla.py model --project <competition-slug> model_template=hpo_boost_high
+uv run python scripts/mla.py model project=<competition-slug> model_template=hpo_boost_high
 ```
 
-### Common Flags
+### Core Overrides
 
--   `--project <name>` or `-p <name>`: Specifies the competition project.
--   `--exp-id <id>` or `-e <id>`: Resumes or targets an existing experiment.
--   `--profile <name>` or `-s <name>`: Loads a config profile (e.g., `smoke`, `dev`).
--   `--force` or `-f`: Forces re-execution of completed modules.
+-   `project=<name>`: Specifies the competition project.
+-   `experiment_id=<id>`: Resumes or targets an existing experiment.
+-   `profile=<name>`: Loads a config profile (e.g., `smoke`, `dev`).
+-   `force=true`: Forces re-execution of completed modules.
 -   `model.mla_retention=true`: Clean up intermediate AutoGluon models after training.
 
 ### Configuration Overrides
@@ -244,10 +242,10 @@ uv run python scripts/mla.py model --project <competition-slug> model_template=h
 You can override any configuration parameter using dotted paths:
 ```bash
 # Set model time limit
-uv run python scripts/mla.py model -p titanic model.time_limit=600
+uv run python scripts/mla.py model project=titanic model.time_limit=600
 
 # Set global seed and preprocess option
-uv run python scripts/mla.py -p titanic common.seed=42 preprocess.cache=true
+uv run python scripts/mla.py project=titanic common.seed=42 preprocess.cache=true
 ```
 
 **For parameter naming conventions, see:** [Terminology Guide](docs/TERMINOLOGY.md)
@@ -519,7 +517,7 @@ auto-flow(titanic): preprocess→model→predict→submit→fetch-score | local 
 
 **Skip auto-commit:**
 ```bash
-uv run python scripts/mla.py --project titanic skip_git=true
+uv run python scripts/mla.py project=titanic skip_git=true
 ```
 
 ### Viewing History
@@ -528,10 +526,10 @@ You can list all tracked submissions and experiments for a project:
 
 ```bash
 # View all submissions for a project
-uv run python scripts/mla.py submissions --project <competition-name> list
+uv run python scripts/mla.py submissions project=<competition-name> list
 
 # View all experiments for a project
-uv run python scripts/mla.py experiments --project <competition-name> list
+uv run python scripts/mla.py experiments project=<competition-name> list
 ```
 
 ### Reproducing a Submission
@@ -543,7 +541,7 @@ To reproduce a past submission, you can either check out the corresponding git c
 git checkout <GIT_HASH_FROM_SUBMISSION_LIST>
 
 # Method 2: Restore Code Snapshot
-uv run python scripts/mla.py experiments --project <competition-name> restore <EXPERIMENT_ID>
+uv run python scripts/mla.py experiments project=<competition-name> restore <EXPERIMENT_ID>
 ```
 
 ## Automated Submission & Score Fetching
@@ -562,27 +560,20 @@ In this browser window, log in to your Kaggle account. Keep this window open whe
 
 ### Control Flags
 
--   `--wait-seconds <N>`: Sets the delay (in seconds) between submission and score fetching to allow for Kaggle processing (default: 30).
--   `--cdp-url <URL>`: Specifies a custom CDP endpoint if Chrome is running on a different port or host.
+-   `wait_seconds=<N>`: Sets the delay (in seconds) between submission and score fetching to allow for Kaggle processing (default: 30).
+-   `init.cdp_url=<URL>`: Specifies a custom CDP endpoint if Chrome is running on a different port or host (used for scraping during init).
 
 **Note**: Score fetching is controlled by the `skip_submit` flag (skips both submit and fetch) and the `wait_seconds` parameter.
 
 ### CLI Parsing Behavior
 
-MLArena supports two parameter formats:
+MLArena accepts `key=value` overrides only (including dotted paths).
 
-1. **Dotted paths** (recommended): `key.subkey=value`
-   ```bash
-   uv run python scripts/mla.py --project titanic common.time_limit=600
-   ```
+```bash
+uv run python scripts/mla.py project=titanic common.time_limit=600
+```
 
-2. **Flag format** (converted internally): `--flag value`
-   ```bash
-   uv run python scripts/mla.py --project titanic --time-limit 600
-   # Internally converted to: common.time_limit=600
-   ```
-
-**Note**: Common parameters (`time_limit`, `use_gpu`, `preset`, `seed`) are automatically prefixed with `common.` when using flag format.
+For details and examples, see [docs/CLI_ARGUMENTS.md](docs/CLI_ARGUMENTS.md).
 
 ---
 
@@ -593,6 +584,7 @@ MLArena supports two parameter formats:
 - **[Architecture](docs/architecture.md)** - System design and execution flow
 - **[MLA Workflow Guide](docs/MLA_WORKFLOW_GUIDE.md)** - Complete workflow examples
 - **[Configuration System](docs/configs.md)** - Parameter reference and profiles
+- **[CLI Arguments](docs/CLI_ARGUMENTS.md)** - Command-line override syntax
 
 ### Module Documentation
 - **[Preprocessing Submodules](docs/submodules/README.md)** - All preprocessing modules and contracts

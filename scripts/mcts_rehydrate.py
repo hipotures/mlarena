@@ -131,7 +131,7 @@ def main():
     print(f"  [+] Created fidelity: {fid_path.name}")
 
     print(f"\nDone! Command to run trial {args.trial}:")
-    print(f"uv run python scripts/mla.py model --project {args.project} --exp-id exp-{base_name}_F2 --force preprocess_template={base_name}_F2")
+    print(f"uv run python scripts/mla.py model project={args.project} experiment_id=exp-{base_name}_F2 force=true preprocess_template={base_name}_F2")
 
 if __name__ == "__main__":
     import sqlite3 # Import here to be sure

@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT=playground-series-s5e12
 # Wspólne ustawienia modelu (bez submitu, bo uruchamiamy tylko trening)
-MODEL_FLAGS=(--preset best --time-limit 600 --use-gpu 0)
+MODEL_FLAGS=(common.preset=best common.time_limit=600 common.use_gpu=0)
 MODEL_TEMPLATE_AV="cpu-dev-5m-av"  # używa autogluon_av_weights
 
 # Helper to log local CV to /tmp/scores.log if available in state.json
@@ -26,9 +26,9 @@ log_score() {
 
 #0) Model bez preprocessu (surowe dane) – odkomentuj, jeśli chcesz ponowić baseline z AV
 uv run python scripts/mla.py model \
-  --project "$PROJECT" \
-  --experiment-id 000.raw_best10m_av \
-  --model-template "$MODEL_TEMPLATE_AV" \
+  project="$PROJECT" \
+  experiment_id=000.raw_best10m_av \
+  model_template="$MODEL_TEMPLATE_AV" \
   "${MODEL_FLAGS[@]}"
 log_score "000.raw_best10m_av"
 
@@ -47,14 +47,14 @@ PRE_TEMPLATES=(
 
 for tpl in "${PRE_TEMPLATES[@]}"; do
   uv run python scripts/mla.py preprocess \
-    --project "$PROJECT" \
-    --preprocess-template "$tpl"
+    project="$PROJECT" \
+    preprocess_template="$tpl"
 
   uv run python scripts/mla.py model \
-    --project "$PROJECT" \
-    --preprocess-template "$tpl" \
-    --model-template "$MODEL_TEMPLATE_AV" \
-    --experiment-id "av.$tpl" \
+    project="$PROJECT" \
+    preprocess_template="$tpl" \
+    model_template="$MODEL_TEMPLATE_AV" \
+    experiment_id="av.$tpl" \
     "${MODEL_FLAGS[@]}"
 
   log_score "av.$tpl"

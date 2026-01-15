@@ -62,7 +62,7 @@ def test_real_autogluon_pipeline(monkeypatch, tmp_path):
     project_root = tmp_path / "projects" / "kaggle" / project
     _write_small_dataset(project_root)
 
-    exit_code = main(["predict", "--project", project])
+    exit_code = main(["predict", f"project={project}"])
     assert exit_code == 0
 
     submissions = list((project_root / "experiments").glob("exp-*/artifacts/predict/submission*.csv"))

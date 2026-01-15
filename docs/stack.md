@@ -25,8 +25,8 @@ The `stack` module enables you to:
 ```bash
 # Stack multiple prediction files
 uv run python scripts/mla.py stack \
-  --project <competition-slug> \
-  stack.prediction_files=[submission1.csv,submission2.csv,submission3.csv]
+  project=<competition-slug> \
+  stack.prediction_files='[submission1.csv,submission2.csv,submission3.csv]'
 ```
 
 ### With Explicit Columns
@@ -34,8 +34,8 @@ uv run python scripts/mla.py stack \
 ```bash
 # Specify ID and target columns explicitly
 uv run python scripts/mla.py stack \
-  --project titanic \
-  stack.prediction_files=[pred1.csv,pred2.csv,pred3.csv] \
+  project=titanic \
+  stack.prediction_files='[pred1.csv,pred2.csv,pred3.csv]' \
   stack.id_column=PassengerId \
   stack.target_column=Survived
 ```
@@ -45,8 +45,8 @@ uv run python scripts/mla.py stack \
 ```bash
 # Stack using prediction from completed predict module
 uv run python scripts/mla.py stack \
-  --project titanic \
-  --exp-id exp-20251216-123045
+  project=titanic \
+  experiment_id=exp-20251216-123045
 ```
 
 ## CLI Overrides
@@ -104,10 +104,8 @@ PassengerId,Survived
 ```bash
 # Create ensemble from two different model experiments
 uv run python scripts/mla.py stack \
-  --project titanic \
-  --prediction-files \
-    projects/kaggle/titanic/experiments/exp-20251216-100000/artifacts/predict/submission.csv \
-    projects/kaggle/titanic/experiments/exp-20251216-110000/artifacts/predict/submission.csv
+  project=titanic \
+  stack.prediction_files='[projects/kaggle/titanic/experiments/exp-20251216-100000/artifacts/predict/submission.csv,projects/kaggle/titanic/experiments/exp-20251216-110000/artifacts/predict/submission.csv]'
 ```
 
 ### Example 2: Stack Multiple Preprocessing Variants
@@ -115,11 +113,8 @@ uv run python scripts/mla.py stack \
 ```bash
 # Combine predictions from same model with different preprocessing
 uv run python scripts/mla.py stack \
-  --project titanic \
-  --prediction-files \
-    experiments/exp-baseline/artifacts/predict/submission.csv \
-    experiments/exp-with-fe/artifacts/predict/submission.csv \
-    experiments/exp-with-scaling/artifacts/predict/submission.csv
+  project=titanic \
+  stack.prediction_files='[experiments/exp-baseline/artifacts/predict/submission.csv,experiments/exp-with-fe/artifacts/predict/submission.csv,experiments/exp-with-scaling/artifacts/predict/submission.csv]'
 ```
 
 ### Example 3: Stack Diverse Model Types
@@ -127,12 +122,8 @@ uv run python scripts/mla.py stack \
 ```bash
 # Ensemble different model architectures
 uv run python scripts/mla.py stack \
-  --project titanic \
-  --prediction-files \
-    submissions/xgb_submission.csv \
-    submissions/lgbm_submission.csv \
-    submissions/rf_submission.csv \
-    submissions/nn_submission.csv
+  project=titanic \
+  stack.prediction_files='[submissions/xgb_submission.csv,submissions/lgbm_submission.csv,submissions/rf_submission.csv,submissions/nn_submission.csv]'
 ```
 
 ## Typical Workflow
@@ -141,15 +132,15 @@ uv run python scripts/mla.py stack \
 
 ```bash
 # Train baseline model
-uv run python scripts/mla.py model --project titanic --model-template baseline
+uv run python scripts/mla.py model project=titanic model_template=baseline
 
 # Train with different preprocessing
 uv run python scripts/mla.py preprocess \
-    --project playground-series-s5e1 \
-    --preprocess-template feature_interactions
+    project=playground-series-s5e1 \
+    preprocess_template=feature_interactions
 
 # Train different model type
-uv run python scripts/mla.py model --project titanic --model-template cpu-xgb-8h
+uv run python scripts/mla.py model project=titanic model_template=cpu-xgb-8h
 ```
 
 ### 2. Generate Predictions
@@ -161,11 +152,8 @@ Each model run creates a submission CSV in its experiment directory.
 ```bash
 # Stack all three predictions
 uv run python scripts/mla.py stack \
-  --project titanic \
-  --prediction-files \
-    experiments/exp-20251216-100000/artifacts/predict/submission.csv \
-    experiments/exp-20251216-110000/artifacts/predict/submission.csv \
-    experiments/exp-20251216-120000/artifacts/predict/submission.csv
+  project=titanic \
+  stack.prediction_files='[experiments/exp-20251216-100000/artifacts/predict/submission.csv,experiments/exp-20251216-110000/artifacts/predict/submission.csv,experiments/exp-20251216-120000/artifacts/predict/submission.csv]'
 ```
 
 ### 4. Submit Ensemble
@@ -173,8 +161,8 @@ uv run python scripts/mla.py stack \
 ```bash
 # Submit the stacked predictions
 uv run python scripts/mla.py submit \
-  --project titanic \
-  --exp-id <stack-exp-id>
+  project=titanic \
+  experiment_id=<stack_experiment_id>
 ```
 
 ## When Stacking Helps
@@ -209,10 +197,10 @@ The `stack` module uses simple averaging. For weighted averaging:
 
 ```bash
 # Level 1: Stack base models
-uv run python scripts/mla.py stack --project proj --prediction-files base1.csv base2.csv base3.csv
+uv run python scripts/mla.py stack project=proj stack.prediction_files='[base1.csv,base2.csv,base3.csv]'
 
 # Level 2: Stack level-1 ensemble with additional models
-uv run python scripts/mla.py stack --project proj --prediction-files stacked1.csv base4.csv base5.csv
+uv run python scripts/mla.py stack project=proj stack.prediction_files='[stacked1.csv,base4.csv,base5.csv]'
 ```
 
 ## Best Practices
@@ -301,14 +289,14 @@ Stack is designed for manual experimentation after multiple model runs:
 ```bash
 # 1. Train multiple experiments
 for template in baseline cpu-xgb-8h cpu-rf-8h; do
-  uv run python scripts/mla.py model --project proj --model-template $template
+  uv run python scripts/mla.py model project=proj model_template=$template
 done
 
 # 2. Collect prediction files
-predictions=$(find experiments/*/artifacts/predict/submission.csv)
+predictions=$(find experiments/*/artifacts/predict/submission.csv | paste -sd, -)
 
 # 3. Create ensemble
-uv run python scripts/mla.py stack --project proj --prediction-files $predictions
+uv run python scripts/mla.py stack project=proj stack.prediction_files="[$predictions]"
 ```
 
 ## See Also

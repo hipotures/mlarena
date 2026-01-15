@@ -96,10 +96,9 @@ class TaskQueueTextual(TaskQueue):
 
         # Build command
         cmd_parts = task["command"].split()
-        if "--project" not in cmd_parts and "-p" not in cmd_parts:
+        if not any(part.startswith("project=") for part in cmd_parts):
             project_name = self.project_root.name
-            cmd_parts.insert(1, "--project")
-            cmd_parts.insert(2, project_name)
+            cmd_parts.insert(1, f"project={project_name}")
 
         # Execute via subprocess with NO_COLOR=1
         repo_root = self.project_root.parent.parent.parent
@@ -233,7 +232,7 @@ class TaskQueueTextual(TaskQueue):
                 task_id = task["id"]
                 template = "N/A"
                 cmd = task["command"]
-                match = re.search(r'--model-template\s+([^\s]+)', cmd) or re.search(r'--preprocess-template\s+([^\s]+)', cmd)
+                match = re.search(r'\bmodel_template=([^\s]+)', cmd) or re.search(r'\bpreprocess_template=([^\s]+)', cmd)
                 if match: template = match.group(1)
                 
                 duration = "N/A"

@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT=playground-series-s5e12
 # Wspólne ustawienia modelu (bez submitu, bo uruchamiamy tylko trening)
-MODEL_FLAGS=(--preset best --time-limit 600 --use-gpu 0)
+MODEL_FLAGS=(common.preset=best common.time_limit=600 common.use_gpu=0)
 MODEL_TEMPLATE="cpu-best-1h-gbm-drift-mi"
 
 # Helper to log local CV to /tmp/scores.log if available in state.json
@@ -26,8 +26,8 @@ log_score() {
 
 # 0) Model bez preprocessu (surowe dane) – odkomentuj, jeśli chcesz ponowić baseline
 # uv run python scripts/mla.py model \
-#   --project "$PROJECT" \
-#   --experiment-id 000.raw_best10m \
+#   project="$PROJECT" \
+#   experiment_id=000.raw_best10m \
 #   "${MODEL_FLAGS[@]}"
 # log_score "000.raw_best10m"
 
@@ -46,14 +46,14 @@ PRE_TEMPLATES=(
 
 for tpl in "${PRE_TEMPLATES[@]}"; do
   uv run python scripts/mla.py preprocess \
-    --project "$PROJECT" \
-    --preprocess-template "$tpl"
+    project="$PROJECT" \
+    preprocess_template="$tpl"
 
   uv run python scripts/mla.py model \
-    --project "$PROJECT" \
-    --preprocess-template "$tpl" \
-    --model-template "$MODEL_TEMPLATE" \
-    --experiment-id "solo.$tpl" \
+    project="$PROJECT" \
+    preprocess_template="$tpl" \
+    model_template="$MODEL_TEMPLATE" \
+    experiment_id="solo.$tpl" \
     "${MODEL_FLAGS[@]}"
 
   log_score "solo.$tpl"

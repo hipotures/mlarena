@@ -215,7 +215,7 @@ def _load_processed_or_raw(
         raise FileNotFoundError(
             f"Preprocessed data not found for template '{preprocess_template}'.\n"
             f"Searched: {default_dir}/artifacts/preprocess/ and any chain step '*-{preprocess_template}'.\n"
-            f"Run: python scripts/mla.py preprocess --project {context.project_name} --preprocess-template {preprocess_template}"
+            f"Run: python scripts/mla.py preprocess project={context.project_name} preprocess_template={preprocess_template}"
         )
     else:
         # Use raw data (no orig in raw data, no tuning)
@@ -641,7 +641,7 @@ class ModelModule(BaseModule):
         if json_output:
             console.quiet = True
 
-        # Handle --model-template list
+        # Handle model_template=list
         if template_name == "list":
             loader = TemplateLoader(self.context.project_root, template_type="model")
             templates = loader.list_available_with_source()
@@ -667,7 +667,7 @@ class ModelModule(BaseModule):
                 table.add_row(name, source_display, style=style)
 
             console.print(table)
-            console.print(f"\n[dim]Usage: --model-template <name>[/dim]")
+            console.print(f"\n[dim]Usage: model_template=<name>[/dim]")
             console.print(f"[dim]🅶 = global template  🅻 = local template  🅶🅻 = name conflict (local overrides)[/dim]")
             return ModuleResult(
                 success=True,
@@ -702,7 +702,7 @@ class ModelModule(BaseModule):
                 for tpl in available:
                     table.add_row(tpl)
                 console.print(table)
-                console.print(f"\n[dim]Usage: --model-template <name>[/dim]")
+                console.print(f"\n[dim]Usage: model_template=<name>[/dim]")
             else:
                 console.print("[yellow]No templates found in config/templates/model.yaml[/yellow]")
 

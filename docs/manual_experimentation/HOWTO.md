@@ -61,11 +61,11 @@ Use `scripts/task_queue.py` to schedule your manual experiments. Use the explici
 
 **Command Syntax:**
 ```bash
-python scripts/task_queue.py --project <PROJECT_NAME> add --command "model --model-template <VARIANT_NAME> --exp-id <VARIANT_NAME> skip_submit=true skip_git=true model.mla_retention=true"
+python scripts/task_queue.py --project <PROJECT_NAME> add --command "model model_template=<VARIANT_NAME> experiment_id=<VARIANT_NAME> skip_submit=true skip_git=true model.mla_retention=true"
 ```
 
-*   `--model-template`: Your new variant model file (e.g., `test_c_02_0047_01`).
-*   `--exp-id`: Explicitly name the experiment ID same as the template for clarity.
+*   `model_template`: Your new variant model file (e.g., `test_c_02_0047_01`).
+*   `experiment_id`: Explicitly name the experiment ID same as the template for clarity.
 *   `skip_submit=true`: Don't submit to Kaggle yet.
 *   `skip_git=true`: Don't auto-commit (useful for quick iteration).
 *   `model.mla_retention=true`: Keeps artifacts for analysis (important for manual checks).
@@ -73,6 +73,6 @@ python scripts/task_queue.py --project <PROJECT_NAME> add --command "model --mod
 **Batch Example:**
 ```bash
 for i in 01 02 03; do
-  python scripts/task_queue.py -p playground-series-s6e1 add --command "model --model-template test_c_02_0047_${i} --exp-id test_c_02_0047_${i} skip_submit=true skip_git=true model.mla_retention=true"
+  python scripts/task_queue.py -p playground-series-s6e1 add --command "model model_template=test_c_02_0047_${i} experiment_id=test_c_02_0047_${i} skip_submit=true skip_git=true model.mla_retention=true"
 done
 ```

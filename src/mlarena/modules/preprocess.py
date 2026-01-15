@@ -378,7 +378,7 @@ class PreprocessModule(BaseModule):
 
         template_name = self.invocation_params.get("preprocess_template")
         if not template_name:
-            return False, "Missing --preprocess-template argument"
+            return False, "Missing preprocess_template=<name> argument"
 
         # template_name should be a string, not a list
         if isinstance(template_name, list):
@@ -541,7 +541,7 @@ class PreprocessModule(BaseModule):
             if self.invocation_params.get("preprocess_template_config") or self.invocation_params.get("preprocess_template_path"):
                 template_name = "inline"
             else:
-                raise ValueError("--preprocess-template is required")
+                raise ValueError("preprocess_template is required")
         cache_ok = bool(self.invocation_params.get("cache"))
         input_source = self.invocation_params.get("input_source", None)
         chain_exp_id = self.invocation_params.get("chain_exp_id", f"pre-{template_name}")
@@ -1115,4 +1115,3 @@ class PreprocessModule(BaseModule):
             payload=payload,
             artifacts=artifacts_list,
         )
-

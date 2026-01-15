@@ -46,19 +46,14 @@ Python 3.10+ is required. MLArena uses modern Python features including type hin
 
 ## Naming Conventions
 
-### When do I use `preprocess_template` vs `--preprocess-template`?
+### How do I select a preprocessing template?
 
-**Use dotted overrides (recommended):**
+Use dotted overrides:
 ```bash
-uv run python scripts/mla.py --project titanic preprocess_template=baseline
+uv run python scripts/mla.py project=titanic preprocess_template=baseline
 ```
 
-**Legacy flag format (still works):**
-```bash
-uv run python scripts/mla.py --project titanic --preprocess-template baseline
-```
-
-**For complete guide, see:** [Terminology Guide](TERMINOLOGY.md#parameter-naming-conventions)
+You can also chain multiple steps with a comma-separated list (e.g., `preprocess_template=imputer,scaler`).
 
 ---
 
@@ -76,14 +71,14 @@ uv run python scripts/mla.py --project titanic --preprocess-template baseline
 
 ### "Module already completed" - how do I re-run?
 
-Use `--force` flag to re-execute completed modules:
+Use `force=true` to re-execute completed modules:
 
 ```bash
 # Force re-run single module
-uv run python scripts/mla.py model --project titanic --force
+uv run python scripts/mla.py model project=titanic force=true
 
 # Force re-run entire auto-flow
-uv run python scripts/mla.py --project titanic --force
+uv run python scripts/mla.py project=titanic force=true
 ```
 
 **Note:** This overwrites existing results unless `lock=true` was used.
@@ -138,7 +133,7 @@ ls src/mlarena/templates/preprocess/
 **Fix:** Re-run the same module - stale "running" status is automatically marked as failed before execution.
 
 ```bash
-uv run python scripts/mla.py model --project titanic --exp-id exp-20251217-152730
+uv run python scripts/mla.py model project=titanic experiment_id=exp-20251217-152730
 ```
 
 ---
@@ -157,7 +152,7 @@ uv run python scripts/mla.py model --project titanic --exp-id exp-20251217-15273
    ```
 3. Use template:
    ```bash
-   uv run python scripts/mla.py model --project <slug> model_template=my_template
+   uv run python scripts/mla.py model project=<slug> model_template=my_template
    ```
 
 **See:** [MLA Workflow Guide - Custom Templates](MLA_WORKFLOW_GUIDE.md#advanced-topics)
@@ -182,10 +177,10 @@ Use dotted paths for any parameter:
 
 ```bash
 # Override model time limit
-uv run python scripts/mla.py model --project titanic model.time_limit=3600
+uv run python scripts/mla.py model project=titanic model.time_limit=3600
 
 # Override multiple parameters
-uv run python scripts/mla.py --project titanic \
+uv run python scripts/mla.py project=titanic \
   common.seed=42 \
   common.time_limit=600 \
   model.preset=best_quality
@@ -219,13 +214,13 @@ Yes! Run preprocessing standalone:
 
 ```bash
 # Single template
-uv run python scripts/mla.py preprocess --project titanic preprocess_template=baseline
+uv run python scripts/mla.py preprocess project=titanic preprocess_template=baseline
 
 # Chain (comma-separated)
-uv run python scripts/mla.py preprocess --project titanic preprocess_template=sanity_check,imputer,scaler
+uv run python scripts/mla.py preprocess project=titanic preprocess_template=sanity_check,imputer,scaler
 ```
 
-Completed steps are cached unless `--force` is used.
+Completed steps are cached unless `force=true` is used.
 
 **See:** [MLA Workflow Guide - Manual Workflow](MLA_WORKFLOW_GUIDE.md#manual-workflow-example)
 
@@ -273,7 +268,7 @@ experiments/pre-{template}/{hash}/{step}-{name}/artifacts/preprocess/
 
 ```bash
 # During experiments - queue instead of upload
-uv run python scripts/mla.py submit --project titanic --exp-id exp1 submit.queue_submit=true
+uv run python scripts/mla.py submit project=titanic experiment_id=exp1 submit.queue_submit=true
 
 # Later - batch upload
 python scripts/submission_queue.py --project titanic submit 1 --continue-flow
@@ -295,12 +290,12 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 # Keep window open
 
 # Run fetch-score
-uv run python scripts/mla.py fetch-score --project titanic
+uv run python scripts/mla.py fetch-score project=titanic
 ```
 
 **For non-default port:**
 ```bash
-uv run python scripts/mla.py fetch-score --project titanic --cdp-url http://localhost:9223
+uv run python scripts/mla.py fetch-score project=titanic init.cdp_url=http://localhost:9223
 ```
 
 ---
@@ -331,14 +326,14 @@ print("Missing values:", sub.isnull().sum())
 
 ### How do I rerun predict/submit on existing experiment?
 
-Pass `--exp-id` to reuse artifacts:
+Pass `experiment_id=` to reuse artifacts:
 
 ```bash
 # Re-run predict
-uv run python scripts/mla.py predict --project titanic --exp-id exp-20251217-152730
+uv run python scripts/mla.py predict project=titanic experiment_id=exp-20251217-152730
 
 # Re-run submit
-uv run python scripts/mla.py submit --project titanic --exp-id exp-20251217-152730
+uv run python scripts/mla.py submit project=titanic experiment_id=exp-20251217-152730
 ```
 
 Pipeline automatically reuses model artifacts and skips dependencies.
@@ -350,7 +345,7 @@ Pipeline automatically reuses model artifacts and skips dependencies.
 Use `lock=true` to create `overwrite.lock`:
 
 ```bash
-uv run python scripts/mla.py model --project titanic lock=true
+uv run python scripts/mla.py model project=titanic lock=true
 ```
 
 **To delete locked experiment:**
@@ -390,7 +385,7 @@ projects/kaggle/<slug>/experiments/
 **Fix:**
 ```bash
 # Skip auto-commit
-uv run python scripts/mla.py --project titanic skip_git=true
+uv run python scripts/mla.py project=titanic skip_git=true
 
 # Or commit manually
 git add projects/kaggle/titanic
@@ -426,15 +421,15 @@ Shows complete pipeline execution with validation and public scores.
 **Use profiles:**
 ```bash
 # Smoke test (fast, low quality)
-uv run python scripts/mla.py --project titanic profile=smoke
+uv run python scripts/mla.py project=titanic profile=smoke
 
 # Development (medium quality, 5 minutes)
-uv run python scripts/mla.py --project titanic profile=dev
+uv run python scripts/mla.py project=titanic profile=dev
 ```
 
 **Or override time limit:**
 ```bash
-uv run python scripts/mla.py model --project titanic common.time_limit=60
+uv run python scripts/mla.py model project=titanic common.time_limit=60
 ```
 
 **See:** [Configuration System - Profiles](configs.md#built-in-profile-fallbacks)
@@ -445,13 +440,13 @@ uv run python scripts/mla.py model --project titanic common.time_limit=60
 
 ```bash
 # Quick HPO (50 trials, 1-2h)
-uv run python scripts/mla.py model --project titanic model_template=hpo_boost_medium
+uv run python scripts/mla.py model project=titanic model_template=hpo_boost_medium
 
 # Advanced HPO (100 trials, 4-6h)
-uv run python scripts/mla.py model --project titanic model_template=hpo_boost_high
+uv run python scripts/mla.py model project=titanic model_template=hpo_boost_high
 
 # Full HPO (200 trials, 8-12h)
-uv run python scripts/mla.py model --project titanic model_template=hpo_boost_best
+uv run python scripts/mla.py model project=titanic model_template=hpo_boost_best
 ```
 
 **See:** [MLA Workflow Guide - HPO](MLA_WORKFLOW_GUIDE.md#hyperparameter-optimization-hpo)
@@ -463,7 +458,7 @@ uv run python scripts/mla.py model --project titanic model_template=hpo_boost_be
 Use `mla_retention=true` to delete intermediate models:
 
 ```bash
-uv run python scripts/mla.py model --project titanic model.mla_retention=true
+uv run python scripts/mla.py model project=titanic model.mla_retention=true
 ```
 
 Keeps only the best ensemble, removes individual models.
@@ -496,7 +491,7 @@ Covers:
 
 2. Run preprocessing:
    ```bash
-   uv run python scripts/mla.py preprocess --project titanic preprocess_template=with_av
+   uv run python scripts/mla.py preprocess project=titanic preprocess_template=with_av
    ```
 
 3. Model automatically uses sample weights from `custom_module_state`
@@ -512,11 +507,11 @@ Covers:
 **Use Task Queue instead:**
 ```bash
 # Queue multiple experiments
-uv run python scripts/mla.py queue add -p titanic model_template=cpu-fast-1m --priority 1
-uv run python scripts/mla.py queue add -p titanic model_template=cpu-dev-5m --priority 2
+uv run python scripts/mla.py queue project=titanic add model_template=cpu-fast-1m --priority 1
+uv run python scripts/mla.py queue project=titanic add model_template=cpu-dev-5m --priority 2
 
 # Run sequentially
-uv run python scripts/mla.py queue run -p titanic
+uv run python scripts/mla.py queue project=titanic run
 ```
 
 **See:** [README - Task Queue Management](../README.md#task-queue-management)

@@ -56,23 +56,30 @@ Parameters used as fallback values by multiple modules (Model, Tune, Preprocess)
 | `preprocess.cache` | bool | `true` | Use cached artifacts if input data/config hasn't changed. |
 | `preprocess.quiet_preprocess_panel` | bool | `false` | Suppress PREPROCESS header/footer panels. |
 
-### 2b. Preprocess Tune (`preprocess_tune.*`)
+### 2b. Optuna (`optuna.*`)
+| Parameter | Type | Default | Description |
+|:---|:---:|:---:|:---|
+| `optuna.study_name` | string | `optuna_preprocess` | Optuna study name. |
+| `optuna.direction` | string | `minimize` | Optuna direction (`maximize` or `minimize`). |
+| `optuna.n_trials` | int | `10` | Number of trials to run. |
+| `optuna.optuna_workers` | int | `1` | Parallel Optuna workers (`n_jobs`). |
+| `optuna.storage_url` | string | `sqlite:///...` | Optuna storage URL. |
+| `optuna.optuna_storage_timeout` | int | (optional) | SQLite connection timeout (seconds). |
+| `optuna.optuna_live` | bool | `false` | Enable live Optuna dashboard integration. |
+
+### 2c. Preprocess Tune (`preprocess_tune.*`)
+Optuna settings live under `optuna.*` (legacy `preprocess_tune.*` names are still accepted).
+
 | Parameter | Type | Default | Description |
 |:---|:---:|:---:|:---|
 | `preprocess_tune.super_chain` | string | `conf/preprocess/super_chain_optuna.yaml` | Super-chain YAML used for tuning. |
-| `preprocess_tune.study_name` | string | `optuna_preprocess` | Optuna study name. |
-| `preprocess_tune.direction` | string | `minimize` | Optuna direction (`maximize` or `minimize`). |
-| `preprocess_tune.n_trials` | int | `10` | Number of trials to run. |
-| `preprocess_tune.optuna_workers` | int | `1` | Parallel Optuna workers (`n_jobs`). |
 | `preprocess_tune.max_trial_sec` | int | `1800` | Hard timeout per trial (seconds). |
-| `preprocess_tune.optuna_storage_timeout` | int | (optional) | SQLite connection timeout (seconds). |
 | `preprocess_tune.model_cleanup` | bool | `false` | Remove `optuna_model` and `*_processed.csv.gz` files after each trial. |
 | `preprocess_tune.ag_cleanup` | bool | `false` | Alias for `model_cleanup`. |
 | `preprocess_tune.cleanup_processed` | bool | `false` | Remove `*_processed.csv.gz` after each trial (implied by `model_cleanup`). |
 | `preprocess_tune.allow_heavy_steps` | bool | `false` | Allow heavy steps in the super-chain. |
 | `preprocess_tune.allow_heavy_variants` | bool | `false` | Allow heavy variants within steps. |
 | `preprocess_tune.max_features_out` | int | `50000` | Hard cap on output features. |
-| `preprocess_tune.storage_url` | string | `sqlite:///...` | Optuna storage URL. |
 | `preprocess_tune.model_template` | string | (optional) | FAST model template for evaluation (fallback: ``evaluation.model`` in super-chain). |
 | `preprocess_tune.seed` | int | `common.seed` | Trial seed. |
 | `preprocess_tune.quiet_preprocess_panel` | bool | `false` | Suppress PREPROCESS panels during tuning. |
@@ -92,14 +99,6 @@ Parameters used as fallback values by multiple modules (Model, Tune, Preprocess)
 
 ---
 
-## ⚡ Magic Flags (Shortcuts)
-These CLI flags are automatically mapped to their dotted paths:
+## CLI Overrides
 
-- `--seed` → `common.seed`
-- `--time-limit` → `common.time_limit`
-- `--use-gpu` → `common.use_gpu`
-- `--preset` → `common.preset`
-- `--project` → `project`
-- `--exp-id` → `experiment_id`
-- `--profile` → `profile`
-- `--force` → `force`
+MLArena accepts only `key=value` overrides on the command line. Use dotted paths for nested config values (e.g., `model.time_limit=600`, `common.seed=123`).

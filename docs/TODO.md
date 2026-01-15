@@ -43,7 +43,7 @@
 - [ ] T5: External dataset weight variants (strategies for weighting merged external data).
 
 ## CLI & UX
-- [ ] Default pipeline mode: `mla --project X` starts the auto-flow without specifying a module.
+- [ ] Default pipeline mode: `mla project=X` starts the auto-flow without specifying a module.
 - [ ] Implement `--from <module>` to resume auto-flow from a specific stage.
 - [ ] Add `mla status` for a quick summary of recent runs.
 

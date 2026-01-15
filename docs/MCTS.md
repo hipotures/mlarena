@@ -2,11 +2,11 @@
 
 ## 0. Cel i twarde wymagania
 
-Ten dokument opisuje, jak dodać **Monte Carlo Tree Search (MCTS)** jako alternatywę dla Optuna w komendzie **`mla pre tune`**.
+Ten dokument opisuje, jak dodać **Monte Carlo Tree Search (MCTS)** jako alternatywę dla Optuna w komendzie **`mla preprocess-tune`**.
 
 ### Must-have
 
-- **Parzystość CLI**: działa jak `mla pre tune`, ale z flagą `--mcts`:
+- **Parzystość CLI**: działa jak `mla preprocess-tune`, ale z `mcts.enabled=true`:
   - **nie uruchamia Optuna**
   - uruchamia **MCTS** jako strategię przeszukiwania.
 - **Persystencja i query w SQLite (zamiast plików JSON)**:
@@ -78,7 +78,7 @@ Ważne rozróżnienie (multi‑fidelity):
   - sekcje konfiguracyjne per-algorytm: `optuna:`, `mcts:`, `random:`
 - `generate_random_preprocess_experiments.py` pokazuje właściwy pattern:
   - generuje template’y (preprocess step + chain + model)
-  - uruchamia standardowym poleceniem MLA (`mla.py model --model-template ...`)
+  - uruchamia standardowym poleceniem MLA (`mla.py model model_template=...`)
   - opcjonalnie wrzuca do TaskQueue
 
 Wdrożenie MCTS ma maksymalnie kopiować te mechanizmy (a nie budować nowe).
@@ -90,7 +90,7 @@ Wdrożenie MCTS ma maksymalnie kopiować te mechanizmy (a nie budować nowe).
 ### 2.1 Komponenty
 
 1) **MCTSRunner** (nowy)
-- uruchamiany przez `PreprocessTuneModule` gdy `--mcts`
+- uruchamiany przez `PreprocessTuneModule` gdy `mcts.enabled=true`
 - zarządza:
   - drzewem i statystykami (UCT/PUCT)
   - budżetem (liczbą ewaluacji)
@@ -130,7 +130,7 @@ Wdrożenie MCTS ma maksymalnie kopiować te mechanizmy (a nie budować nowe).
 
 MCTS nie uruchamia preprocess/model “po swojemu”. Preferowana ścieżka:
 
-- **Subprocess CLI**: `mla.py model --model-template <T> --exp-id <E> ...`
+- **Subprocess CLI**: `mla.py model model_template=<T> experiment_id=<E> ...`
 - (opcjonalnie) **TaskQueue**: enqueue tego samego polecenia
 
 To jest najbliższe temu, co robisz manualnie: “MLA + model + ścieżki do template’ów”.
@@ -142,7 +142,7 @@ To jest najbliższe temu, co robisz manualnie: “MLA + model + ścieżki do tem
 `MlaCliExecutor`:
 - buduje polecenie zgodne z MLA
 - odpala je synchronicznie
-- zapisuje wynik do SQLite na podstawie `--json-output` (JSON transport na stdout) – patrz §4.7
+- zapisuje wynik do SQLite na podstawie `json_output=true` (JSON transport na stdout) – patrz §4.7
 
 #### Tryb B: TaskQueue (opcjonalnie później)
 
@@ -173,18 +173,18 @@ Resume:
 - jeśli `trial.number=0` już istnieje i ma status `COMPLETE`, nie uruchamiamy go ponownie,
 - jeśli baseline nie istnieje albo jest w stanie “osieroconym” (np. `RUNNING` bez heartbeat) – obowiązuje ta sama polityka co dla innych triali (fail/requeue), ale **study nie powinno startować ekspansji bez baseline**.
 
-### 3.4 Wywołanie MLA dla pojedynczego triala (exp-id = traceability)
+### 3.4 Wywołanie MLA dla pojedynczego triala (experiment_id = traceability)
 
-MCTS uruchamia ewaluację przez standardowy entrypoint MLA i zawsze nadaje jawne `--exp-id` zgodne z konwencją nazw (§6.2).
+MCTS uruchamia ewaluację przez standardowy entrypoint MLA i zawsze nadaje jawne `experiment_id=` zgodne z konwencją nazw (§6.2).
 
 Przykład:
 
 ```bash
 uv run python scripts/mla.py model \
-  --project [PROJEKT] \
-  --model-template [TEMPLATE] \
-  --json-output \
-  --exp-id mcts_s0001_v1_n000123_d04_a1b2c3d4
+  project=[PROJEKT] \
+  model_template=[TEMPLATE] \
+  json_output=true \
+  experiment_id=mcts_s0001_v1_n000123_d04_a1b2c3d4
 ```
 
 Traceability: patrząc na folder `experiments/mcts_s0001_v1_n000123_d04_a1b2c3d4/...` od razu wiesz, że to:
@@ -509,27 +509,27 @@ WHERE trial_id = :trial_id
   AND key IN ('mcts.template_base', 'mcts.experiment_id');
 ```
 
-### 4.7 Transport wyniku z MLA (wymuszony `--json-output`)
+### 4.7 Transport wyniku z MLA (wymuszony `json_output=true`)
 
 SQLite jest persystencją, ale wciąż trzeba “złapać” score z uruchomionego MLA.
 
-Stan obecny: `mla.py model --json-output` jest już zaimplementowane i wypisuje pojedynczy obiekt JSON (transport) na stdout
+Stan obecny: `mla.py model json_output=true` jest już zaimplementowane i wypisuje pojedynczy obiekt JSON (transport) na stdout
 (przykład poniżej).
 
-Kontrakt dla MCTS: executor uruchamia MLA jako subprocess z `--json-output`, **przechwytuje stdout** i parsuje JSON z outputu.
+Kontrakt dla MCTS: executor uruchamia MLA jako subprocess z `json_output=true`, **przechwytuje stdout** i parsuje JSON z outputu.
 
 Przykład:
 
 ```bash
 uv run python scripts/mla.py model \
-  --project titanic \
-  --model-template baseline \
-  --json-output \
-  --exp-id mcts_s0001_v1_n000123_d04_a1b2c3d4
+  project=titanic \
+  model_template=baseline \
+  json_output=true \
+  experiment_id=mcts_s0001_v1_n000123_d04_a1b2c3d4
 ```
 
 Jeśli chcesz zachować wynik jako plik obok artefaktów (debug/trace), użyj przekierowania stdout:
-`... --json-output --exp-id ... > experiments/mcts_s0001_v1_n000123_d04_a1b2c3d4/result.json`.
+`... json_output=true experiment_id= ... > experiments/mcts_s0001_v1_n000123_d04_a1b2c3d4/result.json`.
 
 Ważne: ten JSON **nie jest elementem schematu SQLite** i nie jest “stanem MCTS”.
 To tylko transport wyniku z subprocessa MLA → po parsowaniu trafia do DB (np. `trial_values.value`, `trial_user_attributes`).
@@ -540,7 +540,7 @@ Minimalne wymagania dla JSON (transport):
 - musi zawierać dane wystarczające do wpisu do SQLite: `experiment_id`, `preprocessing_template` (może być `null`), wynik (`local_cv` albo `best_value`), metryka (`eval_metric`), `duration_seconds`
 - na failure: stabilne pola błędu (np. `error_type`, `error_message`) – jeśli stdout nie jest parsowalnym JSON-em, executor traktuje to jako `FAIL` i zapisuje surowy stdout/stderr do debug (np. `mcts_evaluations.details_json`)
 
-Przykład (obecny output `--json-output`, skrócony):
+Przykład (obecny output `json_output=true`, skrócony):
 
 ```json
 {
@@ -762,12 +762,12 @@ To jest logika runtime (nie musi być persystowana), ale powinna być widoczna w
 
 * wszystko jest replayable w 1 komendzie:
 
-  * `mla.py model --model-template <NAME>`
+  * `mla.py model model_template=<NAME>`
 * debug jest identyczny jak w standardowym MLA (bo to ten sam entrypoint)
 
 Uwaga: jeśli template’y zostały usunięte przez politykę retencji, replay wygląda tak:
 1) rehydratacja template’ów z SQLite dla danego `trial_id` / `pipeline_signature`
-2) `mla.py model --model-template <NAME>`
+2) `mla.py model model_template=<NAME>`
 
 ### 6.2 Deterministyczny schemat nazw
 
@@ -850,7 +850,7 @@ Minimalny test/unit:
 
 ### 7.1 Katalog study
 
-Dla `--mcts` tworzymy:
+Dla `mcts.enabled=true` tworzymy:
 
 ```
 experiments/mcts_runs/{run_id}/
@@ -953,7 +953,7 @@ mcts:
 
   root_mode: "harness_only"      # "no_preprocess" | "harness_only"
   executor: "cli"                # "cli" | "task_queue"
-  json_output: true              # wymuszaj --json-output (MCTS czyta JSON z stdout; §4.7)
+  json_output: true              # wymuszaj json_output=true (MCTS czyta JSON z stdout; §4.7)
 
   allow_heavy_steps: true
   allow_heavy_variants: true
@@ -1009,7 +1009,7 @@ mcts:
 
 | Krok | Deliverable                    | Zmiany                                          | Testy (preferowane unit)                             |
 | ---: | ------------------------------ | ----------------------------------------------- | ---------------------------------------------------- |
-|    1 | Routing `--mcts` (stub)        | flaga + wybór MCTSRunner                        | test parsowania CLI / wyboru ścieżki                 |
+|    1 | Routing `mcts.enabled=true` (stub)        | flaga + wybór MCTSRunner                        | test parsowania CLI / wyboru ścieżki                 |
 |    2 | `MCTSConfig` + walidacja       | load config, defaults, bounds                   | invalid config -> wyjątek; defaults działają         |
 |    3 | Loader super-chain             | czytanie `mla_super_chain.yaml` do struktury    | zachowanie kolejności, odczyt `meta.fixed`           |
 |    4 | Loader search spaces           | reuse `_load_search_spaces` jako shared util    | ładowanie yaml; czytelny error przy brakach          |
@@ -1023,7 +1023,7 @@ mcts:
 |   12 | SQLite storage                 | schema (nodes/edges/evaluations) + resume       | restart kontynuuje; resume_policy=strict działa      |
 |   13 | NEW BEST + notifier + GC       | event + (opc.) Telegram/Bell + retencja template’ów | caplog: NEW BEST; GC działa; notifier nie blokuje runu |
 |   14 | `MlaCliExecutor`               | składanie komendy + timeouty                    | test budowania command line; failure mapping         |
-|   15 | `--json-output` (stdout JSON)  | parser outputu + mapowanie pól do DB            | poprawny parse JSON; walidacja wymaganych pól        |
+|   15 | `json_output=true` (stdout JSON)  | parser outputu + mapowanie pól do DB            | poprawny parse JSON; walidacja wymaganych pól        |
 |   16 | `--dry-run`                    | generuje template’y i komendy bez uruchamiania  | pliki + wpisy w SQLite powstają                      |
 |   17 | Multi-fidelity + pruning       | F0/F1/F2 + ASHA/successive halving              | promocje zgodne z regułami; PRUNED działa            |
 |   18 | Real run budżet=1–2            | end-to-end na małej próbie                      | score złapany, artefakty istnieją                    |

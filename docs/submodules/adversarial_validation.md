@@ -120,9 +120,9 @@ weight = min(0.90 / 0.10, 2.0) = 2.0  # Capped
 **Without AV weights** (baseline):
 ```bash
 # Use preprocessing WITHOUT AV module
-uv run python scripts/mla.py --project playground-series-s5e12 \
-    --preprocess-template basic_preprocessing \
-    --model-template my_model
+uv run python scripts/mla.py project=playground-series-s5e12 \
+    preprocess_template=basic_preprocessing \
+    model_template=my_model
 ```
 
 Output:
@@ -135,9 +135,9 @@ Local CV: 0.845
 **With AV weights**:
 ```bash
 # Use preprocessing WITH AV module
-uv run python scripts/mla.py --project playground-series-s5e12 \
-    --preprocess-template av_with_external \
-    --model-template my_model
+uv run python scripts/mla.py project=playground-series-s5e12 \
+    preprocess_template=av_with_external \
+    model_template=my_model
 ```
 
 Output:
@@ -163,9 +163,9 @@ config:
 
 **Command**:
 ```bash
-uv run python scripts/mla.py --project playground-series-s5e12 \
-    --preprocess-template av_basic \
-    --model-template baseline
+uv run python scripts/mla.py project=playground-series-s5e12 \
+    preprocess_template=av_basic \
+    model_template=baseline
 ```
 
 ### Example 2: With External Dataset Chain (No Preprocess Merge)

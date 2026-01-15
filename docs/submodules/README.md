@@ -50,8 +50,8 @@ my_submodule:
 
 ```bash
 uv run python scripts/mla.py preprocess \
-    --project my_project \
-    --preprocess-template my_submodule
+    project=my_project \
+    preprocess_template=my_submodule
 ```
 
 ### Step 5: Create Documentation
@@ -346,8 +346,8 @@ templates:
 Run with:
 ```bash
 uv run python scripts/mla.py preprocess \
-    --project my_project \
-    --preprocess-template my_pipeline
+    project=my_project \
+    preprocess_template=my_pipeline
 ```
 
 ## Troubleshooting
@@ -420,7 +420,7 @@ experiments/
         └── submodules/...
       state.json
 
-  # CLI chain: --preprocess-template noop,imputer,scaler
+  # CLI chain: preprocess_template=noop,imputer,scaler
   pre-chain-a1b2c3d4/  ← Hash of template list
     0-noop/
       artifacts/...

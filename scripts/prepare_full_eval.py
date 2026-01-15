@@ -271,7 +271,7 @@ Examples:
             for res in to_enqueue:
                 full_model_name = f"{res['model_template']}_full"
                 exp_id = f"exp-{full_model_name}"
-                cmd = f"{args.module} --model-template {full_model_name} --exp-id {exp_id} submit.confirm_timeout=0"
+                cmd = f"{args.module} model_template={full_model_name} experiment_id={exp_id} submit.confirm_timeout=0"
                 
                 task_id = queue.add_task(
                     command=cmd,

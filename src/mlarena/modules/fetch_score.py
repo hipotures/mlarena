@@ -149,7 +149,7 @@ class FetchScoreModule(BaseModule):
                 artifacts=[marker],
             )
 
-        # Return failure if score not available - allows retry without --force
+        # Return failure if score not available - allows retry without force=true
         if score is None:
             console.print(f"\n[yellow]⚠[/yellow] Score not available yet")
             console.print(f"[dim]Kaggle may still be processing your submission. Wait a few minutes and try again.[/dim]\n")

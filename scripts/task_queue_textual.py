@@ -739,7 +739,7 @@ class TaskQueueApp(App):
                        pass
                 
                 if cmd_parts:
-                    # Skip top-level flags like --project
+                    # Skip top-level flags like --project or project=
                     idx = 0
                     while idx < len(cmd_parts) and cmd_parts[idx].startswith("-"):
                         # If it has a value, skip next too
@@ -747,20 +747,19 @@ class TaskQueueApp(App):
                             idx += 2
                         else:
                             idx += 1
+                    if idx < len(cmd_parts) and cmd_parts[idx].startswith("project="):
+                        idx += 1
                     
                     if idx < len(cmd_parts):
                         module_name = cmd_parts[idx]
                     
-                    if "--model-template" in cmd_parts:
-                         try:
-                            template = cmd_parts[cmd_parts.index("--model-template") + 1]
-                         except IndexError:
-                            pass
-                    elif "--preprocess-template" in cmd_parts:
-                         try:
-                            template = cmd_parts[cmd_parts.index("--preprocess-template") + 1]
-                         except IndexError:
-                             pass
+                    for part in cmd_parts:
+                        if part.startswith("model_template="):
+                            template = part.split("=", 1)[1]
+                            break
+                        if part.startswith("preprocess_template="):
+                            template = part.split("=", 1)[1]
+                            break
             
             # Robust CV/Public score discovery AND Live Module tracking
             cv_score = "-"

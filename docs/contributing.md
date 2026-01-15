@@ -214,10 +214,10 @@ Test with a real project using smoke mode:
 
 ```bash
 # Quick integration test (~2 minutes)
-uv run python scripts/mla.py --project Titanic profile=smoke skip_submit=true
+uv run python scripts/mla.py project=Titanic profile=smoke skip_submit=true
 
 # Full pipeline test
-uv run python scripts/mla.py --project Titanic skip_submit=true
+uv run python scripts/mla.py project=Titanic skip_submit=true
 ```
 
 ### Writing Tests
@@ -314,7 +314,7 @@ Create a custom preprocessing module:
    ```
 3. Run preprocessing:
    ```bash
-   uv run python scripts/mla.py preprocess --project titanic preprocess_template=my_step
+   uv run python scripts/mla.py preprocess project=titanic preprocess_template=my_step
    ```
 
 **See:** [Preprocessing Submodules Guide](submodules/README.md)
@@ -509,7 +509,7 @@ You can create custom preprocessing by making a file and running it.
 
 4. **Test template:**
    ```bash
-   uv run python scripts/mla.py model --project Titanic model_template=my_template skip_submit=true
+   uv run python scripts/mla.py model project=Titanic model_template=my_template skip_submit=true
    ```
 
 ---
@@ -618,8 +618,8 @@ except Exception:
 # Don't leak train/test information
 test_df["new_feature"] = train_df["feature"].mean()  # Leakage!
 
-# Don't use old naming conventions
---preprocess-template  # Use: preprocess_template=
+# Don't use legacy flag naming
+# Use: preprocess_template=
 ```
 
 ### ✅ Do

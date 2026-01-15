@@ -26,10 +26,10 @@ Examples:
   python scripts/task_queue.py --project Titanic list
 
   # Add task with priority
-  python scripts/task_queue.py --project Titanic add "model --model-template lgbm skip_submit=true" --priority 5
+  python scripts/task_queue.py --project Titanic add "model model_template=lgbm skip_submit=true" --priority 5
 
   # Add task with default priority (10)
-  python scripts/task_queue.py --project Titanic add "model --model-template xgb preset=high"
+  python scripts/task_queue.py --project Titanic add "model model_template=xgb preset=high"
 
   # Run queue
   python scripts/task_queue.py --project Titanic run
@@ -120,7 +120,7 @@ Examples:
     add_parser.add_argument(
         "--command", "-c",
         dest="command_string",
-        help="Full command string (alternative to --template, e.g., 'model --model-template lgbm')"
+        help="Full command string (alternative to --template, e.g., 'model model_template=lgbm')"
     )
 
     # Config overrides (positional to capture all remaining args)

@@ -27,6 +27,7 @@ from rich.live import Live
 from rich.console import Group, Console
 from rich.table import Table
 from rich.text import Text
+from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_SUPER_CHAIN = REPO_ROOT / "conf/preprocess/mla_super_chain.yaml"
@@ -176,6 +177,13 @@ class MCTSRunner:
         if hasattr(current, last):
             # Attempt naive type casting based on existing value
             existing = getattr(current, last)
+            
+            # Recursive update if we are trying to set a dict onto a Pydantic model
+            if isinstance(existing, BaseModel) and isinstance(value, dict):
+                for k, v in value.items():
+                    self._set_config_value(existing, k, v)
+                return
+
             if isinstance(existing, bool):
                 # Handle bool strings from CLI
                 if isinstance(value, str):
@@ -189,6 +197,12 @@ class MCTSRunner:
             
             setattr(current, last, value)
         elif isinstance(current, dict):
+            # Recursive update if we are trying to set a dict onto a dict
+            if last in current and isinstance(current[last], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    self._set_config_value(current[last], k, v)
+                return
+                
             current[last] = value
 
     def _setup_logging(self):

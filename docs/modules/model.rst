@@ -5,7 +5,7 @@ Train a model using a YAML template, loading preprocessed data when provided, an
 
 - **Depends on:** none (preprocessing is pulled by name, not dependency)
 - **Key overrides:** ``model_template=<name>``, ``preprocess_template=<name>``, ``model.time_limit=<int>``, ``model.preset=<str>``, ``common.use_gpu=<bool>``, ``model.mla_retention=<bool>``
-- **Profiles:** ``--profile smoke``, ``--profile dev``
+- **Profiles:** ``profile=smoke``, ``profile=dev``
 - **Outputs:** model artifacts under ``experiments/<exp>/artifacts/``, leaderboard CSV, optional submission file, local CV metric in state payload
 
 Model Cleanup (mla_retention)
@@ -15,7 +15,7 @@ AutoGluon models can be automatically cleaned up after training to save ~99% dis
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py model -p <project> model.mla_retention=true
+   uv run python scripts/mla.py model project=<project> model.mla_retention=true
 
 **Behavior**:
 - Calls ``predictor.delete_models(models_to_keep='best')`` and ``predictor.save_space()``.

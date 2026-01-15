@@ -31,7 +31,7 @@ for i in $(seq -f "%04g" $START $END); do
     # Launch task in background
     (
         TEMPLATE="${PREFIX}${i}"
-        uv run python scripts/mla.py preprocess --project "$PROJECT" --preprocess-template "$TEMPLATE" > /dev/null 2>&1
+        uv run python scripts/mla.py preprocess project="$PROJECT" preprocess_template="$TEMPLATE" > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo "✓ $TEMPLATE done"
         else

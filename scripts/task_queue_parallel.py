@@ -465,16 +465,13 @@ class TaskQueueApp(App):
                 
                 if cmd_parts:
                     module = cmd_parts[0]
-                    if "--model-template" in cmd_parts:
-                         try:
-                            template = cmd_parts[cmd_parts.index("--model-template") + 1]
-                         except IndexError:
-                            pass
-                    elif "--preprocess-template" in cmd_parts:
-                         try:
-                            template = cmd_parts[cmd_parts.index("--preprocess-template") + 1]
-                         except IndexError:
-                             pass
+                    for part in cmd_parts:
+                        if part.startswith("model_template="):
+                            template = part.split("=", 1)[1]
+                            break
+                        if part.startswith("preprocess_template="):
+                            template = part.split("=", 1)[1]
+                            break
             
             duration = "-"
             if t["started_at"] and t["finished_at"]:

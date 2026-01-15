@@ -221,10 +221,10 @@ class SubmissionQueue:
             [
                 "uv", "run", "python", "scripts/mla.py",
                 "submit",
-                "--project", entry["project"],
-                "--exp-id", entry["experiment_id"],
+                f"project={entry['project']}",
+                f"experiment_id={entry['experiment_id']}",
                 "submit.confirm_timeout=0",
-                "--force"
+                "force=true"
             ],
             cwd=repo_root,
             capture_output=False
@@ -271,8 +271,8 @@ class SubmissionQueue:
             [
                 "uv", "run", "python", "scripts/mla.py",
                 "fetch-score",
-                "--project", entry["project"],
-                "--exp-id", entry["experiment_id"]
+                f"project={entry['project']}",
+                f"experiment_id={entry['experiment_id']}"
             ],
             cwd=repo_root,
             capture_output=False

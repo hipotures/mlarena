@@ -16,11 +16,11 @@ def test_build_command():
     
     cmd_str = " ".join(cmd)
     assert "scripts/mla.py model" in cmd_str
-    assert "--project test_proj" in cmd_str
+    assert "project=test_proj" in cmd_str
     assert "model_template=model_v1" in cmd_str
     assert "preprocess_template=chain_v1" in cmd_str
-    assert "--exp-id my_exp" in cmd_str
-    assert "--json-output" in cmd_str
+    assert "experiment_id=my_exp" in cmd_str
+    assert "json_output=true" in cmd_str
 
 def test_parse_result_success():
     executor = MlaCliExecutor(project_root=Path("/app"))

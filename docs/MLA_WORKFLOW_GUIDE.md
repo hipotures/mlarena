@@ -71,16 +71,16 @@ Throughout this guide, we use the full `uv run python scripts/mla.py` for maximu
 **Fastest way to run complete pipeline:**
 ```bash
 # Step 1: Initialize project (downloads data)
-uv run python scripts/mla.py init --project titanic
+uv run python scripts/mla.py init project=titanic
 
 # Step 2: Run EDA
-uv run python scripts/mla.py eda --project titanic
+uv run python scripts/mla.py eda project=titanic
 
 # Step 3: Run auto-flow pipeline (with retention to save space)
-uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m wait_seconds=45 model.mla_retention=true
+uv run python scripts/mla.py project=titanic model_template=cpu-fast-1m wait_seconds=45 model.mla_retention=true
 
 # Check results
-uv run python scripts/mla.py submissions --project titanic list
+uv run python scripts/mla.py submissions project=titanic list
 ```
 
 ---
@@ -92,7 +92,7 @@ uv run python scripts/mla.py submissions --project titanic list
 Creates directory structure and downloads competition data.
 
 ```bash
-uv run python scripts/mla.py init --project titanic
+uv run python scripts/mla.py init project=titanic
 ```
 
 **What it does:**
@@ -117,7 +117,7 @@ cat projects/kaggle/titanic/code/utils/config.py | grep TARGET
 Generates data profiling reports using ydata-profiling.
 
 ```bash
-uv run python scripts/mla.py eda --project titanic
+uv run python scripts/mla.py eda project=titanic
 ```
 
 **What it does:**
@@ -148,8 +148,8 @@ Trains AutoGluon model with specified template.
 
 ```bash
 uv run python scripts/mla.py model \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   model_template=cpu-fast-1m \
   skip_submit=true \
   model.mla_retention=true
@@ -173,7 +173,7 @@ AutoGluon can consume gigabytes of disk space by saving all intermediate models.
 
 **Verify:**
 ```bash
-# Check model directory (replace 'eda' with your exp-id if different)
+# Check model directory (replace 'eda' with your experiment id if different)
 ls projects/kaggle/titanic/experiments/eda/artifacts/model/model/models/
 # Expected: LightGBM/, CatBoost/, WeightedEnsemble_L2/, etc.
 
@@ -193,8 +193,8 @@ Creates submission CSV from trained model.
 
 ```bash
 uv run python scripts/mla.py predict \
-  --project titanic \
-  --exp-id eda
+  project=titanic \
+  experiment_id=eda
 ```
 
 **What it does:**
@@ -227,25 +227,25 @@ Uploads submission via Kaggle CLI.
 ```bash
 # Default: 60s countdown before auto-submit
 uv run python scripts/mla.py submit \
-  --project titanic \
-  --exp-id eda
+  project=titanic \
+  experiment_id=eda
 
 # Disable confirmation (submit immediately)
 uv run python scripts/mla.py submit \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   submit.confirm_timeout=0
 
 # Skip submission (save CSV only)
 uv run python scripts/mla.py submit \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   skip_submit=true
 
 # Add to submission queue (for batch processing later)
 uv run python scripts/mla.py submit \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   submit.queue_submit=true
 ```
 
@@ -270,16 +270,16 @@ For sequential batch runs, use the `queue` command which delegatesto the task ma
 
 **Add to queue:**
 ```bash
-uv run python scripts/mla.py queue --project titanic add "model_template=cpu-fast-1m model.mla_retention=true"
+uv run python scripts/mla.py queue project=titanic add "model_template=cpu-fast-1m model.mla_retention=true"
 ```
 
 **Manage queue:**
 ```bash
 # List queued tasks
-uv run python scripts/mla.py queue --project titanic list
+uv run python scripts/mla.py queue project=titanic list
 
 # Run pending tasks
-uv run python scripts/mla.py queue --project titanic run
+uv run python scripts/mla.py queue project=titanic run
 
 # For submission-specific queue (duplicate detection, scoring):
 uv run python scripts/submission_queue.py --project titanic list
@@ -294,9 +294,9 @@ Scrapes public score from Kaggle submissions page.
 ```bash
 # Ensure Chrome with CDP is running first!
 uv run python scripts/mla.py fetch-score \
-  --project titanic \
-  --exp-id eda \
-  --wait-seconds 45
+  project=titanic \
+  experiment_id=eda \
+  wait_seconds=45
 ```
 
 **What it does:**
@@ -319,16 +319,16 @@ You can list all tracked submissions and experiments for a project using built-i
 
 ```bash
 # View all submissions for a project
-uv run python scripts/mla.py submissions --project titanic list
+uv run python scripts/mla.py submissions project=titanic list
 
 # View all experiments for a project
-uv run python scripts/mla.py experiments --project titanic list
+uv run python scripts/mla.py experiments project=titanic list
 
 # Filter experiments by status
-uv run python scripts/mla.py experiments --project titanic list --status failed
+uv run python scripts/mla.py experiments project=titanic list --status failed
 
 # Sort experiments by public score
-uv run python scripts/mla.py experiments --project titanic list --sort-by public
+uv run python scripts/mla.py experiments project=titanic list --sort-by public
 ```
 
 ---
@@ -339,10 +339,10 @@ uv run python scripts/mla.py experiments --project titanic list --sort-by public
 
 ```bash
 # Step 1: Initialize project structure and download data
-uv run python scripts/mla.py init --project titanic
+uv run python scripts/mla.py init project=titanic
 
 # Step 2: Run exploratory data analysis
-uv run python scripts/mla.py eda --project titanic
+uv run python scripts/mla.py eda project=titanic
 ```
 
 ### Auto-Flow Validation
@@ -357,7 +357,7 @@ If either validation fails, you'll see:
 ✗ Prerequisites validation failed:
 
 Project initialization not found.
-Run: mla init --project {project}
+Run: mla init project={project}
 ```
 
 **Note**: These modules must be run manually before auto-flow.
@@ -366,13 +366,13 @@ Run: mla init --project {project}
 
 ```bash
 # Default: 30s countdown before auto-submit
-uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m wait_seconds=45
+uv run python scripts/mla.py project=titanic model_template=cpu-fast-1m wait_seconds=45
 ```
 
 **With custom preprocessing:**
 ```bash
 # Specify preprocessing template
-uv run python scripts/mla.py --project titanic \
+uv run python scripts/mla.py project=titanic \
   preprocess_template=identity \
   model_template=cpu-dev-5m
 ```
@@ -389,21 +389,21 @@ MLArena now uses a unified configuration system based on **OmegaConf** and **Pyd
 
 **Merging Order (lowest to highest priority):**
 1. **Hardcoded Defaults**: Base values in `GlobalConfig`.
-2. **Profiles**: Sets of values (e.g., `--profile smoke` sets short time limits).
+2. **Profiles**: Sets of values (e.g., `profile=smoke` sets short time limits).
 3. **Project Config**: `projects/kaggle/<name>/config.yaml`.
 4. **CLI Overrides**: Any `key=value` pair provided in the command line.
 
 **Example with Dotted Overrides:**
 ```bash
 uv run python scripts/mla.py model \
-  --project titanic \
+  project=titanic \
   model_template=cpu-dev-5m \
   common.time_limit=120 \
   model.hyperparameters.GBM.max_depth=5
 ```
 
 **Common Global Overrides:**
-- `model_template=name`: Set model template (replaces `--model-template`)
+- `model_template=name`: Set model template
 - `preprocess_template=name`: Set preprocessing template
 - `force=true`: Force re-run (same as `-f`)
 - `common.seed=123`: Set global random seed
@@ -412,28 +412,28 @@ uv run python scripts/mla.py model \
 **Using Profiles:**
 ```bash
 # Run a quick smoke test
-uv run python scripts/mla.py model --project titanic --profile smoke
+uv run python scripts/mla.py model project=titanic profile=smoke
 
 # Use a development profile with custom overrides
-uv run python scripts/mla.py model --project titanic --profile dev model.time_limit=600
+uv run python scripts/mla.py model project=titanic profile=dev model.time_limit=600
 ```
 
 ### With Custom Preprocessing
 
 ```bash
 # Step 1: EDA
-uv run python scripts/mla.py eda --project titanic
+uv run python scripts/mla.py eda project=titanic
 
 # Step 2: Preprocess
 uv run python scripts/mla.py preprocess \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   preprocess_template=my-preprocess
 
 # Step 3: Model (uses preprocessed data)
 uv run python scripts/mla.py model \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   preprocess_template=my-preprocess \
   model_template=cpu-dev-5m
 ```
@@ -443,25 +443,25 @@ uv run python scripts/mla.py model \
 ```bash
 # Force re-run model with different settings
 uv run python scripts/mla.py model \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   model_template=cpu-best-1h \
-  --force
+  force=true
 ```
 
 ### Multiple Experiments
 
 ```bash
 # Experiment 1: Fast baseline
-uv run python scripts/mla.py eda --project titanic
-uv run python scripts/mla.py model --project titanic --exp-id eda model_template=cpu-fast-1m
+uv run python scripts/mla.py eda project=titanic
+uv run python scripts/mla.py model project=titanic experiment_id=eda model_template=cpu-fast-1m
 
 # Experiment 2: Best model (creates new exp)
-uv run python scripts/mla.py eda --project titanic
-uv run python scripts/mla.py model --project titanic --exp-id eda model_template=cpu-best-1h
+uv run python scripts/mla.py eda project=titanic
+uv run python scripts/mla.py model project=titanic experiment_id=eda model_template=cpu-best-1h
 
 # Compare results
-uv run python scripts/mla.py submissions --project titanic list
+uv run python scripts/mla.py submissions project=titanic list
 ```
 
 ### Hyperparameter Optimization (HPO)
@@ -471,17 +471,17 @@ Run AutoGluon native hyperparameter tuning with presets:
 ```bash
 # Quick HPO test (50 trials, ~1-2h)
 uv run python scripts/mla.py model \
-  --project titanic \
+  project=titanic \
   model_template=hpo_boost_medium
 
 # Serious tuning (100 trials, ~4-6h)
 uv run python scripts/mla.py model \
-  --project titanic \
+  project=titanic \
   model_template=hpo_boost_high
 
 # Final push (200 trials, ~8-12h)
 uv run python scripts/mla.py model \
-  --project titanic \
+  project=titanic \
   model_template=hpo_boost_best
 ```
 
@@ -541,12 +541,12 @@ To prevent accidental overwriting of valuable experiment results (especially lon
 
 ```bash
 # Run and lock upon success
-uv run python scripts/mla.py --project titanic model.time_limit=3600 lock=true
+uv run python scripts/mla.py project=titanic model.time_limit=3600 lock=true
 ```
 
 **Behavior:**
 - Creates an `overwrite.lock` file in the experiment directory after successful completion.
-- Prevents any future execution of this experiment (even with `--force`).
+- Prevents any future execution of this experiment (even with `force=true`).
 - **To Unlock:** Manually delete the `overwrite.lock` file from the experiment directory.
 
 ---
@@ -594,7 +594,7 @@ cat projects/kaggle/titanic/submissions/submissions.json | jq -e '.[-1].public_s
 
 ### "Project not initialized"
 ```
-[error] Project 'titanic' not initialized. Run: mla init --project titanic
+[error] Project 'titanic' not initialized. Run: mla init project=titanic
 ```
 **Fix:** Run init command first.
 
@@ -629,9 +629,9 @@ cat ~/.kaggle/kaggle.json  # Verify valid JSON
 
 ### "Module already completed"
 ```
-[warn] Module 'model' already completed. Use --force to re-run
+[warn] Module 'model' already completed. Use force=true to re-run
 ```
-**Fix:** Add `--force` flag or create new experiment.
+**Fix:** Add `force=true` or create new experiment.
 
 ---
 

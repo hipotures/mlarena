@@ -8,7 +8,7 @@
 
 ## Queue Command Template
 ```bash
-python scripts/task_queue.py -p <PROJECT> add --command "model --model-template <NAME_XX> --exp-id <NAME_XX> skip_submit=true skip_git=true model.mla_retention=true"
+python scripts/task_queue.py -p <PROJECT> add --command "model model_template=<NAME_XX> experiment_id=<NAME_XX> skip_submit=true skip_git=true model.mla_retention=true"
 ```
 
 ## Critical Checks

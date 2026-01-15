@@ -423,7 +423,7 @@ All docs easily discoverable from single entry point.
 ```
 User: "Let me try MLArena"
 ├─ Reads README
-├─ Copies example: uv run python scripts/mla.py --model-template test_hpo_medium
+├─ Copies example: uv run python scripts/mla.py model_template=test_hpo_medium
 ├─ ❌ Error: Template 'test_hpo_medium' not found
 ├─ Searches docs for naming conventions
 ├─ ❌ No guide found
@@ -472,7 +472,7 @@ User: "Let me try MLArena"
 **Before:**
 ```bash
 # Non-working example
-uv run python scripts/mla.py model --project titanic --model-template test_hpo_medium --preprocess-template my-prep
+uv run python scripts/mla.py model project=titanic model_template=test_hpo_medium preprocess_template=my-prep
 ```
 
 **Issues:**
@@ -483,7 +483,7 @@ uv run python scripts/mla.py model --project titanic --model-template test_hpo_m
 **After:**
 ```bash
 # Working example
-uv run python scripts/mla.py model --project titanic model_template=hpo_boost_medium preprocess_template=baseline
+uv run python scripts/mla.py model project=titanic model_template=hpo_boost_medium preprocess_template=baseline
 ```
 
 **Improvements:**

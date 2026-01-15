@@ -84,7 +84,7 @@ To protect the system from infinite loops (whether from bugs or tests), recursiv
 To verify the complete integration (CLI -> Runner -> Storage -> Materializer -> Executor) on a real project, use the Titanic dataset:
 
 ```bash
-uv run python scripts/mla.py preprocess-tune --project titanic --mcts --study-name verify_manual_mcts --budget 2
+uv run python scripts/mla.py preprocess-tune project=titanic mcts.enabled=true mcts.study_name=verify_manual_mcts mcts.budget=2
 ```
 
 **What to check:**

@@ -20,7 +20,7 @@ To list all timestamped experiments (``exp-YYYYMMDD-HHMMSS``) for the current pr
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py experiments --project <competition-slug> list
+   uv run python scripts/mla.py experiments project=<competition-slug> list
 
 Display Modes
 ~~~~~~~~~~~~~
@@ -32,7 +32,7 @@ The module supports different table views:
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py experiments --project <competition-slug> list --show-table-compact
+   uv run python scripts/mla.py experiments project=<competition-slug> list --show-table-compact
 
 Information Displayed
 --------------------
@@ -55,4 +55,4 @@ CLI Arguments
 - ``list``: Command to list experiments.
 - ``--show-table``: Explicitly request the full table view.
 - ``--show-table-compact``: Request the compact table view.
-- ``--project <slug>``: Override the project to list experiments for.
+Project is selected via the core override: ``project=<slug>``.

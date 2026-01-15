@@ -802,7 +802,7 @@ def run_phase_2(args, config, project_root: Path, preprocessors: List[Dict[str, 
                 _save_yaml(project_root / "templates/model" / f"{child_id}.yaml", child_model)
                 
                 # Enqueue
-                cmd = f"model --model-template {child_id} --exp-id exp-{child_id} skip_submit=true skip_git=true"
+                cmd = f"model model_template={child_id} experiment_id=exp-{child_id} skip_submit=true skip_git=true"
                 if config.get("queue", {}).get("enable", True):
                     prio = config.get("queue", {}).get("priority")
                     if prio is None: prio = 10
@@ -1142,7 +1142,7 @@ def main() -> int:
                 module_path = preprocess_dir / f"{template_name}.yaml"
                 _save_yaml(module_path, payload)
 
-        command = f"model --model-template {exp_id} --exp-id exp-{exp_id} skip_submit=true skip_git=true mla_retention=true"
+        command = f"model model_template={exp_id} experiment_id=exp-{exp_id} skip_submit=true skip_git=true mla_retention=true"
         generated.append(
             {
                 "exp_id": exp_id,

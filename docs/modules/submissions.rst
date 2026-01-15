@@ -20,13 +20,13 @@ To list all tracked submissions for the current project:
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py submissions --project <competition-slug> list
+   uv run python scripts/mla.py submissions project=<competition-slug> list
 
 You can limit the output or sort by different criteria:
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py submissions --project <competition-slug> list --limit 10 --sort-by public_score
+   uv run python scripts/mla.py submissions project=<competition-slug> list --limit 10 --sort-by public_score
 
 **Available sort keys**: ``id``, ``local_cv_score``, ``public_score``, ``private_score``, ``timestamp``.
 
@@ -37,7 +37,7 @@ Manual addition of a submission entry (if not created via the ``submit`` module)
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py submissions --project <competition-slug> add <filename> <model_name> --local-cv 0.85 --public 0.82
+   uv run python scripts/mla.py submissions project=<competition-slug> add <filename> <model_name> --local-cv 0.85 --public 0.82
 
 Updating Scores
 ~~~~~~~~~~~~~~~
@@ -46,7 +46,7 @@ Update public or private scores for an existing submission by its ID:
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py submissions --project <competition-slug> update <id> --public 0.835
+   uv run python scripts/mla.py submissions project=<competition-slug> update <id> --public 0.835
 
 Exporting
 ~~~~~~~~~
@@ -55,7 +55,7 @@ Export all submissions to a CSV file:
 
 .. code-block:: bash
 
-   uv run python scripts/mla.py submissions --project <competition-slug> export
+   uv run python scripts/mla.py submissions project=<competition-slug> export
 
 Commands Summary
 ---------------

@@ -24,14 +24,14 @@ The `feat` module provides a simple way to apply common feature transformations 
 
 ```bash
 # Apply feature template to a project
-uv run python scripts/mla.py feat --project <competition-slug> feat.feat_template=<template-name>
+uv run python scripts/mla.py feat project=<competition-slug> feat.feat_template=<template-name>
 ```
 
 ### With Specific Template
 
 ```bash
 # Use custom feature template
-uv run python scripts/mla.py feat --project titanic feat.feat_template=log_ratios
+uv run python scripts/mla.py feat project=titanic feat.feat_template=log_ratios
 ```
 
 ## Template Configuration
@@ -131,7 +131,7 @@ log1p:
 ```
 
 ```bash
-uv run python scripts/mla.py feat --project titanic --feat-template log_transform
+uv run python scripts/mla.py feat project=titanic feat.feat_template=log_transform
 ```
 
 ### Example 2: Ratio Features
@@ -189,9 +189,9 @@ The default template is `identity`, which returns data unchanged:
 
 ```bash
 # No transformations applied
-uv run python scripts/mla.py feat --project titanic
+uv run python scripts/mla.py feat project=titanic
 # Equivalent to:
-uv run python scripts/mla.py feat --project titanic --feat-template identity
+uv run python scripts/mla.py feat project=titanic feat.feat_template=identity
 ```
 
 ## Tips and Best Practices

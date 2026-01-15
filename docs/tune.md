@@ -72,7 +72,7 @@ The `tune` module depends on the `model` module being completed first (though it
 
 ```bash
 # Run HPO with default settings (10 trials, 60s per trial)
-uv run python scripts/mla.py tune --project <competition-slug>
+uv run python scripts/mla.py tune project=<competition-slug>
 ```
 
 ### Advanced Usage
@@ -80,7 +80,7 @@ uv run python scripts/mla.py tune --project <competition-slug>
 ```bash
 # Custom trial count and time limit
 uv run python scripts/mla.py tune \
-  --project titanic \
+  project=titanic \
   tune.n_trials=20 \
   tune.time_limit=120 \
   tune.tune_template=custom_search_space
@@ -213,7 +213,7 @@ The module creates the following artifacts in `experiments/<exp_id>/artifacts/tu
 ```bash
 # Fast exploration with 5 trials, 30s each
 uv run python scripts/mla.py tune \
-  --project titanic \
+  project=titanic \
   tune.n_trials=5 \
   tune.time_limit=30
 ```
@@ -232,7 +232,7 @@ search_space:
 
 ```bash
 uv run python scripts/mla.py tune \
-  --project titanic \
+  project=titanic \
   tune.tune_template=lr_search \
   tune.n_trials=15
 ```
@@ -319,7 +319,7 @@ Project templates override global templates when names collide.
 1. **Start with fewer trials**: 5-10 trials often sufficient for initial exploration
 2. **Use log scale**: Set `log: true` for learning rates and tree counts
 3. **Narrow search space**: Based on previous experiments
-4. **Monitor trial times**: Adjust `--time-limit` based on data size
+4. **Monitor trial times**: Adjust `tune.time_limit` based on data size
 5. **Check trial outputs**: Review individual trial directories for issues
 
 ## Integration Notes

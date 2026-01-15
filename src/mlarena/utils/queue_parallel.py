@@ -132,10 +132,9 @@ class TaskQueueParallel(TaskQueue):
 
         # Build command
         cmd_parts = task["command"].split()
-        if "--project" not in cmd_parts and "-p" not in cmd_parts:
+        if not any(part.startswith("project=") for part in cmd_parts):
             project_name = self.project_root.name
-            cmd_parts.insert(1, "--project")
-            cmd_parts.insert(2, project_name)
+            cmd_parts.insert(1, f"project={project_name}")
 
         # Execute via subprocess with NO_COLOR=1
         repo_root = self.project_root.parent.parent.parent
@@ -204,4 +203,3 @@ class TaskQueueParallel(TaskQueue):
             console.print(f"[red]✗ Task #{task_id} error: {e}[/red]")
             self._mark_task_failed(task_id, str(e))
             return False
-

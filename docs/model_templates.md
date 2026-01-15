@@ -67,7 +67,7 @@ Note: `search_space` is parsed by `mlarena.utils.hpo_space` and non-list values 
 ## Listing templates
 
 ```bash
-uv run python scripts/mla.py model model_template=list --project <slug>
+uv run python scripts/mla.py model model_template=list project=<slug>
 ```
 
 The CLI shows whether templates come from global defaults or the project folder.
@@ -76,8 +76,8 @@ The CLI shows whether templates come from global defaults or the project folder.
 
 - Overrides like `model.preset=high`, `model.time_limit=600`, `common.use_gpu=true` override the template’s `config` fields.
 - Convenience profiles apply presets without editing YAML:
-  - `--profile dev`: `preset=high`, `time_limit=300`, `use_gpu=0`
-  - `--profile smoke`: `preset=medium`, `time_limit=60`, `use_gpu=0`
+  - `profile=dev`: `preset=high`, `time_limit=300`, `use_gpu=0`
+  - `profile=smoke`: `preset=medium`, `time_limit=60`, `use_gpu=0`
 - Additional template parameters (for example, `excluded_model_types`, `hyperparameters`) remain intact unless explicitly overridden.
 
 ## Custom models

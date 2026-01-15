@@ -12,8 +12,7 @@ MLArena uses different naming conventions depending on context:
 |:--------|:-----------|:--------|:------------|
 | **Python code** | `snake_case` | `preprocess_template` | In Python files, function parameters, variable names |
 | **YAML keys** | `kebab-case` | `preprocess-template` | In template YAML files, config.yaml keys |
-| **CLI dotted overrides** | `snake_case` with dots | `preprocess_template=value` | Command-line parameter overrides (recommended) |
-| **CLI flags (legacy)** | `kebab-case` with `--` | `--preprocess-template value` | Older flag format (still works, but dotted preferred) |
+| **CLI dotted overrides** | `snake_case` with dots | `preprocess_template=value` | Command-line parameter overrides |
 | **Module names** | `kebab-case` | `fetch-score` | Module registration and subcommand names |
 
 ### Examples
@@ -35,18 +34,10 @@ config:
 
 **CLI dotted override (recommended):**
 ```bash
-uv run python scripts/mla.py --project titanic \
+uv run python scripts/mla.py project=titanic \
   preprocess_template=baseline \
   model_template=cpu-dev-5m \
   common.time_limit=600
-```
-
-**CLI flag format (legacy, still works):**
-```bash
-uv run python scripts/mla.py --project titanic \
-  --preprocess-template baseline \
-  --model-template cpu-dev-5m \
-  --time-limit 600
 ```
 
 ---
@@ -69,24 +60,16 @@ from mlarena.modules import ModelModule
 "MLArena provides a unified workflow..."
 
 # Command line
-uv run python scripts/mla.py --project titanic
+uv run python scripts/mla.py project=titanic
 ```
 
 ---
 
 ## Common Parameter Variations
 
-### experiment_id vs exp-id
+### experiment_id naming
 
-Both formats work in CLI due to automatic conversion:
-
-```bash
-# Both are equivalent:
---exp-id eda
-experiment_id=eda
-```
-
-**Rule:** Use `experiment_id` in Python code, either format in CLI.
+Use `experiment_id=...` in CLI and `experiment_id` in Python code.
 
 ### fetch-score vs fetch_score
 
@@ -94,7 +77,7 @@ This is a module name that appears in different contexts:
 
 ```bash
 # CLI module name (kebab-case):
-uv run python scripts/mla.py fetch-score --project titanic
+uv run python scripts/mla.py fetch-score project=titanic
 
 # Python module (underscore):
 from mlarena.modules.fetch_score import FetchScoreModule
@@ -138,7 +121,6 @@ from mlarena.modules.fetch_score import FetchScoreModule
 
 **Use dashes (`-`):**
 - YAML keys: `time-limit`, `model-template`
-- CLI flags (legacy): `--preprocess-template`
 - Module names: `fetch-score`, `init`, `eda`
 
 **Use underscores (`_`):**
@@ -176,57 +158,19 @@ categorical_boost     # Categorical encoding for boosting models
 
 ---
 
-## CLI Parsing: Flag vs Override
+## CLI Overrides
 
-MLArena supports two parameter formats that are internally equivalent:
-
-### Flag Format (Legacy)
-
-```bash
---parameter-name value
-```
+MLArena accepts only `key=value` overrides on the command line.
 
 **Behavior:**
-- Converted to `parameter_name=value` internally
-- Common parameters (`time_limit`, `use_gpu`, `preset`, `seed`) automatically prefixed with `common.`
-- Works but less explicit
+- Use dotted paths to target nested config values (e.g., `model.hyperparameters.GBM.max_depth=6`).
+- Use top-level keys for core args (e.g., `project=...`, `experiment_id=...`).
 
 **Example:**
-```bash
-uv run python scripts/mla.py model --project titanic --time-limit 600
-# Internally becomes: common.time_limit=600
-```
-
-### Dotted Override Format (Recommended)
-
-```bash
-key.subkey=value
-```
-
-**Behavior:**
-- Explicit path to parameter
-- No automatic prefixing
-- Shows exact config structure
-- Recommended for clarity
-
-**Example:**
-```bash
-uv run python scripts/mla.py model --project titanic common.time_limit=600
-```
-
-### Best Practice
-
-**Use flags for:**
-- Core CLI arguments: `--project`, `--exp-id`, `--profile`, `--force`
-
-**Use dotted overrides for:**
-- All configuration parameters: `model_template=`, `common.seed=`, `model.hyperparameters.GBM.max_depth=`
-
-**Example (recommended style):**
 ```bash
 uv run python scripts/mla.py model \
-  --project titanic \
-  --exp-id eda \
+  project=titanic \
+  experiment_id=eda \
   model_template=cpu-best-1h \
   common.time_limit=3600 \
   common.seed=42
@@ -240,7 +184,7 @@ uv run python scripts/mla.py model \
 
 ```bash
 # Mixing conventions inconsistently
-uv run python scripts/mla.py --project titanic model-template=cpu-fast-1m
+uv run python scripts/mla.py project=titanic model-template=cpu-fast-1m
 
 # Using Python names in YAML
 model_template: baseline  # Should be: model or preprocess-template
@@ -253,7 +197,7 @@ common.time-limit=600  # Should be: common.time_limit=600
 
 ```bash
 # Consistent use of dotted overrides
-uv run python scripts/mla.py --project titanic model_template=cpu-fast-1m
+uv run python scripts/mla.py project=titanic model_template=cpu-fast-1m
 
 # Proper YAML format
 model: autogluon_baseline

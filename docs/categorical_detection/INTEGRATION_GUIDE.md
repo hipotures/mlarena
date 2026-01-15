@@ -2,7 +2,7 @@
 
 ## Problem
 
-Gdy używasz `--preprocess-template categorical_boost,av_weights`, typ `category` jest **tracony** przy zapisie do CSV:
+Gdy używasz `preprocess_template=categorical_boost,av_weights`, typ `category` jest **tracony** przy zapisie do CSV:
 
 ```python
 # categorical_boost:
@@ -161,17 +161,17 @@ config = {
 ```bash
 # Test chain bez categorical (jak dotychczas):
 uv run python scripts/mla.py preprocess \
-  --project playground-series-s5e12 \
+  project=playground-series-s5e12 \
   preprocess_template=av_weights_best_boost \
-  --force
+  force=true
 
 # Output: Moduł działa normalnie (brak categorical metadata)
 
 # Test chain Z categorical:
 uv run python scripts/mla.py preprocess \
-  --project playground-series-s5e12 \
+  project=playground-series-s5e12 \
   preprocess_template=categorical_boost,av_weights_best_boost \
-  --force
+  force=true
 
 # Output:
 # categorical_boost:

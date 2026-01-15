@@ -73,12 +73,12 @@
 
 - Lines 203-217: Replace all --preprocess-template with preprocess_template=
 Example:
-- uv run python scripts/mla.py model --project titanic --preprocess-template my-preprocess
-+ uv run python scripts/mla.py model --project titanic preprocess_template=my-preprocess
+- uv run python scripts/mla.py model project=titanic preprocess_template=my-preprocess
++ uv run python scripts/mla.py model project=titanic preprocess_template=my-preprocess
 
 - Lines 212-217: Replace test_hpo_* with hpo_boost_*
-- uv run python scripts/mla.py model --project titanic --model-template test_hpo_medium
-+ uv run python scripts/mla.py model --project titanic model_template=hpo_boost_medium
+- uv run python scripts/mla.py model project=titanic model_template=test_hpo_medium
++ uv run python scripts/mla.py model project=titanic model_template=hpo_boost_medium
 ```
 
 #### docs/MLA_WORKFLOW_GUIDE.md
@@ -177,12 +177,12 @@ Add new section after "Configuration Overrides" (line 236):
 +
 +1. **Dotted paths** (recommended): `key.subkey=value`
 +   ```bash
-+   uv run python scripts/mla.py --project titanic common.time_limit=600
++   uv run python scripts/mla.py project=titanic common.time_limit=600
 +   ```
 +
 +2. **Flag format** (converted internally): `--flag value`
 +   ```bash
-+   uv run python scripts/mla.py --project titanic --time-limit 600
++   uv run python scripts/mla.py project=titanic common.time_limit=600
 +   # Internally converted to: common.time_limit=600
 +   ```
 +
@@ -269,7 +269,7 @@ Add section after "Experiment Tracking and Reproducibility" (line 505):
 +
 +**Skip auto-commit:**
 +```bash
-+uv run python scripts/mla.py --project titanic skip_git=true
++uv run python scripts/mla.py project=titanic skip_git=true
 +```
 ```
 
@@ -288,7 +288,7 @@ Add section after "Prerequisites" (line 45):
 +✗ Prerequisites validation failed:
 +
 +Project initialization not found.
-+Run: mla init --project {project}
++Run: mla init project={project}
 +```
 +
 +**Note**: These modules must be run manually before auto-flow.
@@ -393,15 +393,15 @@ To prevent future documentation drift, implement executable doc tests:
 # Test all README.md command examples
 
 # Example 1: Quick Start auto-flow (smoke test with mock data)
-uv run python scripts/mla.py init --project test-project-readme
-uv run python scripts/mla.py eda --project test-project-readme
-uv run python scripts/mla.py --project test-project-readme profile=smoke skip_submit=true
+uv run python scripts/mla.py init project=test-project-readme
+uv run python scripts/mla.py eda project=test-project-readme
+uv run python scripts/mla.py project=test-project-readme profile=smoke skip_submit=true
 
 # Example 2: Manual workflow
-uv run python scripts/mla.py model --project test-project-readme model_template=cpu-fast-1m skip_submit=true
+uv run python scripts/mla.py model project=test-project-readme model_template=cpu-fast-1m skip_submit=true
 
 # Example 3: Configuration overrides
-uv run python scripts/mla.py model --project test-project-readme common.time_limit=30 force=true
+uv run python scripts/mla.py model project=test-project-readme common.time_limit=30 force=true
 
 # Example 4: Queue commands
 uv run python scripts/mla.py queue list -p test-project-readme
@@ -512,23 +512,23 @@ Run these to verify fixes:
 
 ```bash
 # Test template name corrections
-uv run python scripts/mla.py model --project Titanic model_template=hpo_boost_medium skip_submit=true
+uv run python scripts/mla.py model project=Titanic model_template=hpo_boost_medium skip_submit=true
 
 # Test dotted override format
-uv run python scripts/mla.py model --project Titanic common.time_limit=60 force=true
+uv run python scripts/mla.py model project=Titanic common.time_limit=60 force=true
 
 # Verify queue delegation works
 uv run python scripts/mla.py queue list -p Titanic
 
 # Test preprocessing chain
-uv run python scripts/mla.py preprocess --project Titanic preprocess_template=baseline
+uv run python scripts/mla.py preprocess project=Titanic preprocess_template=baseline
 
 # Verify lock file creation
-uv run python scripts/mla.py model --project Titanic lock=true
+uv run python scripts/mla.py model project=Titanic lock=true
 # Check: ls projects/kaggle/Titanic/experiments/exp-*/overwrite.lock
 
 # Test auto-commit
-uv run python scripts/mla.py --project Titanic profile=smoke skip_git=false
+uv run python scripts/mla.py project=Titanic profile=smoke skip_git=false
 # Check: git log -1 --format='%s'
 ```
 

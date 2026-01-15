@@ -114,11 +114,9 @@ def main() -> int:
             sys.executable,
             str(repo_root / "scripts" / "mla.py"),
             "fetch-score",
-            "--project",
-            args.project,
-            "--exp-id",
-            exp_id,
-            "--force",
+            f"project={args.project}",
+            f"experiment_id={exp_id}",
+            "force=true",
         ]
         if file_name:
             cmd.append(f"fetch-score.submission_file={file_name}")

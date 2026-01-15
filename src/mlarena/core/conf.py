@@ -52,6 +52,7 @@ class GlobalConfig(BaseModel):
     # Sections
     common: CommonConfig = Field(default_factory=CommonConfig)
     mcts_section: Dict[str, Any] = Field(default_factory=dict, alias="mcts_config")
+    optuna: Dict[str, Any] = Field(default_factory=dict)
     
     # Modules - dynamic sections
     init: Dict[str, Any] = Field(default_factory=dict)
@@ -160,8 +161,7 @@ class ConfigBuilder:
                      container["mcts"] = bool(val.pop("enabled"))
                 else:
                      # If it's a dict, we assume it's NOT the flag unless explicitly set
-                     # but wait, if user passed --mcts it might have been merged into this dict by OmegaConf
-                     # if it was mcts=true. 
+                     # If user passed mcts=true, OmegaConf merges it into this dict.
                      container["mcts"] = False 
             elif isinstance(val, bool):
                 container["mcts"] = val

@@ -319,9 +319,9 @@ class MCTSRunner:
                         reason = "limits/fully-expanded"
 
                     diag_info = (
-                        f"{reason} [Trial={node.trial_id or 'Root'} "
+                        f"{reason} [T={node.trial_id or 'Root'} "
                         f"N={node.n_visits} children={children_n} untried={len(untried)} "
-                        f"depth={getattr(node.state,'depth', '?')} last_idx={last_idx} "
+                        f"D={getattr(node.state,'depth', '?')} last_idx={last_idx} "
                         f"End={end_reached} ({start_idx}/{total_steps}) "
                         f"Candidates={candidates} "
                         f"PW_ops={m_ops} active_ops={len(active_ops)} "

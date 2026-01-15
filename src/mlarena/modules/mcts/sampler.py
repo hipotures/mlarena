@@ -23,7 +23,9 @@ class ParameterSampler:
         params_spec = variant_spec.get("params", {})
         config = {}
         
-        for p_name, p_spec in params_spec.items():
+        # Sort parameter names to ensure deterministic sampling order
+        for p_name in sorted(params_spec.keys()):
+            p_spec = params_spec[p_name]
             config[p_name] = self.sample_param(p_spec, rng=rng)
             
         return config

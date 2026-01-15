@@ -290,11 +290,28 @@ class MCTSStorage:
             VALUES (?, ?, ?)
             ON CONFLICT(parent_trial_id, child_trial_id) DO UPDATE SET action_json=excluded.action_json
         """
+        def _exec(c):
+            try:
+                c.execute(query, (parent_trial_id, child_trial_id, json.dumps(action)))
+            except sqlite3.IntegrityError as e:
+                # Check if it's a UNIQUE constraint violation on child_trial_id
+                if "UNIQUE constraint failed: mcts_edges.child_trial_id" in str(e):
+                    # Tree violation: child already has a different parent
+                    cur = c.cursor()
+                    cur.execute("SELECT parent_trial_id FROM mcts_edges WHERE child_trial_id=?", (child_trial_id,))
+                    row = cur.fetchone()
+                    existing_parent = row[0] if row else "unknown"
+                    raise sqlite3.IntegrityError(
+                        f"Tree Violation: Child trial {child_trial_id} is already attached to parent {existing_parent}. "
+                        f"Cannot attach it to parent {parent_trial_id}. MCTS requires a strict tree structure."
+                    ) from e
+                raise
+
         if conn:
-            conn.execute(query, (parent_trial_id, child_trial_id, json.dumps(action)))
+            _exec(conn)
         else:
             with self._connect() as c:
-                c.execute(query, (parent_trial_id, child_trial_id, json.dumps(action)))
+                _exec(c)
                 c.commit()
 
     def get_all_edges(self, study_id: int) -> List[Dict[str, Any]]:

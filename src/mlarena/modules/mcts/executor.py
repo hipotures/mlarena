@@ -18,6 +18,7 @@ class MlaCliExecutor:
     def __init__(self, project_root: Path, log_root: Optional[Path] = None):
         self.project_root = project_root
         self.log_root = log_root or project_root
+        self.current_proc: Optional[subprocess.Popen] = None
 
     def build_command(
         self, 
@@ -133,21 +134,39 @@ class MlaCliExecutor:
             env["TERM"] = "dumb"
             env["NO_COLOR"] = "1"
             
-            proc = subprocess.run(
+            # Start in a new session to ignore signals (SIGINT) from parent's terminal
+            self.current_proc = subprocess.Popen(
                 cmd, 
                 cwd=self.project_root,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout,
-                check=False,
-                env=env
+                env=env,
+                start_new_session=True
             )
             
-            err_content = proc.stderr or ""
-            out_content = proc.stdout or ""
+            try:
+                stdout, stderr = self.current_proc.communicate(timeout=timeout)
+                returncode = self.current_proc.returncode
+            except subprocess.TimeoutExpired:
+                self.current_proc.kill()
+                stdout, stderr = self.current_proc.communicate()
+                return ExperimentResult(
+                    experiment_id="failed",
+                    value=None,
+                    metric="unknown",
+                    duration=0.0,
+                    success=False,
+                    details={"error": "Timeout expired", "stdout": stdout, "stderr": stderr}
+                )
+            finally:
+                self.current_proc = None
+            
+            err_content = stderr or ""
+            out_content = stdout or ""
             combined_output = err_content + "\n" + out_content
 
-            if proc.returncode != 0:
+            if returncode != 0:
                 # Try to parse JSON even on failure
                 res = self.parse_result(out_content)
                 
@@ -155,14 +174,14 @@ class MlaCliExecutor:
                 is_parsing_error = "Expecting value" in str(res.details.get("original_exception", ""))
                 if res.success is False and not is_parsing_error and (res.experiment_id != "failed" or res.details.get("error")):
                     res.details.update({
-                        "returncode": proc.returncode,
+                        "returncode": returncode,
                         "stderr": err_content[-2000:],
                         "cmd": " ".join(cmd)
                     })
                     return res
                 
                 # Fallback to cleaning text output
-                error_msg = self._clean_error_msg(combined_output, f"Exit Code: {proc.returncode}")
+                error_msg = self._clean_error_msg(combined_output, f"Exit Code: {returncode}")
 
                 return ExperimentResult(
                     experiment_id="failed",
@@ -172,7 +191,7 @@ class MlaCliExecutor:
                     success=False,
                     details={
                         "error": error_msg,
-                        "returncode": proc.returncode, 
+                        "returncode": returncode, 
                         "stderr": err_content[-2000:], 
                         "stdout": out_content[-2000:],
                         "cmd": " ".join(cmd)
@@ -182,6 +201,7 @@ class MlaCliExecutor:
             return self.parse_result(out_content)
             
         except Exception as e:
+            self.current_proc = None
             return ExperimentResult(
                 experiment_id="failed",
                 value=None,

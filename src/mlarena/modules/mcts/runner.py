@@ -5,6 +5,7 @@ import json
 import math
 import random
 import sys
+import signal
 import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -97,7 +98,7 @@ class MCTSRunner:
             # Print brief resume stats if not in live mode
             if not self.mcts_live:
                 best = self.storage.get_best_trial(self.study_id)
-                best_val_str = f"{best['value']:.4f}" if best else "N/A"
+                best_val_str = f"{best['value']:.5f}" if best else "N/A"
                 
                 # Fetch actual baseline score (Trial 0) instead of root record
                 base_score = None
@@ -105,7 +106,7 @@ class MCTSRunner:
                     row = conn.execute("SELECT value FROM trial_values WHERE trial_id = (SELECT trial_id FROM trials WHERE study_id=? AND number=0)", (self.study_id,)).fetchone()
                     if row: base_score = row[0]
                 
-                base_val_str = f"{base_score:.4f}" if base_score is not None else "N/A"
+                base_val_str = f"{base_score:.5f}" if base_score is not None else "N/A"
                 
                 # Fetch metric name from any evaluation
                 metric_name = "Unknown"
@@ -226,6 +227,25 @@ class MCTSRunner:
         else:
             self.live = None
 
+        self.stop_requested = False
+        def handler(signum, frame):
+            if not self.stop_requested:
+                self.stop_requested = True
+                print("\n⚠️ [bold yellow]Ctrl+C detected. Finishing current trial and stopping gracefully...[/bold yellow]", flush=True)
+                self.logger.info("Interrupt requested. Stopping after current iteration.")
+            else:
+                # Second Ctrl+C - force quit
+                print("\n⚠️ [bold red]Force quitting...[/bold red]", flush=True)
+                if hasattr(self.executor, "current_proc") and self.executor.current_proc:
+                    try:
+                        print(f"⚠️ Killing current subprocess (PID: {self.executor.current_proc.pid})...")
+                        self.executor.current_proc.kill()
+                    except Exception:
+                        pass
+                sys.exit(1)
+        
+        old_handler = signal.signal(signal.SIGINT, handler)
+
         try:
             self._evaluate_baseline()
             
@@ -239,7 +259,7 @@ class MCTSRunner:
             iteration = 0
             max_iterations = self.config.budget * 10  # Safety limit
             
-            while n_executed < self.config.budget:
+            while n_executed < self.config.budget and not self.stop_requested:
                 if iteration >= max_iterations:
                     self.logger.warning(f"Reached max safety iterations ({max_iterations}) with only {n_executed} trials. Tree might be fully explored.")
                     break
@@ -526,11 +546,13 @@ class MCTSRunner:
                 
                 if self.live: self.live.update(self._render_tree(best_so_far))
         finally:
+            signal.signal(signal.SIGINT, old_handler)
             if self.live:
                 self.live.stop()
 
         best = self.storage.get_best_trial(self.study_id)
-        msg = f"MCTS completed. Best Score: {best['value'] if best else 'N/A'}"
+        best_val_str = f"{best['value']:.5f}" if best else "N/A"
+        msg = f"MCTS completed. Best Score: {best_val_str}"
         if not self.mcts_live:
             print(msg)
         self.logger.info(msg)

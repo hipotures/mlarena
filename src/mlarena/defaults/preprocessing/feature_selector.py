@@ -4,7 +4,7 @@ Feature Selection Sub-Module
 Purpose: Systematically reduce feature dimensionality using various selection methods
 Libraries: sklearn.feature_selection, sklearn.ensemble, lightgbm, xgboost, scipy
 Parameters:
-    - selection_method: variance|cardinality|mi|correlation|model_importance|l1|rfe|none
+    - selection_method: variance|cardinality|mi|correlation|model_importance|permutation_importance|null_importance|l1|rfe|none
     - n_features: int|float|None (universal feature selector):
         * 0: pass-through (no selection)
         * 0 < n < 1: keep fraction (e.g., 0.3 = keep 30% best)
@@ -29,6 +29,11 @@ Parameters:
     - optuna_pruner: str ("median" | "none")
     - use_gpu: bool (LightGBM only)
     - importance_cumulative: float|None (keep top features covering cumulative importance)
+    - perm_importance_repeats: int (permutation importance repeats)
+    - perm_importance_scoring: str|None (sklearn scoring name)
+    - perm_importance_max_samples: int|float|None (subsample rows for permutation importance)
+    - null_importance_rounds: int (number of target shuffles)
+    - null_importance_quantile: float (quantile cutoff for null importances)
     - optuna_export_trials: bool (export Optuna trials JSON when tuning)
     - optuna_save_storage: bool (save Optuna sqlite storage when tuning)
     - optuna_storage_path: str|None (override sqlite path)
@@ -145,13 +150,29 @@ def fit_transform(
         "optuna_storage_path": None,
         "optuna_study_name": "feature_selector_lgbm",
         "optuna_load_if_exists": True,
+        "perm_importance_repeats": 5,
+        "perm_importance_scoring": None,
+        "perm_importance_max_samples": None,
+        "null_importance_rounds": 10,
+        "null_importance_quantile": 0.95,
     }
     validation.validate_config(config, required_params, optional_params)
 
     # Validate choice parameters
     validation.validate_choice(
         config["selection_method"],
-        ["variance", "cardinality", "mi", "correlation", "model_importance", "l1", "rfe", "none"],
+        [
+            "variance",
+            "cardinality",
+            "mi",
+            "correlation",
+            "model_importance",
+            "permutation_importance",
+            "null_importance",
+            "l1",
+            "rfe",
+            "none",
+        ],
         "selection_method"
     )
 
@@ -190,6 +211,41 @@ def fit_transform(
             min_value=0.0,
             max_value=1.0,
             param_name="max_drop_fraction"
+        )
+
+        validation.validate_numeric_range(
+            config["perm_importance_repeats"],
+            min_value=1,
+            max_value=None,
+            param_name="perm_importance_repeats",
+        )
+        if config["perm_importance_max_samples"] is not None:
+            max_samples = config["perm_importance_max_samples"]
+            if isinstance(max_samples, float):
+                validation.validate_numeric_range(
+                    max_samples,
+                    min_value=0.0,
+                    max_value=1.0,
+                    param_name="perm_importance_max_samples",
+                )
+            else:
+                validation.validate_numeric_range(
+                    max_samples,
+                    min_value=1,
+                    max_value=None,
+                    param_name="perm_importance_max_samples",
+                )
+        validation.validate_numeric_range(
+            config["null_importance_rounds"],
+            min_value=1,
+            max_value=None,
+            param_name="null_importance_rounds",
+        )
+        validation.validate_numeric_range(
+            config["null_importance_quantile"],
+            min_value=0.0,
+            max_value=1.0,
+            param_name="null_importance_quantile",
         )
 
         validation.validate_numeric_range(
@@ -323,6 +379,11 @@ def fit_transform(
         optuna_pruner=config["optuna_pruner"],
         use_gpu=config["use_gpu"],
         importance_cumulative=config["importance_cumulative"],
+        perm_importance_repeats=config["perm_importance_repeats"],
+        perm_importance_scoring=config["perm_importance_scoring"],
+        perm_importance_max_samples=config["perm_importance_max_samples"],
+        null_importance_rounds=config["null_importance_rounds"],
+        null_importance_quantile=config["null_importance_quantile"],
         optuna_export_trials=config["optuna_export_trials"],
         optuna_save_storage=config["optuna_save_storage"],
         optuna_storage_path=config["optuna_storage_path"],
@@ -441,6 +502,11 @@ def _select_features(
     optuna_pruner: str,
     use_gpu: bool,
     importance_cumulative: float | None,
+    perm_importance_repeats: int,
+    perm_importance_scoring: str | None,
+    perm_importance_max_samples: int | float | None,
+    null_importance_rounds: int,
+    null_importance_quantile: float,
     optuna_export_trials: bool,
     optuna_save_storage: bool,
     optuna_storage_path: str | None,
@@ -520,6 +586,104 @@ def _select_features(
             "selected_features": int(n_features_to_select),
             "min_features_to_keep": int(min_features_to_keep),
         }
+
+    def _build_importance_model() -> Tuple[Any, str]:
+        model_type_used = importance_model_type
+        if importance_model_type == "rf":
+            if problem_type in ["binary", "multiclass"]:
+                model = RandomForestClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                )
+            else:
+                model = RandomForestRegressor(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                )
+        elif importance_model_type == "lgbm":
+            try:
+                import lightgbm as lgb
+            except ImportError:
+                warnings.warn("LightGBM not available, falling back to RandomForest for importance model.")
+                model_type_used = "rf"
+                if problem_type in ["binary", "multiclass"]:
+                    model = RandomForestClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                    )
+                else:
+                    model = RandomForestRegressor(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                    )
+                return model, model_type_used
+            if problem_type in ["binary", "multiclass"]:
+                model = lgb.LGBMClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                    verbosity=-1,
+                    device_type="gpu" if use_gpu else "cpu",
+                )
+            else:
+                model = lgb.LGBMRegressor(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                    verbosity=-1,
+                    device_type="gpu" if use_gpu else "cpu",
+                )
+        elif importance_model_type == "xgb":
+            try:
+                import xgboost as xgb
+            except ImportError:
+                warnings.warn("XGBoost not available, falling back to RandomForest for importance model.")
+                model_type_used = "rf"
+                if problem_type in ["binary", "multiclass"]:
+                    model = RandomForestClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                    )
+                else:
+                    model = RandomForestRegressor(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=random_state,
+                        n_jobs=-1,
+                    )
+                return model, model_type_used
+            if problem_type in ["binary", "multiclass"]:
+                model = xgb.XGBClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                    verbosity=0,
+                )
+            else:
+                model = xgb.XGBRegressor(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    random_state=random_state,
+                    n_jobs=-1,
+                    verbosity=0,
+                )
+        else:
+            raise ValueError(f"Unknown importance_model_type: {importance_model_type}")
+
+        return model, model_type_used
 
     # Initialize scores array
     feature_scores = np.zeros(total_features)
@@ -698,6 +862,11 @@ def _select_features(
                         optuna_early_stopping_rounds, optuna_num_boost_round,
                         optuna_pruner, use_gpu,
                         importance_cumulative,
+                        perm_importance_repeats,
+                        perm_importance_scoring,
+                        perm_importance_max_samples,
+                        null_importance_rounds,
+                        null_importance_quantile,
                         optuna_export_trials,
                         optuna_save_storage,
                         optuna_storage_path,
@@ -738,6 +907,11 @@ def _select_features(
                     optuna_early_stopping_rounds, optuna_num_boost_round,
                     optuna_pruner, use_gpu,
                     importance_cumulative,
+                    perm_importance_repeats,
+                    perm_importance_scoring,
+                    perm_importance_max_samples,
+                    null_importance_rounds,
+                    null_importance_quantile,
                     optuna_export_trials,
                     optuna_save_storage,
                     optuna_storage_path,
@@ -766,6 +940,102 @@ def _select_features(
                 selected_mask = np.zeros(total_features, dtype=bool)
                 selected_mask[top_idx] = True
         # Threshold-only mode preserved when select_features is None
+
+    elif method == "permutation_importance":
+        try:
+            from sklearn.inspection import permutation_importance
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("permutation_importance requires sklearn.inspection") from exc
+
+        model, model_type_used = _build_importance_model()
+        model.fit(X_train, y_train)
+
+        X_perm = X_train
+        y_perm = y_train
+        max_samples = perm_importance_max_samples
+        if max_samples is not None:
+            rng = np.random.default_rng(random_state)
+            if isinstance(max_samples, float):
+                sample_size = max(1, int(len(X_train) * max_samples))
+            else:
+                sample_size = min(int(max_samples), len(X_train))
+            indices = rng.choice(len(X_train), size=sample_size, replace=False)
+            X_perm = X_train[indices]
+            y_perm = y_train[indices]
+
+        scoring = perm_importance_scoring if perm_importance_scoring else None
+        perm_result = permutation_importance(
+            model,
+            X_perm,
+            y_perm,
+            n_repeats=perm_importance_repeats,
+            random_state=random_state,
+            scoring=scoring,
+            n_jobs=-1,
+        )
+        importances = perm_result.importances_mean
+        feature_scores = importances
+        _apply_cumulative_cutoff(importances)
+
+        selected_mask = importances >= min_importance
+        if select_features is not None:
+            if selected_mask.sum() >= n_features_to_select:
+                candidate_idx = np.where(selected_mask)[0]
+                top_idx = candidate_idx[np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+            else:
+                top_idx = np.argsort(importances)[::-1][:n_features_to_select]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+
+        selection_meta["permutation_importance"] = {
+            "model_type": model_type_used,
+            "n_repeats": int(perm_importance_repeats),
+            "scoring": perm_importance_scoring,
+            "max_samples": max_samples,
+        }
+
+    elif method == "null_importance":
+        model, model_type_used = _build_importance_model()
+        model.fit(X_train, y_train)
+
+        if not hasattr(model, "feature_importances_"):
+            raise ValueError("null_importance requires a model with feature_importances_")
+
+        real_importances = np.asarray(model.feature_importances_, dtype=float)
+        null_importances = []
+        rng = np.random.default_rng(random_state)
+
+        for i in range(int(null_importance_rounds)):
+            y_perm = rng.permutation(y_train)
+            null_model, _ = _build_importance_model()
+            null_model.fit(X_train, y_perm)
+            null_importances.append(np.asarray(null_model.feature_importances_, dtype=float))
+
+        null_matrix = np.vstack(null_importances)
+        thresholds = np.quantile(null_matrix, null_importance_quantile, axis=0)
+
+        feature_scores = real_importances
+        _apply_cumulative_cutoff(real_importances)
+
+        selected_mask = (real_importances > thresholds) & (real_importances >= min_importance)
+        if select_features is not None:
+            if selected_mask.sum() >= n_features_to_select:
+                candidate_idx = np.where(selected_mask)[0]
+                top_idx = candidate_idx[np.argsort(real_importances[candidate_idx])[::-1][:n_features_to_select]]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+            else:
+                top_idx = np.argsort(real_importances)[::-1][:n_features_to_select]
+                selected_mask = np.zeros(total_features, dtype=bool)
+                selected_mask[top_idx] = True
+
+        selection_meta["null_importance"] = {
+            "model_type": model_type_used,
+            "rounds": int(null_importance_rounds),
+            "quantile": float(null_importance_quantile),
+        }
 
     elif method == "l1":
         # L1 regularization

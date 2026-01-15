@@ -8,7 +8,7 @@ The **feature_selector** sub-module systematically reduces feature dimensionalit
 **Location**: `src/mlarena/defaults/preprocessing/feature_selector.py`
 
 ## Capabilities
-- Multiple selection modes: variance filtering, mutual information, correlation with target, model-based importances, L1 sparsity, and RFE
+- Multiple selection modes: variance filtering, mutual information, correlation with target, model-based importances, permutation/null importances, L1 sparsity, and RFE
 - Supports both classification and regression (`_dataset.problem_type`)
 - Safety guard via `max_drop_fraction` to avoid over-pruning
 - Produces detailed importance/score report for analysis
@@ -18,7 +18,7 @@ The **feature_selector** sub-module systematically reduces feature dimensionalit
 ### Core
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `selection_method` | str | `"variance"` | Selection strategy: `variance`, `mi`, `correlation`, `model_importance`, `l1`, `rfe`, `none` |
+| `selection_method` | str | `"variance"` | Selection strategy: `variance`, `mi`, `correlation`, `model_importance`, `permutation_importance`, `null_importance`, `l1`, `rfe`, `none` |
 | `n_features` | int \| float \| null | `null` | **Universal feature selector** (see modes below) |
 | `max_drop_fraction` | float | `0.5` | Max fraction of features that can be removed in one run (safety constraint) |
 | `protect_cb_features` | bool | `true` | Keep numeric columns ending with `_cb` regardless of selection |
@@ -45,12 +45,19 @@ The **feature_selector** sub-module systematically reduces feature dimensionalit
 | `n_estimators` | int | `100` | Number of trees/estimators for model-based methods and RFE |
 | `max_depth` | int | `5` | Tree depth for model-based methods and RFE |
 | `random_state` | int | `42` | Random seed for reproducibility |
+| `perm_importance_repeats` | int | `5` | Repeats for permutation importance |
+| `perm_importance_scoring` | str \| null | `null` | Scoring name for permutation importance |
+| `perm_importance_max_samples` | int \| float \| null | `null` | Subsample rows for permutation importance |
+| `null_importance_rounds` | int | `10` | Number of target shuffles for null importances |
+| `null_importance_quantile` | float | `0.95` | Quantile cutoff for null importances |
 
 ## Selection Methods (What They Do)
 - **`variance`**: Drop low-variance numeric features (`min_variance`); applies top-K cap based on `n_features`. **Bugfix**: Now correctly trims to exact count when threshold passes too many features.
 - **`mi`**: Mutual information vs. target (`mutual_info_classif`/`regression`); keeps top-K based on `n_features`.
 - **`correlation`**: Absolute Pearson correlation with target (numeric only); keeps highest correlations based on `n_features`.
 - **`model_importance`**: Train tree model (LGBM/XGB/RF) and select features. **Bugfix**: Now enforces exact `n_features` count regardless of `min_importance` threshold (uses hybrid threshold + top-K cap).
+- **`permutation_importance`**: Train model and rank features by permutation importance (supports optional subsampling).
+- **`null_importance`**: Compare real importances to shuffled-target importances and keep features above a quantile threshold.
 - **`l1`**: L1-regularized LogisticRegression (classification) or Lasso (regression); keeps top-K features by coefficient magnitude.
 - **`rfe`**: Recursive Feature Elimination with tree estimator; selects exact number specified by `n_features`.
 - **`none`**: Skip selection (pass-through), still produces summary report.
@@ -119,6 +126,29 @@ feature_selection_l1:
     selection_method: "l1"
     n_features: 0.6  # Keep 60% best features
     random_state: 7
+```
+
+### Permutation Importance
+```yaml
+feature_selection_perm:
+  module: feature_selector
+  cache: true
+  config:
+    selection_method: "permutation_importance"
+    perm_importance_repeats: 5
+    n_features: 0.6
+```
+
+### Null Importances
+```yaml
+feature_selection_null:
+  module: feature_selector
+  cache: true
+  config:
+    selection_method: "null_importance"
+    null_importance_rounds: 10
+    null_importance_quantile: 0.95
+    n_features: 0.6
 ```
 
 ### RFE with Random Forest

@@ -2,6 +2,11 @@ module: feature_selector
 cache: true
 config:
   selection_method: variance
-  k_features: null
-  keep_fraction: 0.8
+  n_features: null
   min_variance: 0.01
+  min_importance: 0.001
+  importance_model_type: lgbm
+  n_estimators: 100
+  max_depth: 5
+  max_drop_fraction: 0.5
+  protect_cb_features: true

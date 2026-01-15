@@ -3,5 +3,6 @@ config:
   group_keys: []
   group_value_cols: []
   aggs: [mean, std, min, max]
+  quantiles: []
   max_generated_features: 200
   use_original_features_only: true

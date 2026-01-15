@@ -24,6 +24,7 @@ None - all parameters are optional with sensible defaults.
 |-----------|------|---------|-------------|
 | `min_unique_fraction` | float | `0.01` | Minimum fraction of unique values required to keep a column. Columns with fewer unique values are considered "nearly constant" and dropped. Range: `0.0` to `1.0`. |
 | `max_missing_fraction` | float | `0.95` | Maximum fraction of missing values allowed. Columns with more missing values are dropped. Range: `0.0` to `1.0`. |
+| `max_missing_fraction_row` | float \| null | `null` | Maximum fraction of missing values allowed per row. Rows above this threshold are dropped. Range: `0.0` to `1.0`. |
 | `drop_duplicates` | bool | `true` | Whether to remove duplicate rows. Keeps first occurrence. |
 | `column_types_override` | dict | `{}` | Dictionary mapping column names to target dtypes (e.g., `{"Age": "float64", "Pclass": "int32"}`). Forces type conversion. |
 | `ignore_columns` | list | `[]` | List of column names that should never be dropped, in addition to automatic protection of ID and target columns. |
@@ -76,6 +77,11 @@ The following columns are **automatically protected** from being dropped:
 - Attempts to convert columns specified in `column_types_override`
 - If conversion fails, logs warning and continues
 - Does not fail the entire pipeline
+
+### 6. Row Missingness Filter
+
+- If `max_missing_fraction_row` is set, rows with missing fraction above the threshold are dropped.
+- Applies independently to train, test, val, and orig datasets.
 
 ---
 

@@ -9,6 +9,10 @@ base_config:
   add_centered: true
   add_ratio: false
   add_zscore: true
+  reference_stat: mean
+  quantile_value: 0.5
+  zscore_method: std
+  mad_scale: 1.4826
 
 variants:
   - name: centered_zscore
@@ -32,4 +36,13 @@ variants:
       add_centered: {type: fixed, value: true}
       add_zscore: {type: fixed, value: true}
       add_ratio: {type: bool}
+    requires_preproc: [{group: imputer}]
+  - name: median_mad
+    params:
+      reference_stat: {type: choice, values: [median]}
+      zscore_method: {type: choice, values: [mad]}
+      add_group_mean: {type: fixed, value: true}
+      add_centered: {type: fixed, value: true}
+      add_zscore: {type: fixed, value: true}
+      add_ratio: {type: fixed, value: false}
     requires_preproc: [{group: imputer}]

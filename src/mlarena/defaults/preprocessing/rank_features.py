@@ -8,9 +8,10 @@ Parameters:
   - numeric_exclude: List[str]
   - group_keys: List[str] (optional, for grouped ranking)
   - mode: "global" | "by_group"
-  - method: "rank" | "percentile" | "gauss_rank" (future?)
+  - method: "rank" | "percentile" | "gauss_rank"
   - tie_method: "average" | "min" | "max" | "first" | "dense"
   - add_original: Bool (keep original cols)
+  - fit_on_train: Bool (use train distribution for val/test)
 """
 
 from pathlib import Path
@@ -52,11 +53,12 @@ def fit_transform(
         "method": "percentile",
         "tie_method": "average",
         "add_original": True,
+        "fit_on_train": False,
         "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["mode"], ["global", "by_group"], "mode")
-    validation.validate_choice(config["method"], ["rank", "percentile"], "method")
+    validation.validate_choice(config["method"], ["rank", "percentile", "gauss_rank"], "method")
 
     # 2. Submodule dir
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "rank_features")
@@ -101,6 +103,40 @@ def fit_transform(
     # Suppress fragmentation warning
     warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
     
+    fit_on_train = bool(config.get("fit_on_train"))
+    if fit_on_train and config["mode"] == "by_group":
+        warnings.warn("fit_on_train is not supported with mode='by_group'. Falling back to per-dataset ranking.")
+        fit_on_train = False
+
+    train_sorted = {}
+    if fit_on_train:
+        for col in numeric_cols:
+            non_null = train_df[col].dropna().values
+            train_sorted[col] = np.sort(non_null) if non_null.size else np.array([])
+
+    def _rank_from_train(series: pd.Series, sorted_vals: np.ndarray) -> np.ndarray:
+        ranks = np.full(len(series), np.nan, dtype=np.float64)
+        if sorted_vals.size == 0:
+            return ranks
+        mask = series.notna()
+        if mask.any():
+            ranks[mask.values] = np.searchsorted(sorted_vals, series[mask].values, side="left") + 1
+        return ranks
+
+    def _percentile_from_train(series: pd.Series, sorted_vals: np.ndarray) -> np.ndarray:
+        if sorted_vals.size == 0:
+            return np.full(len(series), np.nan, dtype=np.float64)
+        ranks = _rank_from_train(series, sorted_vals)
+        return ranks / float(sorted_vals.size)
+
+    def _gauss_rank_from_percentile(percentiles: np.ndarray) -> np.ndarray:
+        try:
+            from scipy.special import erfinv
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("gauss_rank requires scipy (scipy.special.erfinv).") from exc
+        clipped = np.clip(percentiles, 1e-6, 1 - 1e-6)
+        return np.sqrt(2.0) * erfinv(2.0 * clipped - 1.0)
+
     def process_df(df):
         if df is None: return None
         df_out = df.copy()
@@ -118,20 +154,40 @@ def fit_transform(
         cols_to_rank = numeric_cols
         
         for col in cols_to_rank:
-            new_col_name = f"{col}_rank" if config["method"] == "rank" else f"{col}_pct"
-            
+            if config["method"] == "rank":
+                new_col_name = f"{col}_rank"
+            elif config["method"] == "percentile":
+                new_col_name = f"{col}_pct"
+            else:
+                new_col_name = f"{col}_gauss"
+
             if mode == "global":
-                if config["method"] == "rank":
-                    df_out[new_col_name] = df[col].rank(method=config["tie_method"])
+                if fit_on_train:
+                    if config["method"] == "rank":
+                        df_out[new_col_name] = _rank_from_train(df[col], train_sorted[col])
+                    elif config["method"] == "percentile":
+                        df_out[new_col_name] = _percentile_from_train(df[col], train_sorted[col])
+                    else:
+                        pct = _percentile_from_train(df[col], train_sorted[col])
+                        df_out[new_col_name] = _gauss_rank_from_percentile(pct)
                 else:
-                    df_out[new_col_name] = df[col].rank(pct=True, method=config["tie_method"])
+                    if config["method"] == "rank":
+                        df_out[new_col_name] = df[col].rank(method=config["tie_method"])
+                    elif config["method"] == "percentile":
+                        df_out[new_col_name] = df[col].rank(pct=True, method=config["tie_method"])
+                    else:
+                        pct = df[col].rank(pct=True, method=config["tie_method"]).to_numpy()
+                        df_out[new_col_name] = _gauss_rank_from_percentile(pct)
             else:
                 # Grouped
                 keys = config["group_keys"]
                 if config["method"] == "rank":
                     df_out[new_col_name] = df.groupby(keys)[col].rank(method=config["tie_method"])
-                else:
+                elif config["method"] == "percentile":
                     df_out[new_col_name] = df.groupby(keys)[col].rank(pct=True, method=config["tie_method"])
+                else:
+                    pct = df.groupby(keys)[col].rank(pct=True, method=config["tie_method"]).to_numpy()
+                    df_out[new_col_name] = _gauss_rank_from_percentile(pct)
             
             if not config["add_original"]:
                 df_out = df_out.drop(columns=[col])

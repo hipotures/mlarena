@@ -4,10 +4,12 @@ template: sanity_check
 base_config:
   column_types_override: {}
   ignore_columns: []
+  max_missing_fraction_row: null
 
 variants:
   - name: default
     params:
       min_unique_fraction: {type: fixed, value: 0.0}
       max_missing_fraction: {type: float_range, min: 0.7, max: 0.99, step: 0.01, round: 2}
+      max_missing_fraction_row: {type: choice, values: [null, 0.9, 0.95, 0.99]}
       drop_duplicates: {type: bool}

@@ -17,6 +17,12 @@ Provides flexible categorical encoding with support for:
 - **Target Mean Encoding** - Replace categories with target mean (smoothed)
 - **Target Mean Encoding (OOF)** - KFold out-of-fold target mean features (recommended to reduce leakage)
 - **CatBoost Encoding** - Ordered target statistics
+- **Leave-One-Out Encoding** - Target encoding with per-row leave-one-out adjustment
+- **M-Estimate Encoding** - Bayesian target encoding with m smoothing
+- **James-Stein Encoding** - Shrinkage target encoding for high-cardinality categories
+- **GLMM Encoding** - Mixed-effects target encoding (auto-regularized)
+- **Weight of Evidence (WoE)** - Log-odds encoding for binary targets
+- **Binary / Base-N Encoding** - Compact encodings for high-cardinality categories
 - **Feature Hashing** - Fixed-size hash space for high-cardinality features
 - **Count / Frequency Encoding** - Map categories to counts or relative frequencies
 
@@ -32,7 +38,7 @@ None - all parameters have defaults.
 
 Encoding strategy to use.
 
-**Choices**: `none` | `one_hot` | `ordinal` | `target_mean` | `target_mean_oof` | `catboost` | `hashing` | `count` | `frequency`
+**Choices**: `none` | `one_hot` | `ordinal` | `target_mean` | `target_mean_oof` | `catboost` | `leave_one_out` | `m_estimate` | `james_stein` | `glmm` | `woe` | `binary` | `base_n` | `hashing` | `count` | `frequency`
 
 - `none` - Keep categorical columns as-is (recommended for AutoGluon)
 - `one_hot` - One-hot encoding (sklearn)
@@ -40,6 +46,13 @@ Encoding strategy to use.
 - `target_mean` - Target mean encoding with smoothing
 - `target_mean_oof` - KFold out-of-fold target mean encoding (train is OOF; test/orig use full-train mapping)
 - `catboost` - CatBoost-style ordered target encoding (requires `category_encoders`)
+- `leave_one_out` - Leave-one-out target encoding (requires `category_encoders`)
+- `m_estimate` - M-estimate target encoding (requires `category_encoders`)
+- `james_stein` - James-Stein target encoding (requires `category_encoders`)
+- `glmm` - GLMM target encoding (requires `category_encoders`)
+- `woe` - Weight of Evidence encoding (binary targets only; requires `category_encoders`)
+- `binary` - Binary encoding (category_encoders)
+- `base_n` - Base-N encoding (category_encoders, configurable base)
 - `hashing` - Feature hashing for high-cardinality features
 - `count` / `frequency` - Count or relative frequency encoding (see parameters below)
 
@@ -163,6 +176,58 @@ For `target_mean_oof`: output feature prefix. Encoded columns are named `{prefix
 If `true`, keeps original categorical columns alongside encoded versions.
 
 **Use case**: When you want both encoded features AND native categorical support (AutoGluon).
+
+#### `ce_handle_unknown` (str, default: `"value"`)
+
+Category encoders handle for unknown categories.
+
+**Choices**: `value` | `return_nan` | `indicator`
+
+#### `ce_handle_missing` (str, default: `"value"`)
+
+Category encoders handle for missing values.
+
+**Choices**: `value` | `return_nan` | `indicator`
+
+#### `ce_drop_invariant` (bool, default: `false`)
+
+Drop columns with no variance after encoding (category_encoders).
+
+#### `loo_sigma` (float | null, default: `null`)
+
+Noise level for `leave_one_out` encoder (higher adds more noise regularization).
+
+#### `m_estimate_m` (float, default: `1.0`)
+
+M-estimate smoothing strength for `m_estimate`.
+
+#### `m_estimate_sigma` (float, default: `0.05`)
+
+Noise parameter for `m_estimate` encoder.
+
+#### `james_stein_sigma` (float, default: `0.05`)
+
+Shrinkage parameter for `james_stein` encoder.
+
+#### `glmm_sigma` (float, default: `0.05`)
+
+Regularization for `glmm` encoder.
+
+#### `glmm_binomial_target` (bool | null, default: `null`)
+
+Force GLMM to treat target as binomial (override auto detection).
+
+#### `woe_sigma` (float, default: `0.05`)
+
+Noise parameter for `woe` encoder.
+
+#### `woe_regularization` (float, default: `1.0`)
+
+Regularization strength for `woe` encoder.
+
+#### `base_n` (int, default: `2`)
+
+Base for `base_n` encoding (e.g., 2 = binary, 5 or 10 for more compact encoding).
 
 ## Encoding Strategies
 

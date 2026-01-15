@@ -8,8 +8,12 @@ Parameters:
   - value_cols: List[str]
   - add_group_mean: Bool (add the mean itself as feature)
   - add_centered: Bool (value - mean)
-  - add_zscore: Bool ((value - mean) / std)
-  - add_ratio: Bool (value / mean)
+  - add_zscore: Bool ((value - center) / spread)
+  - add_ratio: Bool (value / center)
+  - reference_stat: mean|median|min|max|quantile
+  - quantile_value: float (used when reference_stat=quantile)
+  - zscore_method: std|mad
+  - mad_scale: float (scale factor for MAD)
   - eps: Float (epsilon for division)
 """
 
@@ -50,9 +54,27 @@ def fit_transform(
         "add_zscore": True,
         "add_ratio": False,
         "eps": 1e-6,
+        "reference_stat": "mean",
+        "quantile_value": 0.5,
+        "zscore_method": "std",
+        "mad_scale": 1.4826,
         "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
+    validation.validate_choice(
+        config["reference_stat"],
+        ["mean", "median", "min", "max", "quantile"],
+        "reference_stat",
+    )
+    validation.validate_choice(
+        config["zscore_method"],
+        ["std", "mad"],
+        "zscore_method",
+    )
+    if config["reference_stat"] == "quantile":
+        validation.validate_numeric_range(
+            config["quantile_value"], min_value=0.0, max_value=1.0, param_name="quantile_value"
+        )
 
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "groupwise_normalizer")
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -72,6 +94,10 @@ def fit_transform(
     if isinstance(values, str):
         values = [values]
     eps = config["eps"]
+    reference_stat = config["reference_stat"]
+    quantile_value = config["quantile_value"]
+    zscore_method = config["zscore_method"]
+    mad_scale = config["mad_scale"]
 
     if not keys or not values:
         warnings.warn("groupwise_normalizer requires non-empty group_keys and value_cols. Skipping.")
@@ -89,16 +115,38 @@ def fit_transform(
         return train_df, val_df, test_df, orig_df, {"error": f"Missing cols: {missing}"}
 
     # Groupby
-    stats = train_df.groupby(keys)[values].agg(['mean', 'std'])
-    
-    # Flatten columns: value_col -> (mean, std)
-    # stats.columns is MultiIndex
-    
+    grouped = train_df.groupby(keys)[values]
+
+    if reference_stat == "mean":
+        center = grouped.mean()
+    elif reference_stat == "median":
+        center = grouped.median()
+    elif reference_stat == "min":
+        center = grouped.min()
+    elif reference_stat == "max":
+        center = grouped.max()
+    else:
+        center = grouped.quantile(quantile_value)
+
+    if zscore_method == "std":
+        spread = grouped.std()
+    else:
+        spread = grouped.apply(lambda df: (df - df.median()).abs().median())
+        spread = spread * mad_scale
+
     new_features = []
 
-    # Flatten stats for easier merge
-    stats.columns = [f"{v}_{stat}" for v, stat in stats.columns]
-    stats = stats.reset_index()
+    center_cols = {col: f"{col}_center" for col in center.columns}
+    spread_cols = {col: f"{col}_spread" for col in spread.columns}
+    center = center.rename(columns=center_cols)
+    spread = spread.rename(columns=spread_cols)
+    stats = center.join(spread).reset_index()
+
+    if reference_stat == "quantile":
+        stat_suffix = f"q{str(quantile_value).replace('.', '_')}"
+    else:
+        stat_suffix = reference_stat
+    zscore_suffix = "std" if zscore_method == "std" else "mad"
     
     def process_df(df):
         if df is None: return None
@@ -117,39 +165,64 @@ def fit_transform(
         temp.index = df.index
         
         for v in values:
-            mean_col = f"{v}_mean"
-            std_col = f"{v}_std"
+            center_col = f"{v}_center"
+            spread_col = f"{v}_spread"
             
             # If stats missing (unseen group), fillna?
             # Global fallback?
-            if temp[mean_col].isnull().any():
-                # Fill with global mean
-                g_mean = train_df[v].mean()
-                g_std = train_df[v].std()
-                temp[mean_col] = temp[mean_col].fillna(g_mean)
-                temp[std_col] = temp[std_col].fillna(g_std)
+            if temp[center_col].isnull().any() or temp[spread_col].isnull().any():
+                if reference_stat == "mean":
+                    g_center = train_df[v].mean()
+                elif reference_stat == "median":
+                    g_center = train_df[v].median()
+                elif reference_stat == "min":
+                    g_center = train_df[v].min()
+                elif reference_stat == "max":
+                    g_center = train_df[v].max()
+                else:
+                    g_center = train_df[v].quantile(quantile_value)
+
+                if zscore_method == "std":
+                    g_spread = train_df[v].std()
+                else:
+                    g_spread = (train_df[v] - train_df[v].median()).abs().median() * mad_scale
+
+                temp[center_col] = temp[center_col].fillna(g_center)
+                temp[spread_col] = temp[spread_col].fillna(g_spread)
             
             if config["add_group_mean"]:
-                name = f"{v}_grp_mean"
-                df_out[name] = temp[mean_col]
+                if reference_stat == "mean":
+                    name = f"{v}_grp_mean"
+                else:
+                    name = f"{v}_grp_{stat_suffix}"
+                df_out[name] = temp[center_col]
                 if name not in new_features: new_features.append(name)
                 
             if config["add_centered"]:
-                name = f"{v}_centered"
-                df_out[name] = df[v] - temp[mean_col]
+                if reference_stat == "mean":
+                    name = f"{v}_centered"
+                else:
+                    name = f"{v}_centered_{stat_suffix}"
+                df_out[name] = df[v] - temp[center_col]
                 if name not in new_features: new_features.append(name)
                 
             if config["add_zscore"]:
-                name = f"{v}_grp_zscore"
+                if reference_stat == "mean" and zscore_method == "std":
+                    name = f"{v}_grp_zscore"
+                else:
+                    name = f"{v}_grp_zscore_{stat_suffix}_{zscore_suffix}"
                 # Avoid div by zero
-                sigma = temp[std_col].fillna(0)
-                sigma = sigma.replace(0, eps) # if std is 0 (constant group)
-                df_out[name] = (df[v] - temp[mean_col]) / sigma
+                sigma = temp[spread_col].fillna(0)
+                sigma = sigma.replace(0, eps) # if spread is 0 (constant group)
+                df_out[name] = (df[v] - temp[center_col]) / sigma
                 if name not in new_features: new_features.append(name)
                 
             if config["add_ratio"]:
-                name = f"{v}_grp_ratio"
-                mu = temp[mean_col].replace(0, eps)
+                if reference_stat == "mean":
+                    name = f"{v}_grp_ratio"
+                else:
+                    name = f"{v}_grp_ratio_{stat_suffix}"
+                mu = temp[center_col].replace(0, eps)
                 df_out[name] = df[v] / mu
                 if name not in new_features: new_features.append(name)
                 

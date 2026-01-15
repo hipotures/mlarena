@@ -14,7 +14,7 @@ The **scaler** sub-module provides standardization and distribution transformati
 
 ## Libraries
 
-- `sklearn.preprocessing`: StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer
+- `sklearn.preprocessing`: StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer, PowerTransformer
 - `numpy`: Log transformations and mathematical operations
 - `pandas`: DataFrame manipulations
 
@@ -36,6 +36,9 @@ The **scaler** sub-module provides standardization and distribution transformati
 - **`robust`**: Scale using median and IQR (robust to outliers)
 - **`quantile_normal`**: Transform to normal distribution using quantiles
 - **`quantile_uniform`**: Transform to uniform distribution using quantiles
+- **`rank_gauss`**: Alias for quantile-normal (RankGauss style)
+- **`power_boxcox`**: Power transform for positive values (Box-Cox)
+- **`power_yeo_johnson`**: Power transform that supports zero/negative values
 
 ### Transformation Parameters
 
@@ -46,6 +49,7 @@ The **scaler** sub-module provides standardization and distribution transformati
 | `clip_upper_quantile` | float \| None | `None` | Upper quantile for winsorization (0.0-1.0) |
 | `n_quantiles` | int | `1000` | Number of quantiles for QuantileTransformer |
 | `random_state` | int | `42` | Random state for QuantileTransformer |
+| `power_standardize` | bool | `true` | Standardize after power transform |
 
 ## Examples
 
@@ -117,7 +121,33 @@ scaler_quantile_normal:
 
 **Effect**: Transform features to approximate normal distribution using quantile mapping.
 
-### Example 6: Winsorization Only (No Scaling)
+### Example 6: RankGauss (Quantile Normal)
+
+```yaml
+scaler_rank_gauss:
+  module: scaler
+  cache: true
+  config:
+    scaling_method: "rank_gauss"
+    n_quantiles: 1000
+```
+
+**Effect**: Rank-based Gaussianization (same transform as quantile_normal).
+
+### Example 7: Power Transform (Yeo-Johnson)
+
+```yaml
+scaler_power_yeo:
+  module: scaler
+  cache: true
+  config:
+    scaling_method: "power_yeo_johnson"
+    power_standardize: true
+```
+
+**Effect**: Applies a power transform that supports zero/negative values.
+
+### Example 8: Winsorization Only (No Scaling)
 
 ```yaml
 scaler_clip_only:
@@ -131,7 +161,7 @@ scaler_clip_only:
 
 **Effect**: Clip extreme values without scaling.
 
-### Example 7: Specific Columns Only
+### Example 9: Specific Columns Only
 
 ```yaml
 scaler_selected:

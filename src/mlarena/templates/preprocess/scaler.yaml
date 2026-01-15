@@ -7,4 +7,5 @@ config:
   log_transform: []
   clip_lower_quantile: null
   clip_upper_quantile: null
+  power_standardize: true
   random_state: 42

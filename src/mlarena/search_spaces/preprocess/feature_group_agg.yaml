@@ -3,6 +3,7 @@ template: feature_group_agg
 
 base_config:
   aggs: [mean, std, min, max, count]
+  quantiles: []
 
 variants:
   - name: manual

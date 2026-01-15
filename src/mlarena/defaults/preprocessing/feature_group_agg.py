@@ -7,6 +7,7 @@ Parameters:
   - group_keys: Columns to group by for aggregations
   - group_value_cols: Value columns to aggregate
   - aggs: Aggregations to compute (e.g., mean, std, min, max, count, nunique)
+  - quantiles: List[float] (optional quantiles to compute)
   - max_generated_features: Guardrail for total new features created
 """
 
@@ -44,10 +45,11 @@ def _apply_group_aggregations(
     group_keys: List[str],
     value_cols: List[str],
     aggs: List[str],
+    quantiles: List[float],
     remaining_slots: int,
     existing_cols: set,
 ) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], Dict[str, Any]]:
-    if not group_keys or not value_cols or not aggs:
+    if not group_keys or not value_cols or (not aggs and not quantiles):
         return train_df, val_df, test_df, orig_df, [], {}
 
     missing_keys = [col for col in group_keys if col not in train_df.columns]
@@ -63,11 +65,26 @@ def _apply_group_aggregations(
         warnings.warn("Group keys missing in test data - skipping aggregations")
         return train_df, val_df, test_df, orig_df, [], {}
 
-    agg_df = train_df[group_keys + value_cols].groupby(group_keys).agg(aggs)
-    agg_df.columns = [
-        f"{'__'.join(group_keys)}__{val_col}__{agg}"
-        for val_col, agg in agg_df.columns
-    ]
+    agg_frames = []
+    if aggs:
+        agg_df = train_df[group_keys + value_cols].groupby(group_keys).agg(aggs)
+        agg_df.columns = [
+            f"{'__'.join(group_keys)}__{val_col}__{agg}"
+            for val_col, agg in agg_df.columns
+        ]
+        agg_frames.append(agg_df)
+
+    if quantiles:
+        for q in quantiles:
+            q_df = train_df[group_keys + value_cols].groupby(group_keys).quantile(q)
+            q_label = f"q{str(q).replace('.', '_')}"
+            q_df.columns = [
+                f"{'__'.join(group_keys)}__{val_col}__quantile_{q_label}"
+                for val_col in q_df.columns
+            ]
+            agg_frames.append(q_df)
+
+    agg_df = pd.concat(agg_frames, axis=1)
     agg_df = agg_df.reset_index()
 
     new_columns = [col for col in agg_df.columns if col not in group_keys]
@@ -104,6 +121,7 @@ def _apply_group_aggregations(
         "group_keys": group_keys,
         "value_columns": value_cols,
         "aggs": aggs,
+        "quantiles": quantiles,
         "generated_columns": renamed_columns,
     }
 
@@ -131,6 +149,7 @@ def fit_transform(
         "group_keys": [],
         "group_value_cols": [],
         "aggs": [],
+        "quantiles": [],
         "max_generated_features": 200,
         "use_original_features_only": True,
     }
@@ -170,7 +189,7 @@ def fit_transform(
             group_keys = [c for c in group_keys if c in orig_set]
             group_value_cols = [c for c in group_value_cols if c in orig_set]
 
-    if group_keys and group_value_cols and config["aggs"]:
+    if group_keys and group_value_cols and (config["aggs"] or config["quantiles"]):
         train_df, val_df, test_df, orig_df, agg_cols_added, group_details = _apply_group_aggregations(
             train_df=train_df,
             val_df=val_df,
@@ -179,6 +198,7 @@ def fit_transform(
             group_keys=group_keys,
             value_cols=group_value_cols,
             aggs=config["aggs"],
+            quantiles=config["quantiles"],
             remaining_slots=max_new,
             existing_cols=existing_cols,
         )

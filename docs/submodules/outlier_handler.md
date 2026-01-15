@@ -2,14 +2,14 @@
 
 ## Overview
 
-The **outlier_handler** sub-module detects and handles outliers in numeric features with configurable strategies. It can clip, set to NA, or just flag outliers. Supports quantile-, IQR-, z-score-based rules and IsolationForest.
+The **outlier_handler** sub-module detects and handles outliers in numeric features with configurable strategies. It can clip, set to NA, trim rows, or just flag outliers. Supports quantile/percentile, IQR, z-score/gaussian, MAD rules and IsolationForest.
 
 **Module Name**: `outlier_handler`  
 **Location**: `src/mlarena/defaults/preprocessing/outlier_handler.py`
 
 ## Capabilities
-- Methods: `quantile`, `iqr`, `zscore`, `isolation_forest`, or `none`.
-- Actions: `clip` (default), `set_na`, `flag_only` (adds `_outlier_flag` columns).
+- Methods: `quantile`, `percentile`, `iqr`, `zscore`, `gaussian`, `mad`, `isolation_forest`, or `none`.
+- Actions: `clip` (default), `set_na`, `flag_only` (adds `_outlier_flag` columns), `trim` (drops rows from train/val/orig).
 - Column selection via `include_cols` / `exclude_cols`; auto-excludes id/target/ignored.
 - IsolationForest option for more flexible detection (uses sklearn).
 
@@ -17,12 +17,14 @@ The **outlier_handler** sub-module detects and handles outliers in numeric featu
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `outlier_method` | str | `"iqr"` | `none`, `quantile`, `iqr`, `zscore`, `isolation_forest` |
-| `action` | str | `"clip"` | `clip`, `set_na`, `flag_only` |
+| `outlier_method` | str | `"iqr"` | `none`, `quantile`, `percentile`, `iqr`, `zscore`, `gaussian`, `mad`, `isolation_forest` |
+| `action` | str | `"clip"` | `clip`, `set_na`, `flag_only`, `trim` |
 | `lower_quantile` | float \| null | `0.01` | Lower bound (quantile method) |
 | `upper_quantile` | float \| null | `0.99` | Upper bound (quantile method) |
 | `iqr_factor` | float | `1.5` | IQR multiplier for bounds |
 | `zscore_threshold` | float | `3.0` | |z| threshold for z-score method |
+| `mad_threshold` | float | `3.5` | Threshold for MAD method |
+| `mad_scale` | float | `1.4826` | Scale factor applied to MAD |
 | `isoforest_contamination` | float | `0.05` | Contamination for IsolationForest |
 | `include_cols` | List[str] \| null | `null` | Specific numeric columns to process (null = auto-detect) |
 | `exclude_cols` | List[str] | `[]` | Additional columns to skip |
@@ -62,6 +64,17 @@ outlier_zscore_flag:
     outlier_method: "zscore"
     zscore_threshold: 3.5
     action: "flag_only"
+```
+
+### MAD Clipping
+```yaml
+outlier_mad_clip:
+  module: outlier_handler
+  cache: true
+  config:
+    outlier_method: "mad"
+    mad_threshold: 3.5
+    action: "clip"
 ```
 
 ### IsolationForest with NA Setting
@@ -104,7 +117,9 @@ outlier_isoforest:
 
 ## Notes & Tips
 - Only numeric columns are processed; run encoders first if you need encoded features handled.
-- Quantile/IQR/Z-score use bounds computed from train and applied consistently to val/test.
+- Quantile/IQR/Z-score/MAD use bounds computed from train and applied consistently to val/test.
+- `gaussian` is an alias of z-score bounds (mean +/- sigma).
 - `flag_only` adds `{col}_outlier_flag` columns and leaves values untouched.
+- `trim` drops outlier rows from train/val/orig (test rows are kept).
 - IsolationForest uses median of inliers for `clip`; `set_na` will introduce NaNs—impute later if needed.
 ***

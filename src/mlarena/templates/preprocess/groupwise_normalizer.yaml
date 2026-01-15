@@ -6,5 +6,9 @@ config:
   add_centered: true
   add_zscore: true
   add_ratio: false
+  reference_stat: mean
+  quantile_value: 0.5
+  zscore_method: std
+  mad_scale: 1.4826
   eps: 1.0e-6
   use_original_features_only: true

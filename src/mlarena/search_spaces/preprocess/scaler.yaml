@@ -6,6 +6,7 @@ base_config:
   numeric_exclude: []
   log_transform: []
   random_state: 42
+  power_standardize: true
 
 variants:
   - name: standard
@@ -23,8 +24,20 @@ variants:
     params:
       scaling_method: {type: choice, values: [quantile_normal]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+  - name: rank_gauss
+    params:
+      scaling_method: {type: choice, values: [rank_gauss]}
+      n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
   - name: quantile_uniform
     params:
       scaling_method: {type: choice, values: [quantile_uniform]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+  - name: power_boxcox
+    params:
+      scaling_method: {type: choice, values: [power_boxcox]}
+      power_standardize: {type: bool}
+  - name: power_yeo_johnson
+    params:
+      scaling_method: {type: choice, values: [power_yeo_johnson]}
+      power_standardize: {type: bool}
 requires_preproc: [{group: imputer}]

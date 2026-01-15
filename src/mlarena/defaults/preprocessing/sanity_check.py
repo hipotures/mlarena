@@ -41,6 +41,7 @@ def fit_transform(
             - column_types_override: Dict mapping column names to types (e.g., {'col': 'int64'})
             - min_unique_fraction: Minimum fraction of unique values to keep column (default: 0.0)
             - max_missing_fraction: Maximum fraction of missing values to keep column (default: 0.95)
+            - max_missing_fraction_row: Maximum fraction of missing values to keep row (default: None)
             - drop_duplicates: Whether to drop duplicate rows (default: True)
             - ignore_columns: List of columns to never drop (default: [])
         orig_df: External dataset (can be None)
@@ -69,6 +70,7 @@ def fit_transform(
         "column_types_override": {},
         "min_unique_fraction": 0.0,
         "max_missing_fraction": 0.95,
+        "max_missing_fraction_row": None,
         "drop_duplicates": True,
         "ignore_columns": [],
     }
@@ -87,6 +89,13 @@ def fit_transform(
         max_value=1.0,
         param_name="max_missing_fraction"
     )
+    if config["max_missing_fraction_row"] is not None:
+        validation.validate_numeric_range(
+            config["max_missing_fraction_row"],
+            min_value=0.0,
+            max_value=1.0,
+            param_name="max_missing_fraction_row"
+        )
 
     # 3. Create sub-module artifact directory
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "sanity_check")
@@ -104,6 +113,7 @@ def fit_transform(
     issues_found = {
         "constant_columns": [],
         "high_missing_columns": [],
+        "high_missing_rows": {},
         "infinite_values": {},
         "duplicate_rows_train": 0,
         "duplicate_rows_test": 0,
@@ -190,7 +200,26 @@ def fit_transform(
     if orig_df is not None:
         orig_df = dataframe_utils.safe_drop_columns(orig_df, columns_to_drop)
 
-    # 6.6. Drop duplicate rows
+    # 6.6. Drop rows with too many missing values
+    if config["max_missing_fraction_row"] is not None:
+        max_missing = config["max_missing_fraction_row"]
+        for df_name, df in [("train", train_df), ("test", test_df), ("val", val_df), ("orig", orig_df)]:
+            if df is None:
+                continue
+            missing_fraction = df.isnull().mean(axis=1)
+            drop_mask = missing_fraction > max_missing
+            issues_found["high_missing_rows"][df_name] = int(drop_mask.sum())
+            if drop_mask.any():
+                if df_name == "train":
+                    train_df = df.loc[~drop_mask].copy()
+                elif df_name == "test":
+                    test_df = df.loc[~drop_mask].copy()
+                elif df_name == "val":
+                    val_df = df.loc[~drop_mask].copy()
+                elif df_name == "orig":
+                    orig_df = df.loc[~drop_mask].copy()
+
+    # 6.7. Drop duplicate rows
     duplicates_removed_train = 0
     duplicates_removed_test = 0
     duplicates_removed_orig = 0

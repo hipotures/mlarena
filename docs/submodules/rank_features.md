@@ -15,9 +15,10 @@ Transforms numeric columns into ranks or percentiles, optionally within groups.
 | `numeric_exclude` | list | `[]` | Columns to exclude. |
 | `group_keys` | list | `[]` | Grouping keys for `by_group` mode. |
 | `mode` | str | `global` | `global` or `by_group`. |
-| `method` | str | `percentile` | `rank` or `percentile`. |
+| `method` | str | `percentile` | `rank`, `percentile`, or `gauss_rank`. |
 | `tie_method` | str | `average` | Rank tie handling: `average`, `min`, `max`, `first`, `dense`. |
 | `add_original` | bool | `true` | Keep original numeric columns. |
+| `fit_on_train` | bool | `false` | If true, compute ranks/percentiles from train distribution and apply to val/test. |
 
 ## Examples
 
@@ -41,10 +42,20 @@ rank_features:
     method: rank
 ```
 
+### RankGauss (Gaussianized Percentiles)
+```yaml
+rank_features:
+  module: rank_features
+  config:
+    mode: global
+    method: gauss_rank
+    fit_on_train: true
+```
+
 ## Artifacts
 - `rank_features_report.json`: List of generated features.
 - `summary.json`: Standard preprocessing summary.
 
 ## Notes & Tips
-- Current implementation ranks each dataset independently (train/val/test).
-- If you need strict train-fitted ranking, implement ECDF-based mapping.
+- `fit_on_train: true` uses the train ECDF for consistent val/test transforms.
+- `gauss_rank` applies an inverse error function to percentiles (requires SciPy).

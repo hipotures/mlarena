@@ -2,9 +2,9 @@
 Numerical Scaling and Transformation Sub-Module
 
 Purpose: Standardization and distribution transformations for models sensitive to scale/distribution
-Libraries: sklearn.preprocessing (StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer), numpy
+Libraries: sklearn.preprocessing (StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer, PowerTransformer), numpy
 Parameters:
-  - scaling_method: Method for scaling (none|standard|minmax|robust|quantile_normal|quantile_uniform)
+  - scaling_method: Method for scaling (none|standard|minmax|robust|quantile_normal|quantile_uniform|rank_gauss|power_boxcox|power_yeo_johnson)
   - numeric_include: List of specific numeric columns to scale (None = all numeric)
   - numeric_exclude: List of numeric columns to exclude from scaling
   - log_transform: List of columns for log1p transformation (applied before scaling)
@@ -24,6 +24,7 @@ from sklearn.preprocessing import (
     MinMaxScaler,
     RobustScaler,
     QuantileTransformer,
+    PowerTransformer,
 )
 
 from mlarena.preprocessing.utils import (
@@ -52,7 +53,7 @@ def fit_transform(
         config: Configuration dictionary with keys:
             - _artifact_dir: Path to save artifacts
             - _dataset: {id_column, target, ignored_columns}
-            - scaling_method: Scaling method (none|standard|minmax|robust|quantile_normal|quantile_uniform)
+            - scaling_method: Scaling method (none|standard|minmax|robust|quantile_normal|quantile_uniform|rank_gauss|power_boxcox|power_yeo_johnson)
             - numeric_include: Specific columns to scale (None = all numeric)
             - numeric_exclude: Columns to exclude from scaling
             - log_transform: Columns for log1p transformation
@@ -60,6 +61,7 @@ def fit_transform(
             - clip_upper_quantile: Upper quantile for clipping (0.0-1.0)
             - n_quantiles: Number of quantiles for QuantileTransformer
             - random_state: Random state for QuantileTransformer
+            - power_standardize: Standardize after power transform (default: True)
         orig_df: External dataset (can be None)
         eval_df: Evaluation dataset (can be None)
 
@@ -95,11 +97,22 @@ def fit_transform(
         "clip_upper_quantile": None,
         "n_quantiles": 1000,
         "random_state": 42,
+        "power_standardize": True,
     }
     validation.validate_config(config, required_params, optional_params)
 
     # Validate scaling method
-    valid_methods = ["none", "standard", "minmax", "robust", "quantile_normal", "quantile_uniform"]
+    valid_methods = [
+        "none",
+        "standard",
+        "minmax",
+        "robust",
+        "quantile_normal",
+        "quantile_uniform",
+        "rank_gauss",
+        "power_boxcox",
+        "power_yeo_johnson",
+    ]
     validation.validate_choice(
         config["scaling_method"],
         valid_methods,
@@ -241,18 +254,26 @@ def fit_transform(
             scaler = MinMaxScaler()
         elif config["scaling_method"] == "robust":
             scaler = RobustScaler()
-        elif config["scaling_method"] == "quantile_normal":
+        elif config["scaling_method"] in ["quantile_normal", "rank_gauss"]:
             scaler = QuantileTransformer(
-                n_quantiles=config["n_quantiles"],
+                n_quantiles=min(config["n_quantiles"], len(train_df)),
                 output_distribution="normal",
                 random_state=config["random_state"],
             )
         elif config["scaling_method"] == "quantile_uniform":
             scaler = QuantileTransformer(
-                n_quantiles=config["n_quantiles"],
+                n_quantiles=min(config["n_quantiles"], len(train_df)),
                 output_distribution="uniform",
                 random_state=config["random_state"],
             )
+        elif config["scaling_method"] == "power_boxcox":
+            if (train_df[numeric_cols] <= 0).any().any():
+                raise ValueError("power_boxcox requires strictly positive values. Use power_yeo_johnson or shift data.")
+            scaler = PowerTransformer(method="box-cox", standardize=config["power_standardize"])
+        elif config["scaling_method"] == "power_yeo_johnson":
+            scaler = PowerTransformer(method="yeo-johnson", standardize=config["power_standardize"])
+        else:
+            raise ValueError(f"Unknown scaling_method: {config['scaling_method']}")
 
         # Fit on train data
         scaler.fit(train_df[numeric_cols])

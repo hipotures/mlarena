@@ -6,6 +6,8 @@ config:
   lower_quantile: 0.01
   upper_quantile: 0.99
   zscore_threshold: 3.0
+  mad_threshold: 3.5
+  mad_scale: 1.4826
   isoforest_contamination: 0.05
   action: clip
   include_cols: null

@@ -4,4 +4,5 @@ config:
   method: percentile
   tie_method: average
   add_original: true
+  fit_on_train: false
   use_original_features_only: true

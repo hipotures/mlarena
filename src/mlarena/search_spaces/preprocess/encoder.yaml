@@ -9,6 +9,18 @@ base_config:
   unknown_value: -1
   target_encoding_smoothing: 1.0
   target_encoding_min_samples: 1
+  ce_handle_unknown: value
+  ce_handle_missing: value
+  ce_drop_invariant: false
+  loo_sigma: null
+  m_estimate_m: 1.0
+  m_estimate_sigma: 0.05
+  james_stein_sigma: 0.05
+  glmm_sigma: 0.05
+  glmm_binomial_target: null
+  woe_sigma: 0.05
+  woe_regularization: 1.0
+  base_n: 2
   oof_folds: 5
   oof_shuffle: true
   oof_random_state: 42
@@ -45,6 +57,34 @@ variants:
     params:
       encoding_method: {type: choice, values: [hashing]}
       hash_dim: {type: int_range, min: 4, max: 16}
+  - name: leave_one_out
+    params:
+      encoding_method: {type: choice, values: [leave_one_out]}
+      loo_sigma: {type: float_range, min: 0.0, max: 0.5}
+  - name: m_estimate
+    params:
+      encoding_method: {type: choice, values: [m_estimate]}
+      m_estimate_m: {type: loguniform, min: 0.1, max: 100.0}
+  - name: james_stein
+    params:
+      encoding_method: {type: choice, values: [james_stein]}
+      james_stein_sigma: {type: float_range, min: 0.0, max: 1.0}
+  - name: glmm
+    params:
+      encoding_method: {type: choice, values: [glmm]}
+      glmm_sigma: {type: float_range, min: 0.0, max: 1.0}
+  - name: woe
+    params:
+      encoding_method: {type: choice, values: [woe]}
+      woe_regularization: {type: loguniform, min: 0.01, max: 10.0}
+      woe_sigma: {type: float_range, min: 0.0, max: 1.0}
+  - name: binary
+    params:
+      encoding_method: {type: choice, values: [binary]}
+  - name: base_n
+    params:
+      encoding_method: {type: choice, values: [base_n]}
+      base_n: {type: int_range, min: 2, max: 10}
   - name: count
     params:
       encoding_method: {type: choice, values: [count]}

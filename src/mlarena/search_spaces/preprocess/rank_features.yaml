@@ -9,6 +9,7 @@ base_config:
   method: percentile
   tie_method: average
   add_original: true
+  fit_on_train: false
 
 variants:
   - name: global_percentile
@@ -16,11 +17,19 @@ variants:
       mode: {type: choice, values: [global]}
       method: {type: choice, values: [percentile]}
       tie_method: {type: choice, values: [average, min, max]}
+      fit_on_train: {type: bool}
   - name: global_rank
     params:
       mode: {type: choice, values: [global]}
       method: {type: choice, values: [rank]}
       tie_method: {type: choice, values: [average, min, max]}
+      fit_on_train: {type: bool}
+  - name: global_gauss
+    params:
+      mode: {type: choice, values: [global]}
+      method: {type: choice, values: [gauss_rank]}
+      tie_method: {type: choice, values: [average, min, max]}
+      fit_on_train: {type: bool}
   - name: group_percentile
     params:
       mode: {type: choice, values: [by_group]}

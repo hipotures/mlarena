@@ -12,6 +12,11 @@ base_config:
   random_state: 42
   max_drop_fraction: 0.5
   protect_cb_features: true
+  perm_importance_repeats: 5
+  perm_importance_scoring: null
+  perm_importance_max_samples: null
+  null_importance_rounds: 10
+  null_importance_quantile: 0.95
 
 variants:
   - name: variance
@@ -33,3 +38,14 @@ variants:
       selection_method: {type: choice, values: [model_importance]}
       n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
       importance_model_type: {type: choice, values: [lgbm, xgb, rf]}
+  - name: permutation_importance
+    params:
+      selection_method: {type: choice, values: [permutation_importance]}
+      n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+      perm_importance_repeats: {type: int_range, min: 3, max: 10}
+  - name: null_importance
+    params:
+      selection_method: {type: choice, values: [null_importance]}
+      n_features: {type: float_range, min: 0.3, max: 0.9, step: 0.1, round: 2}
+      null_importance_rounds: {type: int_range, min: 5, max: 30}
+      null_importance_quantile: {type: float_range, min: 0.8, max: 0.99, step: 0.01, round: 2}

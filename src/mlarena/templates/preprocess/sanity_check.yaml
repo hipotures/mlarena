@@ -3,6 +3,7 @@ cache: true
 config:
   min_unique_fraction: 0.01
   max_missing_fraction: 0.95
+  max_missing_fraction_row: null
   drop_duplicates: true
   column_types_override: {}
   ignore_columns: []

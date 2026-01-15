@@ -199,7 +199,7 @@ class MCTSStorage:
         params: Optional[Dict[str, Any]] = None,
         state: TrialState = TrialState.WAITING,
         conn: Optional[sqlite3.Connection] = None
-    ) -> int:
+    ) -> tuple[int, int]:
         
         # Max retries for number collision
         max_retries = 10
@@ -219,7 +219,11 @@ class MCTSStorage:
                 
                 existing = cur.fetchone()
                 if existing:
-                    return existing[0]
+                    tid = existing[0]
+                    # Fetch trial number
+                    cur.execute("SELECT number FROM trials WHERE trial_id = ?", (tid,))
+                    tnum = cur.fetchone()[0]
+                    return tid, tnum
 
                 try:
                     # Inner savepoint for retry
@@ -251,7 +255,7 @@ class MCTSStorage:
                     )
                     
                     c.execute(f"RELEASE SAVEPOINT trial_creation_{attempt}")
-                    return trial_id
+                    return trial_id, trial_number
                     
                 except sqlite3.IntegrityError:
                     # Explicitly rollback and release if needed (SQLite release happens automatically on commit/rollback of parent, but we use sub-savepoints)
@@ -263,7 +267,7 @@ class MCTSStorage:
                         raise
                     time.sleep(random.uniform(0.01, 0.1)) # Backoff
             
-            return -1 # Should not happen
+            return -1, -1 # Should not happen
 
         if conn:
             return _exec(conn)
@@ -385,7 +389,7 @@ class MCTSStorage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             query = """
-                SELECT n.* FROM mcts_nodes n
+                SELECT n.*, t.number FROM mcts_nodes n
                 JOIN trials t ON t.trial_id = n.trial_id
                 WHERE t.study_id = ?
             """

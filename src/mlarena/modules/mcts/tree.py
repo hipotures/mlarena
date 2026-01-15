@@ -22,6 +22,7 @@ class MCTSNode:
     children: List[MCTSNode] = field(default_factory=list)
     
     trial_id: Optional[int] = None
+    number: Optional[int] = None
     n_visits: int = 0
     value_sum: float = 0.0
     value_best: float = -float('inf')
@@ -78,6 +79,7 @@ class MCTSTree:
             state_groups = self.initial_groups if sig == "baseline" else {}
             node = MCTSNode(state=PipelineState(used_groups=state_groups)) 
             node.trial_id = n["trial_id"]
+            node.number = n.get("number")
             node.n_visits = n["n_visits"]
             node.value_sum = n["value_sum"]
             node.value_best = n["value_best"] if n["value_best"] is not None else -float('inf')

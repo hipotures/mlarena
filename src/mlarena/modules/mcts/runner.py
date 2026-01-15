@@ -371,6 +371,14 @@ class MCTSRunner:
                     
                 # 1. Create trial and edge in one transaction
                 with self.storage.atomic() as conn:
+                    if node.trial_id is None:
+                        # Try to recover (resume case). If it fails, abort to avoid corrupting the tree.
+                        if not self._sync_root_from_baseline_db():
+                            raise RuntimeError(
+                                "MCTS parent has no trial_id (root not initialized). "
+                                "Refusing to create root-level nodes that would break resume."
+                            )
+
                     trial_id, trial_number = self.storage.create_trial(
                         study_id=self.study_id,
                         pipeline_signature=child.state.signature,
@@ -589,10 +597,10 @@ class MCTSRunner:
         
         # Add Baseline as the first virtual node
         base_score = self.tree.root.value_best
-        base_score_str = f"{base_score:.4f}" if base_score > -float('inf') and base_score != 0.0 else "N/A"
+        base_score_str = f"{base_score:.4f}" if base_score is not None else "N/A"
         
         is_base_best = False
-        if base_score > -float('inf') and abs(base_score - best_score) < 1e-7:
+        if base_score is not None and abs(base_score - best_score) < 1e-7:
             is_base_best = True
             
         base_no = self.tree.root.number if self.tree.root.number is not None else 0
@@ -605,10 +613,10 @@ class MCTSRunner:
             for child in mcts_node.children:
                 trial_no = child.number if child.number is not None else "?"
                 score = child.value_best
-                score_str = f"{score:.4f}" if score > -float('inf') and score != 0.0 else "N/A"
+                score_str = f"{score:.4f}" if score is not None else "N/A"
                 
                 is_best = False
-                if score > -float('inf') and abs(score - best_score) < 1e-7:
+                if score is not None and abs(score - best_score) < 1e-7:
                     is_best = True
                 
                 label = f"{trial_no}/F2/{score_str}"
@@ -621,8 +629,19 @@ class MCTSRunner:
         return root_tree
 
     def _evaluate_baseline(self):
-        if self.tree.root.n_visits > 0:
-            self.logger.info(f"Baseline already exists (visits: {self.tree.root.n_visits}, best: {self.tree.root.value_best}).")
+        # Prefer DB as source of truth on resume.
+        if self._sync_root_from_baseline_db():
+            self.logger.info(
+                f"Baseline loaded from DB (trial_id={self.tree.root.trial_id}, "
+                f"visits={self.tree.root.n_visits}, best={self.tree.root.value_best})."
+            )
+            return
+        # Fallback: if in-memory root was already populated somehow.
+        if self.tree.root.n_visits > 0 and self.tree.root.trial_id is not None:
+            self.logger.info(
+                f"Baseline already exists in memory (trial_id={self.tree.root.trial_id}, "
+                f"visits={self.tree.root.n_visits}, best={self.tree.root.value_best})."
+            )
             return
 
         with self.storage._connect() as conn:
@@ -685,7 +704,10 @@ class MCTSRunner:
             self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
             self.storage.add_evaluation(trial_id, "F2", "COMPLETE", result.value, result.metric, result.duration, result.details)
             self.logger.debug(f"[BACKPROP] Propagating baseline value {result.value:.4f}")
-            self.tree.root.update(result.value)
+            # Critical: attach DB identity to root so children are linked to baseline after resume.
+            self.tree.root.trial_id = trial_id
+            self.tree.root.number = trial_number
+            self.tree.root.update(result.value, direction=self.config.direction)
             
             # PERSIST root stats
             self.storage.update_node_stats(trial_id, self.tree.root.n_visits, self.tree.root.value_sum, self.tree.root.value_best)
@@ -839,3 +861,23 @@ class MCTSRunner:
                 "config": step["config"]
             }
         return params
+
+    def _sync_root_from_baseline_db(self) -> bool:
+        """
+        Ensure self.tree.root has trial_id/number/stats loaded from DB baseline (trial number 0).
+        Returns True if baseline exists in DB and was loaded.
+        """
+        try:
+            baseline = self.storage.get_trial_by_number(self.study_id, 0)
+        except Exception:
+            baseline = None
+        if not baseline or not baseline.get("trial_id"):
+            return False
+
+        self.tree.root.trial_id = int(baseline["trial_id"])
+        self.tree.root.number = int(baseline.get("number") or 0)
+        self.tree.root.n_visits = int(baseline.get("n_visits") or 0)
+        self.tree.root.value_sum = float(baseline.get("value_sum") or 0.0)
+        vb = baseline.get("value_best")
+        self.tree.root.value_best = float(vb) if vb is not None else -float("inf")
+        return True

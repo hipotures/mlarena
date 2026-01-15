@@ -2,7 +2,7 @@ from __future__ import annotations
 import math
 import random
 import json
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from dataclasses import dataclass, field
 
 from mlarena.modules.mcts.config import MCTSConfig
@@ -25,7 +25,7 @@ class MCTSNode:
     number: Optional[int] = None
     n_visits: int = 0
     value_sum: float = 0.0
-    value_best: float = -float('inf')
+    value_best: Optional[float] = None
     
     # Base action pool (operator candidates: step+variant) cached per node.
     action_pool: Optional[List[Action]] = None
@@ -36,11 +36,17 @@ class MCTSNode:
             return 0.0
         return self.value_sum / self.n_visits
 
-    def update(self, value: float):
+    def update(self, value: float, *, direction: Literal["minimize", "maximize"] = "maximize"):
         self.n_visits += 1
         self.value_sum += value
-        if value > self.value_best:
+        if self.value_best is None:
             self.value_best = value
+        elif direction == "minimize":
+            if value < self.value_best:
+                self.value_best = value
+        else:
+            if value > self.value_best:
+                self.value_best = value
 
 class MCTSTree:
     def __init__(
@@ -82,7 +88,7 @@ class MCTSTree:
             node.number = n.get("number")
             node.n_visits = n["n_visits"]
             node.value_sum = n["value_sum"]
-            node.value_best = n["value_best"] if n["value_best"] is not None else -float('inf')
+            node.value_best = n.get("value_best")
             
             node_map[node.trial_id] = node
             
@@ -302,7 +308,7 @@ class MCTSTree:
                 # Use standard print or logger if available
                 break
             seen.add(id(current))
-            current.update(value)
+            current.update(value, direction=self.config.direction)
             current = current.parent
 
     def _best_child(self, node: MCTSNode) -> MCTSNode:
@@ -315,11 +321,15 @@ class MCTSTree:
         
         c = self.config.exploration_weight
         ln_n = math.log(node.n_visits) if node.n_visits > 0 else 0
+        minimize = (self.config.direction == "minimize")
         
         logger.debug(f"[SELECTION] Evaluating {len(node.children)} children of node {node.trial_id or 'Root'}:")
         
         for child in node.children:
             exploit = child.value_mean
+            # Convert to "higher is better" for selection when minimizing.
+            if minimize:
+                exploit = -exploit
             if child.n_visits > 0:
                 explore = c * math.sqrt(ln_n / child.n_visits)
             else:

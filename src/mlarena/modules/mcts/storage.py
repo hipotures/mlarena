@@ -5,7 +5,7 @@ import contextlib
 import time
 import random
 from enum import IntEnum
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 
 class StudyDirection(IntEnum):
@@ -396,7 +396,26 @@ class MCTSStorage:
             cur.execute(query, (study_id,))
             return [dict(row) for row in cur.fetchall()]
 
-    def update_node_stats(self, trial_id: int, n_visits: int, value_sum: float, value_best: float, conn: Optional[sqlite3.Connection] = None):
+    def get_trial_by_number(self, study_id: int, number: int) -> Optional[Dict[str, Any]]:
+        """Fetch a trial (+ node stats if present) by its trial.number within a study."""
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            query = """
+                SELECT 
+                    t.trial_id, t.number,
+                    n.parent_trial_id, n.pipeline_signature, n.depth,
+                    n.n_visits, n.value_sum, n.value_best
+                FROM trials t
+                LEFT JOIN mcts_nodes n ON n.trial_id = t.trial_id
+                WHERE t.study_id = ? AND t.number = ?
+                LIMIT 1
+            """
+            cur.execute(query, (study_id, number))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def update_node_stats(self, trial_id: int, n_visits: int, value_sum: float, value_best: Optional[float], conn: Optional[sqlite3.Connection] = None):
         if conn:
             conn.execute(
                 "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
@@ -410,8 +429,8 @@ class MCTSStorage:
                 )
                 c.commit()
 
-    def update_node_stats_many(self, updates: List[tuple[int, int, float, float]], conn: Optional[sqlite3.Connection] = None):
-        """Batch update node stats. updates is list of (trial_id, n_visits, value_sum, value_best)."""
+    def update_node_stats_many(self, updates: List[Tuple[int, int, float, Optional[float]]], conn: Optional[sqlite3.Connection] = None):
+        """Batch update node stats. updates is list of (trial_id, n_visits, value_sum, value_best|None)."""
         query = "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?"
         # Reorder params to match query: (n_visits, value_sum, value_best, trial_id)
         params = [(u[1], u[2], u[3], u[0]) for u in updates]

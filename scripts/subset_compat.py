@@ -25,6 +25,8 @@ import json
 import math
 import os
 import sys
+import concurrent.futures
+import warnings
 from dataclasses import dataclass, asdict
 from importlib.util import spec_from_file_location, module_from_spec
 from typing import Any, Dict, List, Optional, Tuple
@@ -33,6 +35,7 @@ import numpy as np
 import pandas as pd
 
 from sklearn.compose import ColumnTransformer
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -40,6 +43,12 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
+# Suppress convergence warnings from LogisticRegression
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 
 # ----------------------------
@@ -284,36 +293,31 @@ def make_stratify_bins_for_target(y: pd.Series, problem_type: str, n_bins: int =
 
 
 def stratified_sample_indices(
-    n_total: int,
-    n_sample: int,
+    total_n: int,
+    sample_n: int,
     stratify_labels: Optional[np.ndarray],
     seed: int,
 ) -> np.ndarray:
     rng = np.random.default_rng(seed)
-    idx = np.arange(n_total)
+    idx = np.arange(total_n)
 
     if stratify_labels is None:
-        return rng.choice(idx, size=n_sample, replace=False)
+        return rng.choice(idx, size=sample_n, replace=False)
 
-    # sample proportionally per stratum
     labels = np.asarray(stratify_labels)
-    if len(labels) != n_total:
-        raise ValueError(
-            f"stratify_labels length ({len(labels)}) does not match n_total ({n_total})"
-        )
-    uniq, counts = np.unique(labels, return_counts=True)
-    # desired counts per stratum (rounded, with adjustment)
-    desired = np.floor(counts / counts.sum() * n_sample).astype(int)
+    if len(labels) != total_n:
+        raise ValueError(f"stratify_labels length {len(labels)} != total_n {total_n}")
 
-    # fix rounding so total == n
-    diff = n_sample - desired.sum()
+    uniq, counts = np.unique(labels, return_counts=True)
+    desired = np.floor(counts / counts.sum() * sample_n).astype(int)
+
+    diff = sample_n - desired.sum()
     if diff > 0:
-        # distribute remaining to largest strata
         order = np.argsort(-counts)
         for k in range(diff):
             desired[order[k % len(order)]] += 1
     elif diff < 0:
-        order = np.argsort(counts)  # remove from smallest
+        order = np.argsort(counts)
         for k in range(-diff):
             j = order[k % len(order)]
             if desired[j] > 0:
@@ -330,13 +334,12 @@ def stratified_sample_indices(
             chosen.extend(rng.choice(stratum_idx, size=d, replace=False).tolist())
 
     chosen = np.array(chosen, dtype=int)
-    # if due to edge cases we have less/more, fix by random fill/trim
-    if len(chosen) < n_sample:
+    if len(chosen) < sample_n:
         remaining = np.setdiff1d(idx, chosen, assume_unique=False)
-        extra = rng.choice(remaining, size=n_sample - len(chosen), replace=False)
+        extra = rng.choice(remaining, size=sample_n - len(chosen), replace=False)
         chosen = np.concatenate([chosen, extra])
-    elif len(chosen) > n_sample:
-        chosen = rng.choice(chosen, size=n_sample, replace=False)
+    elif len(chosen) > sample_n:
+        chosen = rng.choice(chosen, size=sample_n, replace=False)
 
     return chosen
 
@@ -387,6 +390,122 @@ def compute_psi_bundle(
     return psi_map
 
 
+def evaluate_single_fraction(
+    frac: float,
+    df: pd.DataFrame,
+    n_total: int,
+    target_col: str,
+    strat_labels: Optional[np.ndarray],
+    seed: int,
+    thresholds: Thresholds,
+    numeric_cols: List[str],
+    categorical_cols: List[str],
+    min_rest_rows: int,
+    psi_bins: int,
+    adv_cv_splits: int,
+    adv_max_rows_per_side: int,
+) -> FractionResult:
+    n_sub = int(round(n_total * frac))
+    n_sub = max(1, min(n_sub, n_total))
+    n_rest = n_total - n_sub
+
+    notes: List[str] = []
+
+    if frac == 1.0:
+        return FractionResult(
+            fraction=frac,
+            n_subset=n_sub,
+            n_rest=n_rest,
+            pass_fail="PASS",
+            adv_auc=None,
+            max_psi=0.0,
+            bad_psi_frac=0.0,
+            target_psi=0.0,
+            top_drifting_features=[],
+            notes=["fraction=1.0: subset == full; metrics skipped"],
+        )
+
+    if n_rest < min_rest_rows:
+        notes.append(f"small_rest(n_rest={n_rest}) may be noisy")
+
+    sub_idx = stratified_sample_indices(
+        total_n=n_total,
+        sample_n=n_sub,
+        stratify_labels=strat_labels,
+        seed=seed + int(frac * 1000),
+    )
+    mask = np.zeros(n_total, dtype=bool)
+    mask[sub_idx] = True
+
+    df_sub = df.loc[mask].reset_index(drop=True)
+    df_rest = df.loc[~mask].reset_index(drop=True)
+
+    # PSI features (subset vs rest)
+    psi_map = compute_psi_bundle(df_sub, df_rest, numeric_cols, categorical_cols, bins=psi_bins)
+    psi_vals = np.array(list(psi_map.values()), dtype=float) if psi_map else np.array([], dtype=float)
+
+    max_psi = float(np.nanmax(psi_vals)) if psi_vals.size else float("nan")
+    bad_frac = float(np.mean(psi_vals > thresholds.psi_max)) if psi_vals.size else float("nan")
+
+    # target PSI
+    if pd.api.types.is_numeric_dtype(df[target_col]):
+        target_psi = psi_numeric(df_rest[target_col], df_sub[target_col], bins=psi_bins)
+    else:
+        target_psi = psi_categorical(df_rest[target_col], df_sub[target_col])
+
+    # Adversarial AUC
+    X_sub = df_sub[numeric_cols + categorical_cols].copy()
+    X_rest = df_rest[numeric_cols + categorical_cols].copy()
+    adv_auc = adversarial_auc(
+        X_sub, X_rest,
+        numeric_cols=numeric_cols,
+        categorical_cols=categorical_cols,
+        seed=seed + int(frac * 1000),
+        n_splits=adv_cv_splits,
+        max_rows_per_side=adv_max_rows_per_side,
+    )
+
+    # top drifting features
+    top = sorted(psi_map.items(), key=lambda kv: kv[1], reverse=True)[:10]
+
+    # PASS/FAIL
+    checks = []
+    if not math.isnan(adv_auc):
+        checks.append(adv_auc <= thresholds.adv_auc_max)
+    else:
+        notes.append("adv_auc=nan (insufficient rows?)")
+        checks.append(False)
+
+    if not math.isnan(max_psi):
+        checks.append(max_psi <= thresholds.psi_max)
+    else:
+        notes.append("max_psi=nan")
+        checks.append(False)
+
+    if not math.isnan(bad_frac):
+        checks.append(bad_frac <= thresholds.psi_bad_frac_max)
+    else:
+        notes.append("bad_psi_frac=nan")
+        checks.append(False)
+
+    checks.append(target_psi <= thresholds.target_psi_max)
+
+    pass_fail = "PASS" if all(checks) else "FAIL"
+
+    return FractionResult(
+        fraction=frac,
+        n_subset=n_sub,
+        n_rest=n_rest,
+        pass_fail=pass_fail,
+        adv_auc=float(adv_auc) if not math.isnan(adv_auc) else None,
+        max_psi=float(max_psi) if not math.isnan(max_psi) else None,
+        bad_psi_frac=float(bad_frac) if not math.isnan(bad_frac) else None,
+        target_psi=float(target_psi),
+        top_drifting_features=[(k, float(v)) for k, v in top],
+        notes=notes,
+    )
+
+
 def evaluate_fractions(
     df: pd.DataFrame,
     target_col: str,
@@ -401,6 +520,7 @@ def evaluate_fractions(
     psi_bins: int = 10,
     adv_cv_splits: int = 5,
     adv_max_rows_per_side: int = 200_000,
+    n_threads: int = 4,
 ) -> List[FractionResult]:
     n_total = len(df)
     if n_total < 10:
@@ -426,9 +546,18 @@ def evaluate_fractions(
 
     results: List[FractionResult] = []
 
-    fractions = [round(x, 2) for x in np.arange(1.0, 0.0, -step)]
-    if fractions[-1] != round(step, 2):
-        fractions.append(round(step, 2))
+    if math.isclose(step, 0.10):
+        # extended default set
+        fractions = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 
+                     0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
+    else:
+        # strict arithmetic
+        fractions = [round(x, 4) for x in np.arange(1.0, 0.0, -step)]
+        if fractions[-1] != round(step, 4):
+            fractions.append(round(step, 4))
+    
+    # filter out duplicates and ensure valid range
+    fractions = sorted(list(set(f for f in fractions if 0.0 < f <= 1.0)), reverse=True)
 
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -437,127 +566,78 @@ def evaluate_fractions(
         TimeElapsedColumn(),
         TimeRemainingColumn(),
     )
+
     with progress:
         task = progress.add_task("subset-compat", total=len(fractions))
-        for frac in fractions:
-            n_sub = int(round(n_total * frac))
-            n_sub = max(1, min(n_sub, n_total))
-            n_rest = n_total - n_sub
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
+            future_to_frac = {
+                executor.submit(
+                    evaluate_single_fraction,
+                    frac,
+                    df,
+                    n_total,
+                    target_col,
+                    strat_labels,
+                    seed,
+                    thresholds,
+                    used_num,
+                    used_cat,
+                    min_rest_rows,
+                    psi_bins,
+                    adv_cv_splits,
+                    adv_max_rows_per_side
+                ): frac
+                for frac in fractions
+            }
 
-            notes: List[str] = []
+            for future in concurrent.futures.as_completed(future_to_frac):
+                try:
+                    res = future.result()
+                    results.append(res)
+                except Exception as exc:
+                    print(f"Fraction generated an exception: {exc}")
+                finally:
+                    progress.advance(task)
 
-            if frac == 1.0:
-                results.append(FractionResult(
-                    fraction=frac,
-                    n_subset=n_sub,
-                    n_rest=n_rest,
-                    pass_fail="PASS",
-                    adv_auc=None,
-                    max_psi=0.0,
-                    bad_psi_frac=0.0,
-                    target_psi=0.0,
-                    top_drifting_features=[],
-                    notes=["fraction=1.0: subset == full; metrics skipped"],
-                ))
-                progress.advance(task)
-                continue
-
-            if n_rest < min_rest_rows:
-                # still compute (might be noisy), but flag
-                notes.append(f"small_rest(n_rest={n_rest}) may be noisy")
-
-            sub_idx = stratified_sample_indices(
-                n_total,
-                n_sub,
-                stratify_labels=strat_labels,
-                seed=seed + int(frac * 1000),
-            )
-            mask = np.zeros(n_total, dtype=bool)
-            mask[sub_idx] = True
-
-            df_sub = df.loc[mask].reset_index(drop=True)
-            df_rest = df.loc[~mask].reset_index(drop=True)
-
-            # PSI features (subset vs rest)
-            psi_map = compute_psi_bundle(df_sub, df_rest, used_num, used_cat, bins=psi_bins)
-            psi_vals = np.array(list(psi_map.values()), dtype=float) if psi_map else np.array([], dtype=float)
-
-            max_psi = float(np.nanmax(psi_vals)) if psi_vals.size else float("nan")
-            bad_frac = float(np.mean(psi_vals > thresholds.psi_max)) if psi_vals.size else float("nan")
-
-            # target PSI
-            if pd.api.types.is_numeric_dtype(df[target_col]):
-                target_psi = psi_numeric(df_rest[target_col], df_sub[target_col], bins=psi_bins)
-            else:
-                target_psi = psi_categorical(df_rest[target_col], df_sub[target_col])
-
-            # Adversarial AUC
-            X_sub = df_sub[used_num + used_cat].copy()
-            X_rest = df_rest[used_num + used_cat].copy()
-            adv_auc = adversarial_auc(
-                X_sub, X_rest,
-                numeric_cols=used_num,
-                categorical_cols=used_cat,
-                seed=seed + int(frac * 1000),
-                n_splits=adv_cv_splits,
-                max_rows_per_side=adv_max_rows_per_side,
-            )
-
-            # top drifting features
-            top = sorted(psi_map.items(), key=lambda kv: kv[1], reverse=True)[:10]
-
-            # PASS/FAIL
-            checks = []
-            if not math.isnan(adv_auc):
-                checks.append(adv_auc <= thresholds.adv_auc_max)
-            else:
-                notes.append("adv_auc=nan (insufficient rows?)")
-                checks.append(False)
-
-            if not math.isnan(max_psi):
-                checks.append(max_psi <= thresholds.psi_max)
-            else:
-                notes.append("max_psi=nan")
-                checks.append(False)
-
-            if not math.isnan(bad_frac):
-                checks.append(bad_frac <= thresholds.psi_bad_frac_max)
-            else:
-                notes.append("bad_psi_frac=nan")
-                checks.append(False)
-
-            checks.append(target_psi <= thresholds.target_psi_max)
-
-            pass_fail = "PASS" if all(checks) else "FAIL"
-
-            results.append(FractionResult(
-                fraction=frac,
-                n_subset=n_sub,
-                n_rest=n_rest,
-                pass_fail=pass_fail,
-                adv_auc=float(adv_auc) if not math.isnan(adv_auc) else None,
-                max_psi=float(max_psi) if not math.isnan(max_psi) else None,
-                bad_psi_frac=float(bad_frac) if not math.isnan(bad_frac) else None,
-                target_psi=float(target_psi),
-                top_drifting_features=[(k, float(v)) for k, v in top],
-                notes=notes,
-            ))
-            progress.advance(task)
-
+    # Sort results because async execution returns them in random order
+    results.sort(key=lambda x: x.fraction, reverse=True)
     return results
 
 
 def print_results_table(results: List[FractionResult]) -> None:
-    cols = ["fraction", "n_subset", "n_rest", "PASS/FAIL", "adv_auc", "max_psi", "bad_psi_frac", "target_psi"]
-    print("\t".join(cols))
+    console = Console()
+    table = Table(title="Subset Compatibility Analysis", box=box.ROUNDED)
+
+    table.add_column("Fraction", justify="right", style="cyan", no_wrap=True)
+    table.add_column("N Subset", justify="right", style="magenta")
+    table.add_column("N Rest", justify="right", style="magenta")
+    table.add_column("Status", justify="center")
+    table.add_column("Adv AUC", justify="right")
+    table.add_column("Max PSI", justify="right")
+    table.add_column("Bad PSI %", justify="right")
+    table.add_column("Target PSI", justify="right")
+
     for r in results:
-        print(
-            f"{r.fraction:.2f}\t{r.n_subset}\t{r.n_rest}\t{r.pass_fail}\t"
-            f"{'' if r.adv_auc is None else f'{r.adv_auc:.4f}'}\t"
-            f"{'' if r.max_psi is None else f'{r.max_psi:.4f}'}\t"
-            f"{'' if r.bad_psi_frac is None else f'{r.bad_psi_frac:.4f}'}\t"
-            f"{'' if r.target_psi is None else f'{r.target_psi:.4f}'}"
+        status_style = "green bold" if r.pass_fail == "PASS" else "red bold"
+        
+        adv_auc_str = f"{r.adv_auc:.8f}" if r.adv_auc is not None else "-"
+        max_psi_str = f"{r.max_psi:.8f}" if r.max_psi is not None else "-"
+        bad_psi_frac_str = f"{r.bad_psi_frac:.8f}" if r.bad_psi_frac is not None else "-"
+        target_psi_str = f"{r.target_psi:.8f}" if r.target_psi is not None else "-"
+
+        table.add_row(
+            f"{r.fraction:.4f}",
+            str(r.n_subset),
+            str(r.n_rest),
+            f"[{status_style}]{r.pass_fail}[/{status_style}]",
+            adv_auc_str,
+            max_psi_str,
+            bad_psi_frac_str,
+            target_psi_str,
         )
+
+    console.print(table)
 
 
 def main() -> int:
@@ -571,6 +651,7 @@ def main() -> int:
     ap.add_argument("--psi-bins", type=int, default=10)
     ap.add_argument("--adv-cv-splits", type=int, default=5)
     ap.add_argument("--adv-max-rows-per-side", type=int, default=200_000)
+    ap.add_argument("--threads", type=int, default=4, help="Number of parallel threads (default 4)")
     ap.add_argument("--out-json", default=None, help="Optional path to save detailed JSON report")
     # thresholds
     ap.add_argument("--thr-adv-auc", type=float, default=0.55)
@@ -624,6 +705,7 @@ def main() -> int:
         psi_bins=args.psi_bins,
         adv_cv_splits=args.adv_cv_splits,
         adv_max_rows_per_side=args.adv_max_rows_per_side,
+        n_threads=args.threads,
     )
 
     print_results_table(results)

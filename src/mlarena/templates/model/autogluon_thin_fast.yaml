@@ -1,7 +1,7 @@
 model: autogluon_baseline
 preset: medium
 time_limit: 1800
-use_gpu: false
+use_gpu: true
 seed: 42
 included_model_types:
   - GBM

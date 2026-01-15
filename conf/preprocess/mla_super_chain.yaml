@@ -219,7 +219,7 @@ preprocessors:
 - name: adversarial_validation
   group: adversarial_validation_fixed
   template: adversarial_validation
-  enabled: true
+  enabled: false
   meta:
     heavy_step: true
     timeout_sec: 300

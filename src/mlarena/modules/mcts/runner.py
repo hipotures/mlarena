@@ -336,8 +336,13 @@ class MCTSRunner:
                         self._persist_node_stats_path(node, conn)
 
                     if not self.mcts_live:
-                        print(f"Iteration {iteration}/{self.config.budget} -> Skipped [{diag_info}]")
-                    self.logger.debug(f"Iteration {iteration} skipped: {diag_info}")
+                        txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
+                        txt.append(" → ", style="bold white")
+                        txt.append(" ", style="dim") # spacer
+                        txt.append(diag_info, style="dim")
+                        self.console.print(txt)
+                        
+                    self.logger.debug(f"Iter {iteration} skipped: {diag_info}")
                     continue
 
                     
@@ -440,8 +445,10 @@ class MCTSRunner:
                         json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
                         json_path.write_text(json.dumps(raw, indent=2))
                     
-                    success_msg = f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ✅ Trial={trial_id} Depth={child.state.depth}: {result.value:.4f}"
-                    
+                    # Log action details
+                    act = child.action_from_parent
+                    act_info = f"Action=[idx={act.searched_index} var={act.variant_name} sid={act.param_sample_id}]"
+
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:
                         if result.value > best_so_far: is_new_best = True
@@ -450,13 +457,12 @@ class MCTSRunner:
                             
                     if is_new_best:
                         best_so_far = result.value
-                        success_msg += f" 🏆 {best_so_far:.4f}"
                         self.logger.info(f"*** NEW BEST SCORE: {best_so_far} (Trial={trial_id}, Depth={child.state.depth}) ***")
                         
                         # Send Telegram Notification
                         proj_name = self.context.project_name or "Unknown Project"
                         msg = (
-                            f"🚀 <b>New Best Score!</b>\n\n"
+                            f"↑ <b>New Best Score!</b>\n\n"
                             f"<b>Project:</b> {proj_name}\n"
                             f"<b>Study:</b> {self.config.study_name}\n"
                             f"<b>Trial:</b> {trial_id}\n"
@@ -468,12 +474,14 @@ class MCTSRunner:
                     if not self.mcts_live:
                         # Rich styling for success message
                         txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
-                        txt.append("✅ ", style="green")
-                        txt.append(f"Trial={trial_id} Depth={child.state.depth}: ", style="dim")
+                        txt.append(" ✓ ", style="bold green")
+                        txt.append(f" Trial={trial_id} Depth={child.state.depth} ", style="dim")
+                        txt.append(f"{act_info}: ", style="cyan")
                         txt.append(f"{result.value:.4f}", style="bold white")
                         
                         if is_new_best:
-                            txt.append(f" 🏆 {best_so_far:.4f}", style="bold yellow")
+                            txt.append(" ★ ", style="bold yellow")
+                            txt.append(f"{best_so_far:.4f}", style="bold yellow")
                             
                         self.console.print(txt)
                     
@@ -484,7 +492,7 @@ class MCTSRunner:
                     exp_id_res = raw.get("experiment_id", "N/A")
                     
                     self.logger.info(
-                        f"  -> Trial {trial_id} Success: {result.value:.4f} | Model: {best_model} | ExpID: {exp_id_res}"
+                        f"  -> Trial {trial_id} Success: {result.value:.4f} | {act_info} | Model: {best_model} | ExpID: {exp_id_res}"
                     )
                     
                     target_fid = self.config.multi_fidelity.levels[-1]["name"] if self.config.multi_fidelity.levels else "F2"
@@ -492,7 +500,10 @@ class MCTSRunner:
                         self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
                 else:
                     if not self.mcts_live:
-                        print(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ❌ Trial={trial_id} Depth={child.state.depth}")
+                        txt = Text(f"Iter {iteration} (Trials {n_executed}/{self.config.budget}) ", style="dim")
+                        txt.append(" ✗ ", style="bold red")
+                        txt.append(f" Trial={trial_id} Depth={child.state.depth}", style="bold red")
+                        self.console.print(txt)
                     
                     # Extract error from JSON if available, otherwise fallback to stderr
                     error_msg = result.details.get("error")
@@ -653,13 +664,15 @@ class MCTSRunner:
             self.storage.update_node_stats(trial_id, self.tree.root.n_visits, self.tree.root.value_sum, self.tree.root.value_best)
             
             if not self.mcts_live:
-                print(f"🏁 Baseline: {result.value:.4f}", flush=True)
+                txt = Text(" = ", style="bold blue")
+                txt.append(f" Baseline: {result.value:.4f}", style="bold white")
+                self.console.print(txt)
             self.logger.info(f"Baseline Score: {result.value}")
             
             # Initial best score notification
             proj_name = self.context.project_name or "Unknown Project"
             msg = (
-                f"📈 <b>Baseline Score Set</b>\n\n"
+                f"≈ <b>Baseline Score Set</b>\n\n"
                 f"<b>Project:</b> {proj_name}\n"
                 f"<b>Study:</b> {self.config.study_name}\n"
                 f"<b>Baseline Score:</b> {result.value:.5f}\n"

@@ -466,7 +466,7 @@ class ModelModule(BaseModule):
 
     def _build_model_config(self, template_cfg: Dict[str, Any], config_module, preset: str, time_limit: int, use_gpu_param: bool, artifact_dir: Path):
         """Build ModelConfig object for custom model interface."""
-        from kaggle_tools.config_models import ModelConfig, Hyperparameters, DatasetConfig, SystemConfig
+        from kaggle_tools.config_models import ModelConfig, Hyperparameters, DatasetConfig, SystemConfig, OptunaConfig
 
         train_path, test_path = data_paths(config_module)
 
@@ -573,6 +573,10 @@ class ModelModule(BaseModule):
             template_seed = template_cfg.get("seed")
         random_seed = template_seed if template_seed is not None else getattr(config_module, "RANDOM_SEED", 42)
 
+        optuna_cfg = template_cfg.get("optuna", {}) or {}
+        if not isinstance(optuna_cfg, dict):
+            raise ValueError("optuna config must be a dict")
+
         return ModelConfig(
             hyperparameters=Hyperparameters(**hyperparams_dict),
             dataset=DatasetConfig(
@@ -600,6 +604,7 @@ class ModelModule(BaseModule):
                 use_gpu=use_gpu_param if use_gpu_param is not None else False,
             ),
             model=model_cfg,
+            optuna=OptunaConfig(**optuna_cfg),
         )
 
     def _cleanup_predictor(self, predictor, model_path: Path):

@@ -1,0 +1,21 @@
+model: catboost_baseline
+preset: medium
+time_limit: 1800
+use_gpu: true
+seed: 42
+hyperparameters:
+  iterations: 1000
+  early_stopping_rounds: 50
+optuna:
+  n_trials: 1
+  timeout: null
+  cv_folds: 3
+  early_stopping_rounds: 50
+  sampler: TPESampler
+  pruner: MedianPruner
+  param_space:
+    catboost:
+      learning_rate: [0.01, 0.3, "log"]
+      depth: [4, 10, "int"]
+      l2_leaf_reg: [1.0, 10.0, "float"]
+      subsample: [0.5, 1.0, "float"]

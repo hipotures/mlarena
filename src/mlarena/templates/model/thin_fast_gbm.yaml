@@ -1,0 +1,22 @@
+model: lightgbm_baseline
+preset: medium
+time_limit: 1800
+use_gpu: true
+seed: 42
+hyperparameters:
+  n_estimators: 1000
+  early_stopping_rounds: 50
+optuna:
+  n_trials: 1
+  timeout: null
+  cv_folds: 3
+  early_stopping_rounds: 50
+  sampler: TPESampler
+  pruner: MedianPruner
+  param_space:
+    lightgbm:
+      learning_rate: [0.01, 0.3, "log"]
+      num_leaves: [16, 255, "int"]
+      feature_fraction: [0.6, 1.0, "float"]
+      bagging_fraction: [0.6, 1.0, "float"]
+      min_child_samples: [5, 100, "int"]

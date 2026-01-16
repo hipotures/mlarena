@@ -1,0 +1,24 @@
+model: xgboost_baseline
+preset: medium
+time_limit: 1800
+use_gpu: true
+seed: 42
+hyperparameters:
+  n_estimators: 1000
+  early_stopping_rounds: 50
+optuna:
+  n_trials: 0
+  timeout: null
+  cv_folds: 3
+  early_stopping_rounds: 50
+  sampler: TPESampler
+  pruner: MedianPruner
+  param_space:
+    xgboost:
+      learning_rate: [0.01, 0.3, "log"]
+      max_depth: [3, 10, "int"]
+      subsample: [0.6, 1.0, "float"]
+      colsample_bytree: [0.6, 1.0, "float"]
+      min_child_weight: [1, 10, "int"]
+      reg_alpha: [0.0, 1.0, "float"]
+      reg_lambda: [0.5, 5.0, "log"]

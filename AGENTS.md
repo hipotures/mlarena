@@ -10,7 +10,7 @@
 | :--- | :--- | :--- |
 | **CLI & Entry** | `scripts/mla.py` → `src/mlarena/cli/main.py` | Command parsing, auto-flow logic, `main()` function. |
 | **Pipeline Logic** | `src/mlarena/core/pipeline.py` | Dependency resolution, execution graph, skipping completed. |
-| **State/Registry** | `src/mlarena/core/experiment.py`, `registry.py` | State persistence (`state.json`) and module registration (`@ModuleRegistry`). |
+| **State/Registry** | `src/mlarena/core/experiment.py`, `src/mlarena/core/registry.py` | State persistence (`state.json`) and module registration (`@ModuleRegistry`). |
 | **Modules** | `src/mlarena/modules/` | Individual modules (`model.py`, `preprocess.py`, `submit.py`, etc.). |
 | **Templates** | `src/mlarena/templates/` | Global YAML templates. Look here for default configs. |
 | **Defaults** | `src/mlarena/defaults/` | Default implementations for `models/` (train) and `preprocessing/` (fit_transform). |
@@ -20,9 +20,9 @@
 ## 🏗️ Architecture Shortcuts
 
 -   **Adding a Module**: Create file in `src/mlarena/modules/`, inherit `BaseModule`, decorate with `@ModuleRegistry.register`.
--   **Adding a Preprocess Step**: Copy `src/mlarena/defaults/preprocessing/TEMPLATE.py` to `src/mlarena/defaults/preprocessing/`.
+-   **Adding a Preprocess Step**: Copy `src/mlarena/defaults/preprocessing/identity.py` to `src/mlarena/defaults/preprocessing/`.
 -   **Config System**: Uses `OmegaConf` + `Pydantic`. Root config logic in `src/mlarena/core/conf.py`. Project config (`code/utils/config.py`) is imported dynamically.
--   **Magic Flags**: Use shortcuts like `--seed`, `--time-limit`, `--use-gpu`, `--preset` for faster CLI command generation.
+-   **Magic Flags**: Use dot notation for overrides, e.g., `project=playground-series-s6e1`, `mcts.enabled=true`, `mcts.budget=2000`, `force=true`.
 -   **Artifacts**: Always use `self.context.artifact_dir`. Never hardcode paths.
 -   **State**: `self.context.state` contains the `state.json` data.
 
@@ -73,6 +73,7 @@
 4.  **Respect `mla_retention`**. If disk space is low, suggest using this flag for AutoGluon models.
 5.  **Always check `/mnt/mlarena` for experiment results** if the local `experiments/` folder is empty. Use 1:1 path mapping between the local repository and the NFS mount point.
 6.  **Console output should use `rich`** for improved visualization of data/logs.
+7.  **Default output paths**: If a script/task does not specify where to write logs or outputs, save to `/tmp` by default. Never write to the project root.
 
 ## 📚 Documentation Index
 -   **Workflow**: `docs/MLA_WORKFLOW_GUIDE.md`

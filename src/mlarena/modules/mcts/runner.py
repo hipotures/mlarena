@@ -546,6 +546,15 @@ class MCTSRunner:
                         val_style = "bold yellow" if is_new_best else "bold white"
                         txt.append(f"{result.value:.5f}", style=val_style)
                         
+                        # Add Delta (vs Parent)
+                        parent_val = node.value_best
+                        if parent_val is not None:
+                            delta = result.value - parent_val
+                            # Use + symbol for positive, Rich will handle formatting
+                            delta_str = f" ({'+' if delta >= 0 else ''}{delta:.5f})"
+                            delta_style = "green" if delta > 0 else "red" if delta < 0 else "dim"
+                            txt.append(delta_str, style=delta_style)
+
                         if is_new_best:
                             txt.append(" ★", style="bold yellow")
                             

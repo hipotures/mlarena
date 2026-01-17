@@ -283,7 +283,7 @@ def main():
     parser.add_argument("--project", help="Project slug under projects/kaggle/")
     parser.add_argument("--db", help="Path to mcts.db (overrides --project default)")
     parser.add_argument("--out-dir", help="Output directory for model and data (overrides --project default)")
-    parser.add_argument("--study-id", type=int, help="Filter by study_id")
+    parser.add_argument("--study-id", help="Filter by study_id (numeric) or study_name")
     parser.add_argument("--study-name", help="Filter by study_name")
     parser.add_argument("--num-gpus", type=int, default=0, help="Number of GPUs (default: 0)")
     parser.add_argument("--threshold", type=float, default=0.20, help="Pruning threshold for report (default: 0.20)")
@@ -301,11 +301,23 @@ def main():
         out_dir = Path(args.out_dir)
 
     default_mcts = {}
-    if args.study_id is None and not args.study_name:
+    study_id = None
+    study_name = args.study_name
+    if args.study_id:
+        if str(args.study_id).isdigit():
+            study_id = int(args.study_id)
+        else:
+            if study_name and study_name != args.study_id:
+                logger.warning("Both --study-id (non-numeric) and --study-name provided. Using --study-name.")
+            else:
+                study_name = args.study_id
+                logger.info(f"Interpreting --study-id as study_name: {study_name}")
+
+    if study_id is None and not study_name:
         default_mcts = _load_default_mcts_settings()
         if default_mcts.get("study_name"):
-            args.study_name = default_mcts["study_name"]
-            logger.info(f"Using default study_name from mla_super_chain.yaml: {args.study_name}")
+            study_name = default_mcts["study_name"]
+            logger.info(f"Using default study_name from mla_super_chain.yaml: {study_name}")
     if args.eps is None:
         if not default_mcts:
             default_mcts = _load_default_mcts_settings()
@@ -319,9 +331,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Extract
-    if args.study_id is not None and args.study_name:
-        logger.warning("Both --study-id and --study-name provided. Using --study-id.")
-    df = extract_data(db_path, study_id=args.study_id, study_name=args.study_name)
+    df = extract_data(db_path, study_id=study_id, study_name=study_name)
     if df.empty:
         logger.error("No valid transitions found. Exiting.")
         return

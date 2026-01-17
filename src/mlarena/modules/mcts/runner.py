@@ -395,13 +395,7 @@ class MCTSRunner:
                     with self.storage.atomic() as conn:
                         self._persist_node_stats_path(node, conn)
 
-                    if not self.mcts_live:
-                        txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
-                        txt.append(" → ", style="bold white")
-                        txt.append(" ", style="dim") # spacer
-                        txt.append(diag_info, style="dim")
-                        self.console.print(txt)
-                        
+                    # LOGGING MOVED TO DEBUG
                     self.logger.debug(f"Iter {iteration} skipped: {diag_info}")
                     continue
 
@@ -490,6 +484,12 @@ class MCTSRunner:
                             f"FeatPenalty={feat_penalty:.4f}, TimePenalty={time_penalty:.4f}, Final={final_value:.4f}"
                         )
 
+                    # Calculate Delta (vs Parent's best BEFORE backprop)
+                    delta = 0.0
+                    parent_val_before = node.value_best
+                    if parent_val_before is not None:
+                        delta = final_value - parent_val_before
+
                     # 2. Persist results and backprop stats in one transaction
                     with self.storage.atomic() as conn:
                         self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, result.details, conn=conn)
@@ -546,11 +546,8 @@ class MCTSRunner:
                         val_style = "bold yellow" if is_new_best else "bold white"
                         txt.append(f"{result.value:.5f}", style=val_style)
                         
-                        # Add Delta (vs Parent)
-                        parent_val = node.value_best
-                        if parent_val is not None:
-                            delta = result.value - parent_val
-                            # Use + symbol for positive, Rich will handle formatting
+                        # Display Delta (computed before backprop)
+                        if parent_val_before is not None:
                             delta_str = f" ({'+' if delta >= 0 else ''}{delta:.5f})"
                             delta_style = "green" if delta > 0 else "red" if delta < 0 else "dim"
                             txt.append(delta_str, style=delta_style)

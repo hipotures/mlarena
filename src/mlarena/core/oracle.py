@@ -201,8 +201,6 @@ class ActionOracle:
         elif hasattr(parent_node, 'depth'):
              depth = parent_node.depth
              
-        visits = getattr(parent_node, 'n_visits', 0)
-        
         prev_action = getattr(parent_node, 'action_from_parent', None)
         prev_action_dict = prev_action.to_record() if prev_action and hasattr(prev_action, 'to_record') else {}
         prev_flat = self._parse_action(prev_action_dict, prefix="prev_")
@@ -217,7 +215,6 @@ class ActionOracle:
             
             row['parent_score'] = parent_score
             row['depth'] = depth
-            row['parent_visits'] = visits
             # prev_duration not easily available in node, using default to match training schema
             row['prev_duration'] = 0.0
             

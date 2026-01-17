@@ -132,8 +132,8 @@ class ActionOracle:
 
         # Safety net: if all pruned, keep everything (or best one)
         n_pruned = len(candidate_actions) - len(accepted_actions)
-        if n_pruned > 0:
-            logger.info(f"[ORACLE] Pruned {n_pruned}/{len(candidate_actions)} actions ({n_pruned/len(candidate_actions):.1%}) below threshold {self.threshold}")
+        # Always log summary to confirm Oracle is active
+        logger.info(f"[ORACLE] Evaluated {len(candidate_actions)} actions. Pruned: {n_pruned} ({n_pruned/len(candidate_actions):.1%}) below threshold {self.threshold}")
 
         if not accepted_actions:
              logger.warning("[ORACLE] All actions were pruned! Falling back to original list.")

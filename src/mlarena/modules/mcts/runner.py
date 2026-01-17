@@ -70,7 +70,7 @@ class MCTSRunner:
             self.config.storage_url = f"sqlite:///{db_dir / 'mcts.db'}"
 
         if self.config.oracle.enabled and self.config.oracle.model_path == "default":
-            oracle_dir = context.project_root / "experiments" / "oracle"
+            oracle_dir = context.project_root / "experiments" / "oracle" / "model"
             self.config.oracle.model_path = str(oracle_dir)
 
         # Apply overrides from params (e.g. mcts.budget, mcts.multi_fidelity.enable)

@@ -55,15 +55,19 @@ class SuperChainActionSpace:
     def total_steps_count(self) -> int:
         return len(self.steps)
 
-    def next_actions(self, state: PipelineState) -> List[Action]:
+    def next_actions(self, state: PipelineState, lookahead: Optional[int] = None) -> List[Action]:
         """Generate possible next actions from the current state."""
         actions: List[Action] = []
         
         # We can pick any searched step that comes AFTER the last used searched step index
         # state.last_step_index refers to the index in self.steps (searched_steps)
         start_index = state.last_step_index + 1
+        end_index = len(self.steps)
         
-        for i in range(start_index, len(self.steps)):
+        if lookahead is not None and lookahead > 0:
+            end_index = min(end_index, start_index + lookahead)
+        
+        for i in range(start_index, end_index):
             step_def = self.steps[i]
             step_name = step_def.get("name")
             group = step_def.get("group") or step_name

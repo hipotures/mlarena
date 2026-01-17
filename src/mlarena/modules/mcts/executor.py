@@ -19,6 +19,7 @@ class MlaCliExecutor:
         self.project_root = project_root
         self.log_root = log_root or project_root
         self.current_proc: Optional[subprocess.Popen] = None
+        self.stream_logs: bool = False
 
     def build_command(
         self, 
@@ -133,13 +134,14 @@ class MlaCliExecutor:
             env = dict(subprocess.os.environ)
             env["TERM"] = "dumb"
             env["NO_COLOR"] = "1"
+            stderr_target = None if self.stream_logs else subprocess.PIPE
             
             # Start in a new session to ignore signals (SIGINT) from parent's terminal
             self.current_proc = subprocess.Popen(
                 cmd, 
                 cwd=self.project_root,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=stderr_target,
                 text=True,
                 env=env,
                 start_new_session=True
@@ -157,7 +159,7 @@ class MlaCliExecutor:
                     metric="unknown",
                     duration=0.0,
                     success=False,
-                    details={"error": "Timeout expired", "stdout": stdout, "stderr": stderr}
+                    details={"error": "Timeout expired", "stdout": stdout, "stderr": stderr or ""}
                 )
             finally:
                 self.current_proc = None

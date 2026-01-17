@@ -37,7 +37,30 @@ class ActionOracle:
             # Check for binary classification capabilities
             if self.predictor.problem_type != 'binary':
                  logger.warning(f"Oracle model problem type is {self.predictor.problem_type}, expected 'binary'. Predictions might be incorrect.")
-                 
+            
+            # SCHEMA ENFORCEMENT: Load headers from mcts_oracle.csv
+            # This ensures inference DF structure matches training data exactly (fixing "missing columns" errors)
+            try:
+                csv_path = Path(self.model_path) / "mcts_oracle.csv"
+                if csv_path.exists():
+                    logger.info(f"Loading feature schema from {csv_path}")
+                    # Read only headers
+                    all_cols = pd.read_csv(csv_path, nrows=0).columns.tolist()
+                    
+                    # Exclude non-features (targets/leakage) known to be dropped during training
+                    # Note: AutoGluon ignores extra columns, but reindexing to strict training features is cleaner.
+                    # However, if we reindex to the full CSV, we ensure 'missing' features are added as NaNs.
+                    # We remove known targets to avoid confusion.
+                    ignore_cols = {'is_improvement', 'child_score', 'delta_score', 'child_id', 'parent_id'}
+                    self.feature_schema = [c for c in all_cols if c not in ignore_cols]
+                    logger.info(f"Oracle schema loaded: {len(self.feature_schema)} columns.")
+                else:
+                    logger.warning(f"Schema file {csv_path} not found. Fallback to predictor metadata.")
+                    self.feature_schema = self.predictor.feature_metadata_in.get_features()
+            except Exception as e:
+                logger.warning(f"Failed to load CSV schema: {e}. Fallback to predictor metadata.")
+                self.feature_schema = self.predictor.feature_metadata_in.get_features()
+                
         except Exception as e:
             logger.error(f"Failed to load ActionOracle model from {self.model_path}: {e}")
             self.predictor = None
@@ -46,25 +69,24 @@ class ActionOracle:
     def evaluate_actions(self, parent_node: Any, candidate_actions: List[Any]) -> Tuple[List[Any], List[float]]:
         """
         Evaluates a list of candidate actions.
-        
-        Returns:
-            (filtered_actions, priors)
-            
-        If dry_run=True:
-            Returns (original_actions, priors) but logs what would be pruned.
         """
         if not self.enabled or self.predictor is None or not candidate_actions:
-            # Return all actions with uniform probability if disabled
             return candidate_actions, [1.0 / max(1, len(candidate_actions))] * len(candidate_actions)
         
         # 1. Feature Extraction
         try:
             df = self._prepare_features(parent_node, candidate_actions)
+            
+            # 2. Schema Alignment (Reindexing)
+            if hasattr(self, 'feature_schema') and self.feature_schema:
+                # This adds missing columns (as NaN) and removes extras, enforcing exact structure
+                df = df.reindex(columns=self.feature_schema)
+                
         except Exception as e:
             logger.error(f"Oracle feature preparation failed: {e}")
             return candidate_actions, [1.0 / len(candidate_actions)] * len(candidate_actions)
         
-        # 2. Prediction
+        # 3. Prediction
         try:
             # Get probability of positive class (improvement)
             # AutoGluon predict_proba returns DataFrame with columns [0, 1] usually

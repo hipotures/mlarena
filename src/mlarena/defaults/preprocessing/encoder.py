@@ -101,6 +101,9 @@ def fit_transform(
         "normalize": False,  # If True, return relative frequency (0-1)
         "add_log": False,    # If True, apply log1p to the count
         "min_count": 1,      # Categories with fewer counts are grouped/ignored (treated as 0)
+        # Ordinal encoding order
+        "ordinal_order": "alphabetical",  # alphabetical|frequency_desc|frequency_asc|random|value_asc|value_desc|appearance
+        "ordinal_random_state": 42,
         "keep_original": False,
         "use_original_features_only": True,
     }
@@ -129,6 +132,20 @@ def fit_transform(
         ],
         "encoding_method"
     )
+    if config["encoding_method"] == "ordinal":
+        validation.validate_choice(
+            config["ordinal_order"],
+            [
+                "alphabetical",
+                "frequency_desc",
+                "frequency_asc",
+                "random",
+                "value_asc",
+                "value_desc",
+                "appearance",
+            ],
+            "ordinal_order",
+        )
 
     # 3. Create sub-module artifact directory
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "encoder")
@@ -627,8 +644,54 @@ def _encode_ordinal(
     from sklearn.preprocessing import OrdinalEncoder
 
     handle_unknown = "use_encoded_value" if config["handle_unknown"] != "error" else "error"
+    ordinal_order = config.get("ordinal_order", "alphabetical")
+    ordinal_random_state = config.get("ordinal_random_state", 42)
+
+    def _safe_sort(values, ascending: bool = True) -> List[Any]:
+        values_list = list(values)
+        try:
+            values_list = sorted(values_list)
+        except Exception:
+            values_list = sorted(values_list, key=lambda v: str(v))
+        if not ascending:
+            values_list.reverse()
+        return values_list
+
+    def _build_categories() -> List[List[Any]]:
+        categories: List[List[Any]] = []
+        rng = np.random.default_rng(ordinal_random_state) if ordinal_order == "random" else None
+
+        for col in categorical_cols:
+            series = train_df[col]
+            values = series.dropna()
+
+            if ordinal_order in ("frequency_desc", "frequency_asc"):
+                counts = values.value_counts(dropna=False)
+                counts = counts.sort_values(
+                    ascending=(ordinal_order == "frequency_asc"),
+                    kind="stable",
+                )
+                cats = counts.index.tolist()
+            elif ordinal_order == "random":
+                cats = pd.unique(values).tolist()
+                if rng is not None:
+                    rng.shuffle(cats)
+            elif ordinal_order == "appearance":
+                cats = pd.unique(values).tolist()
+            elif ordinal_order == "value_desc":
+                cats = _safe_sort(pd.unique(values), ascending=False)
+            else:
+                cats = _safe_sort(pd.unique(values), ascending=True)
+
+            if not cats:
+                cats = [np.nan]
+            categories.append(cats)
+        return categories
+
+    categories = _build_categories()
 
     encoder = OrdinalEncoder(
+        categories=categories,
         handle_unknown=handle_unknown,
         unknown_value=config["unknown_value"],
         dtype=np.int32
@@ -658,6 +721,7 @@ def _encode_ordinal(
             col: list(cats) for col, cats in zip(categorical_cols, encoder.categories_)
         },
         "unknown_value": config["unknown_value"],
+        "ordinal_order": ordinal_order,
     }
 
     return train_df, val_df, test_df, eval_df, orig_df, encoder_info

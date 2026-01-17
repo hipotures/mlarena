@@ -28,6 +28,13 @@ class DedupeConfig(BaseModel):
     enable: bool = True
     strategy: str = "unique_signature"
 
+class OracleConfig(BaseModel):
+    enabled: bool = False
+    model_path: Optional[str] = None
+    dry_run: bool = True
+    pruning_threshold: float = 0.20
+    use_prior_in_puct: bool = False
+
 class ParallelismConfig(BaseModel):
     workers: int = 1
     virtual_loss: float = 1.0
@@ -51,6 +58,7 @@ class MCTSConfig(BaseModel):
     expansion_width: float = 2.0  # k
     expansion_alpha: float = 0.5 # alpha
     seed: int = 42
+    lookahead: int = 3 # Limit valid next steps to immediate N neighbors
 
     # 2nd-layer PW: number of parameter samples per (operator=step+variant) at a node
     # m_params(op) = max(1, floor(param_expansion_width * N_op^param_expansion_alpha))
@@ -77,6 +85,7 @@ class MCTSConfig(BaseModel):
     # Sub-configs
     multi_fidelity: MultiFidelityConfig = Field(default_factory=MultiFidelityConfig)
     pruning: PruningConfig = Field(default_factory=PruningConfig)
+    oracle: OracleConfig = Field(default_factory=OracleConfig)
     penalties: PenaltiesConfig = Field(default_factory=PenaltiesConfig)
     templates: TemplatesConfig = Field(default_factory=TemplatesConfig)
     parallelism: ParallelismConfig = Field(default_factory=ParallelismConfig)

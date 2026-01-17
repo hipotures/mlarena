@@ -244,3 +244,10 @@ mcts:
   penalties:
     features_lambda: 0.01
     time_lambda: 0.0
+
+  oracle:
+    enabled: true
+    model_path: default
+    dry_run: true
+    pruning_threshold: 0.20
+    use_prior_in_puct: true

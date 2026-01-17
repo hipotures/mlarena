@@ -9,6 +9,7 @@ from mlarena.modules.mcts.config import MCTSConfig
 from mlarena.modules.mcts.node import PipelineState, Action
 from mlarena.modules.mcts.space import SuperChainActionSpace
 from mlarena.modules.mcts.sampler import ParameterSampler
+from mlarena.core.oracle import ActionOracle
 
 import logging
 
@@ -69,6 +70,9 @@ class MCTSTree:
         
         self.initial_groups = initial_groups # Store for rebuild_tree
         self.root = MCTSNode(state=PipelineState(used_groups=initial_groups))
+        
+        # Initialize Oracle
+        self.oracle = ActionOracle(config.oracle.model_dump())
 
     def rebuild_tree(self, nodes_data: List[Dict[str, Any]], edges_data: List[Dict[str, Any]]):
         """Reconstruct the tree structure from database records."""
@@ -146,13 +150,44 @@ class MCTSTree:
         (2) param PW: how many param_sample_id per active operator
         """
         if node.action_pool is None:
-            node.action_pool = self.space.next_actions(node.state)
-            # Deterministic shuffle per node (reproducible across resume/runs)
+            raw_pool = self.space.next_actions(node.state, lookahead=getattr(self.config, "lookahead", 3))
+            
+            # Deterministic RNG for pool ordering
             import hashlib
             seed_base = f"{self.config.seed}|pool|{node.state.signature}|last={node.state.last_step_index}"
             seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16) % (2**32)
             rng = random.Random(seed_hash)
-            rng.shuffle(node.action_pool)
+
+            if self.config.oracle.enabled and raw_pool:
+                # --- Oracle Logic ---
+                # Evaluate actions: filters out low-prob ones (Pruning) and returns priors
+                filtered_pool, priors = self.oracle.evaluate_actions(node, raw_pool)
+                
+                # Assign priors and Calculate Gumbel Score for Weighted Shuffle
+                # Score = log(P + eps) + Gumbel(0,1)
+                # Gumbel(0,1) ~ -log(-log(U)) where U ~ Uniform(0,1)
+                eps = 1e-9
+                
+                scored_pool = []
+                for act, p in zip(filtered_pool, priors):
+                    act.prior = p # Store original prior for PUCT
+                    
+                    # Gumbel noise
+                    u = rng.random()
+                    u = max(1e-9, min(1.0 - 1e-9, u)) # Clip
+                    gumbel = -math.log(-math.log(u))
+                    
+                    # Log-prob + Gumbel
+                    score = math.log(p + eps) + gumbel
+                    scored_pool.append((score, act))
+                
+                # Sort by Gumbel score (equivalent to weighted sampling without replacement)
+                scored_pool.sort(key=lambda x: x[0], reverse=True)
+                node.action_pool = [x[1] for x in scored_pool]
+            else:
+                # --- Standard Logic ---
+                node.action_pool = raw_pool
+                rng.shuffle(node.action_pool)
 
         def op_key(a: Action):
             return (a.searched_index, a.step_name, a.variant_name)
@@ -291,6 +326,7 @@ class MCTSTree:
             searched_index=action.searched_index,
             original_index=action.original_index,
             param_sample_id=action.param_sample_id,
+            prior=action.prior, # Preserve Oracle prior
         )
         
         new_state = node.state.add_action(final_action)
@@ -330,11 +366,25 @@ class MCTSTree:
             # Convert to "higher is better" for selection when minimizing.
             if minimize:
                 exploit = -exploit
+                
+            prior = 1.0
+            if child.action_from_parent:
+                prior = child.action_from_parent.prior
+                
             if child.n_visits > 0:
-                explore = c * math.sqrt(ln_n / child.n_visits)
+                if self.config.oracle.use_prior_in_puct:
+                    # PUCT: Q + c * P * sqrt(N) / (1 + n)
+                    explore = c * prior * math.sqrt(node.n_visits) / (1 + child.n_visits)
+                else:
+                    # Standard UCT
+                    explore = c * math.sqrt(ln_n / child.n_visits)
             else:
-                explore = float('inf') # Ensure unvisited children are picked? 
-                # But PW usually ensures children added are visited immediately.
+                # Unvisited
+                if self.config.oracle.use_prior_in_puct:
+                    # First visit priority guided by Oracle
+                    explore = c * prior * math.sqrt(node.n_visits + 1) # +1 to avoid 0
+                else:
+                    explore = float('inf') 
             
             score = exploit + explore
             

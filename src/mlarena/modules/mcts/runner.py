@@ -38,6 +38,7 @@ class MCTSRunner:
         self.params = params
         self.mcts_live = bool(params.get("mcts_live") or context.config.mcts_live)
         self.console = Console()
+        self.show_preprocess_panels = self._wants_preprocess_panels()
         
         super_chain_path = Path(params.get("super_chain", DEFAULT_SUPER_CHAIN))
         if not super_chain_path.is_absolute():
@@ -67,6 +68,10 @@ class MCTSRunner:
             db_dir = context.project_root / "experiments" / "db"
             db_dir.mkdir(parents=True, exist_ok=True)
             self.config.storage_url = f"sqlite:///{db_dir / 'mcts.db'}"
+
+        if self.config.oracle.enabled and self.config.oracle.model_path == "default":
+            oracle_dir = context.project_root / "experiments" / "oracle"
+            self.config.oracle.model_path = str(oracle_dir)
 
         # Apply overrides from params (e.g. mcts.budget, mcts.multi_fidelity.enable)
         self._apply_overrides(params)
@@ -133,6 +138,7 @@ class MCTSRunner:
             project_root=context.project_root
         )
         self.executor = MlaCliExecutor(REPO_ROOT, log_root=context.project_root)
+        self.executor.stream_logs = self.show_preprocess_panels
         
         self.notifier = TelegramNotifier()
         if bool(params.get("telegram_test") or context.config.telegram_test):
@@ -221,6 +227,16 @@ class MCTSRunner:
         self.logger.addHandler(file_handler)
         
         self.logger.info(f"--- MCTS Study Started (Run ID: {self.run_id}) ---")
+
+    def _wants_preprocess_panels(self) -> bool:
+        cfg = getattr(self.context, "config", None)
+        preprocess_cfg = getattr(cfg, "preprocess", None)
+        if not isinstance(preprocess_cfg, dict):
+            return False
+        for key in ("quiet_preprocess_panel", "quiet_preprocess_panels", "quiet_preprocess"):
+            if key in preprocess_cfg and preprocess_cfg.get(key) is False:
+                return True
+        return False
 
     def run(self) -> ModuleResult:
         status_msg = "Starting NEW MCTS Study" if self.is_new_study else "Resuming EXISTING MCTS Study"
@@ -709,6 +725,8 @@ class MCTSRunner:
         )
         if self.config.model_verbosity is not None:
             cmd.append(f"model.verbosity={self.config.model_verbosity}")
+        if self.show_preprocess_panels:
+            cmd.append("preprocess.quiet_preprocess_panel=false")
             
         self.logger.debug(f"Executing Baseline MLA: {' '.join(cmd)}")
         result = self.executor.run(cmd)
@@ -813,6 +831,8 @@ class MCTSRunner:
             cmd.append(f"model.verbosity={self.config.model_verbosity}")
         if self.config.model_cleanup:
             cmd.append("model.mla_retention=true")
+        if self.show_preprocess_panels:
+            cmd.append("preprocess.quiet_preprocess_panel=false")
             
         self.logger.debug(f"Executing MLA: {' '.join(cmd)}")
         return self.executor.run(cmd)

@@ -15,6 +15,8 @@ class Action:
     original_index: int  # Index in the full super-chain (for Materializer sorting)
     # 3rd dimension: multiple parameter samples for the same (step, variant)
     param_sample_id: int = 0
+    # Heuristic prior probability from Oracle
+    prior: float = 1.0
 
     def to_record(self) -> Dict[str, Any]:
         """Convert action to a stable dictionary format for database storage."""

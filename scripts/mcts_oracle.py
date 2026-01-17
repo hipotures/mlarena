@@ -7,6 +7,7 @@ import time
 import shutil
 import logging
 from pathlib import Path
+import yaml
 from autogluon.tabular import TabularPredictor
 
 # Setup Logging
@@ -19,6 +20,18 @@ def _extract_final_value(details_json):
     try:
         data = json.loads(details_json)
     except Exception:
+        return None
+
+def _load_default_study_name():
+    config_path = Path(__file__).resolve().parents[1] / "conf" / "preprocess" / "mla_super_chain.yaml"
+    if not config_path.exists():
+        logger.warning(f"Default config not found at {config_path}")
+        return None
+    try:
+        data = yaml.safe_load(config_path.read_text()) or {}
+        return (data.get("mcts") or {}).get("study_name")
+    except Exception as e:
+        logger.warning(f"Failed to read default study_name from {config_path}: {e}")
         return None
     value = data.get("final_value")
     if value is None:
@@ -281,6 +294,12 @@ def main():
             parser.error("--db and --out-dir are required unless --project is provided")
         db_path = Path(args.db)
         out_dir = Path(args.out_dir)
+
+    if args.study_id is None and not args.study_name:
+        default_name = _load_default_study_name()
+        if default_name:
+            args.study_name = default_name
+            logger.info(f"Using default study_name from mla_super_chain.yaml: {args.study_name}")
 
     # Ensure output dir exists
     out_dir.mkdir(parents=True, exist_ok=True)

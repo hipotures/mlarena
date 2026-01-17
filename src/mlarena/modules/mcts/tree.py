@@ -277,6 +277,7 @@ class MCTSTree:
                     searched_index=base.searched_index,
                     original_index=base.original_index,
                     param_sample_id=sid,
+                    prior=base.prior,
                 ))
 
         return untried

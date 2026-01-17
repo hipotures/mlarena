@@ -29,6 +29,7 @@ class Action:
             "searched_index": self.searched_index,
             "original_index": self.original_index,
             "param_sample_id": int(self.param_sample_id),
+            "prior": float(self.prior),
         }
 
     @staticmethod
@@ -44,6 +45,7 @@ class Action:
             searched_index=int(d.get("searched_index", d.get("step_index", 0))),
             original_index=int(d.get("original_index", d.get("step_index", 0))),
             param_sample_id=int(d.get("param_sample_id", 0)),
+            prior=float(d.get("prior", 1.0)),
         )
 
 @dataclass

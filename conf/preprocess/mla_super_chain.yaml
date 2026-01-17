@@ -66,48 +66,43 @@ preprocessors:
 - name: missingness_features
   group: missingness_features
   template: missingness_features
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
 - name: imputer
   group: imputer
   template: imputer
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
     heavy_variants: []
-    # - knn
-    # - iterative
-    #fixed: true
 - name: rare_category_handler
   group: rare_category
   template: rare_category_handler
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
 - name: feature_group_agg
   group: feature_group_agg
   template: feature_group_agg
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
 - name: groupwise_normalizer
   group: groupwise_normalizer
   template: groupwise_normalizer
   enabled: false
-  meta:
-    heavy_step: false
 - name: categorical_cross
   group: categorical_cross
   template: categorical_cross
-  enabled: true
+  enabled: false
   meta:
     heavy_step: true
     timeout_sec: 300
 - name: rank_features_pre
   group: rank_pre
   template: rank_features
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
   overrides:
@@ -119,7 +114,6 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
-    # - kmeans
 - name: categorical_encoder
   group: encoding
   template: categorical_encoder
@@ -141,7 +135,6 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
-    # - isolation_forest    
 - name: row_aggregates
   group: row_aggregates
   template: row_aggregates
@@ -155,8 +148,8 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
-    # - quantile_normal
-    # - quantile_uniform
+  overrides:
+    variants: ["quantile_normal", "quantile_uniform", "power_boxcox", "power_yeo_johnson", "rank_gauss", "robust"]
 - name: feature_interactions
   group: feature_interactions
   template: feature_interactions
@@ -195,7 +188,7 @@ preprocessors:
 - name: drift_detector
   group: drift
   template: drift_detector
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
 - name: feature_selector

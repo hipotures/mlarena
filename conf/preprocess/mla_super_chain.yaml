@@ -217,8 +217,8 @@ preprocessors:
   meta:
     heavy_step: false
 evaluation:
-  # model: autogluon_thin_fast
-  model: thin_fast_xgb
+  model: autogluon_thin_fast
+  # model: thin_fast_xgb
   seed: 42
 
 mcts:
@@ -248,6 +248,7 @@ mcts:
   oracle:
     enabled: true
     model_path: default
-    dry_run: true
-    pruning_threshold: 0.20
+    dry_run: false
+    pruning_threshold: 0.01
+    max_actions: 5
     use_prior_in_puct: true

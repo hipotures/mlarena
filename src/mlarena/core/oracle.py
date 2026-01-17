@@ -39,41 +39,57 @@ class ActionOracle:
             if self.predictor.problem_type != 'binary':
                  logger.warning(f"Oracle model problem type is {self.predictor.problem_type}, expected 'binary'. Predictions might be incorrect.")
             
-            # SCHEMA ENFORCEMENT: Load headers from mcts_oracle.csv
-            # This ensures inference DF structure matches training data exactly (fixing "missing columns" errors)
-            try:
-                csv_path = Path(self.model_path) / "mcts_oracle.csv"
-                if csv_path.exists():
-                    logger.info(f"Loading feature schema from {csv_path}")
-                    # Read only headers
-                    all_cols = pd.read_csv(csv_path, nrows=0).columns.tolist()
-                    
-                    # Exclude non-features (targets/leakage) known to be dropped during training
-                    # Note: AutoGluon ignores extra columns, but reindexing to strict training features is cleaner.
-                    # However, if we reindex to the full CSV, we ensure 'missing' features are added as NaNs.
-                    # We remove known targets to avoid confusion.
-                    ignore_cols = {'is_improvement', 'child_score', 'delta_score', 'child_id', 'parent_id'}
-                    self.feature_schema = [c for c in all_cols if c not in ignore_cols]
-                    logger.info(f"Oracle schema loaded: {len(self.feature_schema)} columns.")
-                else:
-                    logger.warning(f"Schema file {csv_path} not found. Fallback to predictor metadata.")
-                    self.feature_schema = self.predictor.feature_metadata_in.get_features()
-            except Exception as e:
-                logger.warning(f"Failed to load CSV schema: {e}. Fallback to predictor metadata.")
-                self.feature_schema = self.predictor.feature_metadata_in.get_features()
+            # Initial schema load
+            self._load_schema()
                 
         except Exception as e:
             logger.error(f"Failed to load ActionOracle model from {self.model_path}: {e}")
             self.predictor = None
             self.enabled = False # Auto-disable on failure
 
+    def _load_schema(self):
+        """Load or reload feature schema from mcts_oracle.csv headers."""
+        try:
+            csv_path = Path(self.model_path) / "mcts_oracle.csv"
+            if csv_path.exists():
+                # logger.debug(f"Loading feature schema from {csv_path}")
+                # Read only headers
+                all_cols = pd.read_csv(csv_path, nrows=0).columns.tolist()
+                
+                # Exclude non-features
+                ignore_cols = {'is_improvement', 'child_score', 'delta_score', 'child_id', 'parent_id'}
+                self.feature_schema = [c for c in all_cols if c not in ignore_cols]
+            else:
+                # Fallback to predictor metadata only if schema not yet set or file disappeared
+                if not hasattr(self, 'feature_schema'):
+                    logger.warning(f"Schema file {csv_path} not found. Fallback to predictor metadata.")
+                    self.feature_schema = self.predictor.feature_metadata_in.get_features()
+        except Exception as e:
+            logger.warning(f"Failed to load CSV schema: {e}. Fallback to predictor metadata.")
+            if not hasattr(self, 'feature_schema') and self.predictor:
+                self.feature_schema = self.predictor.feature_metadata_in.get_features()
+
     def evaluate_actions(self, parent_node: Any, candidate_actions: List[Any]) -> Tuple[List[Any], List[float]]:
         """
         Evaluates a list of candidate actions.
         """
-        if not self.enabled or self.predictor is None or not candidate_actions:
+        if not self.enabled or not candidate_actions:
             return candidate_actions, [1.0 / max(1, len(candidate_actions))] * len(candidate_actions)
         
+        # LIVE RELOAD: Reload model and schema every time to support hot-swapping
+        # This allows training a new Oracle while MCTS is running.
+        try:
+            from autogluon.tabular import TabularPredictor
+            self.predictor = TabularPredictor.load(self.model_path)
+            self._load_schema()
+        except Exception as e:
+            if self.predictor is None:
+                logger.error(f"Oracle: Failed to load initial model: {e}")
+                return candidate_actions, [1.0 / len(candidate_actions)] * len(candidate_actions)
+            else:
+                # If we have an old predictor, keep using it instead of failing
+                logger.warning(f"Oracle: Failed to reload model (using cached version): {e}")
+
         # 1. Feature Extraction
         try:
             df = self._prepare_features(parent_node, candidate_actions)
@@ -106,36 +122,58 @@ class ActionOracle:
             return candidate_actions, [1.0 / len(candidate_actions)] * len(candidate_actions)
 
         # 3. Pruning Logic
+        # Combine into pairs and sort by probability descending
+        scored_actions = sorted(zip(candidate_actions, priors), key=lambda x: x[1], reverse=True)
+        
         accepted_actions = []
         accepted_priors = []
         
-        for action, prob in zip(candidate_actions, priors):
-            # Safe description
-            act_desc = "Action"
-            if hasattr(action, 'step_name'):
-                act_desc = f"{action.step_name}:{action.variant_name}"
+        max_actions = self.config.get("max_actions", 0)
+        
+        if max_actions > 0:
+            # STRATEGY: Top-K (Ignore threshold)
+            # Take top K actions regardless of their score.
+            # This ensures we always explore the best available options, even if the model is pessimistic.
+            kept_pairs = scored_actions[:max_actions]
             
-            should_prune = prob < self.threshold
+            # Logging
+            n_pruned = len(scored_actions) - len(kept_pairs)
+            logger.info(f"[ORACLE] Top-{max_actions} Strategy. Evaluated {len(candidate_actions)}. Kept: {len(kept_pairs)}. Pruned: {n_pruned} ({n_pruned/len(candidate_actions) if candidate_actions else 0:.1%})")
             
-            if self.dry_run:
-                # Log decision but keep everything
-                decision = "PRUNE" if should_prune else "KEEP"
-                logger.info(f"[ORACLE DRY-RUN] Action '{act_desc}' P={prob:.4f} -> Would {decision} (Threshold={self.threshold})")
-                accepted_actions.append(action)
-                accepted_priors.append(prob)
-            else:
-                if not should_prune:
+            accepted_actions = [x[0] for x in kept_pairs]
+            accepted_priors = [x[1] for x in kept_pairs]
+            
+        else:
+            # STRATEGY: Threshold (Cut the tail)
+            # Keep everything above threshold.
+            for action, prob in scored_actions:
+                # Safe description
+                act_desc = "Action"
+                if hasattr(action, 'step_name'):
+                    act_desc = f"{action.step_name}:{action.variant_name}"
+                
+                should_prune = prob < self.threshold
+                
+                if self.dry_run:
+                    # Log decision but keep everything
+                    decision = "PRUNE" if should_prune else "KEEP"
+                    logger.info(f"[ORACLE DRY-RUN] Action '{act_desc}' P={prob:.4f} -> Would {decision} (Threshold={self.threshold})")
                     accepted_actions.append(action)
                     accepted_priors.append(prob)
                 else:
-                    logger.debug(f"[ORACLE] Pruned action '{act_desc}' P={prob:.4f}")
+                    if not should_prune:
+                        accepted_actions.append(action)
+                        accepted_priors.append(prob)
+                    # else: dropped
+            
+            # Logging for threshold strategy
+            n_pruned = len(candidate_actions) - len(accepted_actions)
+            # Always log summary to confirm Oracle is active
+            logger.info(f"[ORACLE] Threshold Strategy. Evaluated {len(candidate_actions)}. Pruned: {n_pruned} ({n_pruned/len(candidate_actions):.1%}) below threshold {self.threshold}")
 
         # Safety net: if all pruned, keep everything (or best one)
-        n_pruned = len(candidate_actions) - len(accepted_actions)
-        # Always log summary to confirm Oracle is active
-        logger.info(f"[ORACLE] Evaluated {len(candidate_actions)} actions. Pruned: {n_pruned} ({n_pruned/len(candidate_actions):.1%}) below threshold {self.threshold}")
-
-        if not accepted_actions:
+        # Only relevant for Threshold strategy or if max_actions was somehow 0 but list not empty
+        if not accepted_actions and candidate_actions:
              logger.warning("[ORACLE] All actions were pruned! Falling back to original list.")
              return candidate_actions, priors
 

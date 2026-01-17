@@ -138,7 +138,12 @@ class ActionOracle:
             
             # Logging
             n_pruned = len(scored_actions) - len(kept_pairs)
-            logger.info(f"[ORACLE] Top-{max_actions} Strategy. Evaluated {len(candidate_actions)}. Kept: {len(kept_pairs)}. Pruned: {n_pruned} ({n_pruned/len(candidate_actions) if candidate_actions else 0:.1%})")
+            best_act, best_prob = kept_pairs[0] if kept_pairs else (None, 0.0)
+            best_desc = "None"
+            if best_act:
+                best_desc = f"{best_act.step_name}:{best_act.variant_name}"
+            
+            logger.info(f"[ORACLE] Top-{max_actions} Strategy. Evaluated {len(candidate_actions)}. Kept: {len(kept_pairs)}. Best: {best_desc} (P={best_prob:.4f})")
             
             accepted_actions = [x[0] for x in kept_pairs]
             accepted_priors = [x[1] for x in kept_pairs]

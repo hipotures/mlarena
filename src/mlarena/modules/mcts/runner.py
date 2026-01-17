@@ -490,9 +490,12 @@ class MCTSRunner:
                     if parent_val_before is not None:
                         delta = final_value - parent_val_before
 
+                    details_for_db = dict(result.details or {})
+                    details_for_db["final_value"] = final_value
+
                     # 2. Persist results and backprop stats in one transaction
                     with self.storage.atomic() as conn:
-                        self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, result.details, conn=conn)
+                        self.storage.add_evaluation(trial_id, fidelity, "COMPLETE", result.value, result.metric, result.duration, details_for_db, conn=conn)
                         self.logger.debug(f"[BACKPROP] Propagating value {final_value:.4f} (original: {result.value:.4f}) from node {trial_id}")
                         
                         # Update in-memory tree
@@ -751,7 +754,9 @@ class MCTSRunner:
         if result.success and result.value is not None:
             self.storage.set_trial_value(trial_id, result.value)
             self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
-            self.storage.add_evaluation(trial_id, "F2", "COMPLETE", result.value, result.metric, result.duration, result.details)
+            details_for_db = dict(result.details or {})
+            details_for_db["final_value"] = result.value
+            self.storage.add_evaluation(trial_id, "F2", "COMPLETE", result.value, result.metric, result.duration, details_for_db)
             self.logger.debug(f"[BACKPROP] Propagating baseline value {result.value:.4f}")
             # Critical: attach DB identity to root so children are linked to baseline after resume.
             self.tree.root.trial_id = trial_id

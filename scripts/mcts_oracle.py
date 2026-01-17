@@ -13,6 +13,21 @@ from autogluon.tabular import TabularPredictor
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
+def _extract_final_value(details_json):
+    if not details_json or pd.isna(details_json):
+        return None
+    try:
+        data = json.loads(details_json)
+    except Exception:
+        return None
+    value = data.get("final_value")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
 def parse_action(action_json_str, prefix=""):
     if not action_json_str or pd.isna(action_json_str):
         return {}
@@ -38,7 +53,7 @@ def parse_action(action_json_str, prefix=""):
     except Exception as e:
         return {}
 
-def extract_data(db_path):
+def extract_data(db_path, study_id=None, study_name=None):
     logger.info(f"Connecting to database: {db_path}")
     conn = sqlite3.connect(db_path)
     
@@ -48,7 +63,16 @@ def extract_data(db_path):
     node_action_map = dict(zip(history_df['child_trial_id'], history_df['action_json']))
     
     # 2. Extract Transitions with Best Evaluation per Trial
-    query = """
+    where_clause = ""
+    params = []
+    if study_id is not None:
+        where_clause = "WHERE parent_node.study_id = ?"
+        params.append(int(study_id))
+    elif study_name:
+        where_clause = "WHERE s.study_name = ?"
+        params.append(study_name)
+
+    query = f"""
     WITH eval_ranked AS (
         SELECT
             trial_id,
@@ -57,6 +81,7 @@ def extract_data(db_path):
             value,
             metric_name,
             duration_sec,
+            details_json,
             ROW_NUMBER() OVER (
                 PARTITION BY trial_id
                 ORDER BY
@@ -75,21 +100,27 @@ def extract_data(db_path):
         parent.trial_id as parent_id,
         child.trial_id as child_id,
         edge.action_json as curr_action_json,
-        eval_parent.value as parent_score,
-        eval_child.value as child_score,
+        eval_parent.value as parent_score_raw,
+        eval_child.value as child_score_raw,
+        eval_parent.details_json as parent_details_json,
+        eval_child.details_json as child_details_json,
         child_node.depth,
-        eval_parent.duration_sec as prev_duration
+        eval_parent.duration_sec as prev_duration,
+        sd.direction as direction
     FROM mcts_edges edge
     JOIN mcts_nodes parent_node ON edge.parent_trial_id = parent_node.trial_id
     JOIN mcts_nodes child_node ON edge.child_trial_id = child_node.trial_id
     JOIN trials parent ON parent_node.trial_id = parent.trial_id
     JOIN trials child ON child_node.trial_id = child.trial_id
+    LEFT JOIN studies s ON parent_node.study_id = s.study_id
+    LEFT JOIN study_directions sd ON parent_node.study_id = sd.study_id AND sd.objective = 0
     LEFT JOIN eval_ranked eval_parent ON parent.trial_id = eval_parent.trial_id AND eval_parent.rn = 1
     LEFT JOIN eval_ranked eval_child ON child.trial_id = eval_child.trial_id AND eval_child.rn = 1
+    {where_clause}
     """
     
     logger.info("Executing main query...")
-    df = pd.read_sql_query(query, conn)
+    df = pd.read_sql_query(query, conn, params=params)
     conn.close()
     
     logger.info(f"Raw transitions found: {len(df)}")
@@ -98,6 +129,11 @@ def extract_data(db_path):
     df = df.drop_duplicates(subset=['parent_id', 'child_id'])
     
     # Filter valid targets
+    df["parent_final"] = df["parent_details_json"].apply(_extract_final_value)
+    df["child_final"] = df["child_details_json"].apply(_extract_final_value)
+    df["parent_score"] = df["parent_final"].where(df["parent_final"].notna(), df["parent_score_raw"])
+    df["child_score"] = df["child_final"].where(df["child_final"].notna(), df["child_score_raw"])
+
     df = df.dropna(subset=['child_score', 'parent_score'])
     logger.info(f"Valid transitions (with scores): {len(df)}")
     
@@ -105,7 +141,9 @@ def extract_data(db_path):
         return pd.DataFrame()
 
     # Calculate Delta
+    df["direction"] = df["direction"].fillna(2)
     df['delta_score'] = df['child_score'] - df['parent_score']
+    df.loc[df["direction"] == 1, "delta_score"] *= -1
     
     # Fill defaults for context
     if 'prev_duration' in df.columns:
@@ -124,7 +162,7 @@ def extract_data(db_path):
     
     # Combine
     meta_df = pd.concat([
-        df[['parent_score', 'depth', 'delta_score', 'prev_duration']], 
+        df[['parent_score', 'depth', 'delta_score', 'prev_duration']],
         curr_actions_df,
         prev_actions_df
     ], axis=1)
@@ -154,9 +192,9 @@ def clean_output_dir(path):
         except Exception as e:
             logger.warning(f"Failed to delete {item}: {e}")
 
-def train_model(df, output_dir, num_gpus=0):
+def train_model(df, output_dir, num_gpus=0, eps=0.0):
     # Prepare Target
-    df['is_improvement'] = (df['delta_score'] > 0).astype(int)
+    df['is_improvement'] = (df['delta_score'] > eps).astype(int)
     
     # Drop Leakage
     drop_cols = ['child_score', 'delta_score']
@@ -227,8 +265,11 @@ def main():
     parser.add_argument("--project", help="Project slug under projects/kaggle/")
     parser.add_argument("--db", help="Path to mcts.db (overrides --project default)")
     parser.add_argument("--out-dir", help="Output directory for model and data (overrides --project default)")
+    parser.add_argument("--study-id", type=int, help="Filter by study_id")
+    parser.add_argument("--study-name", help="Filter by study_name")
     parser.add_argument("--num-gpus", type=int, default=0, help="Number of GPUs (default: 0)")
     parser.add_argument("--threshold", type=float, default=0.20, help="Pruning threshold for report (default: 0.20)")
+    parser.add_argument("--eps", type=float, default=0.0, help="Margin for improvement label (default: 0.0)")
     args = parser.parse_args()
 
     if args.project:
@@ -245,14 +286,16 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Extract
-    df = extract_data(db_path)
+    if args.study_id is not None and args.study_name:
+        logger.warning("Both --study-id and --study-name provided. Using --study-id.")
+    df = extract_data(db_path, study_id=args.study_id, study_name=args.study_name)
     if df.empty:
         logger.error("No valid transitions found. Exiting.")
         return
 
     # 2. Train
     try:
-        predictor = train_model(df, out_dir, num_gpus=args.num_gpus)
+        predictor = train_model(df, out_dir, num_gpus=args.num_gpus, eps=args.eps)
         
         # 2b. Report
         generate_pruning_report(predictor, df, threshold=args.threshold)

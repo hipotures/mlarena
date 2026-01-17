@@ -4,7 +4,6 @@ time_limit: 1800
 use_gpu: true
 seed: 42
 included_model_types:
-  - GBM
   - XGB
 fit_args:
   save_space: false

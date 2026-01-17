@@ -3,6 +3,8 @@ preset: medium
 time_limit: 1800
 use_gpu: true
 seed: 42
+mla:
+  skip_git: true
 hyperparameters:
   n_estimators: 1000
   early_stopping_rounds: 50

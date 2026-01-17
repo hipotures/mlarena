@@ -22,17 +22,22 @@ def _extract_final_value(details_json):
     except Exception:
         return None
 
-def _load_default_study_name():
+def _load_default_mcts_settings():
     config_path = Path(__file__).resolve().parents[1] / "conf" / "preprocess" / "mla_super_chain.yaml"
     if not config_path.exists():
         logger.warning(f"Default config not found at {config_path}")
-        return None
+        return {}
     try:
         data = yaml.safe_load(config_path.read_text()) or {}
-        return (data.get("mcts") or {}).get("study_name")
+        mcts = data.get("mcts") or {}
+        oracle = mcts.get("oracle") or {}
+        return {
+            "study_name": mcts.get("study_name"),
+            "oracle_eps": oracle.get("eps"),
+        }
     except Exception as e:
         logger.warning(f"Failed to read default study_name from {config_path}: {e}")
-        return None
+        return {}
     value = data.get("final_value")
     if value is None:
         return None
@@ -282,7 +287,7 @@ def main():
     parser.add_argument("--study-name", help="Filter by study_name")
     parser.add_argument("--num-gpus", type=int, default=0, help="Number of GPUs (default: 0)")
     parser.add_argument("--threshold", type=float, default=0.20, help="Pruning threshold for report (default: 0.20)")
-    parser.add_argument("--eps", type=float, default=0.0, help="Margin for improvement label (default: 0.0)")
+    parser.add_argument("--eps", type=float, default=None, help="Margin for improvement label (default: config or 0.0)")
     args = parser.parse_args()
 
     if args.project:
@@ -295,11 +300,20 @@ def main():
         db_path = Path(args.db)
         out_dir = Path(args.out_dir)
 
+    default_mcts = {}
     if args.study_id is None and not args.study_name:
-        default_name = _load_default_study_name()
-        if default_name:
-            args.study_name = default_name
+        default_mcts = _load_default_mcts_settings()
+        if default_mcts.get("study_name"):
+            args.study_name = default_mcts["study_name"]
             logger.info(f"Using default study_name from mla_super_chain.yaml: {args.study_name}")
+    if args.eps is None:
+        if not default_mcts:
+            default_mcts = _load_default_mcts_settings()
+        if default_mcts.get("oracle_eps") is not None:
+            args.eps = float(default_mcts["oracle_eps"])
+            logger.info(f"Using default oracle eps from mla_super_chain.yaml: {args.eps}")
+        else:
+            args.eps = 0.0
 
     # Ensure output dir exists
     out_dir.mkdir(parents=True, exist_ok=True)

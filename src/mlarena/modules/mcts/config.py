@@ -33,6 +33,7 @@ class OracleConfig(BaseModel):
     model_path: Optional[str] = None
     dry_run: bool = True
     pruning_threshold: float = 0.20
+    eps: float = 0.0
     max_actions: int = 0 # 0 = disabled (use threshold), >0 = take top K (ignore threshold)
     use_prior_in_puct: bool = False
 

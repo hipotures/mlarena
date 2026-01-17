@@ -243,5 +243,6 @@ mcts:
     model_path: default
     dry_run: false
     pruning_threshold: 0.01
+    eps: 0.0
     max_actions: 5
     use_prior_in_puct: true

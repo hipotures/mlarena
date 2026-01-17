@@ -100,9 +100,21 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
         
         # Always show progress on stdout (unless json_output is enabled)
         is_quiet = False
+        use_stderr = False
         if self.context.config and getattr(self.context.config, "json_output", False):
             is_quiet = True
-        console = Console(file=sys.__stdout__, force_terminal=True, highlight=False, quiet=is_quiet)
+            invocation_params = getattr(self.loader_instance, "invocation_params", {}) or {}
+            for key in ("quiet_preprocess_panel", "quiet_preprocess_panels", "quiet_preprocess"):
+                if key in invocation_params and invocation_params.get(key) is False:
+                    is_quiet = False
+                    use_stderr = True
+                    break
+        console = Console(
+            file=sys.stderr if use_stderr else sys.stdout,
+            force_terminal=True,
+            highlight=False,
+            quiet=is_quiet,
+        )
         
         # Build progress line: gray for the whole info
         msg = Text(f"Pipeline Step: {self.step_name}...", style="gray")
@@ -550,7 +562,20 @@ class PreprocessModule(BaseModule):
         processed_test = artifact_dir / "test_processed.csv.gz"
         processed_tuning = artifact_dir / "tuning_processed.csv.gz"
 
-        console = Console(force_terminal=True, quiet=self.invocation_params.get("json_output", False))
+        json_output = self.invocation_params.get("json_output", False)
+        quiet_console = json_output
+        use_stderr = False
+        for key in ("quiet_preprocess_panel", "quiet_preprocess_panels", "quiet_preprocess"):
+            if key in self.invocation_params and self.invocation_params.get(key) is False:
+                quiet_console = False
+                if json_output:
+                    use_stderr = True
+                break
+        console = Console(
+            force_terminal=True,
+            quiet=quiet_console,
+            file=sys.stderr if use_stderr else sys.stdout,
+        )
 
         if cache_ok and processed_train.exists() and processed_test.exists():
             console.print(f"\n[bold yellow]Using cached preprocessed data[/bold yellow]")

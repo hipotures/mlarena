@@ -137,15 +137,25 @@ class ConfigBuilder:
                 if section not in merged_conf:
                     merged_conf[section] = {}
             
-            merged_conf.preprocess.quiet_preprocess_panel = True
-            merged_conf.model.quiet_model_panel = True
-            merged_conf.model.verbosity = 0
+            if (
+                merged_conf.preprocess.get("quiet_preprocess_panel") is None
+                and merged_conf.preprocess.get("quiet_preprocess_panels") is None
+            ):
+                merged_conf.preprocess.quiet_preprocess_panel = True
+            if (
+                merged_conf.model.get("quiet_model_panel") is None
+                and merged_conf.model.get("quiet_model_panels") is None
+            ):
+                merged_conf.model.quiet_model_panel = True
+            if merged_conf.model.get("verbosity") is None:
+                merged_conf.model.verbosity = 0
             
             # Also common parameters
             if "common" not in merged_conf:
                 merged_conf.common = {}
             # Some models might use verbosity from common
-            merged_conf.common.verbosity = 0
+            if merged_conf.common.get("verbosity") is None:
+                merged_conf.common.verbosity = 0
 
         # 7. Convert to Pydantic for validation
         container = OmegaConf.to_container(merged_conf, resolve=True)

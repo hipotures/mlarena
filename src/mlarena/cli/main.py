@@ -342,6 +342,28 @@ def _build_contexts(project_root: Path, project: str, state: ExperimentState, co
     return contexts
 
 
+def _wants_panels(config: GlobalConfig) -> bool:
+    preprocess_cfg = config.preprocess if isinstance(config.preprocess, dict) else {}
+    for key in ("quiet_preprocess_panel", "quiet_preprocess_panels", "quiet_preprocess"):
+        if key in preprocess_cfg and preprocess_cfg.get(key) is False:
+            return True
+
+    model_cfg = config.model if isinstance(config.model, dict) else {}
+    for key in ("quiet_model_panel", "quiet_model_panels"):
+        if key in model_cfg and model_cfg.get(key) is False:
+            return True
+
+    return False
+
+
+def _build_console(config: GlobalConfig):
+    from rich.console import Console
+    import sys
+    if config.json_output and _wants_panels(config):
+        return Console(force_terminal=True, file=sys.stderr, quiet=False)
+    return Console(force_terminal=True, quiet=config.json_output)
+
+
 def run_preprocess_chain(
     project_root: Path,
     project_name: str,
@@ -748,13 +770,12 @@ def run_auto_flow(
     """
     Execute the full MLArena pipeline end-to-end using GlobalConfig.
     """
-    from rich.console import Console
     import time
     import json
     from mlarena.core.module import ModuleResult
     from mlarena.utils.project import load_project_config
 
-    console = Console(force_terminal=True, quiet=config.json_output)
+    console = _build_console(config)
     results: Dict[str, ModuleResult] = {}
 
     model_template = config.model_template
@@ -1260,8 +1281,7 @@ def main(argv: List[str] | None = None) -> int:
             )
         except Exception as e:
             if e.__class__.__name__ == "OverwriteLockedError":
-                from rich.console import Console
-                console = Console(force_terminal=True, quiet=config.json_output)
+                console = _build_console(config)
                 console.print(f"[bold red]✗ {str(e)}[/bold red]")
                 return 1
             raise
@@ -1314,8 +1334,7 @@ def main(argv: List[str] | None = None) -> int:
 
     # Special case: preprocess chain (even if run as single command)
     if command == "preprocess":
-        from rich.console import Console
-        console = Console(force_terminal=True, quiet=config.json_output)
+        console = _build_console(config)
 
         # Check if project exists
         if not project_root.exists():
@@ -1329,8 +1348,7 @@ def main(argv: List[str] | None = None) -> int:
             return exit_code
         except Exception as e:
             if e.__class__.__name__ == "OverwriteLockedError":
-                from rich.console import Console
-                console = Console(force_terminal=True, quiet=config.json_output)
+                console = _build_console(config)
                 console.print(f"[bold red]✗ {str(e)}[/bold red]")
                 return 1
             raise
@@ -1340,8 +1358,7 @@ def main(argv: List[str] | None = None) -> int:
     final_preprocess_template = None
     final_preprocess_exp_dir = None
     if command in ["model", "predict", "submit", "fetch-score", "tune", "stack"]:
-        from rich.console import Console
-        console = Console(force_terminal=True, quiet=config.json_output)
+        console = _build_console(config)
 
         # Resolve preprocess template (CLI arg or from model template)
         resolved_preprocess_template = config.preprocess_template

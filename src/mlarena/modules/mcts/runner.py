@@ -226,6 +226,13 @@ class MCTSRunner:
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
         
+        # Ensure Oracle logs are visible on console/file
+        oracle_logger = logging.getLogger("mlarena.core.oracle")
+        oracle_logger.setLevel(logging.INFO)
+        # If we want oracle logs in the MCTS file log too:
+        if not any(h == file_handler for h in oracle_logger.handlers):
+            oracle_logger.addHandler(file_handler)
+        
         self.logger.info(f"--- MCTS Study Started (Run ID: {self.run_id}) ---")
 
     def _wants_preprocess_panels(self) -> bool:
@@ -714,7 +721,11 @@ class MCTSRunner:
             fid_path.write_text(templates["chain_path"].read_text())
             
         exp_id = f"exp-{preprocess_template}"
-        model_template = self.params.get("model_template") or "baseline"
+        model_template = self.params.get("model_template")
+        if not model_template and self.config.evaluation and self.config.evaluation.model:
+            model_template = self.config.evaluation.model
+        if not model_template:
+            model_template = "baseline"
         
         cmd = self.executor.build_command(
             project=self.context.project_name,
@@ -817,7 +828,11 @@ class MCTSRunner:
             fid_path.write_text(templates["chain_path"].read_text())
             
         exp_id = f"exp-{preprocess_template}"
-        model_template = self.params.get("model_template") or "baseline"
+        model_template = self.params.get("model_template")
+        if not model_template and self.config.evaluation and self.config.evaluation.model:
+            model_template = self.config.evaluation.model
+        if not model_template:
+            model_template = "baseline"
         
         cmd = self.executor.build_command(
             project=self.context.project_name,

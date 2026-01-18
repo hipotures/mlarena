@@ -22,6 +22,9 @@ def info(msg):
 def err(msg):
     print(f"[ERROR] {msg}")
 
+def warn(msg):
+    print(f"[WARNING] {msg}")
+
 def get_best_path(db_path, study_name):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -136,24 +139,29 @@ def resolve_next_version(project, base_prefix, overwrite=False):
     Finds the next available version number (e.g., _001, _002).
     Scans projects/kaggle/<project>/templates/preprocess/ for pattern {base_prefix}_NNN.yaml
     """
-    template_dir = Path("projects/kaggle") / project / "templates" / "preprocess"
+    preprocess_template_dir = Path("projects/kaggle") / project / "templates" / "preprocess"
+    model_template_dir = Path("projects/kaggle") / project / "templates" / "model"
     
-    if not template_dir.exists():
-        return f"{base_prefix}_001"
+    search_dirs = [preprocess_template_dir, model_template_dir]
 
-    # Pattern: exact prefix + _ + 3 digits + .yaml
-    pattern = re.compile(rf"^{re.escape(base_prefix)}_(\d{{3}})\.yaml$")
+    # If using remote environment, assume templates might be on NFS (mounted at /mnt/mlarena)
+    if Path("/mnt/mlarena").exists():
+         search_dirs.append(Path("/mnt/mlarena") / "projects/kaggle" / project / "templates" / "preprocess")
+         search_dirs.append(Path("/mnt/mlarena/projects/kaggle") / project / "templates" / "model")
     
     max_ver = 0
+    pattern = re.compile(rf"^{re.escape(base_prefix)}_(\d{{3}})\.yaml$")
     
     # Scan directory
-    for item in template_dir.iterdir():
-        if item.is_file():
-            match = pattern.match(item.name)
-            if match:
-                ver = int(match.group(1))
-                if ver > max_ver:
-                    max_ver = ver
+    for sp in search_dirs: # Iterate over all potential dirs
+        if not sp.exists(): continue
+        for item in sp.iterdir():
+            if item.is_file():
+                match = pattern.match(item.name)
+                if match:
+                    ver = int(match.group(1))
+                    if ver > max_ver:
+                        max_ver = ver
     
     if max_ver == 0:
         return f"{base_prefix}_001"
@@ -232,17 +240,84 @@ def generate_model_template(project, config, fast_mode, final_name):
     
     seed = section_data.get("seed", 42)
     
+    # Template resolution logic
+    resolved_model = base_model
+    additional_config = {}
+
+    # Check if base_model is a template name (YAML)
+    # Search paths: projects/kaggle/<project>/templates/model/, src/mlarena/templates/model/, templates/model/
+    search_paths = [
+        Path("projects/kaggle") / project / "templates" / "model",
+        Path("src/mlarena/templates/model"),
+        Path("templates/model")
+    ]
+    
+    # If using remote environment, assume templates might be on NFS (mounted at /mnt/mlarena)
+    # This is a heuristic, but covers the common case where you want to use the framework defaults from NFS
+    # We check if /mnt/mlarena exists first
+    if Path("/mnt/mlarena").exists():
+         search_paths.append(Path("/mnt/mlarena/src/mlarena/templates/model"))
+         search_paths.append(Path("/mnt/mlarena/templates/model"))
+    
+    template_found = False
+    for sp in search_paths:
+        yaml_path = sp / f"{base_model}.yaml"
+        if yaml_path.exists():
+            try:
+                with open(yaml_path) as f:
+                    tpl_data = yaml.safe_load(f)
+                if tpl_data and "model" in tpl_data:
+                    info(f"Resolved model template '{base_model}' from {yaml_path}")
+                    resolved_model = tpl_data["model"] # The real .py implementation name
+                    # Copy other keys (preset, time_limit, included_model_types, etc.)
+                    for k, v in tpl_data.items():
+                        if k != "model" and k != "preprocess_template": # Don't copy preprocess linkage
+                            if k == "config":
+                                if "config" not in additional_config:
+                                    additional_config["config"] = {}
+                                additional_config["config"].update(v)
+                            else:
+                                additional_config[k] = v
+                    template_found = True
+                    break
+            except Exception as e:
+                warn(f"Failed to load template {yaml_path}: {e}")
+
+    if not template_found:
+        # Fallback for known templates if file lookup fails (safety net)
+        if base_model == "autogluon_thin_fast":
+            resolved_model = "autogluon_baseline"
+            additional_config["preset"] = "medium"
+            additional_config["time_limit"] = 600
+        elif base_model == "autogluon_best_quality":
+            resolved_model = "autogluon_baseline"
+            additional_config["preset"] = "best_quality"
+            additional_config["time_limit"] = 3600
+        elif base_model == "cpu-best-1h-boost":
+            resolved_model = "autogluon_baseline" 
+            additional_config["time_limit"] = 3600
+            additional_config["preset"] = "best"
+            additional_config["included_model_types"] = ["GBM", "CAT", "XGB"]
+
+    
     # Generate the model template file
     model_template_name = f"{final_name}"
     model_path = template_dir / f"{model_template_name}.yaml"
     
     model_data = {
-        # "model": base_model, # REMOVED per instruction
+        "model": resolved_model,
         "preprocess_template": final_name, # CRITICAL: Link model to preprocess
         "config": {
             "random_state": seed,
         }
     }
+    
+    # Merge additional config from template resolution
+    for k, v in additional_config.items():
+        if k == "config":
+            model_data["config"].update(v)
+        else:
+            model_data[k] = v
     
     model_path.write_text(yaml.dump(model_data, sort_keys=False))
     info(f"Created model template: {model_template_name}.yaml (Base: {base_model}, Preprocess: {final_name})")
@@ -263,6 +338,16 @@ def main():
     parser.add_argument("--env", choices=["local", "remote"], default="local", help="Environment (local or remote/NFS). Defaults to local.")
     args = parser.parse_args()
 
+    # Auto-resolve config path for remote env if not overridden
+    default_config = "conf/preprocess/mla_super_chain.yaml"
+    if args.config == default_config and args.env == "remote":
+        remote_config = Path("/mnt/mlarena/conf/preprocess/mla_super_chain.yaml")
+        if remote_config.exists():
+            args.config = str(remote_config)
+            info(f"Using remote config: {args.config}")
+        else:
+            warn(f"Remote config not found at {remote_config}, using local default.")
+
     config_path = Path(args.config)
     if not config_path.exists():
         err(f"Config not found: {config_path}")
@@ -272,28 +357,39 @@ def main():
         cfg = yaml.safe_load(f)
     
     study_name = args.study or cfg.get("mcts", {}).get("study_name")
-    
+    if not study_name:
+        err("Study name not provided and not found in config.")
+        return
+
+    db_path = None
     if args.db:
         db_path = Path(args.db)
     else:
-        # Auto-resolve based on environment
-        if args.env == "remote":
-            db_path = Path("/mnt/mlarena") / "projects/kaggle" / args.project / "experiments/db/mcts.db"
+        storage_url = cfg.get("mcts", {}).get("storage_url", "")
+        if storage_url.startswith("sqlite:///"):
+            storage_path = Path(storage_url.replace("sqlite:///", "", 1))
+            if storage_path == Path("experiments/db/mcts.db"):
+                db_path = Path("projects/kaggle") / args.project / storage_path
+            elif storage_path.is_absolute():
+                db_path = storage_path
+            else:
+                db_path = Path("projects/kaggle") / args.project / storage_path
         else:
-            # Local default
-            db_path = Path("projects/kaggle") / args.project / "experiments/db/mcts.db"
-            
-        if not db_path.exists():
-            # Fallback to config path if auto-resolve fails
-            db_rel_path = cfg.get("mcts", {}).get("storage_url", "").replace("sqlite:///", "")
-            if db_rel_path:
-                db_path = Path(db_rel_path)
-                if not db_path.exists():
-                     db_path = Path("projects/kaggle") / args.project / db_rel_path
-            
-            if not db_path.exists():
-                err(f"Database not found at {db_path}. Please provide --db or check --env.")
-                return
+            db_path = Path("projects/kaggle") / args.project / "experiments" / "db" / "mcts.db"
+
+    if args.env == "remote":
+        if not db_path.is_absolute():
+            db_path = Path("/mnt/mlarena") / db_path
+        elif not db_path.exists():
+            workspace_root = Path(__file__).resolve().parent.parent
+            try:
+                db_path = Path("/mnt/mlarena") / db_path.relative_to(workspace_root)
+            except ValueError:
+                pass
+
+    if not db_path.exists():
+        err(f"Database not found: {db_path}")
+        return
 
     prefix = args.prefix
     if not prefix:

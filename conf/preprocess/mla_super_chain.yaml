@@ -22,6 +22,17 @@ preprocessors:
     heavy_step: false
     default_enabled_fast: true
     fixed: true
+- name: external_dataset
+  group: external_data
+  template: external_dataset
+  enabled: true
+  meta:
+    heavy_step: false
+    fixed: true
+  fixed_config:
+    orig_path: data/Exam_Score_Prediction.csv
+    mode: union
+    source_flag: original_data_source
 - name: train_fraction
   group: train_fraction_fixed
   template: train_fraction
@@ -211,7 +222,10 @@ preprocessors:
     heavy_step: false
 evaluation:
   model: autogluon_thin_fast
-  # model: thin_fast_xgb
+  seed: 42
+
+production:
+  model: cpu-best-1h-boost
   seed: 42
 
 mcts:
@@ -243,6 +257,6 @@ mcts:
     model_path: default
     dry_run: false
     pruning_threshold: 0.01
-    eps: 0.0
+    eps: 0.001
     max_actions: 5
     use_prior_in_puct: true

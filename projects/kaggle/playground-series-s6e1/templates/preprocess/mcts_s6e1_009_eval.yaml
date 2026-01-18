@@ -1,0 +1,9 @@
+chain:
+- mcts_s6e1_009_eval-init-00-sanity_check
+- mcts_s6e1_009_eval-init-01-external_dataset
+- mcts_s6e1_009_eval-init-02-train_fraction
+- mcts_s6e1_009_eval-00-encoder
+- mcts_s6e1_009_eval-01-row_aggregates
+- mcts_s6e1_009_eval-02-scaler
+- mcts_s6e1_009_eval-03-rank_features_post
+- mcts_s6e1_009_eval-04-feature_selector

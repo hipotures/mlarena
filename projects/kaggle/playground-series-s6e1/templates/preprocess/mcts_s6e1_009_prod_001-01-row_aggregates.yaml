@@ -1,0 +1,6 @@
+name: row_aggregates
+variant: basic
+config:
+  stats:
+  - max
+  - min

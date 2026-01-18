@@ -492,7 +492,6 @@ def run_preprocess_chain(
             result = module_results.get("preprocess")
         except Exception as e:
             if config.json_output:
-                import json
                 print(json.dumps({
                     "experiment_id": config.experiment_id or "failed",
                     "success": False,
@@ -508,7 +507,6 @@ def run_preprocess_chain(
         final_preprocess_exp_dir = chain_base_dir / final_sub_id
 
         if not result.success and config.json_output:
-            import json
             print(json.dumps({
                 "experiment_id": config.experiment_id or "failed",
                 "success": False,
@@ -568,7 +566,6 @@ def run_preprocess_chain(
             result = module_results.get("preprocess")
         except Exception as e:
             if config.json_output:
-                import json
                 print(json.dumps({
                     "experiment_id": config.experiment_id or "failed",
                     "success": False,
@@ -585,7 +582,6 @@ def run_preprocess_chain(
         final_exp_dir = chain_base_dir / last_step_subpath
 
         if not result.success and config.json_output:
-            import json
             print(json.dumps({
                 "experiment_id": config.experiment_id or "failed",
                 "success": False,

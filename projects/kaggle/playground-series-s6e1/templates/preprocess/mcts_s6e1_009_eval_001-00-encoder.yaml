@@ -1,0 +1,7 @@
+name: encoder
+variant: log_count
+config:
+  add_log: true
+  encoding_method: count
+  min_count: 2
+  normalize: false

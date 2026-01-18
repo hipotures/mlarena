@@ -1,0 +1,4 @@
+model: cpu-best-1h-boost
+preprocess_template: mcts_s6e1_009_prod_001
+config:
+  random_state: 42

@@ -260,6 +260,7 @@ def main():
     parser.add_argument("--fast", action="store_true", help="Use evaluation settings (fast model, subset data). Default is production (full data).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite the latest existing version instead of incrementing.")
     parser.add_argument("--enqueue", action="store_true", help="Enqueue the generated experiment automatically.")
+    parser.add_argument("--env", choices=["local", "remote"], default="local", help="Environment (local or remote/NFS). Defaults to local.")
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -275,17 +276,23 @@ def main():
     if args.db:
         db_path = Path(args.db)
     else:
-        db_rel_path = cfg.get("mcts", {}).get("storage_url", "").replace("sqlite:///", "")
-        if not db_rel_path:
-            err("Missing mcts.storage_url in config")
-            return
-        
-        db_path = Path(db_rel_path)
+        # Auto-resolve based on environment
+        if args.env == "remote":
+            db_path = Path("/mnt/mlarena") / "projects/kaggle" / args.project / "experiments/db/mcts.db"
+        else:
+            # Local default
+            db_path = Path("projects/kaggle") / args.project / "experiments/db/mcts.db"
+            
         if not db_path.exists():
-            # Try relative to project if not found
-            db_path = Path("projects/kaggle") / args.project / db_rel_path
+            # Fallback to config path if auto-resolve fails
+            db_rel_path = cfg.get("mcts", {}).get("storage_url", "").replace("sqlite:///", "")
+            if db_rel_path:
+                db_path = Path(db_rel_path)
+                if not db_path.exists():
+                     db_path = Path("projects/kaggle") / args.project / db_rel_path
+            
             if not db_path.exists():
-                err(f"Database not found at {db_rel_path} or projects/kaggle/{args.project}/{db_rel_path}")
+                err(f"Database not found at {db_path}. Please provide --db or check --env.")
                 return
 
     prefix = args.prefix

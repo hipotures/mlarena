@@ -842,6 +842,8 @@ class PreprocessModule(BaseModule):
                     if "custom_module_state" not in final_container.state:
                         final_container.state["custom_module_state"] = {}
                     final_container.state["custom_module_state"]["eval_path"] = str(processed_eval)
+                    final_container.state["custom_module_state"]["eval_rows"] = int(final_container.eval.shape[0])
+                    final_container.state["custom_module_state"]["eval_cols"] = int(final_container.eval.shape[1])
                     
                 processed_orig = None
                 if final_container.orig is not None:
@@ -882,6 +884,25 @@ class PreprocessModule(BaseModule):
                     "custom_module_state": final_container.state.get("custom_module_state", {}),
                     "pipeline_steps": final_container.state.get("pipeline_steps", [])
                 }
+
+                # Sync eval_path into last step state.json so model can load eval_df.
+                step_state_path = target_dir.parent.parent / "state.json"
+                if step_state_path.exists():
+                    try:
+                        with open(step_state_path) as f:
+                            step_state = json.load(f)
+                        modules = step_state.get("modules", {})
+                        if modules:
+                            preprocess_module = modules.get("preprocess") or next(iter(modules.values()))
+                            step_payload = preprocess_module.setdefault("payload", {})
+                            step_custom_state = step_payload.get("custom_module_state") or {}
+                            step_custom_state.update(final_container.state.get("custom_module_state", {}))
+                            step_payload["custom_module_state"] = step_custom_state
+                            preprocess_module["payload"] = step_payload
+                        with open(step_state_path, "w") as f:
+                            json.dump(step_state, f, indent=2)
+                    except Exception:
+                        pass
                 
                 artifacts_list = [target_dir / "train_processed.parquet", target_dir / "test_processed.parquet"]
                 if final_container.orig is not None: artifacts_list.append(target_dir / "orig_processed.parquet")
@@ -921,7 +942,12 @@ class PreprocessModule(BaseModule):
                 is_pass_through = getattr(preprocess_module, "PASS_THROUGH", False)
 
                 # Prepare config with artifact_dir
-                preprocess_config = template_cfg.get("config", {}).copy()
+                # Handle both nested (legacy) and flattened (TemplateLoader) configs
+                if "config" in template_cfg and isinstance(template_cfg["config"], dict):
+                    preprocess_config = template_cfg["config"].copy()
+                else:
+                    # Configuration is already flattened
+                    preprocess_config = template_cfg.copy()
                 preprocess_config["_artifact_dir"] = str(artifact_dir)
                 preprocess_config["_dataset"] = {
                     "id_column": getattr(config, "ID_COLUMN", "id"),

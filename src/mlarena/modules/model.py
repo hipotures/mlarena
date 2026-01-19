@@ -830,6 +830,8 @@ class ModelModule(BaseModule):
                             eval_df = pd.read_csv(eval_path, compression='infer')
                 except Exception:
                     pass  # Silently ignore errors loading eval data
+            if eval_df is None:
+                logger.debug("Eval data not found (missing eval_path in state): %s", exp_dir_for_eval)
 
         target = getattr(config, "TARGET_COLUMN", None)
         if target is None or target not in train_df.columns:

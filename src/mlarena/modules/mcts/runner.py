@@ -284,6 +284,10 @@ class MCTSRunner:
         if not items:
             return
 
+        source = raw.get("leaderboard_source") or "unknown"
+        eval_score = raw.get("eval_score")
+        eval_rows = raw.get("eval_rows")
+
         parts = []
         for alias, model_name, score in items:
             label = f"{alias}:{model_name}" if alias and alias != model_name else model_name
@@ -293,7 +297,16 @@ class MCTSRunner:
             except (TypeError, ValueError):
                 parts.append(f"{label}={score}")
 
-        self.logger.debug(f"[LEADERBOARD] T={trial_number} " + " | ".join(parts))
+        header = f"[LEADERBOARD] T={trial_number} source={source}"
+        if eval_score is not None:
+            try:
+                header += f" eval_score={float(eval_score):.5f}"
+            except (TypeError, ValueError):
+                header += f" eval_score={eval_score}"
+        if eval_rows is not None:
+            header += f" eval_rows={eval_rows}"
+
+        self.logger.debug(header + " " + " | ".join(parts))
 
     def run(self) -> ModuleResult:
         status_msg = "Starting NEW MCTS Study" if self.is_new_study else "Resuming EXISTING MCTS Study"

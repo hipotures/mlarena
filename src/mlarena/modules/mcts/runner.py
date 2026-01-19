@@ -245,6 +245,22 @@ class MCTSRunner:
                 return True
         return False
 
+    def _format_duration_sec(self, duration: Optional[float]) -> str:
+        duration_sec = int(round(duration or 0.0))
+        return f"{duration_sec:>3d}s"
+
+    def _format_model_alias(self, model_name: Optional[str]) -> str:
+        if not model_name:
+            return ""
+        name = model_name.lower()
+        if "xgboost" in name or name.startswith("xgb"):
+            return "XGB"
+        if "lightgbm" in name or "lgbm" in name:
+            return "GBM"
+        if "catboost" in name:
+            return "CAT"
+        return model_name
+
     def run(self) -> ModuleResult:
         status_msg = "Starting NEW MCTS Study" if self.is_new_study else "Resuming EXISTING MCTS Study"
         
@@ -514,7 +530,7 @@ class MCTSRunner:
                     
                     # Log action details
                     act = child.action_from_parent
-                    act_info = f"Action=[step={act.step_name} var={act.variant_name} sid={act.param_sample_id}]"
+                    act_info = f"A=[step={act.step_name} var={act.variant_name} sid={act.param_sample_id}]"
 
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:
@@ -541,13 +557,18 @@ class MCTSRunner:
                     if not self.mcts_live:
                         # Rich styling for success message
                         txt = Text(f"I={iteration} (Ts={n_executed}/{self.config.budget}) ", style="dim")
-                        txt.append(" ✓ ", style="bold green")
+                        txt.append("✓", style="bold green")
                         parent_no = node.number if node.number is not None else 0
                         txt.append(f" T={trial_number} P={parent_no} D={child.state.depth} ", style="dim")
+                        txt.append(f"{self._format_duration_sec(result.duration)} ", style="dim")
                         txt.append(f"{act_info}: ", style="cyan")
                         
+                        model_alias = self._format_model_alias(
+                            raw.get("best_model") or raw.get("best_model_implementation")
+                        )
+                        value_text = f"{model_alias}={result.value:.5f}" if model_alias else f"{result.value:.5f}"
                         val_style = "bold yellow" if is_new_best else "bold white"
-                        txt.append(f"{result.value:.5f}", style=val_style)
+                        txt.append(value_text, style=val_style)
                         
                         # Display Delta (computed before backprop)
                         if parent_val_before is not None:
@@ -767,11 +788,17 @@ class MCTSRunner:
             self.storage.update_node_stats(trial_id, self.tree.root.n_visits, self.tree.root.value_sum, self.tree.root.value_best)
             
             if not self.mcts_live:
+                raw = result.details.get("raw_json", {})
+                model_alias = self._format_model_alias(
+                    raw.get("best_model") or raw.get("best_model_implementation")
+                )
+                value_text = f"{model_alias}={result.value:.5f}" if model_alias else f"{result.value:.5f}"
                 txt = Text(f"I=0 (Ts=0/{self.config.budget}) ", style="dim")
-                txt.append(" ✓ ", style="bold green")
+                txt.append("✓", style="bold green")
                 txt.append(f" T={trial_number} P=~ D=0 ", style="dim")
-                txt.append("Action=[step=baseline var=fixed sid=0]: ", style="cyan")
-                txt.append(f"{result.value:.5f}", style="bold white")
+                txt.append(f"{self._format_duration_sec(result.duration)} ", style="dim")
+                txt.append("A=[step=baseline var=fixed sid=0]: ", style="cyan")
+                txt.append(value_text, style="bold white")
                 txt.append(" =", style="bold blue")
                 self.console.print(txt)
             self.logger.info(f"Baseline Score: {result.value}")

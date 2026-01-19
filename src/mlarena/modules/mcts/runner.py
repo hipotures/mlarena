@@ -261,6 +261,41 @@ class MCTSRunner:
             return "CAT"
         return model_name
 
+    def _log_leaderboard_debug(self, raw: Dict[str, Any], trial_number: int) -> None:
+        leaderboard = raw.get("leaderboard")
+        if not isinstance(leaderboard, list) or not leaderboard:
+            return
+
+        seen = set()
+        items: list[tuple[str, object]] = []
+        for row in leaderboard:
+            if not isinstance(row, dict):
+                continue
+            model = row.get("model")
+            if model is None:
+                continue
+            score = row.get("score_val", row.get("score"))
+            if score is None:
+                continue
+            alias = self._format_model_alias(str(model))
+            if not alias or alias in seen:
+                continue
+            seen.add(alias)
+            items.append((alias, score))
+
+        if not items:
+            return
+
+        parts = []
+        for alias, score in items:
+            try:
+                score_val = float(score)
+                parts.append(f"{alias}={score_val:.5f}")
+            except (TypeError, ValueError):
+                parts.append(f"{alias}={score}")
+
+        self.logger.debug(f"[LEADERBOARD] T={trial_number} " + " ".join(parts))
+
     def run(self) -> ModuleResult:
         status_msg = "Starting NEW MCTS Study" if self.is_new_study else "Resuming EXISTING MCTS Study"
         
@@ -527,6 +562,8 @@ class MCTSRunner:
                     if raw:
                         json_path = self.context.project_root / "experiments" / "logs" / f"model_{trial_id}.json"
                         json_path.write_text(json.dumps(raw, indent=2))
+                    if raw:
+                        self._log_leaderboard_debug(raw, trial_number)
                     
                     # Log action details
                     act = child.action_from_parent
@@ -789,6 +826,8 @@ class MCTSRunner:
             
             if not self.mcts_live:
                 raw = result.details.get("raw_json", {})
+                if raw:
+                    self._log_leaderboard_debug(raw, trial_number)
                 model_alias = self._format_model_alias(
                     raw.get("best_model") or raw.get("best_model_implementation")
                 )

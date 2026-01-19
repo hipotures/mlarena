@@ -261,13 +261,11 @@ class MCTSRunner:
             return "CAT"
         return model_name
 
-    def _log_leaderboard_debug(self, raw: Dict[str, Any], trial_number: int) -> None:
+    def _log_leaderboard_debug(self, raw: Dict[str, Any], trial_number: int, top_k: int = 5) -> None:
         leaderboard = raw.get("leaderboard")
         if not isinstance(leaderboard, list) or not leaderboard:
             return
-
-        seen = set()
-        items: list[tuple[str, object]] = []
+        items: list[tuple[str, str, object]] = []
         for row in leaderboard:
             if not isinstance(row, dict):
                 continue
@@ -277,24 +275,25 @@ class MCTSRunner:
             score = row.get("score_val", row.get("score"))
             if score is None:
                 continue
-            alias = self._format_model_alias(str(model))
-            if not alias or alias in seen:
-                continue
-            seen.add(alias)
-            items.append((alias, score))
+            model_name = str(model)
+            alias = self._format_model_alias(model_name)
+            items.append((alias, model_name, score))
+            if len(items) >= top_k:
+                break
 
         if not items:
             return
 
         parts = []
-        for alias, score in items:
+        for alias, model_name, score in items:
+            label = f"{alias}:{model_name}" if alias and alias != model_name else model_name
             try:
                 score_val = float(score)
-                parts.append(f"{alias}={score_val:.5f}")
+                parts.append(f"{label}={score_val:.5f}")
             except (TypeError, ValueError):
-                parts.append(f"{alias}={score}")
+                parts.append(f"{label}={score}")
 
-        self.logger.debug(f"[LEADERBOARD] T={trial_number} " + " ".join(parts))
+        self.logger.debug(f"[LEADERBOARD] T={trial_number} " + " | ".join(parts))
 
     def run(self) -> ModuleResult:
         status_msg = "Starting NEW MCTS Study" if self.is_new_study else "Resuming EXISTING MCTS Study"

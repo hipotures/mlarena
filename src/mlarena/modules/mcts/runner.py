@@ -247,7 +247,7 @@ class MCTSRunner:
 
     def _format_duration_sec(self, duration: Optional[float]) -> str:
         duration_sec = int(round(duration or 0.0))
-        return f"{duration_sec:>3d}s"
+        return f"{duration_sec}s"
 
     def _format_model_alias(self, model_name: Optional[str]) -> str:
         if not model_name:

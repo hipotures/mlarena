@@ -123,6 +123,21 @@ uv run python scripts/experiment_logger.py --project Titanic show exp-20251217-1
 uv run python scripts/experiment_logger.py --project Titanic restore exp-20251217-182230
 ```
 
+### `analyze_mcts_processors.py`
+Analyze MCTS step impact (no change / improved / worsened) from `mcts.db`.
+
+**CLI Usage:**
+```bash
+# Analyze largest study by trial count (default: /mnt/mlarena, playground-series-s6e1)
+python scripts/analyze_mcts_processors.py
+
+# Point to a specific study id
+python scripts/analyze_mcts_processors.py --study-id 12
+
+# Use a custom NFS root or project slug
+python scripts/analyze_mcts_processors.py --root /mnt/mlarena --project playground-series-s6e1
+```
+
 ---
 
 ## Internal Utilities
@@ -151,6 +166,7 @@ scripts/
 ├── submissions_tracker.py      # Submission tracking (CLI + library)
 ├── submission_queue.py         # Submission queue management (CLI)
 ├── experiment_logger.py        # Experiment tracking (CLI + library)
+├── analyze_mcts_processors.py  # MCTS step impact analysis (CLI)
 ├── template_loader.py          # YAML template loader (internal)
 ├── ai_helper.py                # AI code generation (internal)
 ├── utils/                      # Standalone utilities

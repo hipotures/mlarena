@@ -25,6 +25,7 @@ def _load_processed_or_raw(
     preprocess_template: str | None = None,
     *,
     preprocess_exp_dir: str | Path | None = None,
+    return_exp_dir: bool = False,
 ):
     """
     Load preprocessed data from experiments (supports chains) or raw data.
@@ -38,11 +39,26 @@ def _load_processed_or_raw(
 
     Returns:
         Tuple of (train_df, test_df, sample_weight_df or None, orig_df or None, tuning_df or None)
+        or the same plus resolved preprocess exp dir when return_exp_dir=True.
     """
     import pandas as pd
     import json
 
     sample_weight = None
+    resolved_exp_dir: Optional[Path] = None
+
+    def _pack(train_df, test_df, sample_weight_local, orig_df_local, tuning_df_local, exp_dir_local):
+        if return_exp_dir:
+            return train_df, test_df, sample_weight_local, orig_df_local, tuning_df_local, exp_dir_local
+        return train_df, test_df, sample_weight_local, orig_df_local, tuning_df_local
+
+    def _try_load(exp_dir: Path):
+        nonlocal resolved_exp_dir
+        train_df, test_df, sample_weight_local, orig_df_local, tuning_df_local = _load_from_exp_dir(exp_dir)
+        if train_df is not None:
+            resolved_exp_dir = exp_dir
+            return _pack(train_df, test_df, sample_weight_local, orig_df_local, tuning_df_local, exp_dir)
+        return None
 
     def _load_from_exp_dir(exp_dir: Path):
         def _find_path(base_name: str) -> Optional[Path]:
@@ -104,16 +120,16 @@ def _load_processed_or_raw(
         # 1) Prefer explicit experiment dir (for chains)
         if preprocess_exp_dir:
             exp_dir = Path(preprocess_exp_dir)
-            train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(exp_dir)
-            if train_df is not None:
-                return train_df, test_df, sample_weight, orig_df, tuning_df
+            loaded = _try_load(exp_dir)
+            if loaded is not None:
+                return loaded
 
         if preprocess_template:
             # 2) Try default single-step location (legacy)
             default_dir = context.project_root / "experiments" / f"pre-{preprocess_template}"
-            train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(default_dir)
-            if train_df is not None:
-                return train_df, test_df, sample_weight, orig_df, tuning_df
+            loaded = _try_load(default_dir)
+            if loaded is not None:
+                return loaded
             
             # ... fallback search ...
             # (reszta logiki pozostaje bez zmian)
@@ -135,9 +151,9 @@ def _load_processed_or_raw(
             if candidates:
                 candidates.sort(reverse=True)
                 _, latest_dir = candidates[0]
-                train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(latest_dir)
-                if train_df is not None:
-                    return train_df, test_df, sample_weight, orig_df, tuning_df
+                loaded = _try_load(latest_dir)
+                if loaded is not None:
+                    return loaded
 
             # Also handle hashed chain dirs: pre-{template}/{hash}/<idx>-<module>
             hashed_latest = []
@@ -160,9 +176,9 @@ def _load_processed_or_raw(
                     hashed_latest.append(latest_step)
             if hashed_latest:
                 latest_dir = max(hashed_latest, key=lambda p: p.stat().st_mtime)
-                train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(latest_dir)
-                if train_df is not None:
-                    return train_df, test_df, sample_weight, orig_df, tuning_df
+                loaded = _try_load(latest_dir)
+                if loaded is not None:
+                    return loaded
 
         # 4) Fallback: search chain directories containing this template (pick most recent)
         import os
@@ -208,9 +224,9 @@ def _load_processed_or_raw(
 
         candidates = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
         for exp_dir in candidates:
-            train_df, test_df, sample_weight, orig_df, tuning_df = _load_from_exp_dir(exp_dir)
-            if train_df is not None:
-                return train_df, test_df, sample_weight, orig_df, tuning_df
+            loaded = _try_load(exp_dir)
+            if loaded is not None:
+                return loaded
 
         raise FileNotFoundError(
             f"Preprocessed data not found for template '{preprocess_template}'.\n"
@@ -224,8 +240,7 @@ def _load_processed_or_raw(
         test_df = pd.read_csv(test_path, compression='infer') if test_path.exists() else None
         orig_df = None
         tuning_df = None
-
-    return train_df, test_df, sample_weight, orig_df, tuning_df
+    return _pack(train_df, test_df, sample_weight, orig_df, tuning_df, resolved_exp_dir)
 
 
 def _resolve_model_path(project_root: Path, model_name: str) -> Path:
@@ -777,18 +792,20 @@ class ModelModule(BaseModule):
         if not preprocess_template:
             preprocess_template = template_cfg.get("preprocess_template")
 
-        train_df, test_df, sample_weight, orig_df, tuning_df = _load_processed_or_raw(
+        train_df, test_df, sample_weight, orig_df, tuning_df, resolved_exp_dir = _load_processed_or_raw(
             self.context,
             config,
             preprocess_template,
             preprocess_exp_dir=preprocess_exp_dir,
+            return_exp_dir=True,
         )
 
         # Load eval data from custom_module_state (if train_fraction module created it)
         eval_df = None
-        if preprocess_exp_dir:
+        exp_dir_for_eval = Path(preprocess_exp_dir) if preprocess_exp_dir else resolved_exp_dir
+        if exp_dir_for_eval:
             import json
-            state_path = Path(preprocess_exp_dir) / "state.json"
+            state_path = Path(exp_dir_for_eval) / "state.json"
             if state_path.exists():
                 try:
                     with open(state_path) as f:

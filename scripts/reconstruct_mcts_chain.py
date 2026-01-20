@@ -175,43 +175,74 @@ def resolve_next_version(project, base_prefix, overwrite=False):
         
     return f"{base_prefix}_{next_ver:03d}"
 
-def generate_preprocess_templates(project, fixed_actions, mcts_actions, final_name):
+def generate_preprocess_templates(project, fixed_actions, mcts_actions, final_name, config):
     template_dir = Path("projects/kaggle") / project / "templates" / "preprocess"
     template_dir.mkdir(parents=True, exist_ok=True)
     
+    # Build Order Map from Config
+    order_map = {}
+    if config and "preprocessors" in config:
+        for idx, p in enumerate(config["preprocessors"]):
+            p_name = p.get("name")
+            p_group = p.get("group")
+            if p_name:
+                order_map[p_name] = idx
+            if p_group and p_group not in order_map:
+                order_map[p_group] = idx
+
+    # Normalize and Combine Actions
+    combined_actions = []
+    
+    # Add Fixed Actions
+    for action in fixed_actions:
+        combined_actions.append(action)
+
+    # Add MCTS Actions
+    for action in mcts_actions:
+        step_name = action.get("step_name") or action.get("group_name")
+        # Preserve original MCTS action data + normalized step_name
+        mcts_item = action.copy()
+        mcts_item["step_name"] = step_name
+        mcts_item["is_fixed"] = False
+        combined_actions.append(mcts_item)
+
+    # Sort Actions
+    def get_sort_index(action):
+        name = action.get("step_name")
+        return order_map.get(name, 999) # Default to end if not found
+
+    combined_actions.sort(key=get_sort_index)
+    
     chain_steps = []
     
-    # 1. Process Fixed Actions (Prefix: init)
-    for i, action in enumerate(fixed_actions):
+    for i, action in enumerate(combined_actions):
         step_name = action["step_name"]
-        module = action["module"]
-        config = action["config"]
+        is_fixed = action.get("is_fixed", False)
         
-        # Sub-template naming: final_name-init-00-stepname.yaml
-        sub_filename = f"{final_name}-init-{i:02d}-{step_name}.yaml"
-        sub_path = template_dir / sub_filename
-        
-        sub_data = {
-            "module": module,
-            "config": config
-        }
-        sub_path.write_text(yaml.dump(sub_data, sort_keys=False))
-        chain_steps.append(sub_filename.replace(".yaml", ""))
+        if is_fixed:
+            # Fixed Action Structure
+            module = action["module"]
+            config_data = action["config"]
+            
+            sub_data = {
+                "module": module,
+                "config": config_data
+            }
+        else:
+            # MCTS Action Structure
+            variant = action.get("variant")
+            config_data = action.get("config", {})
+            
+            sub_data = {
+                "name": step_name,
+                "variant": variant,
+                "config": config_data
+            }
 
-    # 2. Process MCTS Actions (Prefix: numeric index)
-    for i, action in enumerate(mcts_actions):
-        step_name = action.get("step_name") or action.get("group_name")
-        variant = action.get("variant")
-        config = action.get("config", {})
-        
+        # Unified Naming: final_name-00-stepname.yaml
         sub_filename = f"{final_name}-{i:02d}-{step_name}.yaml"
         sub_path = template_dir / sub_filename
         
-        sub_data = {
-            "name": step_name,
-            "variant": variant,
-            "config": config
-        }
         sub_path.write_text(yaml.dump(sub_data, sort_keys=False))
         chain_steps.append(sub_filename.replace(".yaml", ""))
     
@@ -422,7 +453,7 @@ def main():
     fixed_actions = extract_fixed_steps(cfg, fast_mode=args.fast)
 
     # 3. Generate Preprocess Templates
-    preprocess_template_name = generate_preprocess_templates(args.project, fixed_actions, mcts_actions, final_name)
+    preprocess_template_name = generate_preprocess_templates(args.project, fixed_actions, mcts_actions, final_name, cfg)
     
     # 4. Generate Model Template
     model_template_name = generate_model_template(args.project, cfg, fast_mode=args.fast, final_name=final_name)

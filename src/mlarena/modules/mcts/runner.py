@@ -288,6 +288,22 @@ class MCTSRunner:
         eval_score = raw.get("eval_score")
         eval_rows = raw.get("eval_rows")
 
+        model_score = raw.get("model_score")
+        if model_score is None:
+            best_model = raw.get("best_model") or raw.get("best_model_implementation")
+            if best_model:
+                for row in leaderboard:
+                    if not isinstance(row, dict):
+                        continue
+                    if row.get("model") == best_model:
+                        if "score_val" in row:
+                            model_score = row.get("score_val")
+                        elif "score" in row:
+                            model_score = row.get("score")
+                        break
+        if model_score is None:
+            model_score = raw.get("local_cv")
+
         parts = []
         for alias, model_name, score in items:
             label = f"{alias}:{model_name}" if alias and alias != model_name else model_name
@@ -303,6 +319,11 @@ class MCTSRunner:
                 header += f" eval_score={float(eval_score):.5f}"
             except (TypeError, ValueError):
                 header += f" eval_score={eval_score}"
+        if model_score is not None:
+            try:
+                header += f" model_score={float(model_score):.5f}"
+            except (TypeError, ValueError):
+                header += f" model_score={model_score}"
         if eval_rows is not None:
             header += f" eval_rows={eval_rows}"
 

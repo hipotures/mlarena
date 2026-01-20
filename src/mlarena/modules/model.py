@@ -805,31 +805,35 @@ class ModelModule(BaseModule):
         exp_dir_for_eval = Path(preprocess_exp_dir) if preprocess_exp_dir else resolved_exp_dir
         if exp_dir_for_eval:
             import json
+
+            def _read_df(path: Path):
+                import pandas as pd
+                if path.suffix == ".parquet":
+                    return pd.read_parquet(path)
+                return pd.read_csv(path, compression="infer")
+
             state_path = Path(exp_dir_for_eval) / "state.json"
             if state_path.exists():
-                try:
-                    with open(state_path) as f:
-                        state = json.load(f)
-                    # For chains, get the first module (should be the preprocessing step)
-                    modules = state.get("modules", {})
-                    if modules:
-                        preprocess_module = modules.get("preprocess") or next(iter(modules.values()))
-                        preprocess_payload = preprocess_module.get("payload", {})
-                    else:
-                        preprocess_payload = {}
+                with open(state_path) as f:
+                    state = json.load(f)
+                # For chains, get the first module (should be the preprocessing step)
+                modules = state.get("modules", {})
+                if modules:
+                    preprocess_module = modules.get("preprocess") or next(iter(modules.values()))
+                    preprocess_payload = preprocess_module.get("payload", {})
+                else:
+                    preprocess_payload = {}
 
-                    # Check for eval_path in custom_module_state (new format)
-                    custom_state = preprocess_payload.get("custom_module_state", {})
-                    eval_path_str = custom_state.get("eval_path")
-                    if eval_path_str:
-                        eval_path = Path(eval_path_str)
-                        if not eval_path.is_absolute():
-                            eval_path = self.context.project_root / eval_path
-                        if eval_path.exists():
-                            import pandas as pd
-                            eval_df = pd.read_csv(eval_path, compression='infer')
-                except Exception:
-                    pass  # Silently ignore errors loading eval data
+                # Check for eval_path in custom_module_state (new format)
+                custom_state = preprocess_payload.get("custom_module_state", {})
+                eval_path_str = custom_state.get("eval_path")
+                if eval_path_str:
+                    eval_path = Path(eval_path_str)
+                    if not eval_path.is_absolute():
+                        eval_path = self.context.project_root / eval_path
+                    if not eval_path.exists():
+                        raise FileNotFoundError(f"eval_path not found: {eval_path}")
+                    eval_df = _read_df(eval_path)
             if eval_df is None:
                 logger.debug("Eval data not found (missing eval_path in state): %s", exp_dir_for_eval)
 

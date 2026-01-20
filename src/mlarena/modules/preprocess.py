@@ -841,7 +841,13 @@ class PreprocessModule(BaseModule):
                     final_container.eval.to_parquet(processed_eval, index=False)
                     if "custom_module_state" not in final_container.state:
                         final_container.state["custom_module_state"] = {}
-                    final_container.state["custom_module_state"]["eval_path"] = str(processed_eval)
+                    try:
+                        eval_rel = processed_eval.resolve().relative_to(self.context.project_root.resolve())
+                    except ValueError as exc:
+                        raise RuntimeError(
+                            f"eval_processed not under project root: {processed_eval}"
+                        ) from exc
+                    final_container.state["custom_module_state"]["eval_path"] = str(eval_rel)
                     final_container.state["custom_module_state"]["eval_rows"] = int(final_container.eval.shape[0])
                     final_container.state["custom_module_state"]["eval_cols"] = int(final_container.eval.shape[1])
                     
@@ -1078,7 +1084,13 @@ class PreprocessModule(BaseModule):
             # Important: update eval_path in custom_preprocess_state so model.py knows where to find the TRANSFORMED file
             if custom_preprocess_state is None:
                 custom_preprocess_state = {}
-            custom_preprocess_state["eval_path"] = str(processed_eval)
+            try:
+                eval_rel = processed_eval.resolve().relative_to(self.context.project_root.resolve())
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"eval_processed not under project root: {processed_eval}"
+                ) from exc
+            custom_preprocess_state["eval_path"] = str(eval_rel)
             # Keep eval metadata in sync for display/debugging
             custom_preprocess_state["eval_rows"] = int(eval_df.shape[0])
             custom_preprocess_state["eval_cols"] = int(eval_df.shape[1])

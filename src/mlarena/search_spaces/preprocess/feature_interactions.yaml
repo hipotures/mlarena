@@ -9,7 +9,7 @@ base_config:
 variants:
   - name: arithmetic
     requires_preproc:
-      - {group: imputer, step: after}
+      - {group: imputer}
     params:
       auto_pair_numeric: {type: fixed, value: true}
       interaction_types:

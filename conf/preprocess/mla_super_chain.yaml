@@ -4,24 +4,16 @@ filter_by_eda: true
 tune:
   allow_heavy_steps: true
   allow_heavy_variants: true
-  workers: 4
+  workers: 6
   storage_timeout: 100
   model_cleanup: true
   direction: maximize
-  max_trial_sec: 3600
-  max_features_out: 5000
+  max_trial_sec: 600
+  max_features_out: 500
   quiet_preprocess_panel: false
   quiet_model_panel: false
   model_verbosity: 2
 preprocessors:
-- name: sanity_check
-  group: sanity
-  template: sanity_check
-  enabled: true
-  meta:
-    heavy_step: false
-    default_enabled_fast: true
-    fixed: true
 - name: external_dataset
   group: external_data
   template: external_dataset
@@ -33,6 +25,14 @@ preprocessors:
     orig_path: data/Exam_Score_Prediction.csv
     mode: union
     source_flag: original_data_source
+- name: sanity_check
+  group: sanity
+  template: sanity_check
+  enabled: true
+  meta:
+    heavy_step: false
+    default_enabled_fast: true
+    fixed: true
 - name: train_fraction
   group: train_fraction_fixed
   template: train_fraction
@@ -42,7 +42,7 @@ preprocessors:
     default_enabled_fast: true
     fixed: true
   fixed_config:
-    train_fraction: 0.6
+    train_fraction: 0.8
     valid_fraction: 0.1
     eval_fraction: 0.1
     random_state: 42
@@ -87,6 +87,9 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
+    # - knn
+    # - iterative
+    #fixed: true
 - name: rare_category_handler
   group: rare_category
   template: rare_category_handler
@@ -103,6 +106,8 @@ preprocessors:
   group: groupwise_normalizer
   template: groupwise_normalizer
   enabled: false
+  meta:
+    heavy_step: false
 - name: categorical_cross
   group: categorical_cross
   template: categorical_cross
@@ -125,6 +130,7 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
+    # - kmeans
 - name: categorical_encoder
   group: encoding
   template: categorical_encoder
@@ -146,6 +152,7 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
+    # - isolation_forest    
 - name: row_aggregates
   group: row_aggregates
   template: row_aggregates
@@ -159,8 +166,8 @@ preprocessors:
   meta:
     heavy_step: false
     heavy_variants: []
-  overrides:
-    variants: ["quantile_normal", "quantile_uniform", "power_boxcox", "power_yeo_johnson", "rank_gauss", "robust"]
+    # - quantile_normal
+    # - quantile_uniform
 - name: feature_interactions
   group: feature_interactions
   template: feature_interactions
@@ -174,6 +181,20 @@ preprocessors:
   meta:
     heavy_step: true
     timeout_sec: 600
+- name: dae_embeddings
+  group: dae_embeddings
+  template: dae_embeddings
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 600
+- name: knn_graph_features
+  group: knn_graph_features
+  template: knn_graph_features
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 300
 - name: rank_features_post
   group: rank_post
   template: rank_features
@@ -202,24 +223,43 @@ preprocessors:
   enabled: false
   meta:
     heavy_step: false
+
+- name: noise_injection
+  group: noise_injection
+  template: noise_injection
+  enabled: false
+  meta:
+    heavy_step: false
+- name: mixup_augmentation
+  group: mixup_augmentation
+  template: mixup_augmentation
+  enabled: false
+  meta:
+    heavy_step: false
+- name: pseudo_labeling
+  group: pseudo_labeling
+  template: pseudo_labeling
+  enabled: true
+  meta:
+    heavy_step: false
+- name: imbalance_handler
+  group: imbalance
+  template: imbalance_handler
+  enabled: false
+  meta:
+    heavy_step: false
 - name: feature_selector
   group: feature_selector
   template: feature_selector
   enabled: true
   meta:
     heavy_step: false
-    fixed: false
+    fixed: true
   fixed_config:
     selection_method: mi
-    n_features: 0.5
-    max_drop_fraction: 0.5
+    n_features: 30
+    max_drop_fraction: 0.8
     protect_cb_features: true
-- name: imbalance_handler
-  group: imbalance
-  template: imbalance_handler
-  enabled: true
-  meta:
-    heavy_step: false
 evaluation:
   model: autogluon_thin_fast
   seed: 42
@@ -229,7 +269,7 @@ production:
   seed: 42
 
 mcts:
-  study_name: s6e1_008_xgb_gpu
+  study_name: s6e1_017
   direction: maximize
   budget: 10000
   storage_url: sqlite:///experiments/db/mcts.db
@@ -238,25 +278,25 @@ mcts:
   model_cleanup: true
   cleanup_processed: false
   selection_policy: puct
-  exploration_weight: 1.0
-  expansion_width: 0.75
+  exploration_weight: 3.0
+  expansion_width: 1.0
   expansion_alpha: 0.35
-  param_expansion_max_samples: 4
+  param_expansion_max_samples: 2
   param_expansion_alpha: 0.35
   param_expansion_width: 1.0
-  max_depth: 7
-  lookahead: 3
+  max_depth: 12
+  lookahead: 2
   seed: 42
 
   penalties:
     features_lambda: 0.01
     time_lambda: 0.0
-
+    
   oracle:
     enabled: true
     model_path: default
     dry_run: false
-    pruning_threshold: 0.01
+    pruning_threshold: 0.2
     eps: 0.001
     max_actions: 5
     use_prior_in_puct: true

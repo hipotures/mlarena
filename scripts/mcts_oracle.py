@@ -5,10 +5,15 @@ import json
 import argparse
 import time
 import shutil
-import logging
+import warnings
 from pathlib import Path
 import yaml
 from autogluon.tabular import TabularPredictor
+
+# Console output (rich)
+from rich.console import Console
+from rich.table import Table
+from rich import box
 
 # Optional (used for ablation / significance checks)
 import numpy as np
@@ -17,17 +22,59 @@ try:
     from sklearn.compose import ColumnTransformer
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
+    from sklearn.impute import SimpleImputer
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import roc_auc_score, average_precision_score
     from sklearn.model_selection import train_test_split
-
     _SKLEARN_OK = True
 except Exception:
     _SKLEARN_OK = False
 
-# Setup Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
-logger = logging.getLogger(__name__)
+console = Console()
+warnings.filterwarnings("ignore")
+
+
+def info(message: str) -> None:
+    console.print(message)
+
+
+def warn(message: str) -> None:
+    console.print(f"[yellow]Warning:[/yellow] {message}")
+
+
+def err(message: str) -> None:
+    console.print(f"[red]Error:[/red] {message}")
+
+
+def _format_cell(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    if isinstance(value, float):
+        return f"{value:.4f}"
+    return str(value)
+
+
+def _print_kv_table(title: str, rows: list[tuple[str, str]]) -> None:
+    table = Table(title=title, show_header=False, box=box.ASCII)
+    table.add_column("Metric")
+    table.add_column("Value")
+    for key, value in rows:
+        table.add_row(str(key), str(value))
+    console.print(table)
+
+
+def _print_df_table(title: str, df: pd.DataFrame) -> None:
+    table = Table(title=title, box=box.ASCII)
+    for col in df.columns:
+        table.add_column(str(col))
+    for _, row in df.iterrows():
+        table.add_row(*[_format_cell(v) for v in row.tolist()])
+    console.print(table)
 
 
 def _extract_final_value(details_json):
@@ -60,7 +107,7 @@ def _load_default_mcts_settings():
     """Load default study_name and oracle eps from mla_super_chain.yaml if available."""
     config_path = Path(__file__).resolve().parents[1] / "conf" / "preprocess" / "mla_super_chain.yaml"
     if not config_path.exists():
-        logger.warning(f"Default config not found at {config_path}")
+        warn(f"Default config not found at {config_path}")
         return {}
     try:
         data = yaml.safe_load(config_path.read_text()) or {}
@@ -71,7 +118,7 @@ def _load_default_mcts_settings():
             "oracle_eps": oracle.get("eps"),
         }
     except Exception as e:
-        logger.warning(f"Failed to read default settings from {config_path}: {e}")
+        warn(f"Failed to read default settings from {config_path}: {e}")
         return {}
 
 
@@ -102,7 +149,7 @@ def parse_action(action_json_str, prefix=""):
 
 
 def extract_data(db_path, study_id=None, study_name=None):
-    logger.info(f"Connecting to database: {db_path}")
+    info(f"Connecting to database: {db_path}")
     conn = sqlite3.connect(db_path, timeout=30.0)
 
     # 1. Get Action History (Map trial_id -> action_json)
@@ -167,12 +214,12 @@ def extract_data(db_path, study_id=None, study_name=None):
     {where_clause}
     """
 
-    logger.info("Executing main query...")
+    info("Executing main query...")
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
 
     raw_n = len(df)
-    logger.info(f"Raw transitions found: {raw_n}")
+    info(f"Raw transitions found: {raw_n}")
 
     # Deduplicate
     df = df.drop_duplicates(subset=["parent_id", "child_id"])
@@ -188,7 +235,7 @@ def extract_data(db_path, study_id=None, study_name=None):
 
     df = df.dropna(subset=["child_score", "parent_score"])
     valid_n = len(df)
-    logger.info(f"Valid transitions (with scores): {valid_n}")
+    info(f"Valid transitions (with scores): {valid_n}")
 
     if df.empty:
         return pd.DataFrame()
@@ -207,7 +254,7 @@ def extract_data(db_path, study_id=None, study_name=None):
     df["prev_action_json"] = df["parent_id"].map(node_action_map)
 
     # Parse action JSONs
-    logger.info("Parsing action JSONs...")
+    info("Parsing action JSONs...")
     curr_actions = df["curr_action_json"].apply(lambda x: parse_action(x, prefix=""))
     curr_actions_df = pd.DataFrame(curr_actions.tolist())
 
@@ -246,10 +293,10 @@ def clean_output_dir(path):
     if len(p.parts) < 2 or p.name not in safe_names:
         # Allow generic if it ends with 'oracle'
         if not str(p).endswith(("oracle", "model", "model-new", "model-old")):
-            logger.warning(f"Safety warning: refusing to clean generic path {p}")
+            warn(f"Safety warning: refusing to clean generic path {p}")
             return
 
-    logger.info(f"Cleaning output directory: {p}")
+    info(f"Cleaning output directory: {p}")
     for item in p.iterdir():
         if item.name.endswith(".csv"):
             continue
@@ -259,7 +306,7 @@ def clean_output_dir(path):
             else:
                 item.unlink()
         except Exception as e:
-            logger.warning(f"Failed to delete {item}: {e}")
+            warn(f"Failed to delete {item}: {e}")
 
 
 def _prepare_training_frame(df: pd.DataFrame, *, eps: float):
@@ -295,7 +342,7 @@ def train_model(df, output_dir, num_gpus=0, eps=0.0):
     df["is_improvement"] = (df["delta_score"] > eps).astype(int)
     train_df, feature_cols = _prepare_training_frame(df, eps=eps)
 
-    logger.info(
+    info(
         f"Training classification on {len(train_df)} rows. Target: is_improvement (delta_score > eps, eps={eps})"
     )
 
@@ -305,14 +352,16 @@ def train_model(df, output_dir, num_gpus=0, eps=0.0):
         TabularPredictor(
             label="is_improvement",
             path=str(output_dir),
-            eval_metric="roc_auc",
+            eval_metric="average_precision",
             problem_type="binary",
+            sample_weight="balance_weight",
         )
         .fit(
             train_df,
             time_limit=600,  # 10 minutes
             presets="best_quality",
             num_gpus=num_gpus,
+            calibrate_decision_threshold=True,
             hyperparameters={
                 "GBM": {},
                 "CAT": {},
@@ -321,8 +370,11 @@ def train_model(df, output_dir, num_gpus=0, eps=0.0):
         )
     )
 
-    logger.info("Leaderboard:")
-    print(predictor.leaderboard(display=True))
+    leaderboard = predictor.leaderboard(display=False)
+    _print_df_table("Leaderboard", leaderboard)
+    leaderboard_path = Path(output_dir) / "leaderboard.csv"
+    leaderboard.to_csv(leaderboard_path, index=False)
+    info(f"Leaderboard saved: {leaderboard_path}")
     # Return predictor and the exact feature set used (for consistent inference / reports)
     return predictor, feature_cols
 
@@ -330,7 +382,7 @@ def train_model(df, output_dir, num_gpus=0, eps=0.0):
 def _prepare_staging_dir(target_dir: Path) -> Path:
     staging_dir = target_dir.with_name(f"{target_dir.name}-new")
     if staging_dir.exists():
-        logger.info(f"Removing stale staging dir: {staging_dir}")
+        info(f"Removing stale staging dir: {staging_dir}")
         shutil.rmtree(staging_dir)
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
     return staging_dir
@@ -339,25 +391,22 @@ def _prepare_staging_dir(target_dir: Path) -> Path:
 def _atomic_swap_dirs(target_dir: Path, staging_dir: Path) -> None:
     old_dir = target_dir.with_name(f"{target_dir.name}-old")
     if old_dir.exists():
-        logger.info(f"Removing stale old dir: {old_dir}")
+        info(f"Removing stale old dir: {old_dir}")
         shutil.rmtree(old_dir)
 
     if target_dir.exists():
-        logger.info(f"Renaming {target_dir} -> {old_dir}")
+        info(f"Renaming {target_dir} -> {old_dir}")
         target_dir.rename(old_dir)
 
-    logger.info(f"Renaming {staging_dir} -> {target_dir}")
+    info(f"Renaming {staging_dir} -> {target_dir}")
     staging_dir.rename(target_dir)
 
     if old_dir.exists():
-        logger.info(f"Removing old model dir: {old_dir}")
+        info(f"Removing old model dir: {old_dir}")
         shutil.rmtree(old_dir)
 
 
 def generate_pruning_report(predictor, df, feature_cols, threshold=0.2):
-    logger.info("-" * 40)
-    logger.info(f"PRUNING SIMULATION (Threshold={threshold})")
-
     # Predict using the same feature columns as training (avoids surprises with extra columns)
     X = df.copy()
     if "is_improvement" not in X.columns:
@@ -375,9 +424,11 @@ def generate_pruning_report(predictor, df, feature_cols, threshold=0.2):
         n_pruned = (p_vals < threshold).sum()
         pct_pruned = (n_pruned / n_total) * 100 if n_total else 0.0
 
-        logger.info(f"Total Actions: {n_total}")
-        logger.info(f"Pruned: {n_pruned} ({pct_pruned:.2f}%)")
-        logger.info(f"Kept:   {n_total - n_pruned} ({100 - pct_pruned:.2f}%)")
+        rows = [
+            ("Total actions", n_total),
+            ("Pruned", f"{n_pruned} ({pct_pruned:.2f}%)"),
+            ("Kept", f"{n_total - n_pruned} ({100 - pct_pruned:.2f}%)"),
+        ]
 
         # Recall check
         if "is_improvement" in df.columns:
@@ -385,11 +436,17 @@ def generate_pruning_report(predictor, df, feature_cols, threshold=0.2):
             pruned_mask = p_vals < threshold
             lost_pos = int((pruned_mask & (df["is_improvement"] == 1)).sum())
             recall_loss = (lost_pos / actual_pos) * 100 if actual_pos > 0 else 0.0
-            logger.info(f"Real Improvements: {actual_pos}")
-            logger.info(f"Lost Opportunities: {lost_pos} (Recall Loss: {recall_loss:.2f}%)")
+            rows.extend(
+                [
+                    ("Real improvements", actual_pos),
+                    ("Lost opportunities", f"{lost_pos} (Recall Loss: {recall_loss:.2f}%)"),
+                ]
+            )
+
+        _print_kv_table(f"Pruning Simulation (threshold={threshold})", rows)
 
     except Exception as e:
-        logger.error(f"Pruning simulation failed: {e}")
+        err(f"Pruning simulation failed: {e}")
 
 
 def _compute_pruning_stats(y_true: np.ndarray, p_pos: np.ndarray, *, threshold: float):
@@ -453,9 +510,21 @@ def _fit_fast_logreg(train_df: pd.DataFrame, *, label: str):
 
     transformers = []
     if cat_cols:
-        transformers.append(("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols))
+        cat_pipe = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("onehot", OneHotEncoder(handle_unknown="ignore")),
+            ]
+        )
+        transformers.append(("cat", cat_pipe, cat_cols))
     if num_cols:
-        transformers.append(("num", StandardScaler(with_mean=False), num_cols))
+        num_pipe = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler(with_mean=False)),
+            ]
+        )
+        transformers.append(("num", num_pipe, num_cols))
 
     if not transformers:
         raise ValueError("No features available for ablation model")
@@ -483,12 +552,12 @@ def run_ablation_checks(df: pd.DataFrame, *, eps: float, threshold: float, test_
     Uses a fast logistic-regression baseline trained on a held-out split.
     """
     if not _SKLEARN_OK:
-        logger.info("Ablation checks skipped (scikit-learn not available).")
+        info("Ablation checks skipped (scikit-learn not available).")
         return
 
     base_df, _ = _prepare_training_frame(df, eps=eps)
     if "is_improvement" not in base_df.columns:
-        logger.info("Ablation checks skipped (label missing).")
+        info("Ablation checks skipped (label missing).")
         return
 
     # Split once, reuse for all variants (paired comparison)
@@ -520,17 +589,36 @@ def run_ablation_checks(df: pd.DataFrame, *, eps: float, threshold: float, test_
     results = {}
     y_test = base_test["is_improvement"].astype(int).values
 
-    logger.info("=" * 56)
-    logger.info("ABLATION & SIGNIFICANCE (fast baseline: logistic regression)")
-    logger.info(f"Split: test_size={test_size} seed={seed} | bootstrap={n_boot}")
+    _print_kv_table(
+        "Ablation Settings",
+        [
+            ("test_size", test_size),
+            ("seed", seed),
+            ("bootstrap", n_boot),
+        ],
+    )
+
+    table = Table(title="Ablation Results", box=box.ASCII)
+    table.add_column("Variant")
+    table.add_column("AUC")
+    table.add_column("AP")
+    table.add_column("Pruned %")
+    table.add_column("Recall loss %")
 
     for name, (tr, te) in variants.items():
-        # Fit
-        model = _fit_fast_logreg(tr, label="is_improvement")
-        X_te = te.drop(columns=["is_improvement"])
+        label = "is_improvement"
+        feature_cols = [c for c in tr.columns if c != label and tr[c].notna().any()]
+        if not feature_cols:
+            table.add_row(name, "SKIPPED", "SKIPPED", "-", "-")
+            continue
+
+        tr = tr[[label] + feature_cols]
+        te = te[[label] + feature_cols]
+
+        model = _fit_fast_logreg(tr, label=label)
+        X_te = te.drop(columns=[label])
         p_pos = model.predict_proba(X_te)[:, 1]
 
-        # Metrics
         auc = None
         ap = None
         if np.unique(y_test).size >= 2:
@@ -540,12 +628,17 @@ def run_ablation_checks(df: pd.DataFrame, *, eps: float, threshold: float, test_
         pruning = _compute_pruning_stats(y_test, p_pos, threshold=threshold)
         results[name] = {"auc": auc, "ap": ap, "p": p_pos, "pruning": pruning}
 
-        logger.info(
-            f"{name:8s} | AUC={auc if auc is not None else 'NA':>6} | AP={ap if ap is not None else 'NA':>6} | "
-            f"pruned={pruning['pct_pruned']:.1f}% | recall_loss={pruning['recall_loss']:.2f}%"
+        table.add_row(
+            name,
+            f"{auc:.4f}" if auc is not None else "NA",
+            f"{ap:.4f}" if ap is not None else "NA",
+            f"{pruning['pct_pruned']:.1f}%",
+            f"{pruning['recall_loss']:.2f}%",
         )
 
-    # Paired significance (FULL vs NO_PREV / PREV_MIN)
+    console.print(table)
+
+    diff_rows = []
     if results.get("FULL", {}).get("auc") is not None:
         p_full = results["FULL"]["p"]
         for other in ("NO_PREV", "PREV_MIN"):
@@ -554,48 +647,62 @@ def run_ablation_checks(df: pd.DataFrame, *, eps: float, threshold: float, test_
             boot = _bootstrap_auc_diff(y_test, p_full, results[other]["p"], n_boot=n_boot, seed=seed)
             if boot["n"]:
                 lo, hi = boot["ci95"]
-                logger.info(
-                    f"AUC diff (FULL - {other}) mean={boot['diff_mean']:+.4f} "
-                    f"CI95=[{lo:+.4f},{hi:+.4f}] p≈{boot['p_value']:.3f} (n={boot['n']})"
+                diff_rows.append(
+                    (
+                        f"FULL - {other}",
+                        f"{boot['diff_mean']:+.4f}",
+                        f"[{lo:+.4f}, {hi:+.4f}]",
+                        f"{boot['p_value']:.3f}",
+                        str(boot["n"]),
+                    )
                 )
             else:
-                logger.info(f"AUC diff (FULL - {other}) bootstrap failed (degenerate resamples).")
+                diff_rows.append((f"FULL - {other}", "NA", "NA", "NA", "0"))
 
-    logger.info("=" * 56)
+    if diff_rows:
+        diff_table = Table(title="AUC Diff (bootstrap)", box=box.ASCII)
+        diff_table.add_column("Comparison")
+        diff_table.add_column("Mean")
+        diff_table.add_column("CI95")
+        diff_table.add_column("p")
+        diff_table.add_column("n")
+        for row in diff_rows:
+            diff_table.add_row(*row)
+        console.print(diff_table)
 
 
 def _log_post_training_summary(*, out_dir, link_path, csv_name, df, eps, threshold, diagnostics):
-    logger.info("=" * 60)
-    logger.info("POST-TRAINING SUMMARY")
+    info("=" * 60)
+    info("POST-TRAINING SUMMARY")
 
     # Data/links
-    logger.info(f"Data link updated: {link_path.name} -> {csv_name}")
+    info(f"Data link updated: {link_path.name} -> {csv_name}")
 
     # Dataset stats
     n = len(df)
     pos_rate = float((df["delta_score"] > eps).mean()) if n else 0.0
-    logger.info(f"Rows: {n} | eps: {eps} | label positive-rate: {pos_rate:.4f}")
+    info(f"Rows: {n} | eps: {eps} | label positive-rate: {pos_rate:.4f}")
 
     if diagnostics:
         raw_n = diagnostics.get("raw_transitions")
         valid_n = diagnostics.get("valid_transitions")
-        logger.info(f"Transitions: raw={raw_n} | valid={valid_n}")
+        info(f"Transitions: raw={raw_n} | valid={valid_n}")
 
         p_cov = diagnostics.get("parent_final_coverage")
         c_cov = diagnostics.get("child_final_coverage")
         if p_cov is not None and c_cov is not None:
-            logger.info(
+            info(
                 f"details_json.final_value coverage: parent={100*p_cov:.1f}% | child={100*c_cov:.1f}% (fallback to raw value otherwise)"
             )
 
         dcounts = diagnostics.get("direction_counts")
         if dcounts:
-            logger.info(f"direction counts (DB): {dcounts} (direction==1 treated as minimize; delta_score is signed)" )
+            info(f"direction counts (DB): {dcounts} (direction==1 treated as minimize; delta_score is signed)" )
 
         sf = diagnostics.get("study_filter") or {}
-        logger.info(f"study filter: study_id={sf.get('study_id')} | study_name={sf.get('study_name')}")
+        info(f"study filter: study_id={sf.get('study_id')} | study_name={sf.get('study_name')}")
 
-    logger.info("=" * 60)
+    info("=" * 60)
 
 
 def main():
@@ -634,23 +741,23 @@ def main():
             study_id = int(args.study_id)
         else:
             if study_name and study_name != args.study_id:
-                logger.warning("Both --study-id (non-numeric) and --study-name provided. Using --study-name.")
+                warn("Both --study-id (non-numeric) and --study-name provided. Using --study-name.")
             else:
                 study_name = args.study_id
-                logger.info(f"Interpreting --study-id as study_name: {study_name}")
+                info(f"Interpreting --study-id as study_name: {study_name}")
 
     if study_id is None and not study_name:
         default_mcts = _load_default_mcts_settings()
         if default_mcts.get("study_name"):
             study_name = default_mcts["study_name"]
-            logger.info(f"Using default study_name from mla_super_chain.yaml: {study_name}")
+            info(f"Using default study_name from mla_super_chain.yaml: {study_name}")
 
     if args.eps is None:
         if not default_mcts:
             default_mcts = _load_default_mcts_settings()
         if default_mcts.get("oracle_eps") is not None:
             args.eps = float(default_mcts["oracle_eps"])
-            logger.info(f"Using default oracle eps from mla_super_chain.yaml: {args.eps}")
+            info(f"Using default oracle eps from mla_super_chain.yaml: {args.eps}")
         else:
             args.eps = 0.0
 
@@ -660,7 +767,7 @@ def main():
     # 1. Extract
     df = extract_data(db_path, study_id=study_id, study_name=study_name)
     if df.empty:
-        logger.error("No valid transitions found. Exiting.")
+        err("No valid transitions found. Exiting.")
         return
 
     diagnostics = getattr(df, "attrs", {}).get("diagnostics", {})
@@ -673,7 +780,7 @@ def main():
         generate_pruning_report(predictor, df, feature_cols, threshold=args.threshold)
 
     except Exception as e:
-        logger.error(f"Training failed: {e}")
+        err(f"Training failed: {e}")
         return
 
     # 3. Save Data & Link (Atomic data link)
@@ -681,7 +788,7 @@ def main():
     csv_name = f"mcts_oracle_{timestamp}.csv"
     csv_path = staging_dir / csv_name
 
-    logger.info(f"Saving training data to {csv_path}...")
+    info(f"Saving training data to {csv_path}...")
     df.to_csv(csv_path, index=False)
 
     link_path = staging_dir / "mcts_oracle.csv"
@@ -690,18 +797,18 @@ def main():
 
     # Relative symlink is safer if folder moves
     link_path.symlink_to(csv_name)
-    logger.info(f"Updated production data link in staging: {link_path.name} -> {csv_name}")
+    info(f"Updated production data link in staging: {link_path.name} -> {csv_name}")
 
     # 4. Swap staging into place
     try:
         _atomic_swap_dirs(target_dir, staging_dir)
     except Exception as e:
-        logger.error(f"Atomic model swap failed: {e}")
+        err(f"Atomic model swap failed: {e}")
         return
 
     out_dir = target_dir
     link_path = out_dir / "mcts_oracle.csv"
-    logger.info(f"Activated new model directory: {out_dir}")
+    info(f"Activated new model directory: {out_dir}")
 
     # 5. Summary (after relinking)
     _log_post_training_summary(
@@ -726,9 +833,9 @@ def main():
                 n_boot=args.ablation_bootstrap,
             )
         except Exception as e:
-            logger.warning(f"Ablation checks failed: {e}")
+            warn(f"Ablation checks failed: {e}")
 
-    logger.info("MCTS Oracle update complete successfully.")
+    info("MCTS Oracle update complete successfully.")
 
 
 if __name__ == "__main__":

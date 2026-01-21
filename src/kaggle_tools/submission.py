@@ -275,6 +275,13 @@ def create_submission(
     fallback_id = id_column or default_id_col
     fallback_target = default_target_col
 
+    # Auto-detect regression to allow floats even if sample uses ints
+    should_force_probas = bool(submission_probas)
+    if not should_force_probas and config:
+        p_type = config.get("AUTOGLUON_PROBLEM_TYPE") if isinstance(config, dict) else getattr(config, "AUTOGLUON_PROBLEM_TYPE", None)
+        if p_type == "regression":
+            should_force_probas = True
+
     if isinstance(predictions, pd.DataFrame):
         submission = _build_submission_from_dataframe(
             predictions,
@@ -282,7 +289,7 @@ def create_submission(
             fallback_id,
             fallback_target,
             test_ids,
-            force_probabilities=bool(submission_probas),
+            force_probabilities=should_force_probas,
         )
     else:
         submission = _build_submission_from_series(
@@ -292,7 +299,7 @@ def create_submission(
             fallback_id,
             fallback_target,
             id_column,
-            force_probabilities=bool(submission_probas),
+            force_probabilities=should_force_probas,
         )
 
     # Generate filename with timestamp

@@ -49,7 +49,7 @@ def create_archive():
     print(f"Sukces! Archiwum zapisane w {archive_path}")
     return archive_path
 
-def upload_to_chatgpt(archive_path, start_new_session=False):
+def upload_to_chatgpt(archive_path, start_new_session=False, custom_prompt=None, press_enter=False):
     CDP_ENDPOINT = "http://localhost:9222"
     TARGET_URL = "https://chatgpt.com/g/g-p-693834dd119c8191a5e726ee05bb10ec-mlarena/project"
     
@@ -134,12 +134,21 @@ def upload_to_chatgpt(archive_path, start_new_session=False):
             
             print("Typing prompt...")
             prompt_selector = '#prompt-textarea'
-            page.fill(prompt_selector, PROMPT_TEXT)
             
-            # Move to new line using Shift+Enter
-            page.press(prompt_selector, "Shift+Enter")
+            # Use provided prompt or default
+            text_to_type = custom_prompt if custom_prompt else PROMPT_TEXT
+            page.fill(prompt_selector, text_to_type)
             
-            print("Done! File uploaded and prompt filled. You can now press send manually.")
+            if press_enter:
+                # Press Enter to send
+                print("Sending message (Enter)...")
+                page.press(prompt_selector, "Enter")
+                print("Done! Message sent.")
+            else:
+                # Move to new line using Shift+Enter (default)
+                print("Adding newline (Shift+Enter)...")
+                page.press(prompt_selector, "Shift+Enter")
+                print("Done! File uploaded and prompt filled. You can now press send manually.")
             
         except Exception as e:
             print(f"Error during CDP interaction: {e}")
@@ -149,7 +158,17 @@ def upload_to_chatgpt(archive_path, start_new_session=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Archive project and upload to ChatGPT.")
     parser.add_argument("--start", action="store_true", help="Navigate to the project URL (start new session). Default is to use current page.")
+    parser.add_argument("--prompt", type=str, help="Custom prompt text to type. Overrides default.")
+    parser.add_argument("--enter", action="store_true", help="Press Enter to send the message immediately instead of Shift+Enter (newline).")
     args = parser.parse_args()
 
     archive = create_archive()
-    upload_to_chatgpt(archive, start_new_session=args.start)
+    # Pass arguments to the upload function
+    # We need to modify upload_to_chatgpt signature to accept these new args
+    # But since I cannot change the signature easily in this replace block without changing the whole function def,
+    # I will adapt the function call to use globals or modify the function above.
+    # Actually, better to pass them as args. I'll modify the function def in the same block if possible, 
+    # or rely on the fact that I'm replacing the end of the file.
+    
+    # Re-defining upload_to_chatgpt call to pass args
+    upload_to_chatgpt(archive, start_new_session=args.start, custom_prompt=args.prompt, press_enter=args.enter)

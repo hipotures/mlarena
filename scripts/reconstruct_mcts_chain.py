@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import sqlite3
-import pandas as pd
 import json
 import argparse
 import yaml
@@ -65,7 +64,8 @@ def get_best_path(db_path, study_name):
         parent_id, action_json = res["parent_trial_id"], res["action_json"]
         path.append(json.loads(action_json))
         curr_id = parent_id
-        if curr_id is None: break
+        if curr_id is None:
+            break
 
     conn.close()
     return path[::-1] # Reverse to get root -> leaf order
@@ -154,7 +154,8 @@ def resolve_next_version(project, base_prefix, overwrite=False):
     
     # Scan directory
     for sp in search_dirs: # Iterate over all potential dirs
-        if not sp.exists(): continue
+        if not sp.exists():
+            continue
         for item in sp.iterdir():
             if item.is_file():
                 match = pattern.match(item.name)
@@ -398,7 +399,7 @@ def main():
     else:
         storage_url = cfg.get("mcts", {}).get("storage_url", "")
         if storage_url.startswith("sqlite:///"):
-            storage_path = Path(storage_url.replace("sqlite:///", "", 1))
+            storage_path = Path(storage_url.replace("sqlite:////", "", 1))
             if storage_path == Path("experiments/db/mcts.db"):
                 db_path = Path("projects/kaggle") / args.project / storage_path
             elif storage_path.is_absolute():
@@ -459,11 +460,11 @@ def main():
     model_template_name = generate_model_template(args.project, cfg, fast_mode=args.fast, final_name=final_name)
     
     # Final info
-    command_str = f"model model_template={model_template_name}"
-    full_cli_cmd = f"uv run python scripts/mla.py model project={args.project} model_template={model_template_name}"
+    auto_flow_cmd = f"uv run python scripts/mla.py project={args.project} model_template={model_template_name}"
+    only_model_cmd = f"uv run python scripts/mla.py model project={args.project} model_template={model_template_name}"
 
     print("\n" + "="*60)
-    print(f"✅ Configuration generated successfully!")
+    print("✅ Configuration generated successfully!")
     print(f"  Preprocess: {preprocess_template_name}")
     print(f"  Model:      {model_template_name}")
 
@@ -472,10 +473,7 @@ def main():
             try:
                 # Use TaskQueue directly
                 queue = TaskQueue(Path("projects/kaggle") / args.project)
-                # Note: TaskQueue expects just the command string, NOT 'python scripts/mla.py ...'
-                # It prefixes 'mla ' internally if needed or runs raw.
-                # Looking at task_queue.py, it expects e.g. "model model_template=..."
-                
+                command_str = f"model_template={model_template_name}"
                 queue.add_task(command_str, priority=10)
                 print(f"\n🚀 [ENQUEUED] Task added to queue: {command_str}")
             except Exception as e:
@@ -483,10 +481,17 @@ def main():
         else:
             err("Queue module not found (src/mlarena/utils/queue.py missing?)")
     else:
-        print("\nRun this experiment with:")
-        print(f"\n{full_cli_cmd}")
+        print("\nRun full auto-flow (model -> predict -> submit -> fetch-score):")
+        print(f"  {auto_flow_cmd}")
+        print(f"  {auto_flow_cmd} common.use_gpu=true")
+        
+        print("\nRun only model training (no submit/fetch):")
+        print(f"  {only_model_cmd}")
+        print(f"  {only_model_cmd} common.use_gpu=true")
+
         print("\nOr enqueue it:")
-        print(f"python scripts/mla.py queue --project {args.project} add \"{command_str}\"")
+        print(f"  python scripts/mla.py queue --project {args.project} add \"model_template={model_template_name}\"")
+        print(f"  python scripts/mla.py queue --project {args.project} add \"model_template={model_template_name} common.use_gpu=true\"")
 
     print("="*60 + "\n")
 

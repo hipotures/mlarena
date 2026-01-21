@@ -32,10 +32,10 @@ variants:
     params:
       scaling_method: {type: choice, values: [quantile_uniform]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
-  - name: power_boxcox
-    params:
-      scaling_method: {type: choice, values: [power_boxcox]}
-      power_standardize: {type: bool}
+#  - name: power_boxcox
+#    params:
+#      scaling_method: {type: choice, values: [power_boxcox]}
+#      power_standardize: {type: bool}
   - name: power_yeo_johnson
     params:
       scaling_method: {type: choice, values: [power_yeo_johnson]}

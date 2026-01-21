@@ -117,7 +117,6 @@ def fit_transform(
         "quantile_normal",
         "quantile_uniform",
         "rank_gauss",
-        "power_boxcox",
         "power_yeo_johnson",
     ]
     validation.validate_choice(

@@ -8,6 +8,8 @@ except ImportError:
     print("Playwright not found. Please install it: pip install playwright")
     exit(1)
 
+import argparse
+
 def create_archive():
     source_dirs = ['src', 'conf', 'docs']
     specific_scripts = ['mla.py', 'generate_s6e1_grid.py']
@@ -45,7 +47,7 @@ def create_archive():
     print(f"Sukces! Archiwum zapisane w {archive_path}")
     return archive_path
 
-def upload_to_chatgpt(archive_path):
+def upload_to_chatgpt(archive_path, start_new_session=False):
     CDP_ENDPOINT = "http://localhost:9222"
     TARGET_URL = "https://chatgpt.com/g/g-p-693834dd119c8191a5e726ee05bb10ec-mlarena/project"
     PROMPT_TEXT = "Załącznik zawiera archiwum kodu"
@@ -69,9 +71,17 @@ def upload_to_chatgpt(archive_path):
             else:
                 page = context.pages[0]
             
-            print(f"Navigating to {TARGET_URL}...")
-            page.goto(TARGET_URL)
-            page.wait_for_load_state("domcontentloaded")
+            if start_new_session:
+                print(f"Navigating to {TARGET_URL}...")
+                page.goto(TARGET_URL)
+                page.wait_for_load_state("domcontentloaded")
+            else:
+                print("Using current page context (assuming ChatGPT is open)...")
+                # Optional: Bring to front to ensure visibility
+                try:
+                    page.bring_to_front()
+                except:
+                    pass
             
             # Wait for page to be interactable
             try:
@@ -142,5 +152,9 @@ def upload_to_chatgpt(archive_path):
             traceback.print_exc()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Archive project and upload to ChatGPT.")
+    parser.add_argument("--start", action="store_true", help="Navigate to the project URL (start new session). Default is to use current page.")
+    args = parser.parse_args()
+
     archive = create_archive()
-    upload_to_chatgpt(archive)
+    upload_to_chatgpt(archive, start_new_session=args.start)

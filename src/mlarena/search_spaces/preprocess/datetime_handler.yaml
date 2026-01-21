@@ -15,9 +15,11 @@ variants:
   - name: basic
     params:
       time_features_set: {type: choice, values: [basic]}
+    requires_preproc: [{group: categorical_encoder, step: after}]
   - name: extended
     params:
       time_features_set: {type: choice, values: [extended]}
+    requires_preproc: [{group: categorical_encoder, step: after}]
   - name: none
     params:
       time_features_set: {type: choice, values: [none]}

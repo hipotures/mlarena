@@ -5,6 +5,8 @@ base_config:
   numeric_include: null
   numeric_exclude: []
   log_transform: []
+  clip_lower_quantile: null  # Winsorization: clip values below this quantile (e.g., 0.01)
+  clip_upper_quantile: null  # Winsorization: clip values above this quantile (e.g., 0.99)
   random_state: 42
   power_standardize: true
 
@@ -20,6 +22,11 @@ variants:
     weight: 2.0
     params:
       scaling_method: {type: choice, values: [robust]}
+  - name: robust_clipped
+    params:
+      scaling_method: {type: choice, values: [robust]}
+      clip_lower_quantile: {type: float_range, min: 0.01, max: 0.05, step: 0.01}
+      clip_upper_quantile: {type: float_range, min: 0.95, max: 0.99, step: 0.01}
   - name: quantile_normal
     params:
       scaling_method: {type: choice, values: [quantile_normal]}

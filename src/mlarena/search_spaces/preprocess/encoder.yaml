@@ -4,9 +4,12 @@ template: encoder
 base_config:
   include_cols: null
   exclude_cols: null
+  use_original_features_only: true
   max_cardinality: 50
   handle_unknown: ignore
   unknown_value: -1
+  ordinal_order: alphabetical  # alphabetical|frequency_desc|frequency_asc|random|value_asc|value_desc|appearance
+  ordinal_random_state: 42
   target_encoding_smoothing: 1.0
   target_encoding_min_samples: 1
   ce_handle_unknown: value
@@ -42,6 +45,7 @@ variants:
   - name: ordinal
     params:
       encoding_method: {type: choice, values: [ordinal]}
+      ordinal_order: {type: choice, values: [alphabetical, frequency_desc, appearance]}
     requires_preproc: [{group: imputer}, {group: categorical_encoder}]
   # DISABLED: Causes data leakage in Preprocess->Model architecture (Global Target Encoding)
   # - name: target_mean

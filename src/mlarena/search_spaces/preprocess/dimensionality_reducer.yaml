@@ -2,6 +2,7 @@ group: dimensionality_reducer
 template: dimensionality_reducer
 
 base_config:
+  use_original_features_only: false  # Safe if encoder uses target/count/hashing (not one-hot)
   method: pca
   n_components: 20
   include_sparse: false

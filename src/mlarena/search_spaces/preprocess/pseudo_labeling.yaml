@@ -4,7 +4,7 @@ template: pseudo_labeling
 base_config:
   include_cols: null
   exclude_cols: []
-  use_original_features_only: true
+  use_original_features_only: false  # Safe: doesn't increase dimensions, only adds rows/changes labels
   model_type: logreg
   logreg_max_iter: 200
   logreg_c: 1.0

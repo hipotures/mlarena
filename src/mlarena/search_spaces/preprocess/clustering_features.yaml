@@ -4,6 +4,7 @@ template: clustering_features
 base_config:
   numeric_include: null
   numeric_exclude: []
+  use_original_features_only: false  # Safe if encoder uses target/count/hashing (not one-hot)
   algorithm: kmeans
   n_clusters: 10
   add_cluster_id: true

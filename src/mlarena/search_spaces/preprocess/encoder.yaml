@@ -32,11 +32,13 @@ base_config:
   min_count: 1
 
 variants:
-  - name: one_hot
-    params:
-      encoding_method: {type: choice, values: [one_hot]}
-      drop_first: {type: bool}
-    requires_preproc: [{group: categorical_encoder}]
+  # DISABLED: one_hot causes dimension explosion with high cardinality features
+  # Tree models (XGB/LGBM/CatBoost) don't need one-hot encoding
+  # - name: one_hot
+  #   params:
+  #     encoding_method: {type: choice, values: [one_hot]}
+  #     drop_first: {type: bool}
+  #   requires_preproc: [{group: categorical_encoder}]
   - name: ordinal
     params:
       encoding_method: {type: choice, values: [ordinal]}
@@ -86,15 +88,17 @@ variants:
       woe_regularization: {type: float_range, min: 0.01, max: 10.0, log: true}
       woe_sigma: {type: float_range, min: 0.0, max: 1.0}
     requires_preproc: [{group: categorical_encoder}]
-  - name: binary
-    params:
-      encoding_method: {type: choice, values: [binary]}
-    requires_preproc: [{group: categorical_encoder}]
-  - name: base_n
-    params:
-      encoding_method: {type: choice, values: [base_n]}
-      base_n: {type: int_range, min: 2, max: 10}
-    requires_preproc: [{group: categorical_encoder}]
+  # DISABLED: binary creates O(log2(cardinality)) columns per feature, risky with many categories
+  # - name: binary
+  #   params:
+  #     encoding_method: {type: choice, values: [binary]}
+  #   requires_preproc: [{group: categorical_encoder}]
+  # DISABLED: base_n creates O(logN(cardinality)) columns, similar risk to binary
+  # - name: base_n
+  #   params:
+  #     encoding_method: {type: choice, values: [base_n]}
+  #     base_n: {type: int_range, min: 2, max: 10}
+  #   requires_preproc: [{group: categorical_encoder}]
   - name: count
     params:
       encoding_method: {type: choice, values: [count]}

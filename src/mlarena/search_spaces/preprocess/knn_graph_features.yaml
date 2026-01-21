@@ -4,7 +4,7 @@ template: knn_graph_features
 base_config:
   include_cols: null
   exclude_cols: []
-  use_original_features_only: true
+  use_original_features_only: false  # Safe if encoder uses target/count/hashing (not one-hot)
   k: 5
   metric: euclidean
   fit_on: train

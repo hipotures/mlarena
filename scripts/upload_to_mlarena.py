@@ -156,19 +156,28 @@ def upload_to_chatgpt(archive_path, start_new_session=False, custom_prompt=None,
             traceback.print_exc()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Archive project and upload to ChatGPT.")
+    parser = argparse.ArgumentParser(
+        description="Archive project and upload to ChatGPT via CDP.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples of usage:
+  Standard (default prompt, adds newline):
+    python scripts/upload_to_mlarena.py
+
+  With custom prompt:
+    python scripts/upload_to_mlarena.py --prompt "Analyze this code structure"
+
+  Send immediately (Presses Enter):
+    python scripts/upload_to_mlarena.py --enter
+
+  Start new session (Navigate to URL) and send:
+    python scripts/upload_to_mlarena.py --start --prompt "Project update" --enter
+        """
+    )
     parser.add_argument("--start", action="store_true", help="Navigate to the project URL (start new session). Default is to use current page.")
     parser.add_argument("--prompt", type=str, help="Custom prompt text to type. Overrides default.")
     parser.add_argument("--enter", action="store_true", help="Press Enter to send the message immediately instead of Shift+Enter (newline).")
     args = parser.parse_args()
 
     archive = create_archive()
-    # Pass arguments to the upload function
-    # We need to modify upload_to_chatgpt signature to accept these new args
-    # But since I cannot change the signature easily in this replace block without changing the whole function def,
-    # I will adapt the function call to use globals or modify the function above.
-    # Actually, better to pass them as args. I'll modify the function def in the same block if possible, 
-    # or rely on the fact that I'm replacing the end of the file.
-    
-    # Re-defining upload_to_chatgpt call to pass args
     upload_to_chatgpt(archive, start_new_session=args.start, custom_prompt=args.prompt, press_enter=args.enter)

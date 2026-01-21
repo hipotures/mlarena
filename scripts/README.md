@@ -39,74 +39,32 @@ See [README.md](../README.md) and [docs/MLA_WORKFLOW_GUIDE.md](../docs/MLA_WORKF
 
 ---
 
-## Supporting Libraries
+## Task Queue
 
-These scripts provide functionality used by the main pipeline and can also be used standalone:
-
-### `submissions_tracker.py`
-Track submission history with local CV, public leaderboard, and private leaderboard scores.
+### `task_queue.py`
+Manage and execute queued experiments/tasks.
 
 **CLI Usage:**
 ```bash
-# List all submissions for a project
-uv run python scripts/submissions_tracker.py --project Titanic list
+# List queued tasks
+python scripts/task_queue.py --project Titanic list
 
-# Sort by public score
-uv run python scripts/submissions_tracker.py --project Titanic list --sort-by public_score
+# Add a task to the queue
+python scripts/task_queue.py --project Titanic add "model model_template=lgbm skip_submit=true" --priority 5
 
-# Update scores manually
-uv run python scripts/submissions_tracker.py --project Titanic update 5 --public 0.8123
+# Run tasks from the queue
+python scripts/task_queue.py --project Titanic run
 
-# Export to CSV for analysis
-uv run python scripts/submissions_tracker.py --project Titanic export
+# Run specific number of tasks
+python scripts/task_queue.py --project Titanic run --max-tasks 3
+
+# Remove a task
+python scripts/task_queue.py --project Titanic remove 1
 ```
 
-**Python API:**
-```python
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+---
 
-from submissions_tracker import SubmissionsTracker
-
-tracker = SubmissionsTracker(project_root)
-tracker.add_submission(
-    filename="submission.csv",
-    model_name="autogluon_baseline",
-    local_cv_score=0.8234,
-    public_score=0.7987
-)
-tracker.display_submissions()
-```
-
-### `submission_queue.py`
-Manage submission queue for batch processing with duplicate detection.
-
-**CLI Usage:**
-```bash
-# List queued submissions
-python scripts/submission_queue.py --project Titanic list
-
-# Submit from queue (by queue number, experiment-id, or filename)
-python scripts/submission_queue.py --project Titanic submit 1
-python scripts/submission_queue.py --project Titanic submit exp-20251226-103504
-python scripts/submission_queue.py --project Titanic submit submission.csv
-
-# Submit with auto fetch-score (waits 30s, fetches score, removes on success)
-python scripts/submission_queue.py --project Titanic submit 1 --continue-flow
-
-# Remove from queue
-python scripts/submission_queue.py --project Titanic remove 1
-```
-
-**Features:**
-- Duplicate detection via Kaggle API (prevents re-submission)
-- Error tracking with timestamps
-- Status tracking: pending → submitted → completed (or failed)
-- Auto-cleanup on successful fetch-score (with `--continue-flow`)
-- Thread-safe operations using file locking
-
-**Queue file:** `projects/kaggle/{project}/submissions/queue.json`
+## Experiment Tracking & Analysis
 
 ### `experiment_logger.py`
 Git-based experiment tracking with code snapshots for reproducibility.
@@ -128,14 +86,107 @@ Analyze MCTS step impact (no change / improved / worsened) from `mcts.db`.
 
 **CLI Usage:**
 ```bash
-# Analyze largest study by trial count (default: /mnt/mlarena, playground-series-s6e1)
+# Analyze largest study by trial count
 python scripts/analyze_mcts_processors.py
 
 # Point to a specific study id
 python scripts/analyze_mcts_processors.py --study-id 12
+```
 
-# Use a custom NFS root or project slug
-python scripts/analyze_mcts_processors.py --root /mnt/mlarena --project playground-series-s6e1
+### `analyze_mcts_trend.py`
+Analyze optimization trends (maximize/minimize) over time from `mcts.db`.
+
+**CLI Usage:**
+```bash
+# Analyze trend for a specific study (optional)
+python scripts/analyze_mcts_trend.py --project Titanic --window 50
+```
+
+### `analyze_top_models.py`
+Identify top-performing models and their training times from experiment artifacts.
+
+**CLI Usage:**
+```bash
+# Run analysis (paths currently hardcoded to specific project structure, check source)
+python scripts/analyze_top_models.py
+```
+
+---
+
+## Submission Management
+
+### `submissions_tracker.py`
+Track submission history with local CV, public leaderboard, and private leaderboard scores.
+
+**CLI Usage:**
+```bash
+# List all submissions for a project
+uv run python scripts/submissions_tracker.py --project Titanic list
+
+# Sort by public score
+uv run python scripts/submissions_tracker.py --project Titanic list --sort-by public_score
+
+# Update scores manually
+uv run python scripts/submissions_tracker.py --project Titanic update 5 --public 0.8123
+
+# Export to CSV for analysis
+uv run python scripts/submissions_tracker.py --project Titanic export
+```
+
+### `submission_queue.py`
+Manage submission queue for batch processing with duplicate detection.
+
+**CLI Usage:**
+```bash
+# List queued submissions
+python scripts/submission_queue.py --project Titanic list
+
+# Submit from queue (by queue number, experiment-id, or filename)
+python scripts/submission_queue.py --project Titanic submit 1
+
+# Submit with auto fetch-score
+python scripts/submission_queue.py --project Titanic submit 1 --continue-flow
+```
+
+### `blend_submissions.py`
+Blend top-N Kaggle submissions using public scores as weights.
+
+**CLI Usage:**
+```bash
+# Blend top 5 submissions
+python scripts/blend_submissions.py --project Titanic --top-n 5 --weighting public --output-name blend.csv
+
+# Include ensemble submissions (skipped by default)
+python scripts/blend_submissions.py --project Titanic --top-n 5 --include-ensembles
+```
+
+### `fetch_scores_from_kaggle.py`
+Fetch latest public scores from Kaggle and update local records.
+
+**CLI Usage:**
+```bash
+# Update scores for a project
+python scripts/fetch_scores_from_kaggle.py --project Titanic
+```
+
+---
+
+## Optuna Optimization
+
+### `optuna_dashboard.py`
+Textual-based TUI dashboard for monitoring Optuna trials in real-time.
+
+**CLI Usage:**
+```bash
+python scripts/optuna_dashboard.py --db projects/kaggle/Titanic/experiments/db/optuna.db --project-root projects/kaggle/Titanic
+```
+
+### `optuna_viz_explorer.py`
+CLI tool to generate various Optuna visualizations (history, importance, contour, etc.).
+
+**CLI Usage:**
+```bash
+python scripts/optuna_viz_explorer.py --db projects/kaggle/Titanic/experiments/db/optuna.db
 ```
 
 ---
@@ -163,21 +214,24 @@ AI-powered code generation for config.py and project setup.
 ```
 scripts/
 ├── mla.py                      # Main CLI entry point ⭐
-├── submissions_tracker.py      # Submission tracking (CLI + library)
-├── submission_queue.py         # Submission queue management (CLI)
-├── experiment_logger.py        # Experiment tracking (CLI + library)
-├── analyze_mcts_processors.py  # MCTS step impact analysis (CLI)
+├── task_queue.py               # Task/Experiment queue management
+├── submissions_tracker.py      # Submission tracking
+├── submission_queue.py         # Submission queue management
+├── blend_submissions.py        # Submission blending
+├── fetch_scores_from_kaggle.py # Kaggle score syncing
+├── experiment_logger.py        # Experiment tracking
+├── analyze_mcts_processors.py  # MCTS analysis
+├── analyze_mcts_trend.py       # MCTS trend analysis
+├── optuna_dashboard.py         # Optuna TUI Dashboard
+├── optuna_viz_explorer.py      # Optuna visualization generator
 ├── template_loader.py          # YAML template loader (internal)
 ├── ai_helper.py                # AI code generation (internal)
 ├── utils/                      # Standalone utilities
-│   ├── clean.py               # Cleanup AutoGluon artifacts
-│   ├── sync.py                # Project synchronization
-│   ├── av_weights_mix.py      # Adversarial validation
-│   └── README.md              # Detailed utils documentation
+│   ├── clean.py
+│   ├── sync.py
+│   └── av_weights_mix.py
 └── README.md                   # This file
 ```
-
----
 
 ## See Also
 

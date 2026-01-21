@@ -122,7 +122,7 @@ def upload_to_chatgpt(archive_path, start_new_session=False):
                 file_input = page.locator('input[type="file"]').first
                 if file_input.count() > 0:
                     try:
-                        page.evaluate("document.querySelector('input[type="file"]').style.display = 'block'")
+                        page.evaluate("document.querySelector('input[type=\"file\"]').style.display = 'block'")
                     except:
                         pass
                     file_input.set_input_files(archive_path)

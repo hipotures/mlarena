@@ -1,0 +1,5 @@
+module: numeric_binner
+config:
+  encode: onehot
+  n_bins: 20
+  strategy: quantile

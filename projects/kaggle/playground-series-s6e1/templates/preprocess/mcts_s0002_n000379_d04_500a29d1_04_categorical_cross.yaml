@@ -1,0 +1,4 @@
+module: categorical_cross
+config:
+  hash_dim: 12
+  output: hashed

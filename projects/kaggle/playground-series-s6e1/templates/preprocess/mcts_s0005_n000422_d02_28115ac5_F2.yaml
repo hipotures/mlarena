@@ -1,0 +1,5 @@
+chain:
+- mcts_s0005_n000422_d02_28115ac5_00_sanity_check
+- mcts_s0005_n000422_d02_28115ac5_01_train_fraction
+- mcts_s0005_n000422_d02_28115ac5_02_imputer
+- mcts_s0005_n000422_d02_28115ac5_03_rare_category_handler

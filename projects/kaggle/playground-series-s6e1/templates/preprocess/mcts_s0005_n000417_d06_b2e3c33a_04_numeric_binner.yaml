@@ -1,0 +1,5 @@
+module: numeric_binner
+config:
+  encode: ordinal
+  n_bins: 10
+  strategy: kmeans

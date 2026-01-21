@@ -1,0 +1,9 @@
+name: row_aggregates
+variant: extended
+config:
+  nan_policy: omit
+  stats:
+  - mad
+  - mean
+  - min
+  - sum

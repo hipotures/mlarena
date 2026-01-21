@@ -1,0 +1,4 @@
+module: imputer
+config:
+  fill_value: 1
+  numeric_strategy: constant

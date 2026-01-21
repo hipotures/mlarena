@@ -1,0 +1,5 @@
+module: mixup_augmentation
+config:
+  allow_soft_labels: false
+  alpha: 1.0
+  augment_ratio: 0.5

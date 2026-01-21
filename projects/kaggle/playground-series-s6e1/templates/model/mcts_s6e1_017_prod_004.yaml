@@ -1,0 +1,10 @@
+model: autogluon_baseline
+preprocess_template: mcts_s6e1_017_prod_004
+config:
+  random_state: 42
+time_limit: 3600
+preset: best
+included_model_types:
+- GBM
+- CAT
+- XGB

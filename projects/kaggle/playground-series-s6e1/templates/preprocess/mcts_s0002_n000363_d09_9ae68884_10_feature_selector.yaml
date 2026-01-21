@@ -1,0 +1,4 @@
+module: feature_selector
+config:
+  min_variance: 0.045
+  selection_method: variance

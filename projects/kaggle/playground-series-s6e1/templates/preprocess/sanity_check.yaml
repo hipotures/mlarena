@@ -1,5 +1,7 @@
 module: sanity_check
 config:
-  max_missing_fraction: 1.0
+  max_missing_fraction: 0.8
   min_unique_fraction: 0.0
   drop_duplicates: true
+  column_types_override: {}
+  ignore_columns: []

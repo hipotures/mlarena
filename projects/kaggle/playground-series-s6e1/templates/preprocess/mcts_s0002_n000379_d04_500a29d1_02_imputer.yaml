@@ -1,0 +1,3 @@
+module: imputer
+config:
+  numeric_strategy: most_frequent

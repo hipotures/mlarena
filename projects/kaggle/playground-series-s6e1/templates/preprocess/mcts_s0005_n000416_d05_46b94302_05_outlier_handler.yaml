@@ -1,0 +1,5 @@
+module: outlier_handler
+config:
+  action: clip
+  outlier_method: zscore
+  zscore_threshold: 3.4000000000000004

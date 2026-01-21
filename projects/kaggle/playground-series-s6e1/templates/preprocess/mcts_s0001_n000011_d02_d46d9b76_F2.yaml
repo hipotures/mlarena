@@ -1,0 +1,5 @@
+chain:
+- mcts_s0001_n000011_d02_d46d9b76_00_sanity_check
+- mcts_s0001_n000011_d02_d46d9b76_01_train_fraction
+- mcts_s0001_n000011_d02_d46d9b76_02_imputer
+- mcts_s0001_n000011_d02_d46d9b76_03_categorical_cross

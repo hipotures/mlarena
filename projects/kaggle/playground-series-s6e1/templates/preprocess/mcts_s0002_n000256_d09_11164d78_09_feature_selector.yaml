@@ -1,0 +1,5 @@
+module: feature_selector
+config:
+  n_features: 0.8
+  perm_importance_repeats: 3
+  selection_method: permutation_importance

@@ -1,0 +1,6 @@
+module: feature_selector
+config:
+  n_features: 0.8
+  null_importance_quantile: 0.92
+  null_importance_rounds: 18
+  selection_method: null_importance

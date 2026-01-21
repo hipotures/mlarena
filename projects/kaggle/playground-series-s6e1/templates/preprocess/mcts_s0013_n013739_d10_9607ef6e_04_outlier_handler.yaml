@@ -1,0 +1,5 @@
+module: outlier_handler
+config:
+  action: clip
+  mad_threshold: 3.9000000000000004
+  outlier_method: mad

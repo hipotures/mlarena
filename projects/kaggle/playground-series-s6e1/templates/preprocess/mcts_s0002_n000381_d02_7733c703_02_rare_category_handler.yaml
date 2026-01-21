@@ -1,0 +1,5 @@
+module: rare_category_handler
+config:
+  min_freq: 25
+  min_freq_ratio: 0.045
+  top_k: 70

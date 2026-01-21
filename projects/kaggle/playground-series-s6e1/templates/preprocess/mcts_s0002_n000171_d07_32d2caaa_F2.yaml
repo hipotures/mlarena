@@ -1,0 +1,10 @@
+chain:
+- mcts_s0002_n000171_d07_32d2caaa_00_sanity_check
+- mcts_s0002_n000171_d07_32d2caaa_01_train_fraction
+- mcts_s0002_n000171_d07_32d2caaa_02_imputer
+- mcts_s0002_n000171_d07_32d2caaa_03_rare_category_handler
+- mcts_s0002_n000171_d07_32d2caaa_04_feature_group_agg
+- mcts_s0002_n000171_d07_32d2caaa_05_numeric_binner
+- mcts_s0002_n000171_d07_32d2caaa_06_encoder
+- mcts_s0002_n000171_d07_32d2caaa_07_scaler
+- mcts_s0002_n000171_d07_32d2caaa_08_feature_polynomial

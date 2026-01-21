@@ -1,0 +1,5 @@
+module: outlier_handler
+config:
+  action: flag_only
+  isoforest_contamination: 0.06
+  outlier_method: isolation_forest

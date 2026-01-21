@@ -1,0 +1,5 @@
+name: scaler
+variant: rank_gauss
+config:
+  n_quantiles: 2000
+  scaling_method: rank_gauss

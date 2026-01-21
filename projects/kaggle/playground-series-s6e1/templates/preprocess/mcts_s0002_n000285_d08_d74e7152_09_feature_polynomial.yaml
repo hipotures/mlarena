@@ -1,0 +1,5 @@
+module: feature_polynomial
+config:
+  max_generated_features: 45
+  poly_degree: 3
+  poly_interaction_only: true

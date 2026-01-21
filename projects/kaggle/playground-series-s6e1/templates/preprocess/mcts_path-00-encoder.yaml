@@ -1,0 +1,7 @@
+name: encoder
+variant: freq_log
+config:
+  add_log: true
+  encoding_method: count
+  min_count: 11
+  normalize: true

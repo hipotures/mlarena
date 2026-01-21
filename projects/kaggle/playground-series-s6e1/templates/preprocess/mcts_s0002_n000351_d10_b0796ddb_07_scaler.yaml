@@ -1,0 +1,4 @@
+module: scaler
+config:
+  power_standardize: false
+  scaling_method: power_boxcox

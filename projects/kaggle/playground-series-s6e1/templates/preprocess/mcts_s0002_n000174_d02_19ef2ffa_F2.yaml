@@ -1,0 +1,5 @@
+chain:
+- mcts_s0002_n000174_d02_19ef2ffa_00_sanity_check
+- mcts_s0002_n000174_d02_19ef2ffa_01_train_fraction
+- mcts_s0002_n000174_d02_19ef2ffa_02_imputer
+- mcts_s0002_n000174_d02_19ef2ffa_03_rare_category_handler

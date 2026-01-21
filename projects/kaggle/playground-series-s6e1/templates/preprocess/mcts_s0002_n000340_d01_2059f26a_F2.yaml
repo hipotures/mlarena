@@ -1,0 +1,4 @@
+chain:
+- mcts_s0002_n000340_d01_2059f26a_00_sanity_check
+- mcts_s0002_n000340_d01_2059f26a_01_train_fraction
+- mcts_s0002_n000340_d01_2059f26a_02_rare_category_handler

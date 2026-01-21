@@ -1,8 +1,0 @@
-chain:
-- mcts_s6e1_009_best_auto-init-00-sanity_check
-- mcts_s6e1_009_best_auto-init-01-external_dataset
-- mcts_s6e1_009_best_auto-00-encoder
-- mcts_s6e1_009_best_auto-01-row_aggregates
-- mcts_s6e1_009_best_auto-02-scaler
-- mcts_s6e1_009_best_auto-03-rank_features_post
-- mcts_s6e1_009_best_auto-04-feature_selector

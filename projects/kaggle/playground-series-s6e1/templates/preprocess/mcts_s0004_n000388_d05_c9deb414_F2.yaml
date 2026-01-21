@@ -1,0 +1,8 @@
+chain:
+- mcts_s0004_n000388_d05_c9deb414_00_sanity_check
+- mcts_s0004_n000388_d05_c9deb414_01_train_fraction
+- mcts_s0004_n000388_d05_c9deb414_02_missingness_features
+- mcts_s0004_n000388_d05_c9deb414_03_imputer
+- mcts_s0004_n000388_d05_c9deb414_04_rare_category_handler
+- mcts_s0004_n000388_d05_c9deb414_05_rank_features_pre
+- mcts_s0004_n000388_d05_c9deb414_06_encoder

@@ -1,0 +1,7 @@
+name: categorical_encoder
+variant: auto
+config:
+  auto_detect_threshold: 30
+  exclude_text_type: true
+  include_numeric_categories: false
+  max_cardinality: 45

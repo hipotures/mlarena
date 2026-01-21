@@ -1,0 +1,6 @@
+module: pseudo_labeling
+config:
+  confidence_threshold: 0.92
+  max_pseudo_fraction: 0.25
+  model_type: rf
+  rf_n_estimators: 400

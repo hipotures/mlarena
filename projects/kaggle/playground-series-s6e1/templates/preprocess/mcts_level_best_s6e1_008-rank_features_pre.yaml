@@ -1,0 +1,7 @@
+name: rank_features_pre
+variant: global_gauss
+config:
+  fit_on_train: false
+  method: gauss_rank
+  mode: global
+  tie_method: max

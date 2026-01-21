@@ -1,0 +1,6 @@
+module: feature_selector
+config:
+  selection_method: mi
+  n_features: 30
+  max_drop_fraction: 0.8
+  protect_cb_features: true

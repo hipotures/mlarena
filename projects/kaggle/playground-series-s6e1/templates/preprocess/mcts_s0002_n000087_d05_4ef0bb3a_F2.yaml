@@ -1,0 +1,8 @@
+chain:
+- mcts_s0002_n000087_d05_4ef0bb3a_00_sanity_check
+- mcts_s0002_n000087_d05_4ef0bb3a_01_train_fraction
+- mcts_s0002_n000087_d05_4ef0bb3a_02_imputer
+- mcts_s0002_n000087_d05_4ef0bb3a_03_categorical_cross
+- mcts_s0002_n000087_d05_4ef0bb3a_04_numeric_binner
+- mcts_s0002_n000087_d05_4ef0bb3a_05_outlier_handler
+- mcts_s0002_n000087_d05_4ef0bb3a_06_scaler

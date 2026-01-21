@@ -1,0 +1,13 @@
+module: row_aggregates
+config:
+  nan_policy: omit
+  stats:
+  - kurt
+  - mad
+  - max
+  - mean
+  - min
+  - range
+  - skew
+  - std
+  - sum

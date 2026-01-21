@@ -1,0 +1,6 @@
+module: drift_detector
+config:
+  action: flag_only
+  drift_metric: psi
+  max_drop_fraction: 0.4
+  max_psi: 0.25

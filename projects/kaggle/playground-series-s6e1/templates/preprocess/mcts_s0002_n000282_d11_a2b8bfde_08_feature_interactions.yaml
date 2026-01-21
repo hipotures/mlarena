@@ -1,0 +1,6 @@
+module: feature_interactions
+config:
+  interaction_types:
+  - add
+  - div
+  max_generated_features: 125

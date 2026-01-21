@@ -1,3 +1,0 @@
-module: sanity_check
-config:
-  drop_duplicates: true  # Standard defaults often imply this

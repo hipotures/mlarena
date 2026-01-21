@@ -1,0 +1,4 @@
+name: scaler
+variant: standard
+config:
+  scaling_method: standard

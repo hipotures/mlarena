@@ -1,0 +1,4 @@
+module: scaler
+config:
+  n_quantiles: 1200
+  scaling_method: quantile_uniform

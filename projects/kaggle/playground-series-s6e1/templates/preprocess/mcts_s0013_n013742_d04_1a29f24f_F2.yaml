@@ -1,0 +1,8 @@
+chain:
+- mcts_s0013_n013742_d04_1a29f24f_00_external_dataset
+- mcts_s0013_n013742_d04_1a29f24f_01_sanity_check
+- mcts_s0013_n013742_d04_1a29f24f_02_train_fraction
+- mcts_s0013_n013742_d04_1a29f24f_03_categorical_encoder
+- mcts_s0013_n013742_d04_1a29f24f_04_outlier_handler
+- mcts_s0013_n013742_d04_1a29f24f_05_scaler
+- mcts_s0013_n013742_d04_1a29f24f_06_feature_interactions

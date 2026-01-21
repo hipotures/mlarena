@@ -1,0 +1,5 @@
+module: feature_selector
+config:
+  importance_model_type: rf
+  n_features: 0.7000000000000001
+  selection_method: model_importance

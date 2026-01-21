@@ -1,0 +1,8 @@
+chain:
+- mcts_s0002_n000178_d05_ea15f7d4_00_sanity_check
+- mcts_s0002_n000178_d05_ea15f7d4_01_train_fraction
+- mcts_s0002_n000178_d05_ea15f7d4_02_imputer
+- mcts_s0002_n000178_d05_ea15f7d4_03_rare_category_handler
+- mcts_s0002_n000178_d05_ea15f7d4_04_rank_features_pre
+- mcts_s0002_n000178_d05_ea15f7d4_05_encoder
+- mcts_s0002_n000178_d05_ea15f7d4_06_row_aggregates

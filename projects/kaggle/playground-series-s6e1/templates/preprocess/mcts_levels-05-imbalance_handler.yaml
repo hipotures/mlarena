@@ -1,0 +1,4 @@
+name: imbalance_handler
+variant: random_over
+config:
+  imbalance_method: random_over

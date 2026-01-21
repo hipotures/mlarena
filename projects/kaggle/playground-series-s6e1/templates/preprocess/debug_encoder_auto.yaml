@@ -1,0 +1,10 @@
+steps:
+  - name: categorical_encoder
+    module: categorical_encoder
+    params:
+      variant: auto
+      auto:
+        max_cardinality: 100
+        auto_detect_threshold: 35
+        exclude_text_type: false
+        include_numeric_categories: true

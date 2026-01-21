@@ -1,0 +1,8 @@
+chain:
+- mcts_s0002_n000169_d05_d99a460d_00_sanity_check
+- mcts_s0002_n000169_d05_d99a460d_01_train_fraction
+- mcts_s0002_n000169_d05_d99a460d_02_imputer
+- mcts_s0002_n000169_d05_d99a460d_03_rare_category_handler
+- mcts_s0002_n000169_d05_d99a460d_04_feature_group_agg
+- mcts_s0002_n000169_d05_d99a460d_05_numeric_binner
+- mcts_s0002_n000169_d05_d99a460d_06_encoder

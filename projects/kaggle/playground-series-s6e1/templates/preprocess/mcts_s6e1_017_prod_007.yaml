@@ -1,0 +1,7 @@
+chain:
+- mcts_s6e1_017_prod_007-00-sanity_check
+- mcts_s6e1_017_prod_007-01-external_dataset
+- mcts_s6e1_017_prod_007-02-categorical_encoder
+- mcts_s6e1_017_prod_007-03-outlier_handler
+- mcts_s6e1_017_prod_007-04-row_aggregates
+- mcts_s6e1_017_prod_007-05-scaler

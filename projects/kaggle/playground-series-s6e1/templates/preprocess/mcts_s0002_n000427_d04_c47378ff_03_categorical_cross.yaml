@@ -1,0 +1,4 @@
+module: categorical_cross
+config:
+  max_pair_cardinality: 400
+  output: onehot

@@ -1,0 +1,6 @@
+name: feature_selector
+variant: model_importance
+config:
+  importance_model_type: rf
+  n_features: 0.6000000000000001
+  selection_method: model_importance

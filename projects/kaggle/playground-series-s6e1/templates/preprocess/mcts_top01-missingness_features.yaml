@@ -1,0 +1,6 @@
+name: missingness_features
+variant: col_indicators_only
+config:
+  add_per_column_indicators: true
+  add_row_missing_count: false
+  add_row_missing_ratio: false

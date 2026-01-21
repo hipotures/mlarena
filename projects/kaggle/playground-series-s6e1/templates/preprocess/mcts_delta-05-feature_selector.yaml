@@ -1,0 +1,6 @@
+name: feature_selector
+variant: model_importance
+config:
+  importance_model_type: xgb
+  n_features: 0.9
+  selection_method: model_importance

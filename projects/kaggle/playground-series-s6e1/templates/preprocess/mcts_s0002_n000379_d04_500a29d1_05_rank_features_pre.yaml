@@ -1,0 +1,6 @@
+module: rank_features
+config:
+  fit_on_train: false
+  method: gauss_rank
+  mode: global
+  tie_method: max

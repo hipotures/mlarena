@@ -1,0 +1,5 @@
+module: dae_embeddings
+config:
+  embedding_dim: 32
+  noise_type: swap
+  swap_prob: 0.1

@@ -1,0 +1,7 @@
+name: outlier_handler
+variant: percentile
+config:
+  action: clip
+  lower_quantile: 0.05
+  outlier_method: percentile
+  upper_quantile: 0.99

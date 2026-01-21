@@ -1,3 +1,20 @@
+model: autogluon_baseline
 preprocess_template: mcts_s6e1_009_eval_001
 config:
   random_state: 42
+preset: medium
+time_limit: 600
+use_gpu: true
+seed: 42
+included_model_types:
+- XGB
+- GBM
+fit_args:
+  save_space: true
+  fit_weighted_ensemble: false
+  auto_stack: false
+  use_bag_holdout: true
+  save_bag_folds: true
+  num_bag_folds: 5
+  num_bag_sets: 1
+  num_cpus: 6

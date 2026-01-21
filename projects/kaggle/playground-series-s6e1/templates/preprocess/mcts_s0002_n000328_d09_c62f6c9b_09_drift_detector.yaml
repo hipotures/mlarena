@@ -1,0 +1,6 @@
+module: drift_detector
+config:
+  action: flag_only
+  drift_metric: model_auc
+  max_drop_fraction: 0.2
+  min_auc: 0.65

@@ -1,0 +1,3 @@
+module: imbalance_handler
+config:
+  imbalance_method: random_under

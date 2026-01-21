@@ -1,0 +1,8 @@
+chain:
+- mcts_s0002_n000380_d05_4913a179_00_sanity_check
+- mcts_s0002_n000380_d05_4913a179_01_train_fraction
+- mcts_s0002_n000380_d05_4913a179_02_imputer
+- mcts_s0002_n000380_d05_4913a179_03_feature_group_agg
+- mcts_s0002_n000380_d05_4913a179_04_categorical_cross
+- mcts_s0002_n000380_d05_4913a179_05_rank_features_pre
+- mcts_s0002_n000380_d05_4913a179_06_encoder

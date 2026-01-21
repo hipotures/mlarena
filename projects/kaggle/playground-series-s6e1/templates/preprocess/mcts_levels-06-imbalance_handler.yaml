@@ -1,0 +1,4 @@
+name: imbalance_handler
+variant: class_weight
+config:
+  imbalance_method: class_weight

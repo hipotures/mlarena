@@ -1,0 +1,7 @@
+name: outlier_handler
+variant: quantile
+config:
+  action: clip
+  lower_quantile: 0.03
+  outlier_method: quantile
+  upper_quantile: 0.98

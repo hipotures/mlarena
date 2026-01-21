@@ -1,0 +1,7 @@
+name: drift_detector
+variant: model_auc
+config:
+  action: flag_only
+  drift_metric: model_auc
+  max_drop_fraction: 0.30000000000000004
+  min_auc: 0.6000000000000001

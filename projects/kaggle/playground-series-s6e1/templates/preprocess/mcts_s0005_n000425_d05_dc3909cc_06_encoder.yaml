@@ -1,0 +1,3 @@
+module: encoder
+config:
+  encoding_method: binary

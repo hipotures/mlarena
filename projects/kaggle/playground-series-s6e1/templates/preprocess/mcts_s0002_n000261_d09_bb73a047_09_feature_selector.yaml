@@ -1,0 +1,5 @@
+module: feature_selector
+config:
+  importance_model_type: lgbm
+  n_features: 0.8
+  selection_method: model_importance

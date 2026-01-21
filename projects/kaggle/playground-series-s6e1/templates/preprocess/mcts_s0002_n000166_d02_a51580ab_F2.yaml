@@ -1,0 +1,5 @@
+chain:
+- mcts_s0002_n000166_d02_a51580ab_00_sanity_check
+- mcts_s0002_n000166_d02_a51580ab_01_train_fraction
+- mcts_s0002_n000166_d02_a51580ab_02_imputer
+- mcts_s0002_n000166_d02_a51580ab_03_rare_category_handler

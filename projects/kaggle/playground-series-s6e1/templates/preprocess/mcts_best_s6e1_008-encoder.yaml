@@ -1,0 +1,5 @@
+name: encoder
+variant: m_estimate
+config:
+  encoding_method: m_estimate
+  m_estimate_m: 49.14889435381253

@@ -1,0 +1,7 @@
+chain:
+- mcts_s0002_n000427_d04_c47378ff_00_sanity_check
+- mcts_s0002_n000427_d04_c47378ff_01_train_fraction
+- mcts_s0002_n000427_d04_c47378ff_02_rare_category_handler
+- mcts_s0002_n000427_d04_c47378ff_03_categorical_cross
+- mcts_s0002_n000427_d04_c47378ff_04_categorical_encoder
+- mcts_s0002_n000427_d04_c47378ff_05_outlier_handler

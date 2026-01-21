@@ -1,6 +1,6 @@
 chain:
-- mcts_s6e1_009_eval_001-init-00-sanity_check
-- mcts_s6e1_009_eval_001-init-01-external_dataset
+- mcts_s6e1_009_eval_001-init-00-external_dataset
+- mcts_s6e1_009_eval_001-init-01-sanity_check
 - mcts_s6e1_009_eval_001-init-02-train_fraction
 - mcts_s6e1_009_eval_001-00-encoder
 - mcts_s6e1_009_eval_001-01-row_aggregates

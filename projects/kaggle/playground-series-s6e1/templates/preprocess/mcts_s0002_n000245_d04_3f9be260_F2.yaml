@@ -1,0 +1,7 @@
+chain:
+- mcts_s0002_n000245_d04_3f9be260_00_sanity_check
+- mcts_s0002_n000245_d04_3f9be260_01_train_fraction
+- mcts_s0002_n000245_d04_3f9be260_02_missingness_features
+- mcts_s0002_n000245_d04_3f9be260_03_imputer
+- mcts_s0002_n000245_d04_3f9be260_04_feature_group_agg
+- mcts_s0002_n000245_d04_3f9be260_05_categorical_cross

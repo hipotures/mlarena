@@ -1,0 +1,5 @@
+module: noise_injection
+config:
+  augment_ratio: 0.4
+  gaussian_sigma: 0.006459014606328353
+  noise_type: gaussian

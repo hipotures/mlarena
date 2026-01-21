@@ -1,0 +1,3 @@
+module: scaler
+config:
+  scaling_method: standard

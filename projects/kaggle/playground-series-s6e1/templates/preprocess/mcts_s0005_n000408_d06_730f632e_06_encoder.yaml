@@ -1,0 +1,4 @@
+module: encoder
+config:
+  encoding_method: leave_one_out
+  loo_sigma: 0.4398754513696268

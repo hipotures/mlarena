@@ -1,0 +1,8 @@
+chain:
+- mcts_s0002_n000303_d05_06de1390_00_sanity_check
+- mcts_s0002_n000303_d05_06de1390_01_train_fraction
+- mcts_s0002_n000303_d05_06de1390_02_missingness_features
+- mcts_s0002_n000303_d05_06de1390_03_imputer
+- mcts_s0002_n000303_d05_06de1390_04_categorical_cross
+- mcts_s0002_n000303_d05_06de1390_05_categorical_encoder
+- mcts_s0002_n000303_d05_06de1390_06_outlier_handler

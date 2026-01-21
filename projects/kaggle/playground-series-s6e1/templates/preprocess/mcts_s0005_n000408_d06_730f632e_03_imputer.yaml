@@ -1,0 +1,4 @@
+module: imputer
+config:
+  knn_n_neighbors: 9
+  numeric_strategy: knn

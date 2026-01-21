@@ -1,0 +1,6 @@
+chain:
+- mcts_s0002_n000426_d03_b340351e_00_sanity_check
+- mcts_s0002_n000426_d03_b340351e_01_train_fraction
+- mcts_s0002_n000426_d03_b340351e_02_rare_category_handler
+- mcts_s0002_n000426_d03_b340351e_03_categorical_cross
+- mcts_s0002_n000426_d03_b340351e_04_categorical_encoder

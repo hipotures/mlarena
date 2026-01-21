@@ -1,0 +1,4 @@
+module: rank_features
+config:
+  method: percentile
+  mode: by_group

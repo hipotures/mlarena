@@ -1,0 +1,5 @@
+name: encoder
+variant: one_hot
+config:
+  drop_first: false
+  encoding_method: one_hot

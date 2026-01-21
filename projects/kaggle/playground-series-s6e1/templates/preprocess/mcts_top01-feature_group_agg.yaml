@@ -1,0 +1,5 @@
+name: feature_group_agg
+variant: manual
+config:
+  group_keys: []
+  group_value_cols: []

@@ -1,0 +1,4 @@
+name: imputer
+variant: mean
+config:
+  numeric_strategy: mean

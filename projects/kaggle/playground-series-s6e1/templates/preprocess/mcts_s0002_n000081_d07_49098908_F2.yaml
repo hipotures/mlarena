@@ -1,0 +1,10 @@
+chain:
+- mcts_s0002_n000081_d07_49098908_00_sanity_check
+- mcts_s0002_n000081_d07_49098908_01_train_fraction
+- mcts_s0002_n000081_d07_49098908_02_imputer
+- mcts_s0002_n000081_d07_49098908_03_categorical_cross
+- mcts_s0002_n000081_d07_49098908_04_numeric_binner
+- mcts_s0002_n000081_d07_49098908_05_outlier_handler
+- mcts_s0002_n000081_d07_49098908_06_row_aggregates
+- mcts_s0002_n000081_d07_49098908_07_scaler
+- mcts_s0002_n000081_d07_49098908_08_rank_features_post

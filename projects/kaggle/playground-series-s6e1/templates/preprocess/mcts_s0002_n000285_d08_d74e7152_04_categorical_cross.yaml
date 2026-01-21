@@ -1,0 +1,4 @@
+module: categorical_cross
+config:
+  oof_folds: 5
+  output: target_mean_oof

@@ -1,0 +1,7 @@
+name: feature_interactions
+variant: arithmetic
+config:
+  interaction_types:
+  - add
+  - sub
+  max_generated_features: 125

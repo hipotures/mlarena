@@ -1,0 +1,5 @@
+module: clustering_features
+config:
+  add_cluster_id: true
+  add_distances: true
+  n_clusters: 10

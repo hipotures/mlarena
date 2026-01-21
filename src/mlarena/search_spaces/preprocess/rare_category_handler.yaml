@@ -5,6 +5,7 @@ base_config:
   rare_label: __RARE__
   detect_id_like_columns: true
   id_unique_fraction_threshold: 0.95
+  protected_categorical_columns: []  # Columns to exclude from rare category handling
 
 variants:
   - name: freq

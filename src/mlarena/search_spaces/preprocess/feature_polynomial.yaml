@@ -3,6 +3,8 @@ template: feature_polynomial
 
 base_config:
   poly_columns: null
+  use_original_features_only: true
+  poly_include_bias: false  # Whether to include bias column (constant 1.0)
 
 variants:
   - name: degree_2

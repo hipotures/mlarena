@@ -2,6 +2,7 @@ group: drift
 template: drift_detector
 
 base_config:
+  exclude_cols: []  # Columns to exclude from drift detection
   max_drop_fraction: 0.2
   random_state: 42
 

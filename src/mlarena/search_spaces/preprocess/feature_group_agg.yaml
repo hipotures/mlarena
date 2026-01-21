@@ -4,6 +4,8 @@ template: feature_group_agg
 base_config:
   aggs: [mean, std, min, max, count]
   quantiles: []
+  use_original_features_only: true
+  max_generated_features: 200  # Critical: prevent feature explosion
 
 variants:
   - name: manual

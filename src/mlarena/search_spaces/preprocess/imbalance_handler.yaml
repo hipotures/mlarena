@@ -4,6 +4,7 @@ template: imbalance_handler
 base_config:
   sampling_strategy: auto
   use_sample_weights: true
+  categorical_features: []  # Required for SMOTENC (if enabled in future)
   random_state: 42
 
 variants:

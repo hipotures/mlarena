@@ -4,18 +4,22 @@ from typing import Literal, Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 import yaml
 
+
 class MultiFidelityConfig(BaseModel):
     enable: bool = True
     levels: List[Dict[str, Any]] = Field(default_factory=list)
     promotion: Dict[str, Any] = Field(default_factory=dict)
 
+
 class PruningConfig(BaseModel):
     enable: bool = True
     incumbent_margin: float = 0.0
 
+
 class PenaltiesConfig(BaseModel):
     features_lambda: float = 0.0
     time_lambda: float = 0.0
+
 
 class TemplatesConfig(BaseModel):
     retention: Literal["best", "top_k", "all"] = "best"
@@ -24,9 +28,11 @@ class TemplatesConfig(BaseModel):
     retain_failures: bool = True
     ephemeral_fidelities: List[str] = Field(default_factory=lambda: ["F0", "F1"])
 
+
 class DedupeConfig(BaseModel):
     enable: bool = True
     strategy: str = "unique_signature"
+
 
 class OracleConfig(BaseModel):
     enabled: bool = False
@@ -34,12 +40,16 @@ class OracleConfig(BaseModel):
     dry_run: bool = True
     pruning_threshold: float = 0.20
     eps: float = 0.0
-    max_actions: int = 0 # 0 = disabled (use threshold), >0 = take top K (ignore threshold)
+    max_actions: int = (
+        0  # 0 = disabled (use threshold), >0 = take top K (ignore threshold)
+    )
     use_prior_in_puct: bool = False
+
 
 class ParallelismConfig(BaseModel):
     workers: int = 1
     virtual_loss: float = 1.0
+
 
 class MCTSConfig(BaseModel):
     # Storage & Identity
@@ -58,9 +68,9 @@ class MCTSConfig(BaseModel):
 
     # Progressive Widening
     expansion_width: float = 2.0  # k
-    expansion_alpha: float = 0.5 # alpha
+    expansion_alpha: float = 0.5  # alpha
     seed: int = 42
-    lookahead: int = 3 # Limit valid next steps to immediate N neighbors
+    lookahead: int = 3  # Limit valid next steps to immediate N neighbors
 
     # 2nd-layer PW: number of parameter samples per (operator=step+variant) at a node
     # m_params(op) = max(1, floor(param_expansion_width * N_op^param_expansion_alpha))
@@ -99,15 +109,16 @@ class MCTSConfig(BaseModel):
             raise ValueError("direction must be 'minimize' or 'maximize'")
         return v
 
+
 def load_mcts_config(path: Path) -> MCTSConfig:
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
-    
+
     data = yaml.safe_load(path.read_text()) or {}
     mcts_data = data.get("mcts", {})
-    
+
     # If study_name is not in the yaml, we might need to handle it or expect it to be passed/injected
     # For now, let's assume validation will fail if it's missing, unless we provide a default
     # But study_name is mandatory in the model.
-    
+
     return MCTSConfig(**mcts_data)

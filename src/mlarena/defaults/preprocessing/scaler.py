@@ -15,7 +15,7 @@ Parameters:
 """
 
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple
 
 import pandas as pd
 import numpy as np
@@ -42,7 +42,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Scale and transform numerical features.
 
@@ -114,9 +121,7 @@ def fit_transform(
         "power_yeo_johnson",
     ]
     validation.validate_choice(
-        config["scaling_method"],
-        valid_methods,
-        "scaling_method"
+        config["scaling_method"], valid_methods, "scaling_method"
     )
 
     # Validate quantile ranges
@@ -125,14 +130,14 @@ def fit_transform(
             config["clip_lower_quantile"],
             min_value=0.0,
             max_value=1.0,
-            param_name="clip_lower_quantile"
+            param_name="clip_lower_quantile",
         )
     if config["clip_upper_quantile"] is not None:
         validation.validate_numeric_range(
             config["clip_upper_quantile"],
             min_value=0.0,
             max_value=1.0,
-            param_name="clip_upper_quantile"
+            param_name="clip_upper_quantile",
         )
 
     # 3. Create sub-module artifact directory
@@ -143,21 +148,27 @@ def fit_transform(
     test_df_original = dataframe_utils.copy_dataframe(test_df)
 
     # 5. Identify columns to process
-    exclude_cols = [id_column, target_column] + ignored_columns + config["numeric_exclude"]
+    exclude_cols = (
+        [id_column, target_column] + ignored_columns + config["numeric_exclude"]
+    )
 
     if config["numeric_include"] is not None:
         # Use explicitly specified columns
         numeric_cols = [
-            col for col in config["numeric_include"]
+            col
+            for col in config["numeric_include"]
             if col in train_df.columns and col not in exclude_cols
         ]
     else:
         # Auto-detect numeric columns
-        numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+        numeric_cols = dataframe_utils.get_numeric_columns(
+            train_df, exclude=exclude_cols
+        )
 
     # Ensure columns exist in both train and test
     numeric_cols = [
-        col for col in numeric_cols
+        col
+        for col in numeric_cols
         if col in train_df.columns and col in test_df.columns
     ]
 
@@ -209,7 +220,10 @@ def fit_transform(
     clip_bounds = {}
     clipped_cols = []
 
-    if config["clip_lower_quantile"] is not None or config["clip_upper_quantile"] is not None:
+    if (
+        config["clip_lower_quantile"] is not None
+        or config["clip_upper_quantile"] is not None
+    ):
         for col in numeric_cols:
             lower_q = config["clip_lower_quantile"]
             upper_q = config["clip_upper_quantile"]
@@ -232,9 +246,13 @@ def fit_transform(
                 if val_df is not None:
                     val_df[col] = val_df[col].clip(lower=lower_bound, upper=upper_bound)
                 if orig_df is not None and col in orig_df.columns:
-                    orig_df[col] = orig_df[col].clip(lower=lower_bound, upper=upper_bound)
+                    orig_df[col] = orig_df[col].clip(
+                        lower=lower_bound, upper=upper_bound
+                    )
                 if eval_df is not None:
-                    eval_df[col] = eval_df[col].clip(lower=lower_bound, upper=upper_bound)
+                    eval_df[col] = eval_df[col].clip(
+                        lower=lower_bound, upper=upper_bound
+                    )
 
                 clip_bounds[col] = {
                     "lower": float(lower_bound) if lower_bound is not None else None,
@@ -268,10 +286,16 @@ def fit_transform(
             )
         elif config["scaling_method"] == "power_boxcox":
             if (train_df[numeric_cols] <= 0).any().any():
-                raise ValueError("power_boxcox requires strictly positive values. Use power_yeo_johnson or shift data.")
-            scaler = PowerTransformer(method="box-cox", standardize=config["power_standardize"])
+                raise ValueError(
+                    "power_boxcox requires strictly positive values. Use power_yeo_johnson or shift data."
+                )
+            scaler = PowerTransformer(
+                method="box-cox", standardize=config["power_standardize"]
+            )
         elif config["scaling_method"] == "power_yeo_johnson":
-            scaler = PowerTransformer(method="yeo-johnson", standardize=config["power_standardize"])
+            scaler = PowerTransformer(
+                method="yeo-johnson", standardize=config["power_standardize"]
+            )
         else:
             raise ValueError(f"Unknown scaling_method: {config['scaling_method']}")
 
@@ -287,7 +311,9 @@ def fit_transform(
             # Only scale columns that exist in orig_df
             orig_numeric_cols = [col for col in numeric_cols if col in orig_df.columns]
             if orig_numeric_cols:
-                orig_df[orig_numeric_cols] = scaler.transform(orig_df[orig_numeric_cols])
+                orig_df[orig_numeric_cols] = scaler.transform(
+                    orig_df[orig_numeric_cols]
+                )
         if eval_df is not None:
             eval_df[numeric_cols] = scaler.transform(eval_df[numeric_cols])
 
@@ -311,7 +337,7 @@ def fit_transform(
                     "std": float(train_df[col].std()),
                     "min": float(train_df[col].min()),
                     "max": float(train_df[col].max()),
-                }
+                },
             }
 
     # 10. Generate and save report
@@ -354,9 +380,7 @@ def fit_transform(
 
 
 def transform(
-    df: pd.DataFrame,
-    state_dict: Dict[str, Any],
-    config: Dict[str, Any]
+    df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]
 ) -> pd.DataFrame:
     """
     Apply scaling transformation to new data (inference time).

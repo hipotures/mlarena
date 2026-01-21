@@ -24,7 +24,6 @@ Integration with Models:
 """
 
 import importlib.util
-import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -68,10 +67,14 @@ def _transform_weights(av_prob: pd.Series, method: str) -> pd.Series:
         return weights / weights.mean()
 
     else:
-        valid_methods = ["raw", "odds_ratio", "odds_ratio_capped", "odds_ratio_normalized"]
+        valid_methods = [
+            "raw",
+            "odds_ratio",
+            "odds_ratio_capped",
+            "odds_ratio_normalized",
+        ]
         raise ValueError(
-            f"Invalid weight_transform: {method}. "
-            f"Valid options: {valid_methods}"
+            f"Invalid weight_transform: {method}. Valid options: {valid_methods}"
         )
 
 
@@ -81,7 +84,13 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: Optional[pd.DataFrame] = None,
-) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Optional[pd.DataFrame], Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    Optional[pd.DataFrame],
+    pd.DataFrame,
+    Optional[pd.DataFrame],
+    Dict[str, Any],
+]:
     """
     Generate adversarial validation weights for training data.
 
@@ -137,7 +146,9 @@ def fit_transform(
 
     drop_prefixes = config.get("drop_prefixes") or []
     if not isinstance(drop_prefixes, list):
-        raise ValueError(f"drop_prefixes must be a list of strings, got: {type(drop_prefixes)}")
+        raise ValueError(
+            f"drop_prefixes must be a list of strings, got: {type(drop_prefixes)}"
+        )
     for prefix in drop_prefixes:
         if prefix is None:
             continue
@@ -178,9 +189,13 @@ def fit_transform(
     # Resolve av_classifier model path (check project-local first, then global)
     # Note: This follows same pattern as src/mlarena/modules/model.py:_resolve_model_path
     model_name = "av_classifier"
-    project_models_dir = artifact_dir.parents[3] / "code" / "models"  # From artifacts back to project
+    project_models_dir = (
+        artifact_dir.parents[3] / "code" / "models"
+    )  # From artifacts back to project
     project_model_path = project_models_dir / f"{model_name}.py"
-    global_model_path = repo_root / "src" / "mlarena" / "defaults" / "models" / f"{model_name}.py"
+    global_model_path = (
+        repo_root / "src" / "mlarena" / "defaults" / "models" / f"{model_name}.py"
+    )
 
     # Use global model by default (project-local would take precedence if exists)
     if project_model_path.exists():
@@ -240,9 +255,7 @@ def fit_transform(
     # CRITICAL: System uses .iloc[:, 0] to extract weights
     # Must have same row count and order as train_processed.csv
     weight_col_name = config.get("weight_column_name", "__sample_weight__")
-    weights_df = pd.DataFrame({
-        weight_col_name: weights.values
-    })
+    weights_df = pd.DataFrame({weight_col_name: weights.values})
 
     # Verify row count matches train
     if len(weights_df) != len(train_df):
@@ -254,14 +267,12 @@ def fit_transform(
     # 10. Save weights CSV (single column, no index)
     weights_filename = config.get("weights_output_name", "sample_weights.csv.gz")
     weights_path = artifact_dir / weights_filename
-    weights_df.to_csv(weights_path, index=False, compression='infer')
+    weights_df.to_csv(weights_path, index=False, compression="infer")
 
     # 11. Optionally save raw AV probabilities for debugging
-    av_prob_df = pd.DataFrame({
-        "av_prob": av_prob.values
-    })
+    av_prob_df = pd.DataFrame({"av_prob": av_prob.values})
     av_prob_path = artifact_dir / "av_predictions.csv.gz"
-    av_prob_df.to_csv(av_prob_path, index=False, compression='infer')
+    av_prob_df.to_csv(av_prob_path, index=False, compression="infer")
 
     # 12. Build state_dict
     state_dict = {

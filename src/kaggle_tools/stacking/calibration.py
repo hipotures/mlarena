@@ -7,11 +7,7 @@ Well-calibrated predictions are important for:
 - Log loss metrics
 """
 
-from typing import Optional
-
 import pandas as pd
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.base import BaseEstimator, ClassifierMixin
 
 
 class CalibratedPredictor:
@@ -65,7 +61,11 @@ class CalibratedPredictor:
             self.calibrator = LogisticRegression()
 
         # Reshape for sklearn
-        X = predictions.values.reshape(-1, 1) if self.method == "sigmoid" else predictions.values
+        X = (
+            predictions.values.reshape(-1, 1)
+            if self.method == "sigmoid"
+            else predictions.values
+        )
         y = y_true.values
 
         self.calibrator.fit(X, y)
@@ -85,7 +85,11 @@ class CalibratedPredictor:
         if self.calibrator is None:
             raise RuntimeError("Calibrator not fitted. Call fit() first.")
 
-        X = predictions.values.reshape(-1, 1) if self.method == "sigmoid" else predictions.values
+        X = (
+            predictions.values.reshape(-1, 1)
+            if self.method == "sigmoid"
+            else predictions.values
+        )
 
         if self.method == "sigmoid":
             calibrated = self.calibrator.predict_proba(X)[:, 1]

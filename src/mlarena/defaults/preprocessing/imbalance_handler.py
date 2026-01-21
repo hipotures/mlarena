@@ -40,25 +40,31 @@ def _compute_class_weights(target: pd.Series) -> Dict[Any, float]:
     return weights
 
 
-def _apply_random_over(train_df: pd.DataFrame, target_col: str, random_state: int) -> pd.DataFrame:
+def _apply_random_over(
+    train_df: pd.DataFrame, target_col: str, random_state: int
+) -> pd.DataFrame:
     counts = train_df[target_col].value_counts()
     max_count = counts.max()
     resampled = []
-    rng = np.random.default_rng(random_state)
+    np.random.default_rng(random_state)
     for cls, cnt in counts.items():
         cls_df = train_df[train_df[target_col] == cls]
         if cnt < max_count:
             extra = cls_df.sample(
-                n=max_count - cnt,
-                replace=True,
-                random_state=random_state
+                n=max_count - cnt, replace=True, random_state=random_state
             )
             cls_df = pd.concat([cls_df, extra], axis=0)
         resampled.append(cls_df)
-    return pd.concat(resampled, axis=0).sample(frac=1, random_state=random_state).reset_index(drop=True)
+    return (
+        pd.concat(resampled, axis=0)
+        .sample(frac=1, random_state=random_state)
+        .reset_index(drop=True)
+    )
 
 
-def _apply_random_under(train_df: pd.DataFrame, target_col: str, random_state: int) -> pd.DataFrame:
+def _apply_random_under(
+    train_df: pd.DataFrame, target_col: str, random_state: int
+) -> pd.DataFrame:
     counts = train_df[target_col].value_counts()
     min_count = counts.min()
     resampled = []
@@ -66,12 +72,14 @@ def _apply_random_under(train_df: pd.DataFrame, target_col: str, random_state: i
         cls_df = train_df[train_df[target_col] == cls]
         if cnt > min_count:
             cls_df = cls_df.sample(
-                n=min_count,
-                replace=False,
-                random_state=random_state
+                n=min_count, replace=False, random_state=random_state
             )
         resampled.append(cls_df)
-    return pd.concat(resampled, axis=0).sample(frac=1, random_state=random_state).reset_index(drop=True)
+    return (
+        pd.concat(resampled, axis=0)
+        .sample(frac=1, random_state=random_state)
+        .reset_index(drop=True)
+    )
 
 
 def fit_transform(
@@ -80,7 +88,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Handle class imbalance for classification tasks.
 
@@ -113,7 +123,9 @@ def fit_transform(
     if target_column not in train_df.columns:
         raise ValueError(f"Target column '{target_column}' not found in training data")
     if train_df[target_column].isnull().any():
-        raise ValueError("Target column contains NaN. Impute or drop before imbalance handling.")
+        raise ValueError(
+            "Target column contains NaN. Impute or drop before imbalance handling."
+        )
 
     # 2. Validate config
     required_params: List[str] = []
@@ -128,23 +140,43 @@ def fit_transform(
 
     validation.validate_choice(
         config["imbalance_method"],
-        ["none", "class_weight", "random_over", "random_under", "smote", "smotenc", "adasyn"],
+        [
+            "none",
+            "class_weight",
+            "random_over",
+            "random_under",
+            "smote",
+            "smotenc",
+            "adasyn",
+        ],
         "imbalance_method",
     )
     if config["sampling_strategy"] != "auto":
-        raise ValueError("Only sampling_strategy='auto' is supported in imbalance_handler.")
+        raise ValueError(
+            "Only sampling_strategy='auto' is supported in imbalance_handler."
+        )
 
     if problem_type not in ["binary", "multiclass"]:
-        warnings.warn(f"Imbalance handler is intended for classification; detected problem_type={problem_type}. Skipping.")
-        return train_df, val_df, test_df, orig_df, {
-            "version": "1.0",
-            "method": "none",
-            "message": f"Skipped (problem_type={problem_type})",
-            "config": {k: v for k, v in config.items() if not k.startswith("_")},
-        }
+        warnings.warn(
+            f"Imbalance handler is intended for classification; detected problem_type={problem_type}. Skipping."
+        )
+        return (
+            train_df,
+            val_df,
+            test_df,
+            orig_df,
+            {
+                "version": "1.0",
+                "method": "none",
+                "message": f"Skipped (problem_type={problem_type})",
+                "config": {k: v for k, v in config.items() if not k.startswith("_")},
+            },
+        )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "imbalance_handler")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "imbalance_handler"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -165,10 +197,18 @@ def fit_transform(
         class_weights = _compute_class_weights(train_df[target_column])
         sample_weight_col = "sample_weight"
         train_df_resampled = train_df.copy()
-        train_df_resampled[sample_weight_col] = train_df[target_column].map(class_weights).astype(float)
-        if val_df is not None and target_column in val_df.columns and config["use_sample_weights"]:
+        train_df_resampled[sample_weight_col] = (
+            train_df[target_column].map(class_weights).astype(float)
+        )
+        if (
+            val_df is not None
+            and target_column in val_df.columns
+            and config["use_sample_weights"]
+        ):
             val_df = val_df.copy()
-            val_df[sample_weight_col] = val_df[target_column].map(class_weights).astype(float)
+            val_df[sample_weight_col] = (
+                val_df[target_column].map(class_weights).astype(float)
+            )
     elif method == "random_over":
         train_df_resampled = _apply_random_over(train_df, target_column, random_state)
     elif method == "random_under":
@@ -193,16 +233,24 @@ def fit_transform(
                     f"{method.upper()} requires numeric features. Run encoders before imbalance_handler "
                     "or switch to class_weight/random sampling."
                 )
-            sampler = SMOTE(random_state=random_state) if method == "smote" else ADASYN(random_state=random_state)
+            sampler = (
+                SMOTE(random_state=random_state)
+                if method == "smote"
+                else ADASYN(random_state=random_state)
+            )
         else:
             cat_cols = config.get("categorical_features", [])
             if not cat_cols:
-                raise ValueError("SMOTENC requires categorical_features to be provided (list of column names).")
+                raise ValueError(
+                    "SMOTENC requires categorical_features to be provided (list of column names)."
+                )
             missing = [c for c in cat_cols if c not in feature_cols]
             if missing:
                 raise ValueError(f"SMOTENC categorical_features not found: {missing}")
             cat_indices = [feature_cols.index(c) for c in cat_cols]
-            sampler = SMOTENC(categorical_features=cat_indices, random_state=random_state)
+            sampler = SMOTENC(
+                categorical_features=cat_indices, random_state=random_state
+            )
 
         X_res, y_res = sampler.fit_resample(X, y)
         train_df_resampled = pd.DataFrame(X_res, columns=feature_cols)
@@ -235,7 +283,9 @@ def fit_transform(
     weights_path = None
     if sample_weight_col and sample_weight_col in train_df_resampled.columns:
         weights_path = submodule_dir / "sample_weights.csv.gz"
-        train_df_resampled[[sample_weight_col]].to_csv(weights_path, index=False, compression='infer')
+        train_df_resampled[[sample_weight_col]].to_csv(
+            weights_path, index=False, compression="infer"
+        )
         train_df_resampled = train_df_resampled.drop(columns=[sample_weight_col])
         if val_df is not None and sample_weight_col in val_df.columns:
             val_df = val_df.drop(columns=[sample_weight_col])

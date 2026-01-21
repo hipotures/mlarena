@@ -11,7 +11,6 @@ Features:
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import pandas as pd
@@ -27,7 +26,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Subsample training data with optional validation and evaluation splits.
 
@@ -66,7 +72,9 @@ def fit_transform(
         raise ValueError(f"eval_fraction must be in [0, 1), got {eval_fraction}")
 
     # Single shuffle
-    shuffled = train_df.sample(frac=1.0, random_state=random_state).reset_index(drop=True)
+    shuffled = train_df.sample(frac=1.0, random_state=random_state).reset_index(
+        drop=True
+    )
     n_total = len(shuffled)
 
     # 4-way split
@@ -78,11 +86,13 @@ def fit_transform(
 
     tuning_out = None
     if valid_fraction > 0:
-        tuning_out = shuffled.iloc[n_train:n_train + n_valid].reset_index(drop=True)
+        tuning_out = shuffled.iloc[n_train : n_train + n_valid].reset_index(drop=True)
 
     eval_out = None
     if eval_fraction > 0:
-        eval_out = shuffled.iloc[n_train + n_valid:n_train + n_valid + n_eval].reset_index(drop=True)
+        eval_out = shuffled.iloc[
+            n_train + n_valid : n_train + n_valid + n_eval
+        ].reset_index(drop=True)
 
     # If eval_df was passed in, merge or replace?
     # Usually train_fraction is the generator. If eval_df exists, we append to it?
@@ -104,19 +114,24 @@ def fit_transform(
         "tuning_rows": len(tuning_out) if tuning_out is not None else 0,
         "eval_rows": len(eval_out) if eval_out is not None else 0,
         "eval_cols": eval_out.shape[1] if eval_out is not None else 0,
-        "discarded_rows": n_total - len(train_out) - (len(tuning_out) if tuning_out is not None else 0) - (len(eval_out) if eval_out is not None else 0),
+        "discarded_rows": n_total
+        - len(train_out)
+        - (len(tuning_out) if tuning_out is not None else 0)
+        - (len(eval_out) if eval_out is not None else 0),
     }
 
     return (
         train_out,
         tuning_out,  # Return tuning data in val_df slot
         test_df.copy(),  # Original submission test data unchanged
-        eval_out,    # Return eval data explicitly
+        eval_out,  # Return eval data explicitly
         None if orig_df is None else orig_df.copy(),
         state,
     )
 
 
-def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
+def transform(
+    df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]
+) -> pd.DataFrame:
     """Transform function for test data - pass through unchanged."""
     return df.copy()

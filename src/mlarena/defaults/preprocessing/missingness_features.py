@@ -13,11 +13,10 @@ Parameters:
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 import warnings
 
 import pandas as pd
-import numpy as np
 
 from mlarena.preprocessing.utils import (
     validation,
@@ -33,8 +32,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
-    
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     # 1. Extract & Validate
     artifact_dir = Path(config.get("_artifact_dir", "."))
     dataset_config = config.get("_dataset", {})
@@ -55,24 +55,32 @@ def fit_transform(
     validation.validate_config(config, required_params, optional_params)
 
     # 2. Submodule dir
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "missingness_features")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "missingness_features"
+    )
     train_df_original = dataframe_utils.copy_dataframe(train_df)
     test_df_original = dataframe_utils.copy_dataframe(test_df)
 
     # 3. Determine columns
     exclude_cols = [id_column, target_column] + ignored_columns + config["exclude_cols"]
     exclude_cols = [c for c in exclude_cols if c]
-    
+
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
 
     if config["include_cols"]:
-        cols_to_check = [c for c in config["include_cols"] if c in train_df.columns and c not in exclude_cols]
+        cols_to_check = [
+            c
+            for c in config["include_cols"]
+            if c in train_df.columns and c not in exclude_cols
+        ]
     else:
         cols_to_check = [c for c in train_df.columns if c not in exclude_cols]
 
     if use_orig_only:
-        cols_to_check = dataframe_utils.filter_original_columns(cols_to_check, orig_features)
+        cols_to_check = dataframe_utils.filter_original_columns(
+            cols_to_check, orig_features
+        )
 
     if not cols_to_check:
         warnings.warn("No columns selected for missingness features.")
@@ -80,34 +88,39 @@ def fit_transform(
             "version": "1.0",
             "new_features": [],
             "config": {k: v for k, v in config.items() if not k.startswith("_")},
-            "message": "No columns to check"
+            "message": "No columns to check",
         }
         return train_df, val_df, test_df, orig_df, state_dict
 
     new_cols = []
-    
+
     # Helper to apply transformations
     def process_df(df, is_train=False):
-        if df is None: return None
-        df_out = df.copy() # We are adding columns
-        
+        if df is None:
+            return None
+        df_out = df.copy()  # We are adding columns
+
         # Row stats
         if config["add_row_missing_count"] or config["add_row_missing_ratio"]:
             # Compute missing count row-wise for selected columns
             missing_count = df[cols_to_check].isnull().sum(axis=1)
-            
+
             if config["cap_row_missing_count"]:
-                missing_count = missing_count.clip(upper=config["cap_row_missing_count"])
-            
+                missing_count = missing_count.clip(
+                    upper=config["cap_row_missing_count"]
+                )
+
             if config["add_row_missing_count"]:
                 name = "row_missing_count"
                 df_out[name] = missing_count
-                if is_train: new_cols.append(name)
-                
+                if is_train:
+                    new_cols.append(name)
+
             if config["add_row_missing_ratio"]:
                 name = "row_missing_ratio"
                 df_out[name] = missing_count / len(cols_to_check)
-                if is_train: new_cols.append(name)
+                if is_train:
+                    new_cols.append(name)
 
         # Column indicators
         if config["add_per_column_indicators"]:
@@ -115,10 +128,10 @@ def fit_transform(
             # (or should we check check dataset-specific? Usually consistent with train)
             # Let's check which columns have missing in the specific DF to be safe/accurate per row
             # But feature set consistency is key. We should decide based on Train missingness.
-            
+
             # Better approach: Iterate columns, check if missing exists in TRAIN. If so, add indicator to ALL.
-            pass 
-            
+            pass
+
         return df_out
 
     # Determine which columns have missing values in TRAIN
@@ -128,12 +141,14 @@ def fit_transform(
         cols_with_missing_train = missing_series[missing_series].index.tolist()
 
     def apply_indicators(df, is_train=False):
-        if df is None: return None
+        if df is None:
+            return None
         for col in cols_with_missing_train:
             name = f"{col}_na"
             df[name] = df[col].isnull().astype(int)
             if is_train:
-                if name not in new_cols: new_cols.append(name)
+                if name not in new_cols:
+                    new_cols.append(name)
         return df
 
     # Apply row stats
@@ -154,10 +169,10 @@ def fit_transform(
         "cols_checked": len(cols_to_check),
         "cols_with_missing_train": len(cols_with_missing_train),
         "new_features": new_cols,
-        "config": {k: v for k, v in config.items() if not k.startswith("_")}
+        "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
     artifacts.save_report(report_data, submodule_dir, "missingness_report.json")
-    
+
     summary = report.create_preprocessing_report(
         train_before=train_df_original,
         train_after=train_df,
@@ -170,7 +185,7 @@ def fit_transform(
     state_dict = {
         "version": "1.0",
         "new_features": new_cols,
-        "config": report_data["config"]
+        "config": report_data["config"],
     }
 
     return train_df, val_df, test_df, orig_df, state_dict

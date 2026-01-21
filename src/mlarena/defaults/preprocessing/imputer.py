@@ -28,6 +28,7 @@ from sklearn.linear_model import BayesianRidge
 try:
     from sklearn.experimental import enable_iterative_imputer  # noqa
     from sklearn.impute import IterativeImputer
+
     ITERATIVE_IMPUTER_AVAILABLE = True
 except ImportError:
     ITERATIVE_IMPUTER_AVAILABLE = False
@@ -47,7 +48,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Impute missing values with configurable strategies.
 
@@ -98,18 +106,23 @@ def fit_transform(
     validation.validate_config(config, required_params, optional_params)
 
     # Validate strategy choices
-    valid_numeric_strategies = ["mean", "median", "most_frequent", "constant", "knn", "iterative"]
+    valid_numeric_strategies = [
+        "mean",
+        "median",
+        "most_frequent",
+        "constant",
+        "knn",
+        "iterative",
+    ]
     valid_categorical_strategies = ["most_frequent", "constant"]
 
     validation.validate_choice(
-        config["numeric_strategy"],
-        valid_numeric_strategies,
-        "numeric_strategy"
+        config["numeric_strategy"], valid_numeric_strategies, "numeric_strategy"
     )
     validation.validate_choice(
         config["categorical_strategy"],
         valid_categorical_strategies,
-        "categorical_strategy"
+        "categorical_strategy",
     )
 
     # 3. Create sub-module artifact directory
@@ -124,15 +137,23 @@ def fit_transform(
     exclude_cols = [col for col in exclude_cols if col is not None]
 
     numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
-    categorical_cols = dataframe_utils.get_categorical_columns(train_df, exclude=exclude_cols)
+    categorical_cols = dataframe_utils.get_categorical_columns(
+        train_df, exclude=exclude_cols
+    )
 
     # 6. Optional: Treat outliers as NA
     if config["treat_outliers_as_na"]:
-        train_df, test_df, val_df, orig_df, eval_df, outlier_stats = _treat_outliers_as_na(
-            train_df, test_df, val_df, orig_df, eval_df,
-            numeric_cols,
-            method=config["outlier_method"],
-            threshold=config["outlier_threshold"]
+        train_df, test_df, val_df, orig_df, eval_df, outlier_stats = (
+            _treat_outliers_as_na(
+                train_df,
+                test_df,
+                val_df,
+                orig_df,
+                eval_df,
+                numeric_cols,
+                method=config["outlier_method"],
+                threshold=config["outlier_threshold"],
+            )
         )
     else:
         outlier_stats = None
@@ -186,7 +207,7 @@ def fit_transform(
             fill_value=config["fill_value"],
             knn_n_neighbors=config["knn_n_neighbors"],
             iterative_estimator=config["iterative_estimator"],
-            iterative_max_iter=config["iterative_max_iter"]
+            iterative_max_iter=config["iterative_max_iter"],
         )
 
         # Fit on train
@@ -227,7 +248,7 @@ def fit_transform(
         imputer = _create_imputer(
             strategy,
             fill_value=config.get("fill_value", "__MISSING__"),
-            is_categorical=True
+            is_categorical=True,
         )
 
         # Fit on train
@@ -279,29 +300,39 @@ def fit_transform(
     # 13. Print summary table of imputed values
     from rich.console import Console
     from rich.table import Table
-    
+
     imputed_stats = []
     for col, count_before in missing_before.items():
         if count_before > 0:
             count_after = missing_after.get(col, 0)
             imputed_count = count_before - count_after
             strategy = column_strategies_used.get(col, "unknown")
-            imputed_stats.append((col, count_before, count_after, imputed_count, strategy))
-    
+            imputed_stats.append(
+                (col, count_before, count_after, imputed_count, strategy)
+            )
+
     if imputed_stats:
         console = Console(force_terminal=True)
-        table = Table(title="Imputation Summary (Train)", show_header=True, header_style="bold cyan")
+        table = Table(
+            title="Imputation Summary (Train)",
+            show_header=True,
+            header_style="bold cyan",
+        )
         table.add_column("Feature", style="cyan")
         table.add_column("Missing (Before)", justify="right")
         table.add_column("Missing (After)", justify="right")
         table.add_column("Imputed", justify="right", style="green")
         table.add_column("Strategy", style="magenta")
-        
-        for col, before, after, imputed, strategy in sorted(imputed_stats, key=lambda x: x[1], reverse=True):
+
+        for col, before, after, imputed, strategy in sorted(
+            imputed_stats, key=lambda x: x[1], reverse=True
+        ):
             table.add_row(col, str(before), str(after), str(imputed), strategy)
-            
+
         console.print(table)
-        console.print(f"[dim]Total missing values filled: {sum(x[3] for x in imputed_stats)}[/dim]\n")
+        console.print(
+            f"[dim]Total missing values filled: {sum(x[3] for x in imputed_stats)}[/dim]\n"
+        )
 
     # 14. Create state dict
     state_dict = {
@@ -323,7 +354,7 @@ def _create_imputer(
     knn_n_neighbors: int = 5,
     iterative_estimator: str = "bayesian_ridge",
     iterative_max_iter: int = 10,
-    is_categorical: bool = False
+    is_categorical: bool = False,
 ):
     """Create imputer based on strategy."""
     if strategy == "knn" and not is_categorical:
@@ -342,13 +373,13 @@ def _create_imputer(
             estimator = None  # Use default
 
         return IterativeImputer(
-            estimator=estimator,
-            max_iter=iterative_max_iter,
-            random_state=42
+            estimator=estimator, max_iter=iterative_max_iter, random_state=42
         )
 
     elif strategy == "constant":
-        return SimpleImputer(strategy="constant", fill_value=fill_value, keep_empty_features=True)
+        return SimpleImputer(
+            strategy="constant", fill_value=fill_value, keep_empty_features=True
+        )
 
     else:
         # mean, median, most_frequent
@@ -363,8 +394,15 @@ def _treat_outliers_as_na(
     eval_df: pd.DataFrame | None,
     numeric_cols: list,
     method: str = "iqr",
-    threshold: float = None
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    threshold: float = None,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """Convert outliers to NaN before imputation."""
     outlier_stats = {}
 
@@ -380,8 +418,12 @@ def _treat_outliers_as_na(
             iqr_threshold = threshold if threshold is not None else 1.5
             lower_bound = q1 - iqr_threshold * iqr
             upper_bound = q3 + iqr_threshold * iqr
-            outlier_mask_train = (train_df[col] < lower_bound) | (train_df[col] > upper_bound)
-            outlier_mask_test = (test_df[col] < lower_bound) | (test_df[col] > upper_bound)
+            outlier_mask_train = (train_df[col] < lower_bound) | (
+                train_df[col] > upper_bound
+            )
+            outlier_mask_test = (test_df[col] < lower_bound) | (
+                test_df[col] > upper_bound
+            )
 
         elif method == "zscore":
             mean = train_df[col].mean()
@@ -406,23 +448,33 @@ def _treat_outliers_as_na(
         test_df.loc[outlier_mask_test, col] = np.nan
         if val_df is not None and col in val_df.columns:
             if method == "iqr":
-                outlier_mask_val = (val_df[col] < lower_bound) | (val_df[col] > upper_bound)
+                outlier_mask_val = (val_df[col] < lower_bound) | (
+                    val_df[col] > upper_bound
+                )
             else:
                 outlier_mask_val = np.abs((val_df[col] - mean) / std) > zscore_threshold
             outlier_stats[col]["val_outliers"] = int(outlier_mask_val.sum())
             val_df.loc[outlier_mask_val, col] = np.nan
         if orig_df is not None and col in orig_df.columns:
             if method == "iqr":
-                outlier_mask_orig = (orig_df[col] < lower_bound) | (orig_df[col] > upper_bound)
+                outlier_mask_orig = (orig_df[col] < lower_bound) | (
+                    orig_df[col] > upper_bound
+                )
             else:
-                outlier_mask_orig = np.abs((orig_df[col] - mean) / std) > zscore_threshold
+                outlier_mask_orig = (
+                    np.abs((orig_df[col] - mean) / std) > zscore_threshold
+                )
             outlier_stats[col]["orig_outliers"] = int(outlier_mask_orig.sum())
             orig_df.loc[outlier_mask_orig, col] = np.nan
         if eval_df is not None and col in eval_df.columns:
             if method == "iqr":
-                outlier_mask_eval = (eval_df[col] < lower_bound) | (eval_df[col] > upper_bound)
+                outlier_mask_eval = (eval_df[col] < lower_bound) | (
+                    eval_df[col] > upper_bound
+                )
             else:
-                outlier_mask_eval = np.abs((eval_df[col] - mean) / std) > zscore_threshold
+                outlier_mask_eval = (
+                    np.abs((eval_df[col] - mean) / std) > zscore_threshold
+                )
             outlier_stats[col]["eval_outliers"] = int(outlier_mask_eval.sum())
             eval_df.loc[outlier_mask_eval, col] = np.nan
 

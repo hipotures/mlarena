@@ -8,10 +8,9 @@ Parameters: min_freq, min_freq_ratio, top_k, rare_label, detect_id_like_columns,
 """
 
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple
 
 import pandas as pd
-import numpy as np
 
 from mlarena.preprocessing.utils import (
     validation,
@@ -27,7 +26,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Handle rare and high-cardinality categorical variables.
 
@@ -81,39 +82,43 @@ def fit_transform(
 
     # Validate numeric parameters
     validation.validate_numeric_range(
-        config["min_freq"],
-        min_value=1,
-        param_name="min_freq"
+        config["min_freq"], min_value=1, param_name="min_freq"
     )
     validation.validate_numeric_range(
         config["min_freq_ratio"],
         min_value=0.0,
         max_value=1.0,
-        param_name="min_freq_ratio"
+        param_name="min_freq_ratio",
     )
     if config["top_k"] is not None:
         validation.validate_numeric_range(
-            config["top_k"],
-            min_value=1,
-            param_name="top_k"
+            config["top_k"], min_value=1, param_name="top_k"
         )
     validation.validate_numeric_range(
         config["id_unique_fraction_threshold"],
         min_value=0.0,
         max_value=1.0,
-        param_name="id_unique_fraction_threshold"
+        param_name="id_unique_fraction_threshold",
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "rare_category_handler")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "rare_category_handler"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
     test_df_original = dataframe_utils.copy_dataframe(test_df)
 
     # 5. Get categorical columns
-    exclude_cols = [id_column, target_column] + ignored_columns + config["protected_categorical_columns"]
-    categorical_cols = dataframe_utils.get_categorical_columns(train_df, exclude=exclude_cols)
+    exclude_cols = (
+        [id_column, target_column]
+        + ignored_columns
+        + config["protected_categorical_columns"]
+    )
+    categorical_cols = dataframe_utils.get_categorical_columns(
+        train_df, exclude=exclude_cols
+    )
 
     # 6. Detect ID-like columns
     detected_id_columns = []
@@ -124,7 +129,9 @@ def fit_transform(
                 detected_id_columns.append(col)
 
     # Remove ID-like columns from processing
-    categorical_cols = [col for col in categorical_cols if col not in detected_id_columns]
+    categorical_cols = [
+        col for col in categorical_cols if col not in detected_id_columns
+    ]
 
     # 7. Build category mappings
     category_mappings = {}
@@ -157,15 +164,21 @@ def fit_transform(
 
         # Collect stats
         n_unique_before = train_df[col].nunique()
-        n_unique_after = len(keep_categories) + (1 if len(mapping) > len(keep_categories) else 0)
-        n_rare_categories = len([v for v in mapping.values() if v == config["rare_label"]])
+        n_unique_after = len(keep_categories) + (
+            1 if len(mapping) > len(keep_categories) else 0
+        )
+        n_rare_categories = len(
+            [v for v in mapping.values() if v == config["rare_label"]]
+        )
 
         column_stats[col] = {
             "unique_before": int(n_unique_before),
             "unique_after": int(n_unique_after),
             "n_rare_categories": int(n_rare_categories),
             "n_kept_categories": len(keep_categories),
-            "reduction_ratio": float(n_unique_after / n_unique_before) if n_unique_before > 0 else 1.0,
+            "reduction_ratio": float(n_unique_after / n_unique_before)
+            if n_unique_before > 0
+            else 1.0,
         }
 
     # 8. Apply mappings to all DataFrames
@@ -175,11 +188,11 @@ def fit_transform(
             if df is not None and col in df.columns:
                 # Store whether it was categorical to restore it later
                 is_cat = hasattr(df[col], "cat")
-                
+
                 # Convert to object to safely map and fill without "new category" errors
                 # fillna handles any categories that were in test/val but not in train mapping
                 df[col] = df[col].astype(object).map(mapping).fillna(rare_label)
-                
+
                 # Restore categorical dtype if it was originally categorical
                 if is_cat:
                     df[col] = df[col].astype("category")
@@ -195,7 +208,7 @@ def fit_transform(
             "detected_id_columns": detected_id_columns,
         },
         submodule_dir,
-        "category_mappings.json"
+        "category_mappings.json",
     )
 
     # 10. Generate and save report
@@ -223,9 +236,7 @@ def fit_transform(
 
 
 def transform(
-    df: pd.DataFrame,
-    state_dict: Dict[str, Any],
-    config: Dict[str, Any]
+    df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]
 ) -> pd.DataFrame:
     """
     Apply rare category handling to new data (inference time).

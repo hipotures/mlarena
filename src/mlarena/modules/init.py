@@ -5,7 +5,6 @@ Creates Kaggle project structure, downloads data, and records experiment metadat
 
 from __future__ import annotations
 
-from typing import Dict
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
@@ -30,7 +29,9 @@ class InitModule(BaseModule):
         Raises:
             RuntimeError: When the project cannot be initialized.
         """
-        competition = self.invocation_params.get("competition") or self.context.project_name
+        competition = (
+            self.invocation_params.get("competition") or self.context.project_name
+        )
 
         # Call init_project directly
         result = init_project(

@@ -39,7 +39,10 @@ def _cat_defaults(
     params["task_type"] = "GPU" if use_gpu else "CPU"
 
     if problem_type == "regression":
-        params.setdefault("loss_function", "MAE" if metric_name in {"mae", "mean_absolute_error"} else "RMSE")
+        params.setdefault(
+            "loss_function",
+            "MAE" if metric_name in {"mae", "mean_absolute_error"} else "RMSE",
+        )
         params.setdefault("eval_metric", params["loss_function"])
     elif problem_type == "multiclass":
         params.setdefault("loss_function", "MultiClass")
@@ -77,26 +80,36 @@ def train(
         if y_train.nunique(dropna=True) > 2:
             problem_type = "multiclass"
 
-    model_class = cb.CatBoostRegressor if problem_type == "regression" else cb.CatBoostClassifier
+    model_class = (
+        cb.CatBoostRegressor if problem_type == "regression" else cb.CatBoostClassifier
+    )
 
     use_gpu = bool(config.hyperparameters.use_gpu or config.system.use_gpu)
     cat_features = detect_categorical_features(X_train)
     if cat_features and verbosity > 0:
-        console.print(f"[cyan]i[/cyan] CatBoost detected {len(cat_features)} categorical features")
+        console.print(
+            f"[cyan]i[/cyan] CatBoost detected {len(cat_features)} categorical features"
+        )
 
     optuna_cfg = config.optuna
     if not optuna_cfg.storage:
-        optuna_cfg.storage = f"sqlite:///{config.system.artifact_dir / 'optuna' / 'study.db'}"
+        optuna_cfg.storage = (
+            f"sqlite:///{config.system.artifact_dir / 'optuna' / 'study.db'}"
+        )
     if not optuna_cfg.study_name:
         optuna_cfg.study_name = f"{config.system.experiment_id}_catboost"
 
-    param_space = optuna_cfg.param_space.get("catboost") if optuna_cfg.param_space else None
+    param_space = (
+        optuna_cfg.param_space.get("catboost") if optuna_cfg.param_space else None
+    )
     if not param_space:
         param_space = DEFAULT_PARAM_SPACE
 
     def _param_space(trial):
         params = catboost_param_space(trial, param_space)
-        params.update(_cat_defaults(problem_type, metric_name, use_gpu, config.system.random_seed))
+        params.update(
+            _cat_defaults(problem_type, metric_name, use_gpu, config.system.random_seed)
+        )
         return params
 
     best_params: Dict[str, Any] = {}
@@ -110,7 +123,9 @@ def train(
         best_params_file = optuna_dir / "best_params_catboost.json"
 
         if best_params_file.exists():
-            console.print(f"[green]✓[/green] Loading cached params from {best_params_file}")
+            console.print(
+                f"[green]✓[/green] Loading cached params from {best_params_file}"
+            )
             best_params = json.loads(best_params_file.read_text())
         else:
             console.print("[cyan]i[/cyan] Running Optuna for CatBoost")
@@ -138,7 +153,9 @@ def train(
             )
 
             best_params = study.best_params
-            best_value = float(study.best_value) if study.best_value is not None else None
+            best_value = (
+                float(study.best_value) if study.best_value is not None else None
+            )
             best_params_file.write_text(json.dumps(best_params, indent=2))
             study_manager.export_trials_dataframe(optuna_dir / "trials_catboost.csv")
     else:
@@ -154,7 +171,9 @@ def train(
         or config.model.get("early_stopping_rounds", 50)
     )
 
-    params = _cat_defaults(problem_type, metric_name, use_gpu, config.system.random_seed)
+    params = _cat_defaults(
+        problem_type, metric_name, use_gpu, config.system.random_seed
+    )
     params.update(best_params)
     params["verbose"] = 100 if verbosity > 1 else False
 
@@ -185,13 +204,19 @@ def train(
 
     if best_value is None:
         if tuning_data is not None:
-            best_value = score_dataset(model, tuning_data, target_column, score_fn, needs_proba)
+            best_value = score_dataset(
+                model, tuning_data, target_column, score_fn, needs_proba
+            )
         else:
-            best_value = score_dataset(model, train_data, target_column, score_fn, needs_proba)
+            best_value = score_dataset(
+                model, train_data, target_column, score_fn, needs_proba
+            )
 
     eval_score = None
     if eval_data is not None:
-        eval_score = score_dataset(model, eval_data, target_column, score_fn, needs_proba)
+        eval_score = score_dataset(
+            model, eval_data, target_column, score_fn, needs_proba
+        )
 
     model_dir = Path(config.system.model_path)
     model_dir.mkdir(parents=True, exist_ok=True)

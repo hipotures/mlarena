@@ -16,8 +16,12 @@ TRAIN_PATH = DATA_DIR / "train.csv.gz"
 TEST_PATH = DATA_DIR / "test.csv.gz"
 
 # Auto-detect submission file (sample_submission.csv, gender_submission.csv, etc.)
-_submission_files = list(DATA_DIR.glob("*submission*.csv*")) if DATA_DIR.exists() else []
-SAMPLE_SUBMISSION_PATH = _submission_files[0] if _submission_files else DATA_DIR / "sample_submission.csv.gz"
+_submission_files = (
+    list(DATA_DIR.glob("*submission*.csv*")) if DATA_DIR.exists() else []
+)
+SAMPLE_SUBMISSION_PATH = (
+    _submission_files[0] if _submission_files else DATA_DIR / "sample_submission.csv.gz"
+)
 
 # Model settings
 RANDOM_SEED = 42

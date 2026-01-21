@@ -51,7 +51,10 @@ def init_project(
     # Check if project is already initialized (by checking for config.py)
     config_path = project_root / "code" / "utils" / "config.py"
     if config_path.exists() and not force:
-        console.rule(f"[bold yellow]Project '{competition_slug}' is already initialized[/bold yellow]", style="yellow")
+        console.rule(
+            f"[bold yellow]Project '{competition_slug}' is already initialized[/bold yellow]",
+            style="yellow",
+        )
 
         # Load and display existing config
         try:
@@ -63,9 +66,15 @@ def init_project(
             table.add_column("Value", style="green")
             table.add_row("Project Name", competition_slug)
             table.add_row("Location", str(project_root))
-            table.add_row("Target Column", getattr(config_module, "TARGET_COLUMN", "N/A"))
-            table.add_row("Problem Type", getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", "N/A"))
-            table.add_row("Metric", getattr(config_module, "AUTOGLUON_EVAL_METRIC", "N/A"))
+            table.add_row(
+                "Target Column", getattr(config_module, "TARGET_COLUMN", "N/A")
+            )
+            table.add_row(
+                "Problem Type", getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", "N/A")
+            )
+            table.add_row(
+                "Metric", getattr(config_module, "AUTOGLUON_EVAL_METRIC", "N/A")
+            )
             table.add_row("ID Column", getattr(config_module, "ID_COLUMN", "N/A"))
             console.print(table)
 
@@ -75,20 +84,30 @@ def init_project(
                 f"[bold]2.[/] Run auto-flow: [cyan]uv run python scripts/mla.py project={competition_slug}[/cyan]\n\n"
                 f"[bold]To reinitialize:[/] Use [cyan]force=true[/cyan]"
             )
-            console.print(Panel(next_steps, title="Project Already Initialized", border_style="yellow"))
+            console.print(
+                Panel(
+                    next_steps,
+                    title="Project Already Initialized",
+                    border_style="yellow",
+                )
+            )
 
             return {
                 "success": True,
                 "stats": {
                     "target": getattr(config_module, "TARGET_COLUMN", "N/A"),
-                    "problem_type": getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", "N/A"),
+                    "problem_type": getattr(
+                        config_module, "AUTOGLUON_PROBLEM_TYPE", "N/A"
+                    ),
                     "metric": getattr(config_module, "AUTOGLUON_EVAL_METRIC", "N/A"),
-                    "already_initialized": True
+                    "already_initialized": True,
                 },
             }
         except Exception:
             # Fallback if config can't be loaded
-            console.print(f"[red]Error: Project '{competition_slug}' already exists. Use force=true to overwrite.[/red]")
+            console.print(
+                f"[red]Error: Project '{competition_slug}' already exists. Use force=true to overwrite.[/red]"
+            )
             return {"success": False, "error": "project_exists"}
 
     # Create directory structure
@@ -115,23 +134,29 @@ def init_project(
     sample_columns = []
     if sample_path:
         try:
-            sample_preview = pd.read_csv(sample_path, nrows=1, compression='infer')
+            sample_preview = pd.read_csv(sample_path, nrows=1, compression="infer")
             sample_columns = sample_preview.columns.tolist()
         except Exception:
             pass
 
     if sample_columns and not target_column and len(sample_columns) >= 2:
         detected_target = sample_columns[-1]
-        console.print(f"\n[cyan]Detected target column:[/cyan] [green]'{detected_target}'[/green] [dim]from {sample_path.name}[/dim]")
+        console.print(
+            f"\n[cyan]Detected target column:[/cyan] [green]'{detected_target}'[/green] [dim]from {sample_path.name}[/dim]"
+        )
         target_column = detected_target
 
     if not id_column:
         if sample_columns:
             id_column = sample_columns[0]
-            console.print(f"[cyan]Detected ID column:[/cyan] [green]'{id_column}'[/green]")
+            console.print(
+                f"[cyan]Detected ID column:[/cyan] [green]'{id_column}'[/green]"
+            )
         else:
             id_column = "id"
-            console.print(f"[yellow]ID column defaulting to[/yellow] [green]'{id_column}'[/green]")
+            console.print(
+                f"[yellow]ID column defaulting to[/yellow] [green]'{id_column}'[/green]"
+            )
 
     # AI-based detection
     eval_text = ""
@@ -150,7 +175,9 @@ def init_project(
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task("Fetching competition details from Kaggle...", total=None)
+            task = progress.add_task(
+                "Fetching competition details from Kaggle...", total=None
+            )
             try:
                 eval_text = fetch_kaggle_evaluation(competition_slug, cdp_url)
                 progress.remove_task(task)
@@ -173,8 +200,10 @@ def init_project(
             )
             console.print(eval_panel)
 
-            ai_problem, ai_metric, ai_submit_proba, ai_log = detect_problem_type_and_metric(
-                eval_text, competition_slug, project_root, console
+            ai_problem, ai_metric, ai_submit_proba, ai_log = (
+                detect_problem_type_and_metric(
+                    eval_text, competition_slug, project_root, console
+                )
             )
 
             if ai_problem:
@@ -196,7 +225,11 @@ def init_project(
     if not problem_type:
         problem_type = "binary"
     if not metric:
-        default_metrics = {"binary": "roc_auc", "regression": "mean_absolute_error", "multiclass": "accuracy"}
+        default_metrics = {
+            "binary": "roc_auc",
+            "regression": "mean_absolute_error",
+            "multiclass": "accuracy",
+        }
         metric = default_metrics.get(problem_type, "roc_auc")
         console.print(f"Using default metric for {problem_type}: {metric}")
     if submit_probabilities is None:
@@ -219,7 +252,9 @@ def init_project(
     autogluon_metric = validated_metric
 
     # Generate config.py
-    sample_submission_name = sample_path.name if sample_path else "sample_submission.csv"
+    sample_submission_name = (
+        sample_path.name if sample_path else "sample_submission.csv"
+    )
     generate_config_py(
         project_root,
         competition_slug,
@@ -235,7 +270,10 @@ def init_project(
     )
 
     # Print summary
-    console.rule(f"[bold green]✓ Project '{competition_slug}' initialized successfully![/bold green]", style="green")
+    console.rule(
+        f"[bold green]✓ Project '{competition_slug}' initialized successfully![/bold green]",
+        style="green",
+    )
 
     table = Table(title="Project Configuration", show_header=True)
     table.add_column("Setting", style="cyan")
@@ -249,7 +287,9 @@ def init_project(
 
     # Show model templates
     try:
-        model_templates, _ = load_templates("model", project_root, suppress_warnings=True)
+        model_templates, _ = load_templates(
+            "model", project_root, suppress_warnings=True
+        )
         if model_templates:
             console.rule("[cyan]Model Templates[/cyan]")
             tpl_table = Table(show_header=True, header_style="bold cyan")
@@ -271,7 +311,9 @@ def init_project(
 
     # Show preprocess templates
     try:
-        preprocess_templates, _ = load_templates("preprocess", project_root, suppress_warnings=True)
+        preprocess_templates, _ = load_templates(
+            "preprocess", project_root, suppress_warnings=True
+        )
         if preprocess_templates:
             console.rule("[cyan]Preprocess Templates[/cyan]")
             pre_table = Table(show_header=True, header_style="bold cyan")

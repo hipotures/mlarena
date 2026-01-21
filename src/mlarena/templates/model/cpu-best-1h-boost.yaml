@@ -1,0 +1,9 @@
+preprocess_template: categorical_boost
+config:
+  preset: best
+  time_limit: 3600
+  use_gpu: false
+  included_model_types:
+  - GBM
+  - CAT
+  - XGB

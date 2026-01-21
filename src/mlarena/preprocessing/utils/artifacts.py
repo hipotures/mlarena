@@ -54,9 +54,7 @@ def load_fitted_object(artifact_dir: Path, name: str) -> Any:
     filepath = artifact_dir / name
 
     if not filepath.exists():
-        raise FileNotFoundError(
-            f"Artifact not found: {filepath}"
-        )
+        raise FileNotFoundError(f"Artifact not found: {filepath}")
 
     with open(filepath, "rb") as f:
         return pickle.load(f)
@@ -110,9 +108,7 @@ def load_report(artifact_dir: Path, name: str) -> Dict:
     filepath = artifact_dir / name
 
     if not filepath.exists():
-        raise FileNotFoundError(
-            f"Report not found: {filepath}"
-        )
+        raise FileNotFoundError(f"Report not found: {filepath}")
 
     with open(filepath, "r") as f:
         return json.load(f)

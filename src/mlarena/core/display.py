@@ -7,10 +7,9 @@ with standardized styling and information presentation.
 
 from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.table import Table
 from rich.tree import Tree
 from rich.text import Text
 from rich import box
@@ -667,7 +666,7 @@ def show_path_copy_menu(
                 # Show truncated path (just filename for readability)
                 console.print(f"[green]✓ Copied:[/green] {abs_path.name}")
             else:
-                console.print(f"[red]✗ Clipboard failed (install wl-copy or xclip)[/red]")
+                console.print("[red]✗ Clipboard failed (install wl-copy or xclip)[/red]")
 
         elif choice == all_idx:
             # All paths
@@ -675,13 +674,13 @@ def show_path_copy_menu(
             if copy_to_clipboard(all_paths_str):
                 console.print(f"[green]✓ Copied {len(menu_items)} paths[/green]")
             else:
-                console.print(f"[red]✗ Clipboard failed[/red]")
+                console.print("[red]✗ Clipboard failed[/red]")
         elif choice == base_idx:
             # Base directory
             if copy_to_clipboard(str(base_dir)):
-                console.print(f"[green]✓ Copied base directory[/green]")
+                console.print("[green]✓ Copied base directory[/green]")
             else:
-                console.print(f"[red]✗ Clipboard failed[/red]")
+                console.print("[red]✗ Clipboard failed[/red]")
         else:
             console.print(f"[red]Invalid choice: {choice}[/red]")
 

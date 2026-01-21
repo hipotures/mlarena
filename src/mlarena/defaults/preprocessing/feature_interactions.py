@@ -66,7 +66,7 @@ def _prepare_interaction_pairs(
 
     # Auto-generate pairs if requested
     if auto_pair_numeric:
-        auto_pairs = list(combinations(numeric_cols, 2))[:max(0, int(max_auto_pairs))]
+        auto_pairs = list(combinations(numeric_cols, 2))[: max(0, int(max_auto_pairs))]
         pairs.extend(auto_pairs)
 
     # Deduplicate while preserving order
@@ -88,7 +88,14 @@ def _apply_interactions(
     interaction_types: List[str],
     max_new_features: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], List[Dict[str, Any]]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    List[str],
+    List[Dict[str, Any]],
+]:
     new_cols: List[str] = []
     details: List[Dict[str, Any]] = []
     allowed_ops = {"add", "sub", "mul", "div"}
@@ -106,7 +113,10 @@ def _apply_interactions(
         if col_a not in test_df.columns or col_b not in test_df.columns:
             warnings.warn(f"Skipping pair ({col_a}, {col_b}) - column missing in test")
             continue
-        if not (pd.api.types.is_numeric_dtype(train_df[col_a]) and pd.api.types.is_numeric_dtype(train_df[col_b])):
+        if not (
+            pd.api.types.is_numeric_dtype(train_df[col_a])
+            and pd.api.types.is_numeric_dtype(train_df[col_b])
+        ):
             warnings.warn(f"Skipping pair ({col_a}, {col_b}) - non-numeric dtype")
             continue
 
@@ -125,29 +135,46 @@ def _apply_interactions(
             if op == "add":
                 train_series = train_df[col_a] + train_df[col_b]
                 test_series = test_df[col_a] + test_df[col_b]
-                val_series = val_df[col_a] + val_df[col_b] if val_df is not None else None
+                val_series = (
+                    val_df[col_a] + val_df[col_b] if val_df is not None else None
+                )
             elif op == "sub":
                 train_series = train_df[col_a] - train_df[col_b]
                 test_series = test_df[col_a] - test_df[col_b]
-                val_series = val_df[col_a] - val_df[col_b] if val_df is not None else None
+                val_series = (
+                    val_df[col_a] - val_df[col_b] if val_df is not None else None
+                )
             elif op == "mul":
                 train_series = train_df[col_a] * train_df[col_b]
                 test_series = test_df[col_a] * test_df[col_b]
-                val_series = val_df[col_a] * val_df[col_b] if val_df is not None else None
+                val_series = (
+                    val_df[col_a] * val_df[col_b] if val_df is not None else None
+                )
             elif op == "div":
                 with np.errstate(divide="ignore", invalid="ignore"):
-                    train_series = np.where(train_df[col_b] != 0, train_df[col_a] / train_df[col_b], np.nan)
-                    test_series = np.where(test_df[col_b] != 0, test_df[col_a] / test_df[col_b], np.nan)
+                    train_series = np.where(
+                        train_df[col_b] != 0, train_df[col_a] / train_df[col_b], np.nan
+                    )
+                    test_series = np.where(
+                        test_df[col_b] != 0, test_df[col_a] / test_df[col_b], np.nan
+                    )
                     val_series = (
-                        np.where(val_df[col_b] != 0, val_df[col_a] / val_df[col_b], np.nan)
-                        if val_df is not None else None
+                        np.where(
+                            val_df[col_b] != 0, val_df[col_a] / val_df[col_b], np.nan
+                        )
+                        if val_df is not None
+                        else None
                     )
 
             train_new_cols[new_name] = train_series
             test_new_cols[new_name] = test_series
             if val_df is not None and val_series is not None:
                 val_new_cols[new_name] = val_series
-            if orig_df is not None and col_a in orig_df.columns and col_b in orig_df.columns:
+            if (
+                orig_df is not None
+                and col_a in orig_df.columns
+                and col_b in orig_df.columns
+            ):
                 if op == "add":
                     orig_new_cols[new_name] = orig_df[col_a] + orig_df[col_b]
                 elif op == "sub":
@@ -163,12 +190,14 @@ def _apply_interactions(
                         )
 
             new_cols.append(new_name)
-            details.append({
-                "type": "interaction",
-                "operation": op,
-                "columns": [col_a, col_b],
-                "new_column": new_name,
-            })
+            details.append(
+                {
+                    "type": "interaction",
+                    "operation": op,
+                    "columns": [col_a, col_b],
+                    "new_column": new_name,
+                }
+            )
 
             if len(new_cols) >= max_new_features:
                 limit_reached = True
@@ -192,7 +221,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Feature interactions preprocessing sub-module.
     """
@@ -217,7 +248,9 @@ def fit_transform(
 
     # Validate choices
     for op in config["interaction_types"]:
-        validation.validate_choice(op, ["add", "sub", "mul", "div"], "interaction_types")
+        validation.validate_choice(
+            op, ["add", "sub", "mul", "div"], "interaction_types"
+        )
 
     validation.validate_numeric_range(
         config["max_generated_features"],
@@ -227,7 +260,9 @@ def fit_transform(
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_interactions")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "feature_interactions"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -240,7 +275,9 @@ def fit_transform(
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, orig_features
+        )
 
     if not numeric_cols and config["interaction_types"]:
         warnings.warn("No numeric columns available for interactions")
@@ -256,7 +293,8 @@ def fit_transform(
     if use_orig_only and orig_features:
         orig_set = set(orig_features)
         numeric_pairs = [
-            pair for pair in numeric_pairs
+            pair
+            for pair in numeric_pairs
             if isinstance(pair, (list, tuple))
             and len(pair) == 2
             and pair[0] in orig_set
@@ -269,17 +307,19 @@ def fit_transform(
         auto_pair_numeric=config["auto_pair_numeric"],
         max_auto_pairs=config["max_auto_pairs"],
     )
-    
+
     if pairs and config["interaction_types"]:
-        train_df, val_df, test_df, orig_df, inter_cols, inter_details = _apply_interactions(
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            orig_df=orig_df,
-            pairs=pairs,
-            interaction_types=config["interaction_types"],
-            max_new_features=max_new,
-            existing_cols=existing_cols,
+        train_df, val_df, test_df, orig_df, inter_cols, inter_details = (
+            _apply_interactions(
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                orig_df=orig_df,
+                pairs=pairs,
+                interaction_types=config["interaction_types"],
+                max_new_features=max_new,
+                existing_cols=existing_cols,
+            )
         )
         new_columns.extend(inter_cols)
         interaction_details.extend(inter_details)
@@ -291,7 +331,9 @@ def fit_transform(
         "total_new_features": len(new_columns),
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
-    artifacts.save_report(feature_report, submodule_dir, "feature_interactions_report.json")
+    artifacts.save_report(
+        feature_report, submodule_dir, "feature_interactions_report.json"
+    )
 
     transformation_summary = report.create_preprocessing_report(
         train_before=train_df_original,

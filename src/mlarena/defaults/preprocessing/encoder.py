@@ -30,7 +30,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Categorical encoding with multiple strategies.
 
@@ -99,8 +106,8 @@ def fit_transform(
         "oof_feature_prefix": "mean_",
         # Count/Frequency encoding
         "normalize": False,  # If True, return relative frequency (0-1)
-        "add_log": False,    # If True, apply log1p to the count
-        "min_count": 1,      # Categories with fewer counts are grouped/ignored (treated as 0)
+        "add_log": False,  # If True, apply log1p to the count
+        "min_count": 1,  # Categories with fewer counts are grouped/ignored (treated as 0)
         # Ordinal encoding order
         "ordinal_order": "alphabetical",  # alphabetical|frequency_desc|frequency_asc|random|value_asc|value_desc|appearance
         "ordinal_random_state": 42,
@@ -130,7 +137,7 @@ def fit_transform(
             "binary",
             "base_n",
         ],
-        "encoding_method"
+        "encoding_method",
     )
     if config["encoding_method"] == "ordinal":
         validation.validate_choice(
@@ -166,7 +173,7 @@ def fit_transform(
             "config": {k: v for k, v in config.items() if not k.startswith("_")},
             "encoding_method": "none",
             "encoded_columns": [],
-            "message": "No encoding performed (method=none)"
+            "message": "No encoding performed (method=none)",
         }
 
         # Generate report
@@ -186,18 +193,24 @@ def fit_transform(
     if config["exclude_cols"]:
         exclude_cols.extend(config["exclude_cols"])
 
-    all_categorical = dataframe_utils.get_categorical_columns(train_df, exclude=exclude_cols)
+    all_categorical = dataframe_utils.get_categorical_columns(
+        train_df, exclude=exclude_cols
+    )
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
 
     # Filter by include_cols if specified
     if config["include_cols"]:
-        categorical_cols = [col for col in config["include_cols"] if col in all_categorical]
+        categorical_cols = [
+            col for col in config["include_cols"] if col in all_categorical
+        ]
     else:
         categorical_cols = all_categorical
 
     if use_orig_only:
-        categorical_cols = dataframe_utils.filter_original_columns(categorical_cols, orig_features)
+        categorical_cols = dataframe_utils.filter_original_columns(
+            categorical_cols, orig_features
+        )
 
     # Auto-detect and exclude high-cardinality columns (unless explicitly included)
     # This prevents explosion of one-hot features for columns like Name, Ticket, etc.
@@ -213,7 +226,9 @@ def fit_transform(
         if high_cardinality_cols:
             # Exclude them
             high_card_names = [col for col, _ in high_cardinality_cols]
-            categorical_cols = [col for col in categorical_cols if col not in high_card_names]
+            categorical_cols = [
+                col for col in categorical_cols if col not in high_card_names
+            ]
 
             # Log warning
             warnings.warn(
@@ -229,7 +244,7 @@ def fit_transform(
             "config": {k: v for k, v in config.items() if not k.startswith("_")},
             "encoding_method": encoding_method,
             "encoded_columns": [],
-            "message": "No categorical columns found to encode"
+            "message": "No categorical columns found to encode",
         }
 
         summary = report.create_preprocessing_report(
@@ -248,13 +263,27 @@ def fit_transform(
 
     if encoding_method == "one_hot":
         train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_onehot(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            config,
+            submodule_dir,
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "ordinal":
         train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_ordinal(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            config,
+            submodule_dir,
         )
         encoded_columns_info = encoder_info
 
@@ -262,15 +291,33 @@ def fit_transform(
         if target_column is None:
             raise ValueError("target_mean encoding requires target column")
         train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_target_mean(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, target_column, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            target_column,
+            config,
+            submodule_dir,
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "target_mean_oof":
         if target_column is None:
             raise ValueError("target_mean_oof encoding requires target column")
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_target_mean_oof(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, target_column, config, submodule_dir
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_target_mean_oof(
+                train_df,
+                val_df,
+                test_df,
+                eval_df,
+                orig_df,
+                categorical_cols,
+                target_column,
+                config,
+                submodule_dir,
+            )
         )
         encoded_columns_info = encoder_info
 
@@ -278,161 +325,199 @@ def fit_transform(
         if target_column is None:
             raise ValueError("catboost encoding requires target column")
         train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_catboost(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, target_column, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            target_column,
+            config,
+            submodule_dir,
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method == "hashing":
         train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_hashing(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            config,
+            submodule_dir,
         )
         encoded_columns_info = encoder_info
 
     elif encoding_method in ["count", "frequency"]:
         train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_count(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            config,
+            submodule_dir,
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "leave_one_out":
         if target_column is None:
             raise ValueError("leave_one_out encoding requires target column")
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="leave_one_out",
-            encoder_cls_name="LeaveOneOutEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=target_column,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "sigma": config.get("loo_sigma"),
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="leave_one_out",
+                encoder_cls_name="LeaveOneOutEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=target_column,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "sigma": config.get("loo_sigma"),
+                },
+            )
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "m_estimate":
         if target_column is None:
             raise ValueError("m_estimate encoding requires target column")
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="m_estimate",
-            encoder_cls_name="MEstimateEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=target_column,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "m": config.get("m_estimate_m"),
-                "sigma": config.get("m_estimate_sigma"),
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="m_estimate",
+                encoder_cls_name="MEstimateEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=target_column,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "m": config.get("m_estimate_m"),
+                    "sigma": config.get("m_estimate_sigma"),
+                },
+            )
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "james_stein":
         if target_column is None:
             raise ValueError("james_stein encoding requires target column")
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="james_stein",
-            encoder_cls_name="JamesSteinEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=target_column,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "sigma": config.get("james_stein_sigma"),
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="james_stein",
+                encoder_cls_name="JamesSteinEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=target_column,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "sigma": config.get("james_stein_sigma"),
+                },
+            )
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "glmm":
         if target_column is None:
             raise ValueError("glmm encoding requires target column")
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="glmm",
-            encoder_cls_name="GLMMEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=target_column,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "sigma": config.get("glmm_sigma"),
-                "binomial_target": config.get("glmm_binomial_target"),
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="glmm",
+                encoder_cls_name="GLMMEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=target_column,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "sigma": config.get("glmm_sigma"),
+                    "binomial_target": config.get("glmm_binomial_target"),
+                },
+            )
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "woe":
         problem_type = dataset_config.get("problem_type", "binary")
         if problem_type != "binary":
-            raise ValueError(f"woe encoding requires binary classification, got problem_type={problem_type}")
+            raise ValueError(
+                f"woe encoding requires binary classification, got problem_type={problem_type}"
+            )
         if target_column is None:
             raise ValueError("woe encoding requires target column")
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="woe",
-            encoder_cls_name="WOEEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=target_column,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "sigma": config.get("woe_sigma"),
-                "regularization": config.get("woe_regularization"),
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="woe",
+                encoder_cls_name="WOEEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=target_column,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "sigma": config.get("woe_sigma"),
+                    "regularization": config.get("woe_regularization"),
+                },
+            )
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "binary":
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="binary",
-            encoder_cls_name="BinaryEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=None,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "base": 2,
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="binary",
+                encoder_cls_name="BinaryEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=None,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "base": 2,
+                },
+            )
         )
         encoded_columns_info = encoder_info
     elif encoding_method == "base_n":
-        train_df, val_df, test_df, eval_df, orig_df, encoder_info = _encode_category_encoders(
-            method_name="base_n",
-            encoder_cls_name="BaseNEncoder",
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            categorical_cols=categorical_cols,
-            target_column=None,
-            config=config,
-            submodule_dir=submodule_dir,
-            extra_params={
-                "base": config.get("base_n", 2),
-            },
+        train_df, val_df, test_df, eval_df, orig_df, encoder_info = (
+            _encode_category_encoders(
+                method_name="base_n",
+                encoder_cls_name="BaseNEncoder",
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                categorical_cols=categorical_cols,
+                target_column=None,
+                config=config,
+                submodule_dir=submodule_dir,
+                extra_params={
+                    "base": config.get("base_n", 2),
+                },
+            )
         )
         encoded_columns_info = encoder_info
 
@@ -478,10 +563,16 @@ def _encode_onehot(
     orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
-    submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    submodule_dir: Path,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """One-hot encoding using sklearn."""
-    from sklearn.preprocessing import OneHotEncoder
 
     handle_unknown = "ignore" if config["handle_unknown"] == "ignore" else "error"
 
@@ -489,7 +580,7 @@ def _encode_onehot(
         drop="first" if config["drop_first"] else None,
         handle_unknown=handle_unknown,
         sparse_output=False,
-        dtype=np.int8
+        dtype=np.int8,
     )
 
     # Fit on train
@@ -498,30 +589,48 @@ def _encode_onehot(
     # Transform all datasets
     train_encoded = encoder.transform(train_df[categorical_cols])
     test_encoded = encoder.transform(test_df[categorical_cols])
-    val_encoded = encoder.transform(val_df[categorical_cols]) if val_df is not None else None
-    eval_encoded = encoder.transform(eval_df[categorical_cols]) if eval_df is not None else None
-    orig_encoded = encoder.transform(orig_df[categorical_cols]) if orig_df is not None and all(c in orig_df.columns for c in categorical_cols) else None
+    val_encoded = (
+        encoder.transform(val_df[categorical_cols]) if val_df is not None else None
+    )
+    eval_encoded = (
+        encoder.transform(eval_df[categorical_cols]) if eval_df is not None else None
+    )
+    orig_encoded = (
+        encoder.transform(orig_df[categorical_cols])
+        if orig_df is not None and all(c in orig_df.columns for c in categorical_cols)
+        else None
+    )
 
     # Generate feature names
     feature_names = encoder.get_feature_names_out(categorical_cols)
 
     # Add to DataFrames using concat for better performance
-    train_encoded_df = pd.DataFrame(train_encoded, columns=feature_names, index=train_df.index)
+    train_encoded_df = pd.DataFrame(
+        train_encoded, columns=feature_names, index=train_df.index
+    )
     train_df = pd.concat([train_df, train_encoded_df], axis=1)
 
-    test_encoded_df = pd.DataFrame(test_encoded, columns=feature_names, index=test_df.index)
+    test_encoded_df = pd.DataFrame(
+        test_encoded, columns=feature_names, index=test_df.index
+    )
     test_df = pd.concat([test_df, test_encoded_df], axis=1)
 
     if val_df is not None:
-        val_encoded_df = pd.DataFrame(val_encoded, columns=feature_names, index=val_df.index)
+        val_encoded_df = pd.DataFrame(
+            val_encoded, columns=feature_names, index=val_df.index
+        )
         val_df = pd.concat([val_df, val_encoded_df], axis=1)
 
     if eval_df is not None:
-        eval_encoded_df = pd.DataFrame(eval_encoded, columns=feature_names, index=eval_df.index)
+        eval_encoded_df = pd.DataFrame(
+            eval_encoded, columns=feature_names, index=eval_df.index
+        )
         eval_df = pd.concat([eval_df, eval_encoded_df], axis=1)
 
     if orig_df is not None and orig_encoded is not None:
-        orig_encoded_df = pd.DataFrame(orig_encoded, columns=feature_names, index=orig_df.index)
+        orig_encoded_df = pd.DataFrame(
+            orig_encoded, columns=feature_names, index=orig_df.index
+        )
         orig_df = pd.concat([orig_df, orig_encoded_df], axis=1)
 
     # Save encoder
@@ -538,7 +647,9 @@ def _encode_onehot(
 
 def _filter_encoder_kwargs(encoder_cls, params: Dict[str, Any]) -> Dict[str, Any]:
     signature = inspect.signature(encoder_cls.__init__)
-    accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in signature.parameters.values())
+    accepts_kwargs = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in signature.parameters.values()
+    )
     if accepts_kwargs:
         return params
     return {k: v for k, v in params.items() if k in signature.parameters}
@@ -557,7 +668,14 @@ def _encode_category_encoders(
     config: Dict[str, Any],
     submodule_dir: Path,
     extra_params: Dict[str, Any] | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     try:
         import category_encoders as ce
     except ImportError:
@@ -565,9 +683,19 @@ def _encode_category_encoders(
             f"category_encoders not installed, falling back to target_mean for {method_name} encoding"
         )
         if target_column is None:
-            raise ImportError("category_encoders not available and no target column for fallback")
+            raise ImportError(
+                "category_encoders not available and no target column for fallback"
+            )
         return _encode_target_mean(
-            train_df, val_df, test_df, eval_df, orig_df, categorical_cols, target_column, config, submodule_dir
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            target_column,
+            config,
+            submodule_dir,
         )
 
     encoder_cls = getattr(ce, encoder_cls_name, None)
@@ -591,8 +719,12 @@ def _encode_category_encoders(
 
     train_encoded = encoder.transform(train_df[categorical_cols])
     test_encoded = encoder.transform(test_df[categorical_cols])
-    val_encoded = encoder.transform(val_df[categorical_cols]) if val_df is not None else None
-    eval_encoded = encoder.transform(eval_df[categorical_cols]) if eval_df is not None else None
+    val_encoded = (
+        encoder.transform(val_df[categorical_cols]) if val_df is not None else None
+    )
+    eval_encoded = (
+        encoder.transform(eval_df[categorical_cols]) if eval_df is not None else None
+    )
     orig_encoded = (
         encoder.transform(orig_df[categorical_cols])
         if orig_df is not None and all(c in orig_df.columns for c in categorical_cols)
@@ -638,12 +770,20 @@ def _encode_ordinal(
     orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
-    submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    submodule_dir: Path,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """Ordinal encoding using sklearn."""
-    from sklearn.preprocessing import OrdinalEncoder
 
-    handle_unknown = "use_encoded_value" if config["handle_unknown"] != "error" else "error"
+    handle_unknown = (
+        "use_encoded_value" if config["handle_unknown"] != "error" else "error"
+    )
     ordinal_order = config.get("ordinal_order", "alphabetical")
     ordinal_random_state = config.get("ordinal_random_state", 42)
 
@@ -659,7 +799,11 @@ def _encode_ordinal(
 
     def _build_categories() -> List[List[Any]]:
         categories: List[List[Any]] = []
-        rng = np.random.default_rng(ordinal_random_state) if ordinal_order == "random" else None
+        rng = (
+            np.random.default_rng(ordinal_random_state)
+            if ordinal_order == "random"
+            else None
+        )
 
         for col in categorical_cols:
             series = train_df[col]
@@ -694,7 +838,7 @@ def _encode_ordinal(
         categories=categories,
         handle_unknown=handle_unknown,
         unknown_value=config["unknown_value"],
-        dtype=np.int32
+        dtype=np.int32,
     )
 
     # Fit on train
@@ -736,8 +880,15 @@ def _encode_target_mean(
     categorical_cols: List[str],
     target_column: str,
     config: Dict[str, Any],
-    submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    submodule_dir: Path,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """Target mean encoding with smoothing."""
 
     smoothing = config["target_encoding_smoothing"]
@@ -750,15 +901,15 @@ def _encode_target_mean(
 
     for col in categorical_cols:
         # Compute smoothed target means
-        stats = train_df.groupby(col)[target_column].agg(['mean', 'count'])
+        stats = train_df.groupby(col)[target_column].agg(["mean", "count"])
 
         # Smoothing formula: (count * mean + smoothing * global_mean) / (count + smoothing)
-        smoothed_means = (
-            stats['count'] * stats['mean'] + smoothing * global_mean
-        ) / (stats['count'] + smoothing)
+        smoothed_means = (stats["count"] * stats["mean"] + smoothing * global_mean) / (
+            stats["count"] + smoothing
+        )
 
         # Filter by min_samples
-        mask = stats['count'] >= min_samples
+        mask = stats["count"] >= min_samples
         smoothed_means = smoothed_means[mask]
 
         encodings[col] = smoothed_means.to_dict()
@@ -775,10 +926,15 @@ def _encode_target_mean(
 
     # Save encodings
     artifacts.save_report(
-        {"encodings": {k: {str(key): val for key, val in v.items()} for k, v in encodings.items()},
-         "global_mean": global_mean},
+        {
+            "encodings": {
+                k: {str(key): val for key, val in v.items()}
+                for k, v in encodings.items()
+            },
+            "global_mean": global_mean,
+        },
         submodule_dir,
-        "target_encodings.json"
+        "target_encodings.json",
     )
 
     encoder_info = {
@@ -801,7 +957,14 @@ def _encode_target_mean_oof(
     target_column: str,
     config: Dict[str, Any],
     submodule_dir: Path,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """
     KFold out-of-fold target mean encoding.
 
@@ -824,7 +987,9 @@ def _encode_target_mean_oof(
     min_samples = int(config["target_encoding_min_samples"])
 
     global_mean = float(train_df[target_column].mean())
-    kf = KFold(n_splits=folds, shuffle=shuffle, random_state=random_state if shuffle else None)
+    kf = KFold(
+        n_splits=folds, shuffle=shuffle, random_state=random_state if shuffle else None
+    )
 
     full_train_encodings: Dict[str, Dict] = {}
     oof_feature_names: List[str] = []
@@ -839,32 +1004,46 @@ def _encode_target_mean_oof(
             tr = train_df.iloc[tr_idx]
 
             stats = tr.groupby(col)[target_column].agg(["mean", "count"])
-            smoothed = (stats["count"] * stats["mean"] + smoothing * global_mean) / (stats["count"] + smoothing)
+            smoothed = (stats["count"] * stats["mean"] + smoothing * global_mean) / (
+                stats["count"] + smoothing
+            )
             if min_samples > 1:
                 smoothed = smoothed[stats["count"] >= min_samples]
 
             mapping = smoothed.to_dict()
             va = train_df.iloc[va_idx]
-            oof_values[va_idx] = va[col].map(mapping).fillna(global_mean).astype(np.float32).values
+            oof_values[va_idx] = (
+                va[col].map(mapping).fillna(global_mean).astype(np.float32).values
+            )
 
         train_df[out_col] = oof_values
 
         # Full-train mapping for inference datasets
         full_stats = train_df.groupby(col)[target_column].agg(["mean", "count"])
-        full_smoothed = (full_stats["count"] * full_stats["mean"] + smoothing * global_mean) / (full_stats["count"] + smoothing)
+        full_smoothed = (
+            full_stats["count"] * full_stats["mean"] + smoothing * global_mean
+        ) / (full_stats["count"] + smoothing)
         if min_samples > 1:
             full_smoothed = full_smoothed[full_stats["count"] >= min_samples]
 
         full_mapping = full_smoothed.to_dict()
         full_train_encodings[col] = full_mapping
 
-        test_df[out_col] = test_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+        test_df[out_col] = (
+            test_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+        )
         if val_df is not None:
-            val_df[out_col] = val_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+            val_df[out_col] = (
+                val_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+            )
         if eval_df is not None:
-            eval_df[out_col] = eval_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+            eval_df[out_col] = (
+                eval_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+            )
         if orig_df is not None and col in orig_df.columns:
-            orig_df[out_col] = orig_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+            orig_df[out_col] = (
+                orig_df[col].map(full_mapping).fillna(global_mean).astype(np.float32)
+            )
 
     artifacts.save_report(
         {
@@ -876,7 +1055,10 @@ def _encode_target_mean_oof(
             "smoothing": smoothing,
             "min_samples": min_samples,
             "global_mean": global_mean,
-            "encodings_full_train": {k: {str(key): val for key, val in v.items()} for k, v in full_train_encodings.items()},
+            "encodings_full_train": {
+                k: {str(key): val for key, val in v.items()}
+                for k, v in full_train_encodings.items()
+            },
         },
         submodule_dir,
         "target_encodings_oof.json",
@@ -906,14 +1088,33 @@ def _encode_catboost(
     categorical_cols: List[str],
     target_column: str,
     config: Dict[str, Any],
-    submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    submodule_dir: Path,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """CatBoost-style target encoding (ordered target statistics)."""
     try:
         from category_encoders import CatBoostEncoder
     except ImportError:
-        warnings.warn("category_encoders not installed, falling back to target_mean encoding")
-        return _encode_target_mean(train_df, val_df, test_df, eval_df, orig_df, categorical_cols, target_column, config, submodule_dir)
+        warnings.warn(
+            "category_encoders not installed, falling back to target_mean encoding"
+        )
+        return _encode_target_mean(
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            categorical_cols,
+            target_column,
+            config,
+            submodule_dir,
+        )
 
     encoder = CatBoostEncoder(cols=categorical_cols)
 
@@ -923,9 +1124,17 @@ def _encode_catboost(
     # Transform
     train_encoded = encoder.transform(train_df[categorical_cols])
     test_encoded = encoder.transform(test_df[categorical_cols])
-    val_encoded = encoder.transform(val_df[categorical_cols]) if val_df is not None else None
-    eval_encoded = encoder.transform(eval_df[categorical_cols]) if eval_df is not None else None
-    orig_encoded = encoder.transform(orig_df[categorical_cols]) if orig_df is not None and all(c in orig_df.columns for c in categorical_cols) else None
+    val_encoded = (
+        encoder.transform(val_df[categorical_cols]) if val_df is not None else None
+    )
+    eval_encoded = (
+        encoder.transform(eval_df[categorical_cols]) if eval_df is not None else None
+    )
+    orig_encoded = (
+        encoder.transform(orig_df[categorical_cols])
+        if orig_df is not None and all(c in orig_df.columns for c in categorical_cols)
+        else None
+    )
 
     # Rename columns
     encoded_cols = [f"{col}_cb" for col in categorical_cols]
@@ -957,8 +1166,15 @@ def _encode_hashing(
     orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
-    submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    submodule_dir: Path,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """Feature hashing."""
     from sklearn.feature_extraction import FeatureHasher
 
@@ -967,14 +1183,26 @@ def _encode_hashing(
     all_encoded_features = []
 
     for col in categorical_cols:
-        hasher = FeatureHasher(n_features=hash_dim, input_type='string')
+        hasher = FeatureHasher(n_features=hash_dim, input_type="string")
 
         # Convert to string and reshape
         train_hashed = hasher.transform([[str(x)] for x in train_df[col]]).toarray()
         test_hashed = hasher.transform([[str(x)] for x in test_df[col]]).toarray()
-        val_hashed = hasher.transform([[str(x)] for x in val_df[col]]).toarray() if val_df is not None else None
-        eval_hashed = hasher.transform([[str(x)] for x in eval_df[col]]).toarray() if eval_df is not None else None
-        orig_hashed = hasher.transform([[str(x)] for x in orig_df[col]]).toarray() if orig_df is not None and col in orig_df.columns else None
+        val_hashed = (
+            hasher.transform([[str(x)] for x in val_df[col]]).toarray()
+            if val_df is not None
+            else None
+        )
+        eval_hashed = (
+            hasher.transform([[str(x)] for x in eval_df[col]]).toarray()
+            if eval_df is not None
+            else None
+        )
+        orig_hashed = (
+            hasher.transform([[str(x)] for x in orig_df[col]]).toarray()
+            if orig_df is not None and col in orig_df.columns
+            else None
+        )
 
         # Generate feature names
         feature_names = [f"{col}_hash_{i}" for i in range(hash_dim)]
@@ -1007,39 +1235,46 @@ def _encode_count(
     orig_df: pd.DataFrame | None,
     categorical_cols: List[str],
     config: Dict[str, Any],
-    submodule_dir: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict]:
+    submodule_dir: Path,
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict,
+]:
     """Count (Frequency) Encoding."""
-    
+
     normalize = config.get("normalize", False)
     add_log = config.get("add_log", False)
     min_count = config.get("min_count", 1)
-    
+
     mapping_storage = {}
     encoded_feature_names = []
-    
+
     for col in categorical_cols:
         # Calculate counts on TRAIN set only
         if normalize:
             counts = train_df[col].value_counts(normalize=True)
         else:
             counts = train_df[col].value_counts(normalize=False)
-            
+
         # Handle min_count (replace rare with 0 or NaN?)
         # Standard practice: unseen categories get 0 count.
         # If we have min_count, we can filter mapping.
         if min_count > 1 and not normalize:
             # Only keep counts >= min_count
             counts = counts[counts >= min_count]
-            
+
         mapping = counts.to_dict()
         mapping_storage[col] = {str(k): v for k, v in mapping.items()}
-        
+
         # Apply mapping
         suffix = "_freq" if normalize else "_count"
         new_col = f"{col}{suffix}"
         encoded_feature_names.append(new_col)
-        
+
         # Function to apply mapping safely
         def apply_map(series):
             mapped = series.map(mapping).fillna(0)
@@ -1049,7 +1284,7 @@ def _encode_count(
 
         train_df[new_col] = apply_map(train_df[col])
         test_df[new_col] = apply_map(test_df[col])
-        
+
         if val_df is not None:
             val_df[new_col] = apply_map(val_df[col])
         if eval_df is not None:
@@ -1064,17 +1299,17 @@ def _encode_count(
             "normalize": normalize,
             "add_log": add_log,
             "min_count": min_count,
-            "mappings": mapping_storage
+            "mappings": mapping_storage,
         },
-        submodule_dir, 
-        "count_encodings.json"
+        submodule_dir,
+        "count_encodings.json",
     )
-    
+
     encoder_info = {
         "n_features": len(categorical_cols),
         "encoded_feature_names": encoded_feature_names,
         "normalize": normalize,
-        "add_log": add_log
+        "add_log": add_log,
     }
-    
+
     return train_df, val_df, test_df, eval_df, orig_df, encoder_info

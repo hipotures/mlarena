@@ -106,7 +106,9 @@ async def fetch_evaluation_text_via_cdp(competition_slug: str, cdp_url: str) -> 
             await playwright.stop()
 
 
-def fetch_kaggle_evaluation(competition_slug: str, cdp_url: Optional[str] = None) -> str:
+def fetch_kaggle_evaluation(
+    competition_slug: str, cdp_url: Optional[str] = None
+) -> str:
     """Retrieve Evaluation section text for a Kaggle competition.
 
     Requires an active Chrome instance with remote debugging enabled.
@@ -120,9 +122,13 @@ def fetch_kaggle_evaluation(competition_slug: str, cdp_url: Optional[str] = None
         )
 
     try:
-        evaluation = asyncio.run(fetch_evaluation_text_via_cdp(competition_slug, resolved_cdp))
+        evaluation = asyncio.run(
+            fetch_evaluation_text_via_cdp(competition_slug, resolved_cdp)
+        )
     except Exception as exc:
-        raise RuntimeError(f"Failed to fetch evaluation via CDP ({resolved_cdp}): {exc}") from exc
+        raise RuntimeError(
+            f"Failed to fetch evaluation via CDP ({resolved_cdp}): {exc}"
+        ) from exc
 
     if not evaluation:
         raise RuntimeError(

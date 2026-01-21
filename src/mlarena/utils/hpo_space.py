@@ -22,12 +22,15 @@ Example:
     >>> # parsed['GBM']['learning_rate'] = space.Real(0.01, 0.3, log=True)
     >>> # parsed['GBM']['num_leaves'] = space.Int(20, 150)
 """
+
 from typing import Any, Dict, List, Union
 
 from autogluon.common import space
 
 
-def parse_search_space(space_dict: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def parse_search_space(
+    space_dict: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
     """
     Convert YAML search space notation to autogluon.common.space objects.
 
@@ -47,7 +50,9 @@ def parse_search_space(space_dict: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[
 
         for param_name, param_spec in params.items():
             try:
-                result[model_type][param_name] = _parse_param_spec(param_name, param_spec)
+                result[model_type][param_name] = _parse_param_spec(
+                    param_name, param_spec
+                )
             except Exception as e:
                 raise ValueError(
                     f"Failed to parse search space for {model_type}.{param_name}: {param_spec}. "
@@ -86,7 +91,7 @@ def _parse_param_spec(param_name: str, param_spec: Union[List, Any]) -> Any:
     values = param_spec
     if len(param_spec) >= 3:
         last_elem = param_spec[-1]
-        if isinstance(last_elem, str) and last_elem in ['log', 'int', 'float']:
+        if isinstance(last_elem, str) and last_elem in ["log", "int", "float"]:
             # Last element is type hint
             type_hint = last_elem
             values = param_spec[:-1]
@@ -109,15 +114,15 @@ def _parse_param_spec(param_name: str, param_spec: Union[List, Any]) -> Any:
         )
 
     if lower >= upper:
-        raise ValueError(
-            f"Search space min ({lower}) must be less than max ({upper})"
-        )
+        raise ValueError(f"Search space min ({lower}) must be less than max ({upper})")
 
     # Determine space type
-    if type_hint == 'log':
+    if type_hint == "log":
         # Real with log scale
         return space.Real(lower, upper, log=True)
-    elif type_hint == 'int' or (isinstance(lower, int) and isinstance(upper, int) and type_hint != 'float'):
+    elif type_hint == "int" or (
+        isinstance(lower, int) and isinstance(upper, int) and type_hint != "float"
+    ):
         # Integer space (explicit 'int' or both values are int and no 'float' hint)
         return space.Int(lower, upper)
     else:
@@ -142,14 +147,16 @@ def validate_search_space(space_dict: Dict[str, Any]) -> List[str]:
     """
     warnings = []
 
-    known_model_types = {'GBM', 'XGB', 'CAT', 'NN_TORCH', 'FASTAI', 'RF', 'XT', 'KNN'}
+    known_model_types = {"GBM", "XGB", "CAT", "NN_TORCH", "FASTAI", "RF", "XT", "KNN"}
 
     for model_type, params in space_dict.items():
         if model_type not in known_model_types:
             warnings.append(f"Unknown model type: {model_type}")
 
         if not isinstance(params, dict):
-            warnings.append(f"Parameters for {model_type} should be a dict, got {type(params)}")
+            warnings.append(
+                f"Parameters for {model_type} should be a dict, got {type(params)}"
+            )
             continue
 
         for param_name, spec in params.items():

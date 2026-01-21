@@ -59,7 +59,9 @@ def _activation_fn(name: str):
     return lambda x: x
 
 
-def _apply_swap_noise(x: np.ndarray, swap_prob: float, rng: np.random.Generator) -> np.ndarray:
+def _apply_swap_noise(
+    x: np.ndarray, swap_prob: float, rng: np.random.Generator
+) -> np.ndarray:
     noisy = x.copy()
     n_rows, n_cols = noisy.shape
     if n_rows <= 1:
@@ -73,7 +75,9 @@ def _apply_swap_noise(x: np.ndarray, swap_prob: float, rng: np.random.Generator)
     return noisy
 
 
-def _apply_gaussian_noise(x: np.ndarray, sigma: float, scales: np.ndarray | None, rng: np.random.Generator) -> np.ndarray:
+def _apply_gaussian_noise(
+    x: np.ndarray, sigma: float, scales: np.ndarray | None, rng: np.random.Generator
+) -> np.ndarray:
     if scales is None:
         noise = rng.normal(0.0, sigma, size=x.shape)
     else:
@@ -98,7 +102,9 @@ def _build_fit_frames(
     return frames
 
 
-def _impute_values(df: pd.DataFrame, cols: List[str], strategy: str) -> Dict[str, float]:
+def _impute_values(
+    df: pd.DataFrame, cols: List[str], strategy: str
+) -> Dict[str, float]:
     values: Dict[str, float] = {}
     for col in cols:
         if strategy == "median":
@@ -110,7 +116,9 @@ def _impute_values(df: pd.DataFrame, cols: List[str], strategy: str) -> Dict[str
     return values
 
 
-def _apply_impute(df: pd.DataFrame, cols: List[str], values: Dict[str, float]) -> pd.DataFrame:
+def _apply_impute(
+    df: pd.DataFrame, cols: List[str], values: Dict[str, float]
+) -> pd.DataFrame:
     df_out = df.copy()
     for col in cols:
         if col not in df_out.columns:
@@ -135,7 +143,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     artifact_dir = Path(config.get("_artifact_dir", "."))
     dataset_config = config.get("_dataset", {})
     id_column = dataset_config.get("id_column", "id")
@@ -170,14 +185,18 @@ def fit_transform(
         "prefix": "dae",
     }
     validation.validate_config(config, required_params, optional_params)
-    validation.validate_choice(config["activation"], ["relu", "tanh", "logistic", "identity"], "activation")
+    validation.validate_choice(
+        config["activation"], ["relu", "tanh", "logistic", "identity"], "activation"
+    )
     validation.validate_choice(config["noise_type"], ["swap", "gaussian"], "noise_type")
     validation.validate_choice(
         config["fit_on"],
         ["train", "train_val", "train_test", "train_val_test", "all"],
         "fit_on",
     )
-    validation.validate_choice(config["missing_strategy"], ["mean", "median", "zero"], "missing_strategy")
+    validation.validate_choice(
+        config["missing_strategy"], ["mean", "median", "zero"], "missing_strategy"
+    )
 
     submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "dae_embeddings")
 
@@ -190,7 +209,9 @@ def fit_transform(
 
     use_orig_only = bool(config.get("use_original_features_only"))
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, config.get("_original_features"))
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, config.get("_original_features")
+        )
 
     if config["include_cols"]:
         numeric_cols = [c for c in config["include_cols"] if c in numeric_cols]
@@ -208,8 +229,9 @@ def fit_transform(
     fit_df = pd.concat(fit_frames, axis=0, ignore_index=True)
 
     if config["max_rows"] and len(fit_df) > int(config["max_rows"]):
-        fit_df = fit_df.sample(n=int(config["max_rows"]), random_state=config["random_state"])\
-            .reset_index(drop=True)
+        fit_df = fit_df.sample(
+            n=int(config["max_rows"]), random_state=config["random_state"]
+        ).reset_index(drop=True)
 
     impute_values = _impute_values(fit_df, numeric_cols, config["missing_strategy"])
     fit_df = _apply_impute(fit_df, numeric_cols, impute_values)
@@ -225,8 +247,14 @@ def fit_transform(
     if config["noise_type"] == "swap":
         x_noisy = _apply_swap_noise(x_fit, float(config["swap_prob"]), rng)
     else:
-        scales = x_fit.std(axis=0, keepdims=True) if config["gaussian_scale_by_std"] else None
-        x_noisy = _apply_gaussian_noise(x_fit, float(config["gaussian_sigma"]), scales, rng)
+        scales = (
+            x_fit.std(axis=0, keepdims=True)
+            if config["gaussian_scale_by_std"]
+            else None
+        )
+        x_noisy = _apply_gaussian_noise(
+            x_fit, float(config["gaussian_sigma"]), scales, rng
+        )
 
     hidden_layers = config.get("hidden_layers")
     if hidden_layers:
@@ -294,12 +322,16 @@ def fit_transform(
     state_dict = {
         "version": "1.0",
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
-        "embedded_columns": [col for col in train_df.columns if col.startswith(f"{prefix}_")],
+        "embedded_columns": [
+            col for col in train_df.columns if col.startswith(f"{prefix}_")
+        ],
         "numeric_source_columns": numeric_cols,
         "model_path": str((submodule_dir / "dae_model.pkl").relative_to(artifact_dir)),
     }
     if scaler is not None:
-        state_dict["scaler_path"] = str((submodule_dir / "scaler.pkl").relative_to(artifact_dir))
+        state_dict["scaler_path"] = str(
+            (submodule_dir / "scaler.pkl").relative_to(artifact_dir)
+        )
     state_dict["impute_values"] = impute_values
 
     return train_df, val_df, test_df, eval_df, orig_df, state_dict

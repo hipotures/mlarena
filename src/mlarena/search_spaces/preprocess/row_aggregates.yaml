@@ -18,6 +18,7 @@ variants:
         max_items: 6
         sort: true
   - name: extended
+    requires_preproc: [{group: imputer}]
     params:
       stats:
         type: subset

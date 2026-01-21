@@ -8,7 +8,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from filelock import FileLock, Timeout
 
@@ -22,7 +22,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 class OverwriteLockedError(RuntimeError):
     """Raised when attempting to overwrite a locked module with force=true."""
 
-    def __init__(self, module_name: str, lock_path: Path, lock_metadata: Dict[str, Any]):
+    def __init__(
+        self, module_name: str, lock_path: Path, lock_metadata: Dict[str, Any]
+    ):
         self.module_name = module_name
         self.lock_path = lock_path
         self.lock_metadata = lock_metadata
@@ -44,10 +46,11 @@ def _relativize_paths(data: Any, project_root: Path, seen=None) -> Any:
     """
     Recursively convert absolute paths within a project to project-relative paths.
     """
-    if seen is None: seen = set()
+    if seen is None:
+        seen = set()
     if id(data) in seen:
-        return data # Avoid cycle
-    
+        return data  # Avoid cycle
+
     if isinstance(data, dict):
         seen.add(id(data))
         return {k: _relativize_paths(v, project_root, seen) for k, v in data.items()}
@@ -72,10 +75,11 @@ def _reconstruct_paths(data: Any, project_root: Path, seen=None) -> Any:
     Recursively convert project-relative paths back to absolute paths.
     Only converts strings that look like relative paths and exist relative to project_root or REPO_ROOT.
     """
-    if seen is None: seen = set()
+    if seen is None:
+        seen = set()
     if id(data) in seen:
         return data
-        
+
     if isinstance(data, dict):
         seen.add(id(data))
         return {k: _reconstruct_paths(v, project_root, seen) for k, v in data.items()}
@@ -86,7 +90,7 @@ def _reconstruct_paths(data: Any, project_root: Path, seen=None) -> Any:
         # Safety check: if it contains newlines, is too long, or has null bytes, it is not a path
         if "\n" in data or "\0" in data or len(data) > 1024:
             return data
-            
+
         try:
             # Try relative to project_root
             p_proj = project_root / data
@@ -121,6 +125,7 @@ class ModuleEntry:
         payload: Arbitrary module output payload.
         error: Error message if the module failed.
     """
+
     name: str
     status: str
     started_at: Optional[str] = None
@@ -171,6 +176,7 @@ class PipelineStep:
     """
     Metadata for a single step in a unified pipeline.
     """
+
     name: str
     module: str
     status: str = "pending"
@@ -183,15 +189,14 @@ class PipelineStep:
     def to_dict(self) -> Dict[str, Any]:
         # Filter null shapes to keep it clean
         clean_shapes = {k: v for k, v in self.shapes.items() if v is not None}
-        
+
         # Strictly whitelist keys for custom_module_state to avoid noise
         # Only paths and essential metadata are allowed as per schema definition
         allowed_keys = {"weights_path", "eval_path", "original_features"}
         clean_custom_state = {
-            k: v for k, v in self.custom_module_state.items() 
-            if k in allowed_keys
+            k: v for k, v in self.custom_module_state.items() if k in allowed_keys
         }
-        
+
         res = {
             "name": self.name,
             "module": self.module,
@@ -201,11 +206,11 @@ class PipelineStep:
             "duration": self.duration,
             "shapes": clean_shapes,
         }
-        
+
         # Only add custom_module_state if it contains whitelisted data
         if clean_custom_state:
             res["custom_module_state"] = clean_custom_state
-            
+
         return res
 
     @classmethod
@@ -227,6 +232,7 @@ class PipelineProgress:
     """
     Aggregated progress tracking for in-memory pipelines.
     """
+
     status: str = "pending"
     total_steps: int = 0
     current_step_idx: int = 0
@@ -275,6 +281,7 @@ class ExperimentState:
         git: Git metadata captured at start.
         last_heartbeat: ISO timestamp of last update.
     """
+
     experiment_id: str
     project: str
     project_root: Path
@@ -398,7 +405,7 @@ class ExperimentState:
         entry.payload = payload or {}
         entry.error = None
         self.modules[name] = entry
-        
+
         # Determine overall status (if all modules completed, experiment is completed)
         # For simple cases (non-pipeline), this is correct.
         self.status = "completed"
@@ -417,7 +424,7 @@ class ExperimentState:
     def to_dict(self, relative: bool = False) -> Dict[str, Any]:
         """
         Serialize experiment state to a JSON-compatible dictionary.
-        
+
         Args:
             relative: If True, convert all paths to be relative to project_root or REPO_ROOT.
         """
@@ -435,7 +442,9 @@ class ExperimentState:
         if relative:
             # Format project_root: use "/slug" if under projects/kaggle, otherwise relative to REPO_ROOT
             try:
-                rel_to_kaggle = self.project_root.relative_to(REPO_ROOT / "projects" / "kaggle")
+                rel_to_kaggle = self.project_root.relative_to(
+                    REPO_ROOT / "projects" / "kaggle"
+                )
                 project_root_str = "/" + rel_to_kaggle.parts[0]
             except (ValueError, IndexError):
                 try:
@@ -445,7 +454,9 @@ class ExperimentState:
 
             # Format experiment_dir: relative to project_root
             try:
-                experiment_dir_str = str(self.experiment_dir.relative_to(self.project_root))
+                experiment_dir_str = str(
+                    self.experiment_dir.relative_to(self.project_root)
+                )
             except ValueError:
                 experiment_dir_str = str(self.experiment_dir)
         else:
@@ -460,13 +471,15 @@ class ExperimentState:
             "created_at": self.created_at,
             "status": self.status,
             "pipeline": self.pipeline,
-            "pipeline_progress": self.pipeline_progress.to_dict() if self.pipeline_progress else None,
+            "pipeline_progress": self.pipeline_progress.to_dict()
+            if self.pipeline_progress
+            else None,
             "modules": {k: v.to_dict() for k, v in self.modules.items()},
             "run": self.run,
             "git": self.git,
             "last_heartbeat": self.last_heartbeat,
         }
-        
+
         if relative:
             return _relativize_paths(data, self.project_root)
         return data
@@ -483,9 +496,9 @@ class ExperimentState:
             ExperimentState loaded from disk.
         """
         data = json.loads(path.read_text())
-        
+
         project_name = data["project"]
-        
+
         # Reconstruct project_root
         project_root_raw = data.get("project_root")
         if project_root_raw:
@@ -517,16 +530,21 @@ class ExperimentState:
 
         # Reconstruct absolute paths in modules and other data
         reconstructed_data = _reconstruct_paths(data, project_root)
-        
+
         modules = {
-            k: ModuleEntry.from_dict(v) 
+            k: ModuleEntry.from_dict(v)
             for k, v in reconstructed_data.get("modules", {}).items()
         }
 
         pipeline_progress = None
-        if "pipeline_progress" in reconstructed_data and reconstructed_data["pipeline_progress"]:
-            pipeline_progress = PipelineProgress.from_dict(reconstructed_data["pipeline_progress"])
-        
+        if (
+            "pipeline_progress" in reconstructed_data
+            and reconstructed_data["pipeline_progress"]
+        ):
+            pipeline_progress = PipelineProgress.from_dict(
+                reconstructed_data["pipeline_progress"]
+            )
+
         return cls(
             experiment_id=data["experiment_id"],
             project=project_name,
@@ -552,49 +570,64 @@ class ExperimentState:
         try:
             with FileLock(str(lock_path), timeout=10):
                 current_abs_payload = self.to_dict(relative=False)
-                
+
                 if self.state_path.exists():
                     try:
                         raw_existing = json.loads(self.state_path.read_text())
-                        existing_abs = _reconstruct_paths(raw_existing, self.project_root)
-                        
+                        existing_abs = _reconstruct_paths(
+                            raw_existing, self.project_root
+                        )
+
                         existing_modules = existing_abs.get("modules", {})
-                        current_abs_payload["modules"] = {**existing_modules, **current_abs_payload["modules"]}
-                        
+                        current_abs_payload["modules"] = {
+                            **existing_modules,
+                            **current_abs_payload["modules"],
+                        }
+
                         self.modules = {
                             k: ModuleEntry.from_dict({**v, "name": v.get("name", k)})
                             for k, v in current_abs_payload["modules"].items()
                         }
                     except (json.JSONDecodeError, Exception):
                         pass
-                
+
                 relative_payload = self.to_dict(relative=True)
-                
+
                 # For non-slim payloads, ensure project_root and experiment_dir are formatted
                 if not self.pipeline_progress:
                     try:
-                        rel_to_kaggle = self.project_root.relative_to(REPO_ROOT / "projects" / "kaggle")
+                        rel_to_kaggle = self.project_root.relative_to(
+                            REPO_ROOT / "projects" / "kaggle"
+                        )
                         relative_payload["project_root"] = "/" + rel_to_kaggle.parts[0]
                     except (ValueError, IndexError):
                         try:
-                            relative_payload["project_root"] = str(self.project_root.relative_to(REPO_ROOT))
+                            relative_payload["project_root"] = str(
+                                self.project_root.relative_to(REPO_ROOT)
+                            )
                         except ValueError:
                             relative_payload["project_root"] = str(self.project_root)
 
                     try:
-                        relative_payload["experiment_dir"] = str(self.experiment_dir.relative_to(self.project_root))
+                        relative_payload["experiment_dir"] = str(
+                            self.experiment_dir.relative_to(self.project_root)
+                        )
                     except ValueError:
                         relative_payload["experiment_dir"] = str(self.experiment_dir)
 
                 self.state_path.write_text(json.dumps(relative_payload, indent=2))
         except Timeout:
-            raise RuntimeError(f"Could not acquire lock for state file at {self.state_path}")
+            raise RuntimeError(
+                f"Could not acquire lock for state file at {self.state_path}"
+            )
 
     def get_lock_path(self, module_name: str = None) -> Path:
         """Get path to overwrite.lock file."""
         return self.experiment_dir / "overwrite.lock"
 
-    def is_locked(self, module_name: str = None) -> tuple[bool, Optional[Dict[str, Any]]]:
+    def is_locked(
+        self, module_name: str = None
+    ) -> tuple[bool, Optional[Dict[str, Any]]]:
         """Check if locked. Returns (is_locked, metadata)."""
         lock_path = self.get_lock_path(module_name)
         if not lock_path.exists():
@@ -616,7 +649,7 @@ class ExperimentState:
             "locked_by_pid": os.getpid(),
             "module_name": module_name,
             "experiment_id": self.experiment_id,
-            **(metadata or {})
+            **(metadata or {}),
         }
 
         self.experiment_dir.mkdir(parents=True, exist_ok=True)

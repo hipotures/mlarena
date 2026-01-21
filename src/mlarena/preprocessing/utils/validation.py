@@ -2,13 +2,10 @@
 
 from typing import Any, Dict, List
 import pandas as pd
-import numpy as np
 
 
 def validate_config(
-    config: Dict[str, Any],
-    required: List[str],
-    optional: Dict[str, Any]
+    config: Dict[str, Any], required: List[str], optional: Dict[str, Any]
 ) -> None:
     """
     Validate preprocessing config has required params, set defaults for optional.
@@ -24,9 +21,7 @@ def validate_config(
     # Check required parameters
     missing = [param for param in required if param not in config]
     if missing:
-        raise ValueError(
-            f"Missing required configuration parameters: {missing}"
-        )
+        raise ValueError(f"Missing required configuration parameters: {missing}")
 
     # Set defaults for optional parameters
     for param, default_value in optional.items():
@@ -34,11 +29,7 @@ def validate_config(
             config[param] = default_value
 
 
-def validate_column_exists(
-    df: pd.DataFrame,
-    columns: List[str],
-    context: str
-) -> None:
+def validate_column_exists(df: pd.DataFrame, columns: List[str], context: str) -> None:
     """
     Raise error if columns missing from DataFrame.
 
@@ -94,11 +85,7 @@ def infer_column_types(df: pd.DataFrame) -> Dict[str, List[str]]:
     return column_types
 
 
-def validate_choice(
-    value: str,
-    choices: List[str],
-    param_name: str
-) -> None:
+def validate_choice(value: str, choices: List[str], param_name: str) -> None:
     """
     Validate that a value is one of allowed choices.
 
@@ -112,8 +99,7 @@ def validate_choice(
     """
     if value not in choices:
         raise ValueError(
-            f"Invalid value for '{param_name}': {value}. "
-            f"Must be one of: {choices}"
+            f"Invalid value for '{param_name}': {value}. Must be one of: {choices}"
         )
 
 
@@ -121,7 +107,7 @@ def validate_numeric_range(
     value: float,
     min_value: float = None,
     max_value: float = None,
-    param_name: str = "parameter"
+    param_name: str = "parameter",
 ) -> None:
     """
     Validate that a numeric value is within allowed range.
@@ -136,10 +122,6 @@ def validate_numeric_range(
         ValueError: If value outside allowed range
     """
     if min_value is not None and value < min_value:
-        raise ValueError(
-            f"'{param_name}' must be >= {min_value}, got {value}"
-        )
+        raise ValueError(f"'{param_name}' must be >= {min_value}, got {value}")
     if max_value is not None and value > max_value:
-        raise ValueError(
-            f"'{param_name}' must be <= {max_value}, got {value}"
-        )
+        raise ValueError(f"'{param_name}' must be <= {max_value}, got {value}")

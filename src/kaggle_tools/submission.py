@@ -79,13 +79,17 @@ def _infer_target_type(series: pd.Series) -> str:
     return "text"
 
 
-def _ensure_target_value_types(values: pd.Series, target_type: Optional[str], column_name: str):
+def _ensure_target_value_types(
+    values: pd.Series, target_type: Optional[str], column_name: str
+):
     if target_type is None:
         return
     if target_type == "int":
         numeric = pd.to_numeric(values, errors="coerce")
         if numeric.isna().any():
-            raise ValueError(f"Submission column '{column_name}' must contain integer values, but non-numeric values were found.")
+            raise ValueError(
+                f"Submission column '{column_name}' must contain integer values, but non-numeric values were found."
+            )
         if not np.all(np.isclose(numeric, np.round(numeric))):
             raise ValueError(
                 f"Submission column '{column_name}' must contain integer class labels (e.g., 0/1). "
@@ -94,13 +98,19 @@ def _ensure_target_value_types(values: pd.Series, target_type: Optional[str], co
     elif target_type == "float":
         numeric = pd.to_numeric(values, errors="coerce")
         if numeric.isna().any():
-            raise ValueError(f"Submission column '{column_name}' must contain numeric values (float).")
+            raise ValueError(
+                f"Submission column '{column_name}' must contain numeric values (float)."
+            )
     elif target_type == "text":
         if not pd.api.types.is_string_dtype(values):
-            raise ValueError(f"Submission column '{column_name}' must contain text values.")
+            raise ValueError(
+                f"Submission column '{column_name}' must contain text values."
+            )
 
 
-def _validate_prediction_signal(predictions: pd.Series, sample_target: Optional[pd.Series], column_name: str):
+def _validate_prediction_signal(
+    predictions: pd.Series, sample_target: Optional[pd.Series], column_name: str
+):
     if sample_target is None:
         return
     target_values = sample_target.dropna().unique()
@@ -108,7 +118,7 @@ def _validate_prediction_signal(predictions: pd.Series, sample_target: Optional[
         unique_predictions = pd.Series(predictions).dropna().unique()
         if len(unique_predictions) <= 1:
             raise ValueError(
-                f"Predictions for '{column_name}' contain a single unique value ({unique_predictions[0] if len(unique_predictions)==1 else 'NA'}). "
+                f"Predictions for '{column_name}' contain a single unique value ({unique_predictions[0] if len(unique_predictions) == 1 else 'NA'}). "
                 "This usually indicates a degenerate submission. Ensure you're submitting class labels with variation."
             )
 
@@ -174,7 +184,9 @@ def _build_submission_from_series(
     force_probabilities: bool = False,
 ):
     if test_ids is None:
-        raise ValueError("test_ids must be provided when predictions are not a DataFrame.")
+        raise ValueError(
+            "test_ids must be provided when predictions are not a DataFrame."
+        )
 
     if sample_df is not None:
         id_col = sample_df.columns[0]
@@ -198,10 +210,7 @@ def _build_submission_from_series(
     _ensure_target_value_types(predictions_series, target_type, target_col)
     _validate_prediction_signal(predictions_series, sample_target_series, target_col)
 
-    submission = pd.DataFrame({
-        id_col: test_ids,
-        target_col: predictions_series
-    })
+    submission = pd.DataFrame({id_col: test_ids, target_col: predictions_series})
     return submission
 
 
@@ -260,7 +269,7 @@ def create_submission(
         SubmissionArtifact with path and metadata
     """
     if sample_submission_path.exists():
-        sample_df = pd.read_csv(sample_submission_path, compression='infer')
+        sample_df = pd.read_csv(sample_submission_path, compression="infer")
     else:
         sample_df = None
         if test_ids is None and not isinstance(predictions, pd.DataFrame):
@@ -278,7 +287,11 @@ def create_submission(
     # Auto-detect regression to allow floats even if sample uses ints
     should_force_probas = bool(submission_probas)
     if not should_force_probas and config:
-        p_type = config.get("AUTOGLUON_PROBLEM_TYPE") if isinstance(config, dict) else getattr(config, "AUTOGLUON_PROBLEM_TYPE", None)
+        p_type = (
+            config.get("AUTOGLUON_PROBLEM_TYPE")
+            if isinstance(config, dict)
+            else getattr(config, "AUTOGLUON_PROBLEM_TYPE", None)
+        )
         if p_type == "regression":
             should_force_probas = True
 
@@ -316,10 +329,14 @@ def create_submission(
     submissions_dir.mkdir(parents=True, exist_ok=True)
 
     # Save submission
-    submission.to_csv(filepath, index=False, compression='infer')
+    submission.to_csv(filepath, index=False, compression="infer")
 
-    console.print(f"[green]✓[/green] [bold]Submission saved:[/bold] [cyan]{filepath}[/cyan]")
-    console.print(f"  [dim]Shape: {submission.shape[0]:,} rows × {submission.shape[1]} columns[/dim]")
+    console.print(
+        f"[green]✓[/green] [bold]Submission saved:[/bold] [cyan]{filepath}[/cyan]"
+    )
+    console.print(
+        f"  [dim]Shape: {submission.shape[0]:,} rows × {submission.shape[1]} columns[/dim]"
+    )
 
     # Add to tracker if requested
     experiment = None
@@ -329,14 +346,18 @@ def create_submission(
             # Get calling code path (skip one more frame since we're in a shared module)
             frame = inspect.stack()[1]
             code_path = Path(frame.filename)
-            code_rel = _safe_relative_code_path(code_path, project_root) if code_path.exists() else None
+            code_rel = (
+                _safe_relative_code_path(code_path, project_root)
+                if code_path.exists()
+                else None
+            )
 
             exp_logger = ExperimentLogger(project_root)
             experiment = exp_logger.log_experiment(
                 model_name=model_name or filename_prefix,
                 code_path=code_path if code_path.exists() else None,
                 config=config,
-                notes=notes
+                notes=notes,
             )
 
             tracker = SubmissionsTracker(project_root)
@@ -347,8 +368,8 @@ def create_submission(
                 cv_std=cv_std,
                 notes=notes,
                 config=config,
-                experiment_id=experiment.get('experiment_id') if experiment else None,
-                git_hash=experiment['git']['hash'] if experiment else None,
+                experiment_id=experiment.get("experiment_id") if experiment else None,
+                git_hash=experiment["git"]["hash"] if experiment else None,
                 code_path=code_rel,
                 feature_count=feature_count,
             )
@@ -388,23 +409,26 @@ def validate_submission(
         bool: True if valid, raises exception otherwise
     """
     if not sample_submission_path.exists():
-        console.print("[yellow]⚠ Warning: sample_submission.csv not found, skipping validation[/yellow]")
+        console.print(
+            "[yellow]⚠ Warning: sample_submission.csv not found, skipping validation[/yellow]"
+        )
         return True
 
-    sample = pd.read_csv(sample_submission_path, compression='infer')
-    submission = pd.read_csv(submission_path, compression='infer')
+    sample = pd.read_csv(sample_submission_path, compression="infer")
+    submission = pd.read_csv(submission_path, compression="infer")
 
     # Check shape
-    assert submission.shape == sample.shape, \
+    assert submission.shape == sample.shape, (
         f"Shape mismatch: {submission.shape} vs {sample.shape}"
+    )
 
     # Check columns
-    assert list(submission.columns) == list(sample.columns), \
+    assert list(submission.columns) == list(sample.columns), (
         f"Column mismatch: {submission.columns} vs {sample.columns}"
+    )
 
     # Check IDs
-    assert (submission.iloc[:, 0] == sample.iloc[:, 0]).all(), \
-        "ID column mismatch"
+    assert (submission.iloc[:, 0] == sample.iloc[:, 0]).all(), "ID column mismatch"
 
     target_type = _infer_target_type(sample.iloc[:, 1])
     if submission_probas and target_type == "int":

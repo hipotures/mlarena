@@ -73,7 +73,7 @@ def _prepare_interaction_pairs(
 
     # Auto-generate pairs if requested
     if auto_pair_numeric:
-        auto_pairs = list(combinations(numeric_cols, 2))[:max(0, int(max_auto_pairs))]
+        auto_pairs = list(combinations(numeric_cols, 2))[: max(0, int(max_auto_pairs))]
         pairs.extend(auto_pairs)
 
     # Deduplicate while preserving order
@@ -96,7 +96,15 @@ def _apply_interactions(
     interaction_types: List[str],
     max_new_features: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, List[str], List[Dict[str, Any]]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    List[str],
+    List[Dict[str, Any]],
+]:
     new_cols: List[str] = []
     details: List[Dict[str, Any]] = []
     allowed_ops = {"add", "sub", "mul", "div"}
@@ -114,7 +122,10 @@ def _apply_interactions(
         if col_a not in test_df.columns or col_b not in test_df.columns:
             warnings.warn(f"Skipping pair ({col_a}, {col_b}) - column missing in test")
             continue
-        if not (pd.api.types.is_numeric_dtype(train_df[col_a]) and pd.api.types.is_numeric_dtype(train_df[col_b])):
+        if not (
+            pd.api.types.is_numeric_dtype(train_df[col_a])
+            and pd.api.types.is_numeric_dtype(train_df[col_b])
+        ):
             warnings.warn(f"Skipping pair ({col_a}, {col_b}) - non-numeric dtype")
             continue
 
@@ -132,29 +143,51 @@ def _apply_interactions(
             if op == "add":
                 train_series = train_df[col_a] + train_df[col_b]
                 test_series = test_df[col_a] + test_df[col_b]
-                val_series = val_df[col_a] + val_df[col_b] if val_df is not None else None
-                eval_series = eval_df[col_a] + eval_df[col_b] if eval_df is not None else None
+                val_series = (
+                    val_df[col_a] + val_df[col_b] if val_df is not None else None
+                )
+                eval_series = (
+                    eval_df[col_a] + eval_df[col_b] if eval_df is not None else None
+                )
             elif op == "sub":
                 train_series = train_df[col_a] - train_df[col_b]
                 test_series = test_df[col_a] - test_df[col_b]
-                val_series = val_df[col_a] - val_df[col_b] if val_df is not None else None
-                eval_series = eval_df[col_a] - eval_df[col_b] if eval_df is not None else None
+                val_series = (
+                    val_df[col_a] - val_df[col_b] if val_df is not None else None
+                )
+                eval_series = (
+                    eval_df[col_a] - eval_df[col_b] if eval_df is not None else None
+                )
             elif op == "mul":
                 train_series = train_df[col_a] * train_df[col_b]
                 test_series = test_df[col_a] * test_df[col_b]
-                val_series = val_df[col_a] * val_df[col_b] if val_df is not None else None
-                eval_series = eval_df[col_a] * eval_df[col_b] if eval_df is not None else None
+                val_series = (
+                    val_df[col_a] * val_df[col_b] if val_df is not None else None
+                )
+                eval_series = (
+                    eval_df[col_a] * eval_df[col_b] if eval_df is not None else None
+                )
             elif op == "div":
                 with np.errstate(divide="ignore", invalid="ignore"):
-                    train_series = np.where(train_df[col_b] != 0, train_df[col_a] / train_df[col_b], np.nan)
-                    test_series = np.where(test_df[col_b] != 0, test_df[col_a] / test_df[col_b], np.nan)
+                    train_series = np.where(
+                        train_df[col_b] != 0, train_df[col_a] / train_df[col_b], np.nan
+                    )
+                    test_series = np.where(
+                        test_df[col_b] != 0, test_df[col_a] / test_df[col_b], np.nan
+                    )
                     val_series = (
-                        np.where(val_df[col_b] != 0, val_df[col_a] / val_df[col_b], np.nan)
-                        if val_df is not None else None
+                        np.where(
+                            val_df[col_b] != 0, val_df[col_a] / val_df[col_b], np.nan
+                        )
+                        if val_df is not None
+                        else None
                     )
                     eval_series = (
-                        np.where(eval_df[col_b] != 0, eval_df[col_a] / eval_df[col_b], np.nan)
-                        if eval_df is not None else None
+                        np.where(
+                            eval_df[col_b] != 0, eval_df[col_a] / eval_df[col_b], np.nan
+                        )
+                        if eval_df is not None
+                        else None
                     )
 
             train_new_cols[new_name] = train_series
@@ -163,7 +196,11 @@ def _apply_interactions(
                 val_new_cols[new_name] = val_series
             if eval_df is not None and eval_series is not None:
                 eval_new_cols[new_name] = eval_series
-            if orig_df is not None and col_a in orig_df.columns and col_b in orig_df.columns:
+            if (
+                orig_df is not None
+                and col_a in orig_df.columns
+                and col_b in orig_df.columns
+            ):
                 if op == "add":
                     orig_new_cols[new_name] = orig_df[col_a] + orig_df[col_b]
                 elif op == "sub":
@@ -179,12 +216,14 @@ def _apply_interactions(
                         )
 
             new_cols.append(new_name)
-            details.append({
-                "type": "interaction",
-                "operation": op,
-                "columns": [col_a, col_b],
-                "new_column": new_name,
-            })
+            details.append(
+                {
+                    "type": "interaction",
+                    "operation": op,
+                    "columns": [col_a, col_b],
+                    "new_column": new_name,
+                }
+            )
 
             if len(new_cols) >= max_new_features:
                 limit_reached = True
@@ -216,7 +255,15 @@ def _apply_polynomial_features(
     interaction_only: bool,
     remaining_slots: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, List[str], Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    List[str],
+    Dict[str, Any],
+]:
     if degree is None or degree <= 1 or not poly_cols:
         return train_df, val_df, test_df, eval_df, orig_df, [], {}
 
@@ -226,33 +273,52 @@ def _apply_polynomial_features(
             "Skipping polynomial features because input contains NaN. "
             "Run an imputer earlier in the chain or set poly_degree: null."
         )
-        return train_df, val_df, test_df, eval_df, orig_df, [], {
-            "type": "polynomial",
-            "skipped": True,
-            "reason": "nan_in_input",
-            "input_columns": poly_cols,
-        }
+        return (
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            [],
+            {
+                "type": "polynomial",
+                "skipped": True,
+                "reason": "nan_in_input",
+                "input_columns": poly_cols,
+            },
+        )
 
     # Safety check: estimate number of features to avoid OOM
     n = len(poly_cols)
     from math import comb
+
     if interaction_only:
         num_expected = sum(comb(n, i) for i in range(1, degree + 1))
     else:
-        num_expected = comb(n + degree, degree) - 1 # excluding bias if not requested, but close enough
-    
+        num_expected = (
+            comb(n + degree, degree) - 1
+        )  # excluding bias if not requested, but close enough
+
     if num_expected > 10000:
         warnings.warn(
             f"Polynomial expansion (degree {degree}) for {n} columns would create ~{num_expected} features. "
             f"Skipping to avoid OOM (limit: 10,000)."
         )
-        return train_df, val_df, test_df, eval_df, orig_df, [], {
-            "type": "polynomial",
-            "skipped": True,
-            "reason": "too_many_features",
-            "num_expected": num_expected,
-            "input_columns": poly_cols,
-        }
+        return (
+            train_df,
+            val_df,
+            test_df,
+            eval_df,
+            orig_df,
+            [],
+            {
+                "type": "polynomial",
+                "skipped": True,
+                "reason": "too_many_features",
+                "num_expected": num_expected,
+                "input_columns": poly_cols,
+            },
+        )
 
     poly = PolynomialFeatures(
         degree=degree,
@@ -264,14 +330,32 @@ def _apply_polynomial_features(
     test_poly = poly.transform(test_df[poly_cols])
     val_poly = poly.transform(val_df[poly_cols]) if val_df is not None else None
     eval_poly = poly.transform(eval_df[poly_cols]) if eval_df is not None else None
-    orig_poly = poly.transform(orig_df[poly_cols]) if orig_df is not None and all(c in orig_df.columns for c in poly_cols) else None
+    orig_poly = (
+        poly.transform(orig_df[poly_cols])
+        if orig_df is not None and all(c in orig_df.columns for c in poly_cols)
+        else None
+    )
 
     feature_names = poly.get_feature_names_out(poly_cols)
-    poly_train_df = pd.DataFrame(train_poly, columns=feature_names, index=train_df.index)
+    poly_train_df = pd.DataFrame(
+        train_poly, columns=feature_names, index=train_df.index
+    )
     poly_test_df = pd.DataFrame(test_poly, columns=feature_names, index=test_df.index)
-    poly_val_df = pd.DataFrame(val_poly, columns=feature_names, index=val_df.index) if val_df is not None else None
-    poly_eval_df = pd.DataFrame(eval_poly, columns=feature_names, index=eval_df.index) if eval_df is not None else None
-    poly_orig_df = pd.DataFrame(orig_poly, columns=feature_names, index=orig_df.index) if orig_poly is not None else None
+    poly_val_df = (
+        pd.DataFrame(val_poly, columns=feature_names, index=val_df.index)
+        if val_df is not None
+        else None
+    )
+    poly_eval_df = (
+        pd.DataFrame(eval_poly, columns=feature_names, index=eval_df.index)
+        if eval_df is not None
+        else None
+    )
+    poly_orig_df = (
+        pd.DataFrame(orig_poly, columns=feature_names, index=orig_df.index)
+        if orig_poly is not None
+        else None
+    )
 
     # Only keep new columns to avoid overwriting originals
     new_feature_names = [name for name in feature_names if name not in train_df.columns]
@@ -330,17 +414,29 @@ def _apply_group_aggregations(
     aggs: List[str],
     remaining_slots: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, List[str], Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    List[str],
+    Dict[str, Any],
+]:
     if not group_keys or not value_cols or not aggs:
         return train_df, val_df, test_df, eval_df, orig_df, [], {}
 
     missing_keys = [col for col in group_keys if col not in train_df.columns]
     missing_values = [col for col in value_cols if col not in train_df.columns]
     if missing_keys:
-        warnings.warn(f"Group keys missing in train: {missing_keys} - skipping aggregations")
+        warnings.warn(
+            f"Group keys missing in train: {missing_keys} - skipping aggregations"
+        )
         return train_df, val_df, test_df, eval_df, orig_df, [], {}
     if missing_values:
-        warnings.warn(f"Value columns missing in train: {missing_values} - skipping aggregations")
+        warnings.warn(
+            f"Value columns missing in train: {missing_values} - skipping aggregations"
+        )
         return train_df, val_df, test_df, eval_df, orig_df, [], {}
 
     if any(col not in test_df.columns for col in group_keys):
@@ -349,8 +445,7 @@ def _apply_group_aggregations(
 
     agg_df = train_df[group_keys + value_cols].groupby(group_keys).agg(aggs)
     agg_df.columns = [
-        f"{'__'.join(group_keys)}__{val_col}__{agg}"
-        for val_col, agg in agg_df.columns
+        f"{'__'.join(group_keys)}__{val_col}__{agg}" for val_col, agg in agg_df.columns
     ]
     agg_df = agg_df.reset_index()
 
@@ -405,7 +500,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Feature engineering preprocessing sub-module.
 
@@ -470,7 +572,9 @@ def fit_transform(
 
     # Validate choices
     for op in config["interaction_types"]:
-        validation.validate_choice(op, ["add", "sub", "mul", "div"], "interaction_types")
+        validation.validate_choice(
+            op, ["add", "sub", "mul", "div"], "interaction_types"
+        )
 
     if config["poly_degree"] is not None:
         validation.validate_numeric_range(
@@ -488,7 +592,9 @@ def fit_transform(
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_engineer")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "feature_engineer"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -501,10 +607,14 @@ def fit_transform(
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, orig_features
+        )
 
     if not numeric_cols and (config["interaction_types"] or config["poly_degree"]):
-        warnings.warn("No numeric columns available for interactions/polynomial features")
+        warnings.warn(
+            "No numeric columns available for interactions/polynomial features"
+        )
 
     existing_cols = set(train_df.columns)
     new_columns: List[str] = []
@@ -519,7 +629,8 @@ def fit_transform(
     if use_orig_only and orig_features:
         orig_set = set(orig_features)
         numeric_pairs = [
-            pair for pair in numeric_pairs
+            pair
+            for pair in numeric_pairs
             if isinstance(pair, (list, tuple))
             and len(pair) == 2
             and pair[0] in orig_set
@@ -532,16 +643,18 @@ def fit_transform(
         auto_pair_numeric=config["auto_pair_numeric"],
         max_auto_pairs=config["max_auto_pairs"],
     )
-    train_df, val_df, test_df, eval_df, orig_df, inter_cols, inter_details = _apply_interactions(
-        train_df=train_df,
-        val_df=val_df,
-        test_df=test_df,
-        eval_df=eval_df,
-        orig_df=orig_df,
-        pairs=pairs,
-        interaction_types=config["interaction_types"],
-        max_new_features=max_new,
-        existing_cols=existing_cols,
+    train_df, val_df, test_df, eval_df, orig_df, inter_cols, inter_details = (
+        _apply_interactions(
+            train_df=train_df,
+            val_df=val_df,
+            test_df=test_df,
+            eval_df=eval_df,
+            orig_df=orig_df,
+            pairs=pairs,
+            interaction_types=config["interaction_types"],
+            max_new_features=max_new,
+            existing_cols=existing_cols,
+        )
     )
     new_columns.extend(inter_cols)
     interaction_details.extend(inter_details)
@@ -549,21 +662,25 @@ def fit_transform(
     remaining_slots = max_new - len(new_columns)
 
     # 7. Polynomial features
-    poly_cols = config["poly_columns"] if config["poly_columns"] is not None else numeric_cols
+    poly_cols = (
+        config["poly_columns"] if config["poly_columns"] is not None else numeric_cols
+    )
     poly_cols = [col for col in poly_cols if col in numeric_cols]
 
-    train_df, val_df, test_df, eval_df, orig_df, poly_cols_added, polynomial_details = _apply_polynomial_features(
-        train_df=train_df,
-        val_df=val_df,
-        test_df=test_df,
-        eval_df=eval_df,
-        orig_df=orig_df,
-        poly_cols=poly_cols,
-        degree=config["poly_degree"],
-        include_bias=config["poly_include_bias"],
-        interaction_only=config["poly_interaction_only"],
-        remaining_slots=remaining_slots,
-        existing_cols=existing_cols.union(new_columns),
+    train_df, val_df, test_df, eval_df, orig_df, poly_cols_added, polynomial_details = (
+        _apply_polynomial_features(
+            train_df=train_df,
+            val_df=val_df,
+            test_df=test_df,
+            eval_df=eval_df,
+            orig_df=orig_df,
+            poly_cols=poly_cols,
+            degree=config["poly_degree"],
+            include_bias=config["poly_include_bias"],
+            interaction_only=config["poly_interaction_only"],
+            remaining_slots=remaining_slots,
+            existing_cols=existing_cols.union(new_columns),
+        )
     )
     new_columns.extend(poly_cols_added)
     remaining_slots = max_new - len(new_columns)
@@ -571,7 +688,9 @@ def fit_transform(
     # 8. Group aggregations
     # Warn if target is used as value column to avoid leakage
     if target_column and target_column in config["group_value_cols"]:
-        warnings.warn("Target column included in group_value_cols - this may cause leakage.")
+        warnings.warn(
+            "Target column included in group_value_cols - this may cause leakage."
+        )
 
     if remaining_slots > 0:
         group_keys = config["group_keys"]
@@ -580,17 +699,19 @@ def fit_transform(
             orig_set = set(orig_features)
             group_keys = [c for c in group_keys if c in orig_set]
             group_value_cols = [c for c in group_value_cols if c in orig_set]
-        train_df, val_df, test_df, eval_df, orig_df, agg_cols_added, group_details = _apply_group_aggregations(
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            eval_df=eval_df,
-            orig_df=orig_df,
-            group_keys=group_keys,
-            value_cols=group_value_cols,
-            aggs=config["aggs"],
-            remaining_slots=remaining_slots,
-            existing_cols=existing_cols.union(new_columns),
+        train_df, val_df, test_df, eval_df, orig_df, agg_cols_added, group_details = (
+            _apply_group_aggregations(
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                eval_df=eval_df,
+                orig_df=orig_df,
+                group_keys=group_keys,
+                value_cols=group_value_cols,
+                aggs=config["aggs"],
+                remaining_slots=remaining_slots,
+                existing_cols=existing_cols.union(new_columns),
+            )
         )
     else:
         agg_cols_added = []
@@ -606,7 +727,9 @@ def fit_transform(
         "total_new_features": len(new_columns),
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
-    artifacts.save_report(feature_report, submodule_dir, "feature_engineering_report.json")
+    artifacts.save_report(
+        feature_report, submodule_dir, "feature_engineering_report.json"
+    )
 
     transformation_summary = report.create_preprocessing_report(
         train_before=train_df_original,

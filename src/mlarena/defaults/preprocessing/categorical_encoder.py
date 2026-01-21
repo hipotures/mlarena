@@ -11,6 +11,7 @@ This module implements the preprocessing interface expected by MLArena:
 - fit_transform(train_df, val_df, test_df, config) -> (train_df, val_df, test_df, state_dict)
 - transform(df, state_dict, config) -> df  # Optional, for inference
 """
+
 from __future__ import annotations
 
 import json
@@ -43,54 +44,70 @@ def _read_eda_metadata(project_root: Path, train_df: pd.DataFrame) -> Dict[str, 
         FileNotFoundError: If matching EDA summary not found
     """
     # 1. Try standard path (from project_root)
-    eda_summary_path = project_root / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
-    
+    eda_summary_path = (
+        project_root / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
+    )
+
     # 2. Try current directory path (if running from project dir)
     if not eda_summary_path.exists():
-         cwd_path = Path("experiments") / "eda" / "artifacts" / "eda" / "eda_summary.json"
-         if cwd_path.exists():
-             eda_summary_path = cwd_path
+        cwd_path = (
+            Path("experiments") / "eda" / "artifacts" / "eda" / "eda_summary.json"
+        )
+        if cwd_path.exists():
+            eda_summary_path = cwd_path
 
     # 3. Verify if the file found so far matches the data
     if eda_summary_path.exists():
         try:
             with open(eda_summary_path) as f:
                 data = json.load(f)
-                eda_cols = set(data.get("train", {}).get("summary", {}).get("variables", {}).keys())
+                eda_cols = set(
+                    data.get("train", {}).get("summary", {}).get("variables", {}).keys()
+                )
                 df_cols = set(train_df.columns)
                 # Calculate overlap
                 common = eda_cols.intersection(df_cols)
-                if len(common) / len(df_cols) > 0.8: # >80% match
+                if len(common) / len(df_cols) > 0.8:  # >80% match
                     return data
                 else:
-                    console.print(f"  [yellow]⚠[/yellow] Metadata at {eda_summary_path} does not match dataframe columns (overlap: {len(common)}/{len(df_cols)})")
+                    console.print(
+                        f"  [yellow]⚠[/yellow] Metadata at {eda_summary_path} does not match dataframe columns (overlap: {len(common)}/{len(df_cols)})"
+                    )
         except Exception:
-            pass # Continue to search
+            pass  # Continue to search
 
     # 4. Smart Fallback: Search all projects
-    console.print(f"  [yellow]⚠[/yellow] Searching for matching EDA metadata in projects/...")
-    potential_files = list(Path("projects/kaggle").glob("*/experiments/eda/artifacts/eda/eda_summary.json"))
-    
+    console.print(
+        "  [yellow]⚠[/yellow] Searching for matching EDA metadata in projects/..."
+    )
+    potential_files = list(
+        Path("projects/kaggle").glob("*/experiments/eda/artifacts/eda/eda_summary.json")
+    )
+
     for p_path in potential_files:
         try:
             with open(p_path) as f:
                 data = json.load(f)
-                eda_cols = set(data.get("train", {}).get("summary", {}).get("variables", {}).keys())
+                eda_cols = set(
+                    data.get("train", {}).get("summary", {}).get("variables", {}).keys()
+                )
                 df_cols = set(train_df.columns)
-                
+
                 # Check for strong match
                 common = eda_cols.intersection(df_cols)
                 match_ratio = len(common) / len(df_cols) if len(df_cols) > 0 else 0
-                
-                if match_ratio > 0.9: # >90% match found
-                    console.print(f"  [green]✓[/green] Found matching metadata: {p_path} (match: {match_ratio:.0%})")
+
+                if match_ratio > 0.9:  # >90% match found
+                    console.print(
+                        f"  [green]✓[/green] Found matching metadata: {p_path} (match: {match_ratio:.0%})"
+                    )
                     return data
         except Exception:
             continue
 
     raise FileNotFoundError(
-        f"Could not find EDA summary matching the current dataframe columns.\n"
-        f"Run: uv run python scripts/mla.py eda project=<project-name> force=true"
+        "Could not find EDA summary matching the current dataframe columns.\n"
+        "Run: uv run python scripts/mla.py eda project=<project-name> force=true"
     )
 
 
@@ -209,9 +226,12 @@ def _auto_detect_categorical(
                 col_type = "Nominal (auto-detected)"
 
             import numpy as np
+
             unique_vals_native = [
-                int(v) if isinstance(v, np.integer)
-                else float(v) if isinstance(v, np.floating)
+                int(v)
+                if isinstance(v, np.integer)
+                else float(v)
+                if isinstance(v, np.floating)
                 else v
                 for v in unique_vals
             ]
@@ -252,14 +272,18 @@ def _convert_to_category(
 
     for col in categorical_cols:
         if col not in df.columns:
-            console.print(f"[yellow]Warning: Column '{col}' not found in {df_name} data, skipping[/yellow]")
+            console.print(
+                f"[yellow]Warning: Column '{col}' not found in {df_name} data, skipping[/yellow]"
+            )
             continue
 
         try:
-            df[col] = df[col].astype('category')
+            df[col] = df[col].astype("category")
             converted.append(col)
         except Exception as e:
-            console.print(f"[yellow]Warning: Failed to convert '{col}' to category in {df_name}: {e}[/yellow]")
+            console.print(
+                f"[yellow]Warning: Failed to convert '{col}' to category in {df_name}: {e}[/yellow]"
+            )
 
     return df, converted
 
@@ -330,6 +354,7 @@ def _create_feature_summary_table(
                 # Try to infer original dtype from unique values
                 if "unique_values" in meta and meta["unique_values"]:
                     import numpy as np
+
                     sample_val = meta["unique_values"][0]
                     # Check actual Python type
                     if isinstance(sample_val, (int, np.integer)):
@@ -340,7 +365,9 @@ def _create_feature_summary_table(
                         original_dtype = "object"
                 else:
                     # Fallback: assume int64 for auto-detected, object for EDA
-                    original_dtype = "int64" if "auto-detected" in col_type else "object"
+                    original_dtype = (
+                        "int64" if "auto-detected" in col_type else "object"
+                    )
 
                 dtype_display = f"{original_dtype}→cat"
             else:
@@ -362,19 +389,21 @@ def _create_feature_summary_table(
     summary_parts = [
         f"Categorical features: [cyan]{cat_count}[/cyan]",
         f"Numeric features:     [yellow]{num_count}[/yellow]",
-        f"Total features:       [green]{cat_count + num_count}[/green]"
+        f"Total features:       [green]{cat_count + num_count}[/green]",
     ]
     if target_column:
         summary_parts.append(f"Target (excluded):    [red]{target_column}[/red]")
-    
+
     summary_text = " | ".join(summary_parts)
 
-    console.print(Panel(
-        Group(table, summary_text),
-        title="[bold cyan]Feature Type Summary[/bold cyan]",
-        border_style="cyan",
-        expand=False
-    ))
+    console.print(
+        Panel(
+            Group(table, summary_text),
+            title="[bold cyan]Feature Type Summary[/bold cyan]",
+            border_style="cyan",
+            expand=False,
+        )
+    )
     console.print()
 
 
@@ -384,7 +413,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Convert categorical columns to dtype='category' using EDA metadata + auto-detection.
 
@@ -437,20 +468,25 @@ def fit_transform(
     config_table = Table(box=None, show_header=False, padding=(0, 2))
     config_table.add_column("Property", style="bold white")
     config_table.add_column("Value", style="cyan")
-    
+
     config_table.add_row("Max cardinality (EDA)", str(max_cardinality))
     config_table.add_row("Exclude text type", "Yes" if exclude_text_type else "No")
-    config_table.add_row("Include numeric categories (EDA)", "Yes" if include_numeric_categories else "No")
+    config_table.add_row(
+        "Include numeric categories (EDA)",
+        "Yes" if include_numeric_categories else "No",
+    )
     config_table.add_row("Auto-detect enabled", "Yes" if enable_auto_detect else "No")
     if enable_auto_detect:
         config_table.add_row("Auto-detect threshold", str(auto_detect_threshold))
 
-    console.print(Panel(
-        config_table,
-        title="[bold cyan]Categorical Encoder[/bold cyan]",
-        border_style="cyan",
-        expand=False
-    ))
+    console.print(
+        Panel(
+            config_table,
+            title="[bold cyan]Categorical Encoder[/bold cyan]",
+            border_style="cyan",
+            expand=False,
+        )
+    )
 
     # Step 1: Read EDA metadata (optional)
     eda_metadata = {}
@@ -458,7 +494,7 @@ def fit_transform(
 
     try:
         eda_data = _read_eda_metadata(project_root, train_df)
-        console.print(f"  [green]✓[/green] EDA metadata loaded")
+        console.print("  [green]✓[/green] EDA metadata loaded")
 
         # Extract categorical columns from EDA
         eda_cols, eda_metadata = _extract_categorical_columns(
@@ -468,11 +504,13 @@ def fit_transform(
             include_numeric_categories,
             target_column,
         )
-        console.print(f"  [green]✓[/green] Found [bold cyan]{len(eda_cols)}[/bold cyan] categorical columns from EDA")
+        console.print(
+            f"  [green]✓[/green] Found [bold cyan]{len(eda_cols)}[/bold cyan] categorical columns from EDA"
+        )
 
-    except FileNotFoundError as e:
-        console.print(f"  [yellow]⚠[/yellow] EDA metadata not found")
-        console.print(f"  [yellow]Skipping EDA-based detection[/yellow]")
+    except FileNotFoundError:
+        console.print("  [yellow]⚠[/yellow] EDA metadata not found")
+        console.print("  [yellow]Skipping EDA-based detection[/yellow]")
 
         # Fallback: detect categorical columns using pandas (only object dtypes)
         eda_cols = train_df.select_dtypes(include=["object"]).columns.tolist()
@@ -488,7 +526,9 @@ def fit_transform(
             for col in eda_cols
         }
         if eda_cols:
-            console.print(f"  [green]✓[/green] Fallback: detected [bold cyan]{len(eda_cols)}[/bold cyan] object columns")
+            console.print(
+                f"  [green]✓[/green] Fallback: detected [bold cyan]{len(eda_cols)}[/bold cyan] object columns"
+            )
 
     # Step 2: Auto-detect integer/float-encoded categorical columns
     auto_detect_metadata = {}
@@ -498,56 +538,83 @@ def fit_transform(
         auto_detect_cols, auto_detect_metadata = _auto_detect_categorical(
             train_df, test_df, auto_detect_threshold, target_column
         )
-        
+
         if auto_detect_cols:
-            det_table = Table(box=box.SIMPLE, show_header=True, header_style="bold magenta", padding=(0, 2))
+            det_table = Table(
+                box=box.SIMPLE,
+                show_header=True,
+                header_style="bold magenta",
+                padding=(0, 2),
+            )
             det_table.add_column("Column", style="cyan")
             det_table.add_column("Type", style="green")
             det_table.add_column("Distinct", style="yellow", justify="right")
-            
+
             for col in auto_detect_cols:
                 meta = auto_detect_metadata[col]
-                det_table.add_row(col, meta.get("type", ""), str(meta.get("n_distinct", "")))
-            
-            console.print(Panel(
-                det_table,
-                title="[bold cyan]Auto-detected Numeric Categorical Columns[/bold cyan]",
-                border_style="cyan",
-                expand=False
-            ))
+                det_table.add_row(
+                    col, meta.get("type", ""), str(meta.get("n_distinct", ""))
+                )
+
+            console.print(
+                Panel(
+                    det_table,
+                    title="[bold cyan]Auto-detected Numeric Categorical Columns[/bold cyan]",
+                    border_style="cyan",
+                    expand=False,
+                )
+            )
         else:
-            console.print(f"\n[cyan]Auto-detect:[/cyan] [white]No numeric categorical columns found.[/white]")
+            console.print(
+                "\n[cyan]Auto-detect:[/cyan] [white]No numeric categorical columns found.[/white]"
+            )
 
     # Step 3: Merge results (unique columns only)
     all_categorical_metadata = {**eda_metadata, **auto_detect_metadata}
-    categorical_cols = list(dict.fromkeys(eda_cols + auto_detect_cols))  # Preserve order, remove duplicates
+    categorical_cols = list(
+        dict.fromkeys(eda_cols + auto_detect_cols)
+    )  # Preserve order, remove duplicates
     if use_orig_only and orig_features:
-        categorical_cols = dataframe_utils.filter_original_columns(categorical_cols, orig_features)
+        categorical_cols = dataframe_utils.filter_original_columns(
+            categorical_cols, orig_features
+        )
 
     # Summary of detection
     summary_table = Table(box=None, show_header=False, padding=(0, 2))
-    summary_table.add_row("Total categorical columns", f"[bold cyan]{len(categorical_cols)}[/bold cyan]")
+    summary_table.add_row(
+        "Total categorical columns", f"[bold cyan]{len(categorical_cols)}[/bold cyan]"
+    )
     summary_table.add_row("  • From EDA", str(len(eda_cols)))
     summary_table.add_row("  • From auto-detect", str(len(auto_detect_cols)))
-    summary_table.add_row("  • Overlap", str(len(set(eda_cols) & set(auto_detect_cols))))
-    
+    summary_table.add_row(
+        "  • Overlap", str(len(set(eda_cols) & set(auto_detect_cols)))
+    )
+
     console.print(summary_table)
 
     # Step 4: Convert to dtype='category'
-    train_df, train_converted = _convert_to_category(train_df, categorical_cols, "train")
+    train_df, train_converted = _convert_to_category(
+        train_df, categorical_cols, "train"
+    )
     test_df, test_converted = _convert_to_category(test_df, categorical_cols, "test")
 
     if val_df is not None:
-        val_df, val_converted = _convert_to_category(val_df, categorical_cols, "validation")
+        val_df, val_converted = _convert_to_category(
+            val_df, categorical_cols, "validation"
+        )
     else:
         val_converted = []
 
     if orig_df is not None:
-        orig_df, orig_converted = _convert_to_category(orig_df, categorical_cols, "orig")
+        orig_df, orig_converted = _convert_to_category(
+            orig_df, categorical_cols, "orig"
+        )
     else:
         orig_converted = []
 
-    console.print(f"  [green]✓[/green] Converted {len(train_converted)} columns to category dtype")
+    console.print(
+        f"  [green]✓[/green] Converted {len(train_converted)} columns to category dtype"
+    )
 
     # Step 5: Display comprehensive feature type summary (footer)
     _create_feature_summary_table(train_df, all_categorical_metadata, target_column)
@@ -580,7 +647,9 @@ def fit_transform(
     return train_df, val_df, test_df, orig_df, state
 
 
-def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
+def transform(
+    df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]
+) -> pd.DataFrame:
     """
     Apply categorical conversion to new data.
 
@@ -602,7 +671,7 @@ def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, An
     for col in categorical_cols:
         if col in df.columns:
             try:
-                df[col] = df[col].astype('category')
+                df[col] = df[col].astype("category")
             except Exception:
                 pass  # Silently skip conversion errors in inference
 

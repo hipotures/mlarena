@@ -9,12 +9,11 @@ import os
 import subprocess
 import re
 from datetime import datetime
-from pathlib import Path
 
 from rich.console import Console
 from mlarena.utils.queue import TaskQueue
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 class TaskQueueParallel(TaskQueue):
     """TaskQueue specialized for TUI with parallel execution support."""
@@ -85,7 +84,7 @@ class TaskQueueParallel(TaskQueue):
                     # No tasks running and no more to submit
                     break
 
-        console.print(f"\n[bold]Parallel queue runner finished[/bold]")
+        console.print("\n[bold]Parallel queue runner finished[/bold]")
         console.print(
             f"[dim]Executed: {executed}, "
             f"Success: {sum(results.values())}, "

@@ -6,7 +6,7 @@ strict separation between safe (feat_stage) and risky (cv_stage) features.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 import json
 import pickle
 
@@ -237,11 +237,15 @@ class FeaturePipeline:
         storage_format = self.config.storage_format
 
         if storage_format == "parquet":
-            train_df.to_parquet(path / "train_feat.parquet", compression=compression, index=False)
-            test_df.to_parquet(path / "test_feat.parquet", compression=compression, index=False)
+            train_df.to_parquet(
+                path / "train_feat.parquet", compression=compression, index=False
+            )
+            test_df.to_parquet(
+                path / "test_feat.parquet", compression=compression, index=False
+            )
         else:  # csv fallback
-            train_df.to_csv(path / "train_feat.csv", index=False, compression='infer')
-            test_df.to_csv(path / "test_feat.csv", index=False, compression='infer')
+            train_df.to_csv(path / "train_feat.csv", index=False, compression="infer")
+            test_df.to_csv(path / "test_feat.csv", index=False, compression="infer")
 
         # Save feature metadata (USER DECISION)
         metadata = {
@@ -310,7 +314,9 @@ class FeaturePipeline:
         # Parse config
         if isinstance(transformer_config, dict):
             transformer_name = transformer_config.get("type")
-            transformer_kwargs = {k: v for k, v in transformer_config.items() if k != "type"}
+            transformer_kwargs = {
+                k: v for k, v in transformer_config.items() if k != "type"
+            }
         else:
             transformer_name = transformer_config
             transformer_kwargs = {}

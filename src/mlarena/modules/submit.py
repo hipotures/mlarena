@@ -32,7 +32,7 @@ def _compute_feature_count(config) -> Optional[int]:
         if not path.exists():
             return None
 
-        df = pd.read_csv(path, nrows=0, compression='infer')
+        df = pd.read_csv(path, nrows=0, compression="infer")
         cols = list(df.columns)
 
         target = getattr(config, "TARGET_COLUMN", None)
@@ -56,17 +56,24 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
         import pandas as pd
 
         # Load submission
-        sub_df = pd.read_csv(submission_file, compression='infer')
+        sub_df = pd.read_csv(submission_file, compression="infer")
 
         # Load sample submission for format reference
         sample_sub_path = getattr(config, "SAMPLE_SUBMISSION_PATH", None)
         if not sample_sub_path or not Path(sample_sub_path).exists():
             # Try common names (prioritize .csv.gz, fallback to .csv)
-            data_dir = Path(getattr(config, "DATA_DIR", submission_file.parent.parent.parent / "data"))
+            data_dir = Path(
+                getattr(
+                    config, "DATA_DIR", submission_file.parent.parent.parent / "data"
+                )
+            )
             for name in [
-                "sample_submission.csv.gz", "sample_submission.csv",
-                "gender_submission.csv.gz", "gender_submission.csv",
-                "sample_solution.csv.gz", "sample_solution.csv"
+                "sample_submission.csv.gz",
+                "sample_submission.csv",
+                "gender_submission.csv.gz",
+                "gender_submission.csv",
+                "sample_solution.csv.gz",
+                "sample_solution.csv",
             ]:
                 candidate = data_dir / name
                 if candidate.exists():
@@ -76,7 +83,7 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
         if not sample_sub_path or not Path(sample_sub_path).exists():
             return True, None  # Can't validate without sample
 
-        sample_df = pd.read_csv(sample_sub_path, compression='infer')
+        sample_df = pd.read_csv(sample_sub_path, compression="infer")
 
         # Check column names match
         if list(sub_df.columns) != list(sample_df.columns):
@@ -118,7 +125,9 @@ def _validate_submission(submission_file: Path, config) -> tuple[bool, Optional[
         return False, f"Validation error: {str(e)}"
 
 
-def _build_kaggle_message(context, submission_file: Path, model_payload, feature_count: Optional[int]) -> str:
+def _build_kaggle_message(
+    context, submission_file: Path, model_payload, feature_count: Optional[int]
+) -> str:
     """Build submission message: local_cv_score | features | exp | model_template | preprocess_template | filename."""
     parts = []
     exp_id = context.experiment_id
@@ -141,6 +150,7 @@ def _build_kaggle_message(context, submission_file: Path, model_payload, feature
             # e.g., "...experiments/pre-top0_te_scale_ext_m/5-top0_av_weights" -> "top0_te_scale_ext_m"
             if preprocess_exp_dir:
                 from pathlib import Path
+
                 exp_dir_path = Path(preprocess_exp_dir)
                 # Go up to experiments/pre-{name} level
                 while exp_dir_path.name and not exp_dir_path.name.startswith("pre-"):
@@ -198,27 +208,35 @@ def _add_to_queue(context, submission_file: Path, kaggle_message: str, config) -
 
         if existing:
             # Update existing entry
-            existing["submission_file"] = str(submission_file.relative_to(context.project_root))
+            existing["submission_file"] = str(
+                submission_file.relative_to(context.project_root)
+            )
             existing["kaggle_message"] = kaggle_message
             existing["added_timestamp"] = datetime.now().strftime("%Y%m%d %H%M%S")
-            console.print(f"[yellow]Updated existing queue entry for {context.experiment_id}[/yellow]")
+            console.print(
+                f"[yellow]Updated existing queue entry for {context.experiment_id}[/yellow]"
+            )
         else:
             # Create new entry
             max_id = max([e["id"] for e in queue_data["queue"]], default=0)
             entry = {
                 "id": max_id + 1,
                 "experiment_id": context.experiment_id,
-                "submission_file": str(submission_file.relative_to(context.project_root)),
+                "submission_file": str(
+                    submission_file.relative_to(context.project_root)
+                ),
                 "kaggle_message": kaggle_message,
                 "project": context.project_name,
                 "competition": competition,
                 "added_timestamp": datetime.now().strftime("%Y%m%d %H%M%S"),
                 "submission_attempts": [],
                 "last_error": None,
-                "status": "pending"
+                "status": "pending",
             }
             queue_data["queue"].append(entry)
-            console.print(f"[green]✓ Added to submission queue (ID: {entry['id']})[/green]")
+            console.print(
+                f"[green]✓ Added to submission queue (ID: {entry['id']})[/green]"
+            )
 
         # Save queue
         queue_file.write_text(json.dumps(queue_data, indent=2))
@@ -258,7 +276,9 @@ class SubmitModule(BaseModule):
         if not predict_payload or not getattr(predict_payload, "payload", None):
             marker = artifact_dir / "submit_failed.txt"
             marker.write_text("Predict step missing payload.")
-            return ModuleResult(success=False, error="predict not run", artifacts=[marker])
+            return ModuleResult(
+                success=False, error="predict not run", artifacts=[marker]
+            )
 
         submission_file = Path(predict_payload.payload["submission_file"])  # type: ignore
 
@@ -269,12 +289,12 @@ class SubmitModule(BaseModule):
         # Fallback logic: support both .csv and .csv.gz files
         if not submission_file.exists():
             # Try .csv.gz if original path was .csv
-            if submission_file.suffix == '.csv':
-                gz_path = submission_file.with_suffix('.csv.gz')
+            if submission_file.suffix == ".csv":
+                gz_path = submission_file.with_suffix(".csv.gz")
                 if gz_path.exists():
                     submission_file = gz_path
             # Try .csv if original path was .csv.gz
-            elif str(submission_file).endswith('.csv.gz'):
+            elif str(submission_file).endswith(".csv.gz"):
                 csv_path = Path(str(submission_file)[:-3])  # Remove .gz
                 if csv_path.exists():
                     submission_file = csv_path
@@ -285,19 +305,27 @@ class SubmitModule(BaseModule):
             return ModuleResult(
                 success=False,
                 error=f"Submission file not found: {submission_file}",
-                artifacts=[marker]
+                artifacts=[marker],
             )
 
         if skip:
             marker = artifact_dir / "submit_skipped.txt"
             marker.write_text("Skipped Kaggle submission.")
-            return ModuleResult(success=True, payload={"submitted": False}, artifacts=[marker])
+            return ModuleResult(
+                success=True, payload={"submitted": False}, artifacts=[marker]
+            )
 
-        config = self.context.config_module or load_project_config(self.context.project_root)
+        config = self.context.config_module or load_project_config(
+            self.context.project_root
+        )
         competition = getattr(config, "COMPETITION_NAME", self.context.project_name)
 
         # Get feature_count from predict payload (real processed data), fallback to original train.csv
-        feature_count = predict_payload.payload.get("feature_count") if predict_payload.payload else None  # type: ignore
+        feature_count = (
+            predict_payload.payload.get("feature_count")
+            if predict_payload.payload
+            else None
+        )  # type: ignore
         if feature_count is None:
             feature_count = _compute_feature_count(config)
 
@@ -306,23 +334,25 @@ class SubmitModule(BaseModule):
         if user_message and user_message != "MLArena submission":
             message = user_message
         else:
-            message = _build_kaggle_message(self.context, submission_file, model_payload, feature_count)
+            message = _build_kaggle_message(
+                self.context, submission_file, model_payload, feature_count
+            )
 
         # Validate submission format BEFORE upload
         console = Console()
         valid, error_msg = _validate_submission(submission_file, config)
         if not valid:
-            console.print(f"\n[bold red]✗ Submission validation failed![/bold red]")
+            console.print("\n[bold red]✗ Submission validation failed![/bold red]")
             console.print(f"[red]{error_msg}[/red]\n")
             marker = artifact_dir / "submit_failed.txt"
             marker.write_text(f"Validation failed: {error_msg}")
             return ModuleResult(
                 success=False,
                 error=f"Submission validation failed: {error_msg}",
-                artifacts=[marker]
+                artifacts=[marker],
             )
 
-        console.print(f"[green]✓[/green] Submission validation passed")
+        console.print("[green]✓[/green] Submission validation passed")
 
         console.print(f"\n[bold]Kaggle message:[/bold] {message}")
 
@@ -336,20 +366,26 @@ class SubmitModule(BaseModule):
                     "submitted": False,
                     "queued": True,
                     "competition": competition,
-                    "submission_file": str(submission_file)
+                    "submission_file": str(submission_file),
                 },
-                artifacts=[marker]
+                artifacts=[marker],
             )
 
         if skip:
             console.print("\n[yellow]⊘ Skipping submission (--skip-submit)[/yellow]")
             marker = artifact_dir / "submit_skipped.txt"
             marker.write_text("Submission skipped by user flag.")
-            return ModuleResult(success=True, payload={"submitted": False, "skipped": True}, artifacts=[marker])
+            return ModuleResult(
+                success=True,
+                payload={"submitted": False, "skipped": True},
+                artifacts=[marker],
+            )
 
         if confirm_timeout > 0 and not sys.stdin.isatty():
             marker = artifact_dir / "submit_aborted.txt"
-            marker.write_text("Non-interactive stdin. Re-run with submit.confirm_timeout=0 to submit.")
+            marker.write_text(
+                "Non-interactive stdin. Re-run with submit.confirm_timeout=0 to submit."
+            )
             return ModuleResult(
                 success=False,
                 error="non-interactive; set submit.confirm_timeout=0",
@@ -357,7 +393,9 @@ class SubmitModule(BaseModule):
             )
 
         if confirm_timeout == 0:
-            console.print("\n[dim]Confirmation disabled (submit.confirm_timeout=0). Submitting...[/dim]")
+            console.print(
+                "\n[dim]Confirmation disabled (submit.confirm_timeout=0). Submitting...[/dim]"
+            )
         else:
             console.print("\n[bold cyan]Submit to Kaggle?[/bold cyan]")
             console.print(
@@ -369,14 +407,16 @@ class SubmitModule(BaseModule):
                 time.sleep(0.1)
 
             try:
-                subprocess.run(["paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga"],
-                             stderr=subprocess.DEVNULL, timeout=0.5)
+                subprocess.run(
+                    ["paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=0.5,
+                )
             except Exception:
                 pass
 
             countdown_seconds = confirm_timeout
             start_time = time.time()
-            submitted = False
             cancelled = False
 
             fd = sys.stdin.fileno()
@@ -392,7 +432,8 @@ class SubmitModule(BaseModule):
                     transient=False,
                 ) as progress:
                     task = progress.add_task(
-                        f"[cyan]Auto-submitting in {countdown_seconds}s...", total=countdown_seconds
+                        f"[cyan]Auto-submitting in {countdown_seconds}s...",
+                        total=countdown_seconds,
                     )
 
                     while True:
@@ -401,24 +442,28 @@ class SubmitModule(BaseModule):
 
                         if select.select([sys.stdin], [], [], 0)[0]:
                             ch = sys.stdin.read(1).lower()
-                            if ch == 'y':
-                                progress.update(task, description="[green]✓ Confirmed - submitting!")
-                                submitted = True
+                            if ch == "y":
+                                progress.update(
+                                    task, description="[green]✓ Confirmed - submitting!"
+                                )
                                 break
-                            elif ch == 'n':
-                                progress.update(task, description="[red]✗ Cancelled by user")
+                            elif ch == "n":
+                                progress.update(
+                                    task, description="[red]✗ Cancelled by user"
+                                )
                                 cancelled = True
                                 break
 
                         if remaining == 0:
-                            progress.update(task, description="[green]⏱ Timeout - submitting!")
-                            submitted = True
+                            progress.update(
+                                task, description="[green]⏱ Timeout - submitting!"
+                            )
                             break
 
                         progress.update(
                             task,
                             description=f"[cyan]Auto-submitting in {remaining}s... [dim](y/n)[/dim]",
-                            completed=int(elapsed)
+                            completed=int(elapsed),
                         )
 
                         time.sleep(0.1)
@@ -435,15 +480,17 @@ class SubmitModule(BaseModule):
         console.print()
 
         submission_file_for_upload = submission_file
-        if str(submission_file).endswith('.csv.gz'):
+        if str(submission_file).endswith(".csv.gz"):
             import gzip
             import shutil
 
             csv_path = Path(str(submission_file)[:-3])
             if not csv_path.exists():
-                console.print(f"[dim]Decompressing {submission_file.name} for Kaggle upload...[/dim]")
-                with gzip.open(submission_file, 'rb') as f_in:
-                    with open(csv_path, 'wb') as f_out:
+                console.print(
+                    f"[dim]Decompressing {submission_file.name} for Kaggle upload...[/dim]"
+                )
+                with gzip.open(submission_file, "rb") as f_in:
+                    with open(csv_path, "wb") as f_out:
                         shutil.copyfileobj(f_in, f_out)
             submission_file_for_upload = csv_path
 
@@ -462,16 +509,20 @@ class SubmitModule(BaseModule):
                 ]
             )
             marker = artifact_dir / "submit_success.txt"
-            marker.write_text(f"Submitted {submission_file_for_upload.name} to {competition}")
+            marker.write_text(
+                f"Submitted {submission_file_for_upload.name} to {competition}"
+            )
 
-            console.print(f"\n[bold green]✓[/bold green] Submitted to Kaggle: [cyan]{competition}[/cyan]")
+            console.print(
+                f"\n[bold green]✓[/bold green] Submitted to Kaggle: [cyan]{competition}[/cyan]"
+            )
 
             return ModuleResult(
                 success=True,
                 payload={
                     "submitted": True,
                     "competition": competition,
-                    "submission_file": str(submission_file_for_upload)
+                    "submission_file": str(submission_file_for_upload),
                 },
                 artifacts=[marker],
             )

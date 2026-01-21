@@ -8,6 +8,7 @@ from mlarena.modules.mcts.node import PipelineState, Action
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SEARCH_SPACE_DIR = REPO_ROOT / "src" / "mlarena" / "search_spaces" / "preprocess"
 
+
 def _load_yaml(path: Path) -> Dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"YAML file not found: {path}")
@@ -15,6 +16,7 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"YAML root must be a dict: {path}")
     return data
+
 
 def _load_search_spaces() -> Dict[str, Dict[str, Any]]:
     spaces: Dict[str, Dict[str, Any]] = {}
@@ -25,60 +27,65 @@ def _load_search_spaces() -> Dict[str, Dict[str, Any]]:
         spaces[name] = _load_yaml(path)
     return spaces
 
+
 class SuperChainActionSpace:
     def __init__(self, super_chain_path: Path):
         self.super_chain_path = super_chain_path
         self.super_chain_config = _load_yaml(super_chain_path)
         self.all_steps = self.super_chain_config.get("preprocessors", []) or []
         self.search_spaces = _load_search_spaces()
-        
+
         # Split steps into fixed harness and searched transforms
         self.fixed_steps = []
         self.searched_steps = []
-        
+
         for idx, step in enumerate(self.all_steps):
             if not step.get("enabled", True):
                 continue
-                
+
             meta = step.get("meta", {}) or {}
             if meta.get("fixed"):
                 self.fixed_steps.append({"index": idx, "config": step})
             else:
                 self.searched_steps.append({"index": idx, "config": step})
-        
+
         # For MCTS logic, we only iterate over searched_steps
         self.steps = [s["config"] for s in self.searched_steps]
         # Map original index
-        self.searched_index_map = {i: s["index"] for i, s in enumerate(self.searched_steps)}
+        self.searched_index_map = {
+            i: s["index"] for i, s in enumerate(self.searched_steps)
+        }
 
     @property
     def total_steps_count(self) -> int:
         return len(self.steps)
 
-    def next_actions(self, state: PipelineState, lookahead: Optional[int] = None) -> List[Action]:
+    def next_actions(
+        self, state: PipelineState, lookahead: Optional[int] = None
+    ) -> List[Action]:
         """Generate possible next actions from the current state."""
         actions: List[Action] = []
-        
+
         # We can pick any searched step that comes AFTER the last used searched step index
         # state.last_step_index refers to the index in self.steps (searched_steps)
         start_index = state.last_step_index + 1
         end_index = len(self.steps)
-        
+
         if lookahead is not None and lookahead > 0:
             end_index = min(end_index, start_index + lookahead)
-        
+
         for i in range(start_index, end_index):
             step_def = self.steps[i]
             step_name = step_def.get("name")
             group = step_def.get("group") or step_name
-            
+
             if group in state.used_groups:
                 continue
-            
+
             template_name = step_def.get("template") or step_name
             space = self.search_spaces.get(template_name, {})
             variants = space.get("variants", [])
-            
+
             if not variants:
                 variants = [{"name": "fixed", "params": {}}]
 
@@ -91,7 +98,7 @@ class SuperChainActionSpace:
                     if req_group and req_group not in state.used_groups:
                         met = False
                         break
-                
+
                 if not met:
                     continue
 
@@ -99,15 +106,17 @@ class SuperChainActionSpace:
                 action = Action(
                     step_name=step_name,
                     template_name=template_name,
-                    group_name=group, # Use the actual group name from super-chain
+                    group_name=group,  # Use the actual group name from super-chain
                     variant_name=vname,
-                    config={}, 
-                    searched_index=i, # Index in self.steps
-                    original_index=self.searched_index_map[i], # Original index in super-chain
+                    config={},
+                    searched_index=i,  # Index in self.steps
+                    original_index=self.searched_index_map[
+                        i
+                    ],  # Original index in super-chain
                     param_sample_id=0,
                 )
                 actions.append(action)
-                
+
         return actions
 
     def analyze_next_actions(self, state: PipelineState) -> Dict[str, int]:
@@ -117,26 +126,26 @@ class SuperChainActionSpace:
             "filtered_by_group": 0,
             "filtered_by_no_variants": 0,
             "emitted_actions": 0,
-            "steps_checked": 0
+            "steps_checked": 0,
         }
-        
+
         start_index = state.last_step_index + 1
         stats["total_candidates"] = len(self.steps) - start_index
-        
+
         for i in range(start_index, len(self.steps)):
             stats["steps_checked"] += 1
             step_def = self.steps[i]
             step_name = step_def.get("name")
             group = step_def.get("group") or step_name
-            
+
             if group in state.used_groups:
                 stats["filtered_by_group"] += 1
                 continue
-            
+
             template_name = step_def.get("template") or step_name
             space = self.search_spaces.get(template_name, {})
             variants = space.get("variants", [])
-            
+
             if not variants:
                 # In next_actions we default to 'fixed', so this isn't strictly a filter there
                 # unless we change logic. Count it if empty but treated as 1 action.
@@ -145,5 +154,5 @@ class SuperChainActionSpace:
 
             count = len(variants) if variants else 1
             stats["emitted_actions"] += count
-                
+
         return stats

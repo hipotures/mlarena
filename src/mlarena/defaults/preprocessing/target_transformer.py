@@ -26,7 +26,9 @@ from mlarena.preprocessing.utils import (
 )
 
 
-def _clip_series(series: pd.Series, lower: float | None, upper: float | None) -> pd.Series:
+def _clip_series(
+    series: pd.Series, lower: float | None, upper: float | None
+) -> pd.Series:
     """Clip a series to provided bounds if given."""
     if lower is not None:
         series = series.clip(lower=lower)
@@ -42,7 +44,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Transform target column for regression tasks.
 
@@ -103,7 +112,9 @@ def fit_transform(
             )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "target_transformer")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "target_transformer"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -111,9 +122,21 @@ def fit_transform(
 
     # 5. Prepare target series and clipping
     train_target = train_df[target_column].astype(float)
-    val_target = val_df[target_column].astype(float) if val_df is not None and target_column in val_df.columns else None
-    eval_target = eval_df[target_column].astype(float) if eval_df is not None and target_column in eval_df.columns else None
-    orig_target = orig_df[target_column].astype(float) if orig_df is not None and target_column in orig_df.columns else None
+    val_target = (
+        val_df[target_column].astype(float)
+        if val_df is not None and target_column in val_df.columns
+        else None
+    )
+    eval_target = (
+        eval_df[target_column].astype(float)
+        if eval_df is not None and target_column in eval_df.columns
+        else None
+    )
+    orig_target = (
+        orig_df[target_column].astype(float)
+        if orig_df is not None and target_column in orig_df.columns
+        else None
+    )
 
     lower_q = config["clip_lower_quantile"]
     upper_q = config["clip_upper_quantile"]
@@ -155,24 +178,48 @@ def fit_transform(
         transformed_orig = orig_target
     elif method == "log1p":
         transformed_train = np.log1p(train_target + shift_used)
-        transformed_val = np.log1p(val_target + shift_used) if val_target is not None else None
-        transformed_eval = np.log1p(eval_target + shift_used) if eval_target is not None else None
-        transformed_orig = np.log1p(orig_target + shift_used) if orig_target is not None else None
+        transformed_val = (
+            np.log1p(val_target + shift_used) if val_target is not None else None
+        )
+        transformed_eval = (
+            np.log1p(eval_target + shift_used) if eval_target is not None else None
+        )
+        transformed_orig = (
+            np.log1p(orig_target + shift_used) if orig_target is not None else None
+        )
     elif method in ["boxcox", "yeo_johnson"]:
-        adjusted_train = train_target + shift_used if method == "boxcox" else train_target
-        adjusted_val = val_target + shift_used if (val_target is not None and method == "boxcox") else val_target
-        adjusted_eval = eval_target + shift_used if (eval_target is not None and method == "boxcox") else eval_target
-        adjusted_orig = orig_target + shift_used if (orig_target is not None and method == "boxcox") else orig_target
+        adjusted_train = (
+            train_target + shift_used if method == "boxcox" else train_target
+        )
+        adjusted_val = (
+            val_target + shift_used
+            if (val_target is not None and method == "boxcox")
+            else val_target
+        )
+        adjusted_eval = (
+            eval_target + shift_used
+            if (eval_target is not None and method == "boxcox")
+            else eval_target
+        )
+        adjusted_orig = (
+            orig_target + shift_used
+            if (orig_target is not None and method == "boxcox")
+            else orig_target
+        )
 
         if method == "boxcox" and (adjusted_train <= 0).any():
-            raise ValueError("Box-Cox requires strictly positive data after shift; adjust shift_value/shift_before_log.")
+            raise ValueError(
+                "Box-Cox requires strictly positive data after shift; adjust shift_value/shift_before_log."
+            )
 
         power_transformer = PowerTransformer(
             method="box-cox" if method == "boxcox" else "yeo-johnson",
             standardize=config["standardize"],
         )
 
-        transformed_train = power_transformer.fit_transform(adjusted_train.values.reshape(-1, 1)).ravel()
+        transformed_train = power_transformer.fit_transform(
+            adjusted_train.values.reshape(-1, 1)
+        ).ravel()
         transformed_val = (
             power_transformer.transform(adjusted_val.values.reshape(-1, 1)).ravel()
             if adjusted_val is not None
@@ -189,7 +236,9 @@ def fit_transform(
             else None
         )
 
-        transformer_path = artifacts.save_fitted_object(power_transformer, submodule_dir, "power_transformer.pkl")
+        transformer_path = artifacts.save_fitted_object(
+            power_transformer, submodule_dir, "power_transformer.pkl"
+        )
     else:
         raise ValueError(f"Unsupported target_transform: {method}")
 
@@ -209,11 +258,17 @@ def fit_transform(
         "problem_type": problem_type,
         "clip_bounds": {"lower": lower_bound, "upper": upper_bound},
         "shift_used": shift_used if method in ["log1p", "boxcox"] else 0.0,
-        "standardize": config["standardize"] if method in ["boxcox", "yeo_johnson"] else None,
-        "transformer_path": str(transformer_path.relative_to(artifact_dir)) if transformer_path else None,
+        "standardize": config["standardize"]
+        if method in ["boxcox", "yeo_johnson"]
+        else None,
+        "transformer_path": str(transformer_path.relative_to(artifact_dir))
+        if transformer_path
+        else None,
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
-    artifacts.save_report(transform_report, submodule_dir, "target_transform_report.json")
+    artifacts.save_report(
+        transform_report, submodule_dir, "target_transform_report.json"
+    )
 
     transformation_summary = report.create_preprocessing_report(
         train_before=train_df_original,
@@ -231,8 +286,12 @@ def fit_transform(
         "target_column": target_column,
         "clip_bounds": {"lower": lower_bound, "upper": upper_bound},
         "shift_used": shift_used if method in ["log1p", "boxcox"] else 0.0,
-        "standardize": config["standardize"] if method in ["boxcox", "yeo_johnson"] else None,
-        "transformer_path": str(transformer_path.relative_to(artifact_dir)) if transformer_path else None,
+        "standardize": config["standardize"]
+        if method in ["boxcox", "yeo_johnson"]
+        else None,
+        "transformer_path": str(transformer_path.relative_to(artifact_dir))
+        if transformer_path
+        else None,
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
 

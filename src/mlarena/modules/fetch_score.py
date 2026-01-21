@@ -42,8 +42,12 @@ class FetchScoreModule(BaseModule):
             try:
                 state = json.loads(state_path.read_text())
                 for module_name in ("submit", "predict"):
-                    payload = state.get("modules", {}).get(module_name, {}).get("payload", {})
-                    candidate = payload.get("submission_file") or payload.get("predictions")
+                    payload = (
+                        state.get("modules", {}).get(module_name, {}).get("payload", {})
+                    )
+                    candidate = payload.get("submission_file") or payload.get(
+                        "predictions"
+                    )
                     if candidate:
                         return str(candidate)
             except Exception:
@@ -69,10 +73,10 @@ class FetchScoreModule(BaseModule):
             # Generate both .csv and .csv.gz variants for matching
             # (handles backward compatibility with old state.json entries)
             variants = [target_name]
-            if target_name.endswith('.csv.gz'):
+            if target_name.endswith(".csv.gz"):
                 variants.append(target_name[:-3])  # Add .csv version
-            elif target_name.endswith('.csv'):
-                variants.append(target_name + '.gz')  # Add .csv.gz version
+            elif target_name.endswith(".csv"):
+                variants.append(target_name + ".gz")  # Add .csv.gz version
 
             for row in rows:
                 file_name = row.get("fileName") or row.get("file_name")
@@ -92,7 +96,9 @@ class FetchScoreModule(BaseModule):
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         placeholder_score = self.invocation_params.get("score_placeholder")
-        config = self.context.config_module or load_project_config(self.context.project_root)
+        config = self.context.config_module or load_project_config(
+            self.context.project_root
+        )
         competition = getattr(config, "COMPETITION_NAME", self.context.project_name)
 
         submission_id = self.invocation_params.get("submission_id")
@@ -126,13 +132,12 @@ class FetchScoreModule(BaseModule):
 
         # Print score summary
         from rich.console import Console
-        from mlarena.core.module import print_next_steps
 
         console = Console(quiet=self.invocation_params.get("json_output", False))
 
         # If a specific submission was requested but not found, return failure
         if (submission_id or submission_file) and matched is None:
-            console.print(f"\n[yellow]⚠[/yellow] Submission not found on Kaggle")
+            console.print("\n[yellow]⚠[/yellow] Submission not found on Kaggle")
             console.print(
                 f"[dim]Expected {submission_id or submission_file}. "
                 f"Wait a moment or verify the submission name/id.[/dim]\n"
@@ -151,8 +156,10 @@ class FetchScoreModule(BaseModule):
 
         # Return failure if score not available - allows retry without force=true
         if score is None:
-            console.print(f"\n[yellow]⚠[/yellow] Score not available yet")
-            console.print(f"[dim]Kaggle may still be processing your submission. Wait a few minutes and try again.[/dim]\n")
+            console.print("\n[yellow]⚠[/yellow] Score not available yet")
+            console.print(
+                "[dim]Kaggle may still be processing your submission. Wait a few minutes and try again.[/dim]\n"
+            )
             return ModuleResult(
                 success=False,
                 error="Score not available yet - retry in a few minutes",

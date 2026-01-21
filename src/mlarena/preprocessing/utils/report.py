@@ -1,13 +1,11 @@
 """Logging and reporting utilities for preprocessing sub-modules."""
 
-from typing import Dict, List, Any
+from typing import Dict, List
 import pandas as pd
 
 
 def log_transformation_summary(
-    before_df: pd.DataFrame,
-    after_df: pd.DataFrame,
-    submodule_name: str
+    before_df: pd.DataFrame, after_df: pd.DataFrame, submodule_name: str
 ) -> Dict:
     """
     Generate summary of transformation (shape changes, new columns, etc.).
@@ -50,7 +48,7 @@ def create_preprocessing_report(
     train_after: pd.DataFrame,
     test_before: pd.DataFrame,
     test_after: pd.DataFrame,
-    config: Dict
+    config: Dict,
 ) -> Dict:
     """
     Standard report structure for all sub-modules.
@@ -68,9 +66,7 @@ def create_preprocessing_report(
     train_summary = log_transformation_summary(
         train_before, train_after, "preprocessing"
     )
-    test_summary = log_transformation_summary(
-        test_before, test_after, "preprocessing"
-    )
+    test_summary = log_transformation_summary(test_before, test_after, "preprocessing")
 
     report = {
         "version": "1.0",
@@ -78,17 +74,19 @@ def create_preprocessing_report(
         "test": test_summary,
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
         "metadata": {
-            "train_test_cols_match": set(train_after.columns) == set(test_after.columns),
-            "train_test_rows_ratio": test_after.shape[0] / train_after.shape[0] if train_after.shape[0] > 0 else None,
-        }
+            "train_test_cols_match": set(train_after.columns)
+            == set(test_after.columns),
+            "train_test_rows_ratio": test_after.shape[0] / train_after.shape[0]
+            if train_after.shape[0] > 0
+            else None,
+        },
     }
 
     return report
 
 
 def create_column_stats_report(
-    df: pd.DataFrame,
-    columns: List[str] = None
+    df: pd.DataFrame, columns: List[str] = None
 ) -> Dict[str, Dict]:
     """
     Generate statistics report for specified columns.
@@ -116,13 +114,19 @@ def create_column_stats_report(
 
         # Add numeric-specific stats
         if pd.api.types.is_numeric_dtype(df[col]):
-            col_stats.update({
-                "mean": float(df[col].mean()) if not df[col].isnull().all() else None,
-                "std": float(df[col].std()) if not df[col].isnull().all() else None,
-                "min": float(df[col].min()) if not df[col].isnull().all() else None,
-                "max": float(df[col].max()) if not df[col].isnull().all() else None,
-                "median": float(df[col].median()) if not df[col].isnull().all() else None,
-            })
+            col_stats.update(
+                {
+                    "mean": float(df[col].mean())
+                    if not df[col].isnull().all()
+                    else None,
+                    "std": float(df[col].std()) if not df[col].isnull().all() else None,
+                    "min": float(df[col].min()) if not df[col].isnull().all() else None,
+                    "max": float(df[col].max()) if not df[col].isnull().all() else None,
+                    "median": float(df[col].median())
+                    if not df[col].isnull().all()
+                    else None,
+                }
+            )
 
         stats[col] = col_stats
 
@@ -155,7 +159,7 @@ def create_missing_values_report(df: pd.DataFrame) -> Dict:
                 "rate": float(missing_rates[col]),
             }
             for col in cols_with_missing
-        }
+        },
     }
 
     return report
@@ -178,7 +182,9 @@ def create_data_quality_report(df: pd.DataFrame) -> Dict:
         "duplicate_rows_rate": float(df.duplicated().mean()),
         "column_types": {
             "numeric": len(df.select_dtypes(include=["number"]).columns),
-            "categorical": len(df.select_dtypes(include=["object", "category"]).columns),
+            "categorical": len(
+                df.select_dtypes(include=["object", "category"]).columns
+            ),
             "datetime": len(df.select_dtypes(include=["datetime"]).columns),
             "boolean": len(df.select_dtypes(include=["bool"]).columns),
         },

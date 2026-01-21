@@ -17,6 +17,7 @@ from kaggle_tools.config_models import OptunaConfig
 
 console = Console()
 
+
 class StudyManager:
     """
     Manages Optuna study creation, resumption, and storage.
@@ -188,11 +189,9 @@ class StudyManager:
         if self.study is None:
             raise RuntimeError("Study not loaded. Call create_or_load_study() first.")
 
-        import pandas as pd
-
         df = self.study.trials_dataframe()
         path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(path, index=False, compression='infer')
+        df.to_csv(path, index=False, compression="infer")
 
     def print_study_statistics(self):
         """
@@ -204,14 +203,16 @@ class StudyManager:
         if self.study is None:
             raise RuntimeError("Study not loaded. Call create_or_load_study() first.")
 
-        console.print(f"\n[bold cyan]Study Statistics:[/bold cyan]")
-        console.print(f"  [bold]Number of finished trials:[/bold] [yellow]{len(self.study.trials)}[/yellow]")
+        console.print("\n[bold cyan]Study Statistics:[/bold cyan]")
+        console.print(
+            f"  [bold]Number of finished trials:[/bold] [yellow]{len(self.study.trials)}[/yellow]"
+        )
 
         if len(self.study.trials) > 0:
             trial = self.study.best_trial
-            console.print(f"  [bold green]Best trial:[/bold green]")
+            console.print("  [bold green]Best trial:[/bold green]")
             console.print(f"    [bold]Value:[/bold] [yellow]{trial.value:.6f}[/yellow]")
-            console.print(f"    [bold]Params:[/bold]")
+            console.print("    [bold]Params:[/bold]")
             for key, value in trial.params.items():
                 console.print(f"      • [cyan]{key:20s}[/cyan]: [white]{value}[/white]")
         else:

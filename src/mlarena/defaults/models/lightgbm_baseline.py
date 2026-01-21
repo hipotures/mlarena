@@ -34,7 +34,9 @@ def _align_categories(train_df: pd.DataFrame, other_df: pd.DataFrame) -> pd.Data
     cat_cols = train_df.select_dtypes(include=["category"]).columns
     for col in cat_cols:
         if col in other_df.columns:
-            other_df[col] = pd.Categorical(other_df[col], categories=train_df[col].cat.categories)
+            other_df[col] = pd.Categorical(
+                other_df[col], categories=train_df[col].cat.categories
+            )
     return other_df
 
 
@@ -82,10 +84,22 @@ def train(
 
     prepared = prepare_training_data(train_df, config, artifacts, console)
     train_data = cast_categorical_columns(prepared.train_data)
-    tuning_data = cast_categorical_columns(prepared.tuning_data) if prepared.tuning_data is not None else None
-    eval_data = cast_categorical_columns(prepared.eval_data) if prepared.eval_data is not None else None
-    tuning_data = _align_categories(train_data, tuning_data) if tuning_data is not None else None
-    eval_data = _align_categories(train_data, eval_data) if eval_data is not None else None
+    tuning_data = (
+        cast_categorical_columns(prepared.tuning_data)
+        if prepared.tuning_data is not None
+        else None
+    )
+    eval_data = (
+        cast_categorical_columns(prepared.eval_data)
+        if prepared.eval_data is not None
+        else None
+    )
+    tuning_data = (
+        _align_categories(train_data, tuning_data) if tuning_data is not None else None
+    )
+    eval_data = (
+        _align_categories(train_data, eval_data) if eval_data is not None else None
+    )
 
     target_column = prepared.target_column
     X_train = train_data.drop(columns=[target_column])
@@ -98,16 +112,24 @@ def train(
         if y_train.nunique(dropna=True) > 2:
             problem_type = "multiclass"
 
-    num_class = int(y_train.nunique(dropna=True)) if problem_type == "multiclass" else None
-    model_class = lgb.LGBMRegressor if problem_type == "regression" else lgb.LGBMClassifier
+    num_class = (
+        int(y_train.nunique(dropna=True)) if problem_type == "multiclass" else None
+    )
+    model_class = (
+        lgb.LGBMRegressor if problem_type == "regression" else lgb.LGBMClassifier
+    )
 
     optuna_cfg = config.optuna
     if not optuna_cfg.storage:
-        optuna_cfg.storage = f"sqlite:///{config.system.artifact_dir / 'optuna' / 'study.db'}"
+        optuna_cfg.storage = (
+            f"sqlite:///{config.system.artifact_dir / 'optuna' / 'study.db'}"
+        )
     if not optuna_cfg.study_name:
         optuna_cfg.study_name = f"{config.system.experiment_id}_lightgbm"
 
-    param_space = optuna_cfg.param_space.get("lightgbm") if optuna_cfg.param_space else None
+    param_space = (
+        optuna_cfg.param_space.get("lightgbm") if optuna_cfg.param_space else None
+    )
     if not param_space:
         param_space = DEFAULT_PARAM_SPACE
 
@@ -115,7 +137,11 @@ def train(
 
     def _param_space(trial):
         params = lightgbm_param_space(trial, param_space)
-        params.update(_lgb_defaults(problem_type, metric_name, use_gpu, config.system.random_seed, num_class))
+        params.update(
+            _lgb_defaults(
+                problem_type, metric_name, use_gpu, config.system.random_seed, num_class
+            )
+        )
         return params
 
     best_params: Dict[str, Any] = {}
@@ -129,7 +155,9 @@ def train(
         best_params_file = optuna_dir / "best_params_lightgbm.json"
 
         if best_params_file.exists():
-            console.print(f"[green]✓[/green] Loading cached params from {best_params_file}")
+            console.print(
+                f"[green]✓[/green] Loading cached params from {best_params_file}"
+            )
             best_params = json.loads(best_params_file.read_text())
         else:
             console.print("[cyan]i[/cyan] Running Optuna for LightGBM")
@@ -156,7 +184,9 @@ def train(
             )
 
             best_params = study.best_params
-            best_value = float(study.best_value) if study.best_value is not None else None
+            best_value = (
+                float(study.best_value) if study.best_value is not None else None
+            )
             best_params_file.write_text(json.dumps(best_params, indent=2))
             study_manager.export_trials_dataframe(optuna_dir / "trials_lightgbm.csv")
     else:
@@ -171,7 +201,9 @@ def train(
         or config.model.get("early_stopping_rounds", 50)
     )
 
-    params = _lgb_defaults(problem_type, metric_name, use_gpu, config.system.random_seed, num_class)
+    params = _lgb_defaults(
+        problem_type, metric_name, use_gpu, config.system.random_seed, num_class
+    )
     params.update(best_params)
 
     model = model_class(**params, n_estimators=n_estimators)
@@ -198,13 +230,19 @@ def train(
 
     if best_value is None:
         if tuning_data is not None:
-            best_value = score_dataset(model, tuning_data, target_column, score_fn, needs_proba)
+            best_value = score_dataset(
+                model, tuning_data, target_column, score_fn, needs_proba
+            )
         else:
-            best_value = score_dataset(model, train_data, target_column, score_fn, needs_proba)
+            best_value = score_dataset(
+                model, train_data, target_column, score_fn, needs_proba
+            )
 
     eval_score = None
     if eval_data is not None:
-        eval_score = score_dataset(model, eval_data, target_column, score_fn, needs_proba)
+        eval_score = score_dataset(
+            model, eval_data, target_column, score_fn, needs_proba
+        )
 
     model_dir = Path(config.system.model_path)
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -224,4 +262,3 @@ def train(
     }
 
     return model, training_summary
-

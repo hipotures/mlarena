@@ -48,17 +48,28 @@ def _apply_group_aggregations(
     quantiles: List[float],
     remaining_slots: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    List[str],
+    Dict[str, Any],
+]:
     if not group_keys or not value_cols or (not aggs and not quantiles):
         return train_df, val_df, test_df, orig_df, [], {}
 
     missing_keys = [col for col in group_keys if col not in train_df.columns]
     missing_values = [col for col in value_cols if col not in train_df.columns]
     if missing_keys:
-        warnings.warn(f"Group keys missing in train: {missing_keys} - skipping aggregations")
+        warnings.warn(
+            f"Group keys missing in train: {missing_keys} - skipping aggregations"
+        )
         return train_df, val_df, test_df, orig_df, [], {}
     if missing_values:
-        warnings.warn(f"Value columns missing in train: {missing_values} - skipping aggregations")
+        warnings.warn(
+            f"Value columns missing in train: {missing_values} - skipping aggregations"
+        )
         return train_df, val_df, test_df, orig_df, [], {}
 
     if any(col not in test_df.columns for col in group_keys):
@@ -134,7 +145,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Feature group aggregations preprocessing sub-module.
     """
@@ -163,7 +176,9 @@ def fit_transform(
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_group_agg")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "feature_group_agg"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -178,7 +193,9 @@ def fit_transform(
     # 5. Group aggregations
     # Warn if target is used as value column to avoid leakage
     if target_column and target_column in config["group_value_cols"]:
-        warnings.warn("Target column included in group_value_cols - this may cause leakage.")
+        warnings.warn(
+            "Target column included in group_value_cols - this may cause leakage."
+        )
 
     group_keys = config["group_keys"]
     group_value_cols = config["group_value_cols"]
@@ -190,17 +207,19 @@ def fit_transform(
             group_value_cols = [c for c in group_value_cols if c in orig_set]
 
     if group_keys and group_value_cols and (config["aggs"] or config["quantiles"]):
-        train_df, val_df, test_df, orig_df, agg_cols_added, group_details = _apply_group_aggregations(
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            orig_df=orig_df,
-            group_keys=group_keys,
-            value_cols=group_value_cols,
-            aggs=config["aggs"],
-            quantiles=config["quantiles"],
-            remaining_slots=max_new,
-            existing_cols=existing_cols,
+        train_df, val_df, test_df, orig_df, agg_cols_added, group_details = (
+            _apply_group_aggregations(
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                orig_df=orig_df,
+                group_keys=group_keys,
+                value_cols=group_value_cols,
+                aggs=config["aggs"],
+                quantiles=config["quantiles"],
+                remaining_slots=max_new,
+                existing_cols=existing_cols,
+            )
         )
         new_columns.extend(agg_cols_added)
 
@@ -211,7 +230,9 @@ def fit_transform(
         "total_new_features": len(new_columns),
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
-    artifacts.save_report(feature_report, submodule_dir, "feature_group_agg_report.json")
+    artifacts.save_report(
+        feature_report, submodule_dir, "feature_group_agg_report.json"
+    )
 
     transformation_summary = report.create_preprocessing_report(
         train_before=train_df_original,

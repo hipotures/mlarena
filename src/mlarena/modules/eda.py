@@ -6,12 +6,10 @@ Generates profiling reports for train/test and captures lightweight summaries in
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict
 
 from rich.console import Console
-from rich.table import Table
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry

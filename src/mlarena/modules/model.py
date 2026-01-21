@@ -342,7 +342,6 @@ def _print_training_summary(
 ):
     """Print rich training summary with next steps or JSON output."""
     from rich.table import Table
-    from mlarena.core.module import print_next_steps
     import json
     import pandas as pd
     from datetime import datetime
@@ -468,7 +467,7 @@ def _print_training_summary(
     console.print(config_table)
 
     # Artifacts
-    console.print(f"\n[bold green]✓[/bold green] Training completed:")
+    console.print("\n[bold green]✓[/bold green] Training completed:")
     if leaderboard_path and leaderboard_path.exists():
         console.print(f"  Leaderboard: [cyan]{leaderboard_path.resolve().relative_to(project_root.resolve())}[/cyan]")
         _print_leaderboard_table(
@@ -579,7 +578,7 @@ class ModelModule(BaseModule):
             hyperparams_dict["search_space"] = hpo_search_space
 
             # Display HPO configuration (will also appear in console)
-            console.print(f"\n[cyan]HPO Configuration:[/cyan]")
+            console.print("\n[cyan]HPO Configuration:[/cyan]")
             console.print(f"  [bold]Preset:[/bold] {hpo_preset_name}")
             console.print(f"  [bold]Trials:[/bold] {hpo_tune_kwargs['num_trials']}")
             console.print(f"  [bold]Scheduler:[/bold] {hpo_tune_kwargs['scheduler']}")
@@ -636,7 +635,7 @@ class ModelModule(BaseModule):
         """
         # Safety check: only cleanup if predictor has the methods
         if not hasattr(predictor, 'delete_models') or not hasattr(predictor, 'save_space'):
-            logger.warning(f"Predictor does not support cleanup methods, skipping")
+            logger.warning("Predictor does not support cleanup methods, skipping")
             return
 
         try:
@@ -657,7 +656,6 @@ class ModelModule(BaseModule):
             FileNotFoundError: When preprocessing artifacts are missing.
             RuntimeError: When template resolution fails.
         """
-        import pandas as pd
         from rich.table import Table
         import time
 
@@ -693,8 +691,8 @@ class ModelModule(BaseModule):
                 table.add_row(name, source_display, style=style)
 
             console.print(table)
-            console.print(f"\n[dim]Usage: model_template=<name>[/dim]")
-            console.print(f"[dim]🅶 = global template  🅻 = local template  🅶🅻 = name conflict (local overrides)[/dim]")
+            console.print("\n[dim]Usage: model_template=<name>[/dim]")
+            console.print("[dim]🅶 = global template  🅻 = local template  🅶🅻 = name conflict (local overrides)[/dim]")
             return ModuleResult(
                 success=True,
                 payload={"templates": [t["name"] for t in templates]},
@@ -728,7 +726,7 @@ class ModelModule(BaseModule):
                 for tpl in available:
                     table.add_row(tpl)
                 console.print(table)
-                console.print(f"\n[dim]Usage: model_template=<name>[/dim]")
+                console.print("\n[dim]Usage: model_template=<name>[/dim]")
             else:
                 console.print("[yellow]No templates found in config/templates/model.yaml[/yellow]")
 

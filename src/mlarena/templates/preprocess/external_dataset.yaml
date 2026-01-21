@@ -1,0 +1,6 @@
+module: external_dataset
+config:
+  orig_path: null
+  mode: align
+  source_flag: null
+  column_mapping: {}

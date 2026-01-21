@@ -44,8 +44,12 @@ class DatasetConfig(ExtraModel):
     submission_probas: bool = True
 
     # Sample weight configuration (AutoGluon TabularPredictor params)
-    sample_weight_strategy: Optional[str] = None  # None, 'auto_weight', 'balance_weight', or custom column name
-    weight_evaluation: Optional[bool] = None  # If None, auto-detect based on sample_weight_strategy
+    sample_weight_strategy: Optional[str] = (
+        None  # None, 'auto_weight', 'balance_weight', or custom column name
+    )
+    weight_evaluation: Optional[bool] = (
+        None  # If None, auto-detect based on sample_weight_strategy
+    )
 
 
 class PreprocessingConfig(ExtraModel):
@@ -87,8 +91,10 @@ class Hyperparameters(ExtraModel):
     preset: Optional[str] = None  # References configs/presets/{preset}.yaml
 
     # NEW: AutoGluon native HPO support
-    hyperparameter_tune_kwargs: Optional[Dict[str, Any]] = None  # HPO config (num_trials, scheduler, searcher)
-    search_space: Optional[Dict[str, Dict[str, Any]]] = None    # Per-model search spaces
+    hyperparameter_tune_kwargs: Optional[Dict[str, Any]] = (
+        None  # HPO config (num_trials, scheduler, searcher)
+    )
+    search_space: Optional[Dict[str, Dict[str, Any]]] = None  # Per-model search spaces
 
 
 class ModelConfig(ExtraModel):

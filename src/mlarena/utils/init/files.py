@@ -17,7 +17,7 @@ GITIGNORE_TEMPLATE = REPO_ROOT / "config" / ".gitignore"
 
 def create_directory_structure(project_root: Path, console: Console) -> None:
     """Create standard Kaggle project directory structure."""
-    console.print(f"[cyan]Creating project structure...[/cyan]")
+    console.print("[cyan]Creating project structure...[/cyan]")
 
     dirs = [
         "data",
@@ -79,7 +79,9 @@ def copy_templates(project_root: Path, console: Console) -> None:
     # No need to create placeholder files - users can add custom templates as needed
 
 
-def download_kaggle_data(competition_slug: str, project_root: Path, console: Console) -> bool:
+def download_kaggle_data(
+    competition_slug: str, project_root: Path, console: Console
+) -> bool:
     """Download and extract Kaggle competition data.
 
     Returns:
@@ -96,17 +98,27 @@ def download_kaggle_data(competition_slug: str, project_root: Path, console: Con
         transient=True,
     ) as progress:
         # Download
-        task = progress.add_task(f"Downloading data from Kaggle for '{competition_slug}'...", total=None)
+        task = progress.add_task(
+            f"Downloading data from Kaggle for '{competition_slug}'...", total=None
+        )
 
         try:
-            result = subprocess.run(
-                ["kaggle", "competitions", "download", "-c", competition_slug, "-p", str(data_dir)],
+            subprocess.run(
+                [
+                    "kaggle",
+                    "competitions",
+                    "download",
+                    "-c",
+                    competition_slug,
+                    "-p",
+                    str(data_dir),
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
             )
             progress.remove_task(task)
-            console.print(f"  [green]✓[/green] Data downloaded")
+            console.print("  [green]✓[/green] Data downloaded")
 
             # Find and unzip
             zip_files = list(data_dir.glob("*.zip"))
@@ -116,7 +128,7 @@ def download_kaggle_data(competition_slug: str, project_root: Path, console: Con
                 with zipfile.ZipFile(zip_file, "r") as zip_ref:
                     zip_ref.extractall(data_dir)
                 progress.remove_task(task2)
-                console.print(f"  [green]✓[/green] Data extracted")
+                console.print("  [green]✓[/green] Data extracted")
                 zip_file.unlink()  # Remove zip after extraction
 
             return True
@@ -125,5 +137,7 @@ def download_kaggle_data(competition_slug: str, project_root: Path, console: Con
             progress.remove_task(task)
             console.print(f"[red]Error downloading data: {e.stderr}[/red]")
             console.print("[yellow]You can download data manually later with:[/yellow]")
-            console.print(f"  cd {competition_slug}/data && kaggle competitions download -c {competition_slug}")
+            console.print(
+                f"  cd {competition_slug}/data && kaggle competitions download -c {competition_slug}"
+            )
             return False

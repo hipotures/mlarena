@@ -45,9 +45,7 @@ class TaskQueue:
             self.queue_file.write_text(json.dumps(queue_data, indent=2))
 
     def _load_template_mla_settings(
-        self,
-        template_type: str,
-        template_name: str
+        self, template_type: str, template_name: str
     ) -> dict:
         """
         Load mla: section from template YAML.
@@ -64,7 +62,10 @@ class TaskQueue:
         template_paths = [
             self.project_root / "templates" / template_type / f"{template_name}.yaml",
             # Global templates (go up from utils/ to repo root)
-            Path(__file__).parent.parent.parent / "templates" / template_type / f"{template_name}.yaml"
+            Path(__file__).parent.parent.parent
+            / "templates"
+            / template_type
+            / f"{template_name}.yaml",
         ]
 
         for path in template_paths:
@@ -103,7 +104,7 @@ class TaskQueue:
             "attempts": [],
             "last_error": None,
             "experiment_id": None,
-            "log_file": f"queue/logs/task-{task_id}.log"
+            "log_file": f"queue/logs/task-{task_id}.log",
         }
 
         queue_data["queue"].append(task)
@@ -119,7 +120,7 @@ class TaskQueue:
         priority: Optional[int] = None,
         submit: Optional[bool] = None,
         git: Optional[bool] = None,
-        overrides: Optional[List[str]] = None
+        overrides: Optional[List[str]] = None,
     ) -> int:
         """
         Add task from template(s) with auto-loaded MLA settings.
@@ -166,7 +167,9 @@ class TaskQueue:
             raise ValueError("Either model_template or preprocess_template required")
 
         # Resolve priority (CLI > template > default)
-        resolved_priority = priority if priority is not None else mla.get("priority", 10)
+        resolved_priority = (
+            priority if priority is not None else mla.get("priority", 10)
+        )
 
         # Resolve submit flag (CLI > template > default)
         if submit is None:
@@ -201,10 +204,7 @@ class TaskQueue:
         queue_data = self._load_queue()
         original_len = len(queue_data["queue"])
 
-        queue_data["queue"] = [
-            t for t in queue_data["queue"]
-            if t["id"] != task_id
-        ]
+        queue_data["queue"] = [t for t in queue_data["queue"] if t["id"] != task_id]
 
         if len(queue_data["queue"]) == original_len:
             raise ValueError(f"Task #{task_id} not found")
@@ -215,7 +215,7 @@ class TaskQueue:
     def list_queue(self, console: Console, status: Optional[str] = None) -> None:
         """
         Display queue as Rich table.
-        
+
         Args:
             console: Rich console for output
             status: Filter by status (pending, running, completed, failed, all)
@@ -227,15 +227,19 @@ class TaskQueue:
             tasks = [t for t in tasks if t["status"] == status]
 
         if not tasks:
-            msg = f"[yellow]Queue is empty (filter: {status})[/yellow]" if status else "[yellow]Queue is empty[/yellow]"
+            msg = (
+                f"[yellow]Queue is empty (filter: {status})[/yellow]"
+                if status
+                else "[yellow]Queue is empty[/yellow]"
+            )
             console.print(msg)
             return
 
         table = Table(
-            title="Task Queue", 
-            show_header=True, 
+            title="Task Queue",
+            show_header=True,
             expand=True,
-            row_styles=["", "on grey11"]
+            row_styles=["", "on grey11"],
         )
         table.add_column("#", style="cyan", width=4)
         table.add_column("Priority", justify="center")
@@ -247,7 +251,13 @@ class TaskQueue:
 
         # Sort by priority (ascending), then by ID (ascending)
         # Handle None priority by defaulting to 10
-        sorted_tasks = sorted(tasks, key=lambda t: (t.get("priority") if t.get("priority") is not None else 10, t["id"]))
+        sorted_tasks = sorted(
+            tasks,
+            key=lambda t: (
+                t.get("priority") if t.get("priority") is not None else 10,
+                t["id"],
+            ),
+        )
 
         for i, task in enumerate(sorted_tasks):
             status = task["status"]
@@ -301,7 +311,9 @@ class TaskQueue:
                     continue
                 if part.startswith("project="):
                     continue
-                if part.startswith("model_template=") or part.startswith("preprocess_template="):
+                if part.startswith("model_template=") or part.startswith(
+                    "preprocess_template="
+                ):
                     continue
                 options.append(part)
 
@@ -318,7 +330,7 @@ class TaskQueue:
                 Align.center(module_icon),
                 template,
                 options_str,
-                exp_id
+                exp_id,
             )
 
         console.print(table)
@@ -338,8 +350,7 @@ class TaskQueue:
             queue_data["queue"] = []
         else:
             queue_data["queue"] = [
-                t for t in queue_data["queue"]
-                if t["status"] != status
+                t for t in queue_data["queue"] if t["status"] != status
             ]
 
         removed = original_len - len(queue_data["queue"])
@@ -404,7 +415,7 @@ class TaskQueue:
         self,
         console: Console,
         max_tasks: Optional[int] = None,
-        continue_on_error: bool = True
+        continue_on_error: bool = True,
     ) -> dict[int, bool]:
         """
         Execute pending tasks in priority order.
@@ -432,22 +443,26 @@ class TaskQueue:
 
             # Check max_tasks limit
             if max_tasks and executed >= max_tasks:
-                console.print(f"\n[yellow]Max tasks limit reached ({max_tasks})[/yellow]")
+                console.print(
+                    f"\n[yellow]Max tasks limit reached ({max_tasks})[/yellow]"
+                )
                 break
 
             # Get next pending task
             queue_data = self._load_queue()
-            pending = [
-                t for t in queue_data["queue"]
-                if t["status"] == "pending"
-            ]
+            pending = [t for t in queue_data["queue"] if t["status"] == "pending"]
 
             if not pending:
                 console.print("\n[green]All pending tasks completed[/green]")
                 break
 
             # Sort by priority, then ID
-            pending.sort(key=lambda t: (t.get("priority") if t.get("priority") is not None else 10, t["id"]))
+            pending.sort(
+                key=lambda t: (
+                    t.get("priority") if t.get("priority") is not None else 10,
+                    t["id"],
+                )
+            )
             task = pending[0]
             total_pending = len(pending)
 
@@ -460,7 +475,7 @@ class TaskQueue:
                 console.print(f"\n[red]Task #{task['id']} failed, stopping queue[/red]")
                 break
 
-        console.print(f"\n[bold]Queue runner finished[/bold]")
+        console.print("\n[bold]Queue runner finished[/bold]")
         console.print(
             f"[dim]Executed: {executed}, "
             f"Success: {sum(results.values())}, "
@@ -469,7 +484,9 @@ class TaskQueue:
 
         return results
 
-    def _execute_task(self, task: dict, console: Console, total_pending: int | None = None) -> bool:
+    def _execute_task(
+        self, task: dict, console: Console, total_pending: int | None = None
+    ) -> bool:
         """
         Execute single task and update state.
 
@@ -481,9 +498,13 @@ class TaskQueue:
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
         if total_pending is not None:
-            console.print(f"\n[bold]Task #{task_id}/{total_pending}[/bold] (priority: {task['priority']})")
+            console.print(
+                f"\n[bold]Task #{task_id}/{total_pending}[/bold] (priority: {task['priority']})"
+            )
         else:
-            console.print(f"\n[bold]Task #{task_id}[/bold] (priority: {task['priority']})")
+            console.print(
+                f"\n[bold]Task #{task_id}[/bold] (priority: {task['priority']})"
+            )
 
         # Mark as running
         queue_data = self._load_queue()
@@ -517,7 +538,7 @@ class TaskQueue:
                     cwd=repo_root,
                     stdout=log,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
                 )
 
             success = result.returncode == 0
@@ -527,7 +548,7 @@ class TaskQueue:
             if log_file.exists():
                 log_content = log_file.read_text()
                 # Look for patterns like "exp-YYYYMMDD-HHMMSS"
-                match = re.search(r'exp-\d{8}-\d{6}', log_content)
+                match = re.search(r"exp-\d{8}-\d{6}", log_content)
                 if match:
                     experiment_id = match.group(0)
 
@@ -542,7 +563,7 @@ class TaskQueue:
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "success": success,
                         "error": None if success else f"Exit code: {result.returncode}",
-                        "exit_code": result.returncode
+                        "exit_code": result.returncode,
                     }
                     t["attempts"].append(attempt)
 
@@ -559,7 +580,9 @@ class TaskQueue:
             if success:
                 console.print(f"[green]✓ Task #{task_id} completed[/green]")
             else:
-                console.print(f"[red]✗ Task #{task_id} failed (exit code: {result.returncode})[/red]")
+                console.print(
+                    f"[red]✗ Task #{task_id} failed (exit code: {result.returncode})[/red]"
+                )
 
             return success
 
@@ -581,7 +604,7 @@ class TaskQueue:
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "success": False,
                     "error": error,
-                    "exit_code": None
+                    "exit_code": None,
                 }
                 t["attempts"].append(attempt)
                 break

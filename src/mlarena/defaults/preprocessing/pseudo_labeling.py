@@ -44,7 +44,9 @@ from mlarena.preprocessing.utils import (
 )
 
 
-def _impute_values(df: pd.DataFrame, cols: List[str], strategy: str) -> Dict[str, float]:
+def _impute_values(
+    df: pd.DataFrame, cols: List[str], strategy: str
+) -> Dict[str, float]:
     values: Dict[str, float] = {}
     for col in cols:
         if strategy == "median":
@@ -56,7 +58,9 @@ def _impute_values(df: pd.DataFrame, cols: List[str], strategy: str) -> Dict[str
     return values
 
 
-def _apply_impute(df: pd.DataFrame, cols: List[str], values: Dict[str, float]) -> pd.DataFrame:
+def _apply_impute(
+    df: pd.DataFrame, cols: List[str], values: Dict[str, float]
+) -> pd.DataFrame:
     df_out = df.copy()
     for col in cols:
         if col not in df_out.columns:
@@ -72,7 +76,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     artifact_dir = Path(config.get("_artifact_dir", "."))
     dataset_config = config.get("_dataset", {})
     id_column = dataset_config.get("id_column", "id")
@@ -103,9 +114,13 @@ def fit_transform(
     }
     validation.validate_config(config, required_params, optional_params)
     validation.validate_choice(config["model_type"], ["logreg", "rf"], "model_type")
-    validation.validate_choice(config["missing_strategy"], ["mean", "median", "zero"], "missing_strategy")
+    validation.validate_choice(
+        config["missing_strategy"], ["mean", "median", "zero"], "missing_strategy"
+    )
 
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "pseudo_labeling")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "pseudo_labeling"
+    )
 
     train_df_original = dataframe_utils.copy_dataframe(train_df)
     test_df_original = dataframe_utils.copy_dataframe(test_df)
@@ -113,7 +128,9 @@ def fit_transform(
     if not target_column or target_column not in train_df.columns:
         raise ValueError("Target column is required for pseudo-labeling.")
     if train_df[target_column].isnull().any():
-        raise ValueError("Target column contains NaNs; pseudo-labeling requires complete targets.")
+        raise ValueError(
+            "Target column contains NaNs; pseudo-labeling requires complete targets."
+        )
 
     exclude_cols = [id_column, target_column] + ignored_columns + config["exclude_cols"]
     exclude_cols = [c for c in exclude_cols if c]
@@ -121,7 +138,9 @@ def fit_transform(
 
     use_orig_only = bool(config.get("use_original_features_only"))
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, config.get("_original_features"))
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, config.get("_original_features")
+        )
 
     if config["include_cols"]:
         numeric_cols = [c for c in config["include_cols"] if c in numeric_cols]
@@ -197,7 +216,9 @@ def fit_transform(
 
         if config["use_soft_labels"]:
             if problem_type == "multiclass":
-                warnings.warn("Soft labels for multiclass not supported; using hard labels.")
+                warnings.warn(
+                    "Soft labels for multiclass not supported; using hard labels."
+                )
                 config["use_soft_labels"] = False
             elif proba.shape[1] != 2:
                 config["use_soft_labels"] = False
@@ -243,10 +264,14 @@ def fit_transform(
         if "sample_weight" not in pseudo_df.columns:
             pseudo_df["sample_weight"] = confidence[indices]
         else:
-            pseudo_df["sample_weight"] = pseudo_df["sample_weight"] * confidence[indices]
+            pseudo_df["sample_weight"] = (
+                pseudo_df["sample_weight"] * confidence[indices]
+            )
 
     train_df = pd.concat([train_df, pseudo_df], axis=0)
-    train_df = train_df.sample(frac=1.0, random_state=config["random_state"]).reset_index(drop=True)
+    train_df = train_df.sample(
+        frac=1.0, random_state=config["random_state"]
+    ).reset_index(drop=True)
 
     artifacts.save_fitted_object(model, submodule_dir, "pseudo_model.pkl")
     if scaler is not None:
@@ -271,10 +296,14 @@ def fit_transform(
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
         "n_added": int(len(indices)),
         "model_type": config["model_type"],
-        "model_path": str((submodule_dir / "pseudo_model.pkl").relative_to(artifact_dir)),
+        "model_path": str(
+            (submodule_dir / "pseudo_model.pkl").relative_to(artifact_dir)
+        ),
     }
     if scaler is not None:
-        state_dict["scaler_path"] = str((submodule_dir / "scaler.pkl").relative_to(artifact_dir))
+        state_dict["scaler_path"] = str(
+            (submodule_dir / "scaler.pkl").relative_to(artifact_dir)
+        )
     state_dict["impute_values"] = impute_values
 
     return train_df, val_df, test_df, eval_df, orig_df, state_dict

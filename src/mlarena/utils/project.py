@@ -6,7 +6,7 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Optional, Tuple
+from typing import Tuple
 
 
 def load_project_config(project_root: Path):
@@ -66,7 +66,7 @@ def data_paths(config_module) -> Tuple[Path, Path]:
         data_dir = getattr(config_module, "DATA_DIR", None)
         if data_dir is None and train is not None:
             data_dir = Path(train).parent
-        
+
         if data_dir:
             # Try extensions in priority order
             for ext in [".parquet", ".csv.gz", ".csv"]:
@@ -75,13 +75,13 @@ def data_paths(config_module) -> Tuple[Path, Path]:
                     train = p
                     break
             if train is None:
-                train = Path(data_dir) / "train.csv.gz" # Default fallback
+                train = Path(data_dir) / "train.csv.gz"  # Default fallback
 
     if test is None or not Path(test).exists():
         data_dir = getattr(config_module, "DATA_DIR", None)
         if data_dir is None and test is not None:
             data_dir = Path(test).parent
-            
+
         if data_dir:
             for ext in [".parquet", ".csv.gz", ".csv"]:
                 p = Path(data_dir) / f"test{ext}"
@@ -89,6 +89,6 @@ def data_paths(config_module) -> Tuple[Path, Path]:
                     test = p
                     break
             if test is None:
-                test = Path(data_dir) / "test.csv.gz" # Default fallback
+                test = Path(data_dir) / "test.csv.gz"  # Default fallback
 
     return Path(train), Path(test)

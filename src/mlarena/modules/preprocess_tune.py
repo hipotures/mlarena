@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from itertools import combinations
 from multiprocessing import get_context
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from rich.console import Console
 import re
@@ -143,7 +143,9 @@ def _merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, An
     return merged
 
 
-def _sample_subset(trial, name: str, values: List[Any], min_items: int, max_items: int, sort: bool) -> List[Any]:
+def _sample_subset(
+    trial, name: str, values: List[Any], min_items: int, max_items: int, sort: bool
+) -> List[Any]:
     combos: List[Tuple[Any, ...]] = []
     for k in range(min_items, max_items + 1):
         combos.extend(combinations(values, k))
@@ -181,17 +183,25 @@ def _sample_param(trial, name: str, spec: Dict[str, Any]) -> Any:
         chosen = trial.suggest_categorical(name, encoded)
         if needs_decode and isinstance(chosen, str) and chosen.startswith("__json__:"):
             try:
-                return json.loads(chosen[len("__json__:"):])
+                return json.loads(chosen[len("__json__:") :])
             except Exception:
                 return chosen
         return chosen
     if ptype == "int_range":
         step = spec.get("step")
-        return trial.suggest_int(name, int(spec.get("min", 0)), int(spec.get("max", 0)), step=step or 1)
+        return trial.suggest_int(
+            name, int(spec.get("min", 0)), int(spec.get("max", 0)), step=step or 1
+        )
     if ptype == "float_range":
         step = spec.get("step")
         log = bool(spec.get("log", False))
-        val = trial.suggest_float(name, float(spec.get("min", 0.0)), float(spec.get("max", 0.0)), step=step if not log else None, log=log)
+        val = trial.suggest_float(
+            name,
+            float(spec.get("min", 0.0)),
+            float(spec.get("max", 0.0)),
+            step=step if not log else None,
+            log=log,
+        )
         round_to = spec.get("round")
         if round_to is not None:
             try:
@@ -231,17 +241,23 @@ def _filter_variants(
         if force_global_only:
             params = variant.get("params", {})
             mode_spec = params.get("mode") if isinstance(params, dict) else None
-            if mode_spec and isinstance(mode_spec, dict) and mode_spec.get("values") == ["by_group"]:
+            if (
+                mode_spec
+                and isinstance(mode_spec, dict)
+                and mode_spec.get("values") == ["by_group"]
+            ):
                 continue
         if not allow_group_mode:
             params = variant.get("params", {})
             mode_spec = params.get("mode") if isinstance(params, dict) else None
-            if mode_spec and isinstance(mode_spec, dict) and "by_group" in (mode_spec.get("values") or []):
+            if (
+                mode_spec
+                and isinstance(mode_spec, dict)
+                and "by_group" in (mode_spec.get("values") or [])
+            ):
                 continue
         filtered.append(variant)
     return filtered
-
-
 
 
 def _should_disable_step(
@@ -271,12 +287,17 @@ def _should_disable_step(
 
     if template == "imbalance_handler" and (problem_type or "").lower() == "regression":
         return True
-    if template == "target_transformer" and (problem_type or "").lower() != "regression":
+    if (
+        template == "target_transformer"
+        and (problem_type or "").lower() != "regression"
+    ):
         return True
     # Group-dependent steps: disable if keys/values empty
     if template in {"feature_group_agg", "groupwise_normalizer"}:
         group_keys = merged_cfg.get("group_keys") or []
-        value_cols = merged_cfg.get("group_value_cols") or merged_cfg.get("value_cols") or []
+        value_cols = (
+            merged_cfg.get("group_value_cols") or merged_cfg.get("value_cols") or []
+        )
         if not group_keys or not value_cols:
             return True
 
@@ -324,7 +345,11 @@ def _build_trial_pipeline(
         override_cfg = overrides.get("config") if isinstance(overrides, dict) else None
         if override_cfg is None and isinstance(overrides, dict):
             # Strip meta-only override keys if present
-            override_cfg = {k: v for k, v in overrides.items() if k not in {"allow_group_mode", "force_global_only"}}
+            override_cfg = {
+                k: v
+                for k, v in overrides.items()
+                if k not in {"allow_group_mode", "force_global_only"}
+            }
 
         # Determine base config
         base_cfg = {}
@@ -334,7 +359,9 @@ def _build_trial_pipeline(
         merged_base = _merge_dicts(base_cfg, override_cfg or {})
         merged_base = _merge_dicts(merged_base, fixed_config)
 
-        if _should_disable_step(step, eda, problem_type, allow_heavy_steps, merged_base, filter_by_eda):
+        if _should_disable_step(
+            step, eda, problem_type, allow_heavy_steps, merged_base, filter_by_eda
+        ):
             continue
 
         # Decide enablement (allow toggle unless explicitly fixed)
@@ -359,7 +386,9 @@ def _build_trial_pipeline(
             force_global_only = bool(overrides.get("force_global_only", False))
             if template == "rank_features":
                 group_keys = merged_base.get("group_keys") or []
-                valid_group = bool(group_keys) and all(k in eda.all_cols for k in group_keys)
+                valid_group = bool(group_keys) and all(
+                    k in eda.all_cols for k in group_keys
+                )
                 if not valid_group:
                     allow_group_mode = False
 
@@ -398,7 +427,9 @@ def _build_trial_pipeline(
         # Special handling for rank_features
         if template == "rank_features":
             group_keys = merged_base.get("group_keys") or []
-            valid_group = bool(group_keys) and all(k in eda.all_cols for k in group_keys)
+            valid_group = bool(group_keys) and all(
+                k in eda.all_cols for k in group_keys
+            )
             if not valid_group and variant_params.get("mode") == "by_group":
                 variant_params["mode"] = "global"
 
@@ -466,13 +497,19 @@ def _build_baseline_pipeline(
         overrides = step.get("overrides") or {}
         override_cfg = overrides.get("config") if isinstance(overrides, dict) else None
         if override_cfg is None and isinstance(overrides, dict):
-            override_cfg = {k: v for k, v in overrides.items() if k not in {"allow_group_mode", "force_global_only"}}
+            override_cfg = {
+                k: v
+                for k, v in overrides.items()
+                if k not in {"allow_group_mode", "force_global_only"}
+            }
 
         base_cfg = search_spaces.get(template, {}).get("base_config", {}) or {}
         merged_base = _merge_dicts(base_cfg, override_cfg or {})
         merged_base = _merge_dicts(merged_base, fixed_config)
 
-        if _should_disable_step(step, eda, problem_type, allow_heavy_steps, merged_base, filter_by_eda):
+        if _should_disable_step(
+            step, eda, problem_type, allow_heavy_steps, merged_base, filter_by_eda
+        ):
             continue
 
         pipeline.append(
@@ -550,8 +587,14 @@ def _cleanup_trial_artifacts(
 
     if cleanup_model:
         # Only remove the heavy model weights subdirectory, preserve metrics/state
-        model_weights_dir = trial_dir_resolved / "optuna_model" / "artifacts" / "model" / "model"
-        if model_weights_dir.exists() and model_weights_dir.is_dir() and model_weights_dir.is_relative_to(trial_dir_resolved):
+        model_weights_dir = (
+            trial_dir_resolved / "optuna_model" / "artifacts" / "model" / "model"
+        )
+        if (
+            model_weights_dir.exists()
+            and model_weights_dir.is_dir()
+            and model_weights_dir.is_relative_to(trial_dir_resolved)
+        ):
             shutil.rmtree(model_weights_dir, ignore_errors=True)
             removed["model_dir_removed"] = True
 
@@ -583,6 +626,7 @@ def _run_trial_worker(
         # Suppress loky resource_tracker warnings from forced process cleanup.
         try:
             import warnings
+
             warnings.filterwarnings(
                 "ignore",
                 message=r"resource_tracker: There appear to be .* leaked .*",
@@ -601,6 +645,7 @@ def _run_trial_worker(
             warnings.simplefilter("ignore", category=FutureWarning)
             try:
                 from sklearn.exceptions import ConvergenceWarning
+
                 warnings.filterwarnings(
                     "ignore",
                     message=r"Number of distinct clusters .* smaller than n_clusters .*",
@@ -654,14 +699,14 @@ def _run_trial_worker(
                 "chain_exp_id": chain_exp_id,
                 "force": True,
                 "lock": False,
-                "quiet_preprocess_panel": True, # Keep panels quiet, but we want steps log
+                "quiet_preprocess_panel": True,  # Keep panels quiet, but we want steps log
                 "quiet_model_panel": bool(payload.get("quiet_model_panel")),
             }
         )
 
         # Execute module directly to avoid PipelineExecutor overhead/logging conflicts
         result = module.execute()
-        
+
         if not result or not result.success:
             error_msg = result.error if result else "Unknown error"
             raise RuntimeError(f"Preprocess pipeline failed: {error_msg}")
@@ -669,15 +714,17 @@ def _run_trial_worker(
         # The actual directory where artifacts were saved (resolved by module)
         last_step_full_name = (result.payload or {}).get("last_step")
         if last_step_full_name:
-            last_step_dir = project_root / "experiments" / chain_exp_id / last_step_full_name
+            last_step_dir = (
+                project_root / "experiments" / chain_exp_id / last_step_full_name
+            )
         else:
             last_step_dir = Path(context.experiment_dir)
-            
+
         last_shapes = (result.payload or {}).get("shapes")
-        
+
         # Extract explicit paths for model
         preprocess_payload = result.payload or {}
-        train_processed_path = preprocess_payload.get("train_processed")
+        preprocess_payload.get("train_processed")
 
         preprocess_sec = time.time() - preprocess_start
 
@@ -692,7 +739,9 @@ def _run_trial_worker(
                 n_features_out = None
 
         if n_features_out is not None and n_features_out > max_features_out:
-            raise RuntimeError(f"Too many features: {n_features_out} > {max_features_out}")
+            raise RuntimeError(
+                f"Too many features: {n_features_out} > {max_features_out}"
+            )
 
         # Run FAST model
         from mlarena.modules.model import ModelModule
@@ -711,7 +760,7 @@ def _run_trial_worker(
         model_module = ModelModule(model_ctx)
         model_params = {
             "model_template": model_template,
-            "preprocess_template": None, # Disable searching for template
+            "preprocess_template": None,  # Disable searching for template
             "preprocess_exp_dir": str(last_step_dir) if last_step_dir else None,
             "force": True,
             "quiet_model_panel": bool(payload.get("quiet_model_panel")),
@@ -729,8 +778,12 @@ def _run_trial_worker(
                 try:
                     state = json.loads(state_path.read_text())
                     modules = state.get("modules", {})
-                    preprocess_entry = modules.get("preprocess") or (next(iter(modules.values())) if modules else {})
-                    custom_state = preprocess_entry.get("payload", {}).get("custom_module_state", {})
+                    preprocess_entry = modules.get("preprocess") or (
+                        next(iter(modules.values())) if modules else {}
+                    )
+                    custom_state = preprocess_entry.get("payload", {}).get(
+                        "custom_module_state", {}
+                    )
                     weights_path = custom_state.get("weights_path")
                     if weights_path:
                         wp = Path(weights_path)
@@ -742,7 +795,9 @@ def _run_trial_worker(
                     weight_eval = False
         model_params["weight_evaluation"] = weight_eval
         try:
-            for k, v in (config.common.model_dump() if hasattr(config, "common") else {}).items():
+            for k, v in (
+                config.common.model_dump() if hasattr(config, "common") else {}
+            ).items():
                 if v is not None:
                     model_params[k] = v
         except Exception:
@@ -765,6 +820,7 @@ def _run_trial_worker(
         elif payload.get("leaderboard"):
             try:
                 import pandas as pd
+
                 lb = pd.read_csv(payload["leaderboard"], compression="infer")
                 if "score" in lb.columns:
                     score_fast = float(lb.iloc[0]["score"])
@@ -781,7 +837,11 @@ def _run_trial_worker(
     except Exception as exc:
         exit_code = 1
         error_path = Path(payload_path).parent / "trial_error.json"
-        error_path.write_text(json.dumps({"error": str(exc), "traceback": traceback.format_exc()}, indent=2))
+        error_path.write_text(
+            json.dumps(
+                {"error": str(exc), "traceback": traceback.format_exc()}, indent=2
+            )
+        )
     finally:
         # Ensure the worker exits even if background threads remain alive.
         os._exit(exit_code)
@@ -795,12 +855,13 @@ class PreprocessTuneModule(BaseModule):
     description = "Optuna preprocessing tuning (FAST)"
 
     def execute(self) -> ModuleResult:
-        console = Console(force_terminal=True)
+        Console(force_terminal=True)
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         # Suppress loky resource_tracker warnings from forced process cleanup.
         try:
             import warnings
+
             warnings.filterwarnings(
                 "ignore",
                 message=r"resource_tracker: There appear to be .* leaked .*",
@@ -814,15 +875,18 @@ class PreprocessTuneModule(BaseModule):
             warnings.filterwarnings(
                 "ignore",
                 message=r"Argument ``constant_liar`` is an experimental feature",
-                category=FutureWarning, # Optuna uses FutureWarning or UserWarning sometimes, let's catch generic
+                category=FutureWarning,  # Optuna uses FutureWarning or UserWarning sometimes, let's catch generic
             )
             # Catch optuna ExperimentalWarning if possible
             try:
                 import optuna
-                warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
+
+                warnings.filterwarnings(
+                    "ignore", category=optuna.exceptions.ExperimentalWarning
+                )
             except:
                 pass
-            
+
             warnings.filterwarnings(
                 "ignore",
                 message=r"Bins whose width are too small .* Consider decreasing the number of bins\.",
@@ -831,6 +895,7 @@ class PreprocessTuneModule(BaseModule):
             warnings.simplefilter("ignore", category=FutureWarning)
             try:
                 from sklearn.exceptions import ConvergenceWarning
+
                 warnings.filterwarnings(
                     "ignore",
                     message=r"Number of distinct clusters .* smaller than n_clusters .*",
@@ -846,9 +911,13 @@ class PreprocessTuneModule(BaseModule):
         except Exception as exc:
             marker = artifact_dir / "tune_failed.txt"
             marker.write_text(f"Optuna missing: {exc}")
-            return ModuleResult(success=False, error="optuna missing", artifacts=[marker])
+            return ModuleResult(
+                success=False, error="optuna missing", artifacts=[marker]
+            )
 
-        config_module = self.context.config_module or load_project_config(self.context.project_root)
+        config_module = self.context.config_module or load_project_config(
+            self.context.project_root
+        )
         problem_type = getattr(config_module, "AUTOGLUON_PROBLEM_TYPE", None)
 
         # Resolve parameters (invocation params override config)
@@ -879,10 +948,17 @@ class PreprocessTuneModule(BaseModule):
         super_chain = _load_yaml(super_chain_path)
 
         tune_cfg = super_chain.get("tune", {}) or {}
-        study_name = _param("study_name", tune_cfg.get("study_name") or super_chain.get("experiment_prefix") or "optuna_preprocess")
+        study_name = _param(
+            "study_name",
+            tune_cfg.get("study_name")
+            or super_chain.get("experiment_prefix")
+            or "optuna_preprocess",
+        )
         n_trials = int(_param("n_trials", tune_cfg.get("n_trials", 10)))
         requested_n_trials = n_trials
-        optuna_workers = int(_param("optuna_workers", tune_cfg.get("optuna_workers", 1)))
+        optuna_workers = int(
+            _param("optuna_workers", tune_cfg.get("optuna_workers", 1))
+        )
         direction = _param("direction", tune_cfg.get("direction", "minimize"))
         direction = str(direction).strip().lower()
         if direction not in {"minimize", "maximize"}:
@@ -896,14 +972,27 @@ class PreprocessTuneModule(BaseModule):
             or _param("model_cleanup", tune_cfg.get("model_cleanup", False))
             or _param("ag_cleanup", tune_cfg.get("ag_cleanup", False))
         )
-        max_trial_sec = int(_param("max_trial_sec", tune_cfg.get("max_trial_sec", 1800)))
-        allow_heavy_steps = bool(_param("allow_heavy_steps", tune_cfg.get("allow_heavy_steps", False)))
-        allow_heavy_variants = bool(_param("allow_heavy_variants", tune_cfg.get("allow_heavy_variants", False)))
-        max_features_out = int(_param("max_features_out", tune_cfg.get("max_features_out", 50000)))
+        max_trial_sec = int(
+            _param("max_trial_sec", tune_cfg.get("max_trial_sec", 1800))
+        )
+        allow_heavy_steps = bool(
+            _param("allow_heavy_steps", tune_cfg.get("allow_heavy_steps", False))
+        )
+        allow_heavy_variants = bool(
+            _param("allow_heavy_variants", tune_cfg.get("allow_heavy_variants", False))
+        )
+        max_features_out = int(
+            _param("max_features_out", tune_cfg.get("max_features_out", 50000))
+        )
         seed = int(_param("seed", getattr(cfg.common, "seed", 42)))
         quiet_preprocess_panel = bool(
-            _param("quiet_preprocess_panel", tune_cfg.get("quiet_preprocess_panel", False))
-            or _param("quiet_preprocess_panels", tune_cfg.get("quiet_preprocess_panels", False))
+            _param(
+                "quiet_preprocess_panel", tune_cfg.get("quiet_preprocess_panel", False)
+            )
+            or _param(
+                "quiet_preprocess_panels",
+                tune_cfg.get("quiet_preprocess_panels", False),
+            )
         )
         quiet_model_panel = bool(
             _param("quiet_model_panel", tune_cfg.get("quiet_model_panel", False))
@@ -938,14 +1027,23 @@ class PreprocessTuneModule(BaseModule):
             raise ValueError("model_template is required for preprocess tuning")
 
         # EDA summary is required
-        eda_path = self.context.project_root / "experiments" / "eda" / "artifacts" / "eda" / "eda_summary.json"
+        eda_path = (
+            self.context.project_root
+            / "experiments"
+            / "eda"
+            / "artifacts"
+            / "eda"
+            / "eda_summary.json"
+        )
         eda_info = _extract_eda_info(eda_path)
 
         # Storage path
         db_dir = self.context.project_root / "experiments" / "db"
         db_dir.mkdir(parents=True, exist_ok=True)
         storage_url = _param("storage_url", f"sqlite:///{db_dir / 'mla.db'}")
-        optuna_storage_timeout = _param("optuna_storage_timeout", tune_cfg.get("optuna_storage_timeout"))
+        optuna_storage_timeout = _param(
+            "optuna_storage_timeout", tune_cfg.get("optuna_storage_timeout")
+        )
 
         search_spaces = _load_search_spaces()
 
@@ -954,34 +1052,58 @@ class PreprocessTuneModule(BaseModule):
         if optuna_live and not os.environ.get("MLA_OPTIMIZATION_WORKER"):
             import subprocess
             import sys
-            
+
             # Construct DB path for dashboard from storage_url
             if str(storage_url).startswith("sqlite:///"):
                 db_path = Path(str(storage_url).replace("sqlite:///", ""))
             else:
                 db_path = db_dir / "mla.db"
-            
+
             ctx = get_context("spawn")
-            p = ctx.Process(target=run_optimization_loop, args=(
-                self.context.project_root, self.context.project_name,
-                study_name, direction, storage_url, seed, requested_n_trials,
-                optuna_workers, max_trial_sec, allow_heavy_steps,
-                allow_heavy_variants, max_features_out, problem_type, quiet_preprocess_panel,
-                quiet_model_panel, model_verbosity, model_template, model_cleanup,
-                cleanup_processed, super_chain, search_spaces, eda_info,
-                optuna_storage_timeout, artifact_dir, self.context.config.model_dump()
-            ))
+            p = ctx.Process(
+                target=run_optimization_loop,
+                args=(
+                    self.context.project_root,
+                    self.context.project_name,
+                    study_name,
+                    direction,
+                    storage_url,
+                    seed,
+                    requested_n_trials,
+                    optuna_workers,
+                    max_trial_sec,
+                    allow_heavy_steps,
+                    allow_heavy_variants,
+                    max_features_out,
+                    problem_type,
+                    quiet_preprocess_panel,
+                    quiet_model_panel,
+                    model_verbosity,
+                    model_template,
+                    model_cleanup,
+                    cleanup_processed,
+                    super_chain,
+                    search_spaces,
+                    eda_info,
+                    optuna_storage_timeout,
+                    artifact_dir,
+                    self.context.config.model_dump(),
+                ),
+            )
             p.start()
-            
+
             dashboard_script = REPO_ROOT / "scripts" / "optuna_dashboard.py"
             cmd = [
                 sys.executable,
                 str(dashboard_script),
-                "--db", str(db_path),
-                "--project-root", str(self.context.project_root),
-                "--study-name", study_name
+                "--db",
+                str(db_path),
+                "--project-root",
+                str(self.context.project_root),
+                "--study-name",
+                study_name,
             ]
-            
+
             try:
                 subprocess.run(cmd, check=False)
             except KeyboardInterrupt:
@@ -990,27 +1112,64 @@ class PreprocessTuneModule(BaseModule):
                 if p.is_alive():
                     p.terminate()
                     p.join()
-            
+
             return ModuleResult(success=True, payload={"status": "dashboard_closed"})
 
         return run_optimization_loop(
-            self.context.project_root, self.context.project_name,
-            study_name, direction, storage_url, seed, requested_n_trials,
-            optuna_workers, max_trial_sec, allow_heavy_steps,
-            allow_heavy_variants, max_features_out, problem_type, quiet_preprocess_panel,
-            quiet_model_panel, model_verbosity, model_template, model_cleanup,
-            cleanup_processed, super_chain, search_spaces, eda_info,
-            optuna_storage_timeout, artifact_dir, self.context.config.model_dump()
+            self.context.project_root,
+            self.context.project_name,
+            study_name,
+            direction,
+            storage_url,
+            seed,
+            requested_n_trials,
+            optuna_workers,
+            max_trial_sec,
+            allow_heavy_steps,
+            allow_heavy_variants,
+            max_features_out,
+            problem_type,
+            quiet_preprocess_panel,
+            quiet_model_panel,
+            model_verbosity,
+            model_template,
+            model_cleanup,
+            cleanup_processed,
+            super_chain,
+            search_spaces,
+            eda_info,
+            optuna_storage_timeout,
+            artifact_dir,
+            self.context.config.model_dump(),
         )
 
+
 def run_optimization_loop(
-    project_root, project_name,
-    study_name, direction, storage_url, seed, requested_n_trials,
-    optuna_workers, max_trial_sec, allow_heavy_steps,
-    allow_heavy_variants, max_features_out, problem_type, quiet_preprocess_panel,
-    quiet_model_panel, model_verbosity, model_template, model_cleanup,
-    cleanup_processed, super_chain, search_spaces, eda_info,
-    optuna_storage_timeout, artifact_dir, config_dict
+    project_root,
+    project_name,
+    study_name,
+    direction,
+    storage_url,
+    seed,
+    requested_n_trials,
+    optuna_workers,
+    max_trial_sec,
+    allow_heavy_steps,
+    allow_heavy_variants,
+    max_features_out,
+    problem_type,
+    quiet_preprocess_panel,
+    quiet_model_panel,
+    model_verbosity,
+    model_template,
+    model_cleanup,
+    cleanup_processed,
+    super_chain,
+    search_spaces,
+    eda_info,
+    optuna_storage_timeout,
+    artifact_dir,
+    config_dict,
 ) -> ModuleResult:
     console = Console(force_terminal=True)
     import optuna
@@ -1018,10 +1177,11 @@ def run_optimization_loop(
     # Reconstruct minimal config object for worker context if needed, or just use dict
     # We passed config_dict (model_dump)
     from mlarena.core.conf import GlobalConfig
+
     try:
         config = GlobalConfig(**config_dict)
     except:
-        config = config_dict # Fallback
+        config = config_dict  # Fallback
 
     sampler = optuna.samplers.TPESampler(seed=seed, constant_liar=True)
     if optuna_storage_timeout and str(storage_url).startswith("sqlite:///"):
@@ -1038,7 +1198,7 @@ def run_optimization_loop(
         load_if_exists=True,
         sampler=sampler,
     )
-    
+
     effective_n_trials = requested_n_trials
     baseline_included = False
     try:
@@ -1051,7 +1211,7 @@ def run_optimization_loop(
         baseline_included = True
     if effective_n_trials < 1:
         effective_n_trials = 1
-    
+
     stop_state = {"requested": False}
     prev_sigint = signal.getsignal(signal.SIGINT)
     prev_sigterm = signal.getsignal(signal.SIGTERM)
@@ -1095,7 +1255,12 @@ def run_optimization_loop(
             )
 
         trial_number = trial.number
-        trial_dir = project_root / "experiments" / f"optuna_{study_name}" / f"trial_{trial_number:04d}"
+        trial_dir = (
+            project_root
+            / "experiments"
+            / f"optuna_{study_name}"
+            / f"trial_{trial_number:04d}"
+        )
         trial_dir.mkdir(parents=True, exist_ok=True)
 
         pipeline_path = trial_dir / "trial_pipeline.yaml"
@@ -1106,6 +1271,7 @@ def run_optimization_loop(
             "trial_number": trial_number,
         }
         import yaml
+
         pipeline_path.write_text(yaml.safe_dump(pipeline_payload, sort_keys=False))
 
         payload = {
@@ -1136,7 +1302,7 @@ def run_optimization_loop(
                 chain_exp_id,
                 model_template,
                 max_features_out,
-                config, 
+                config,
             ),
         )
         start_time = time.time()
@@ -1151,20 +1317,27 @@ def run_optimization_loop(
             proc.join(timeout=10)
             metrics_path = trial_dir / "metrics.json"
             if not metrics_path.exists():
-                metrics_path.write_text(json.dumps({
-                    "score_fast": None,
-                    "total_sec": max_trial_sec,
-                    "preprocess_sec": None,
-                    "n_features_out": None,
-                    "seed": seed,
-                    "split_id": split_id,
-                    "enabled_steps": meta.get("enabled_steps"),
-                    "variant_map": meta.get("variant_map"),
-                    "error": f"timeout after {max_trial_sec}s",
-                }, indent=2))
+                metrics_path.write_text(
+                    json.dumps(
+                        {
+                            "score_fast": None,
+                            "total_sec": max_trial_sec,
+                            "preprocess_sec": None,
+                            "n_features_out": None,
+                            "seed": seed,
+                            "split_id": split_id,
+                            "enabled_steps": meta.get("enabled_steps"),
+                            "variant_map": meta.get("variant_map"),
+                            "error": f"timeout after {max_trial_sec}s",
+                        },
+                        indent=2,
+                    )
+                )
             _cleanup_trial_artifacts(
-                trial_dir, project_root,
-                cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+                trial_dir,
+                project_root,
+                cleanup_model=model_cleanup,
+                cleanup_processed=cleanup_processed,
             )
             raise optuna.TrialPruned(f"timeout after {max_trial_sec}s")
         else:
@@ -1176,20 +1349,27 @@ def run_optimization_loop(
 
         metrics_path = trial_dir / "metrics.json"
         if not metrics_path.exists():
-            metrics_path.write_text(json.dumps({
-                "score_fast": None,
-                "total_sec": None,
-                "preprocess_sec": None,
-                "n_features_out": None,
-                "seed": seed,
-                "split_id": split_id,
-                "enabled_steps": meta.get("enabled_steps"),
-                "variant_map": meta.get("variant_map"),
-                "error": "trial failed (no metrics)",
-            }, indent=2))
+            metrics_path.write_text(
+                json.dumps(
+                    {
+                        "score_fast": None,
+                        "total_sec": None,
+                        "preprocess_sec": None,
+                        "n_features_out": None,
+                        "seed": seed,
+                        "split_id": split_id,
+                        "enabled_steps": meta.get("enabled_steps"),
+                        "variant_map": meta.get("variant_map"),
+                        "error": "trial failed (no metrics)",
+                    },
+                    indent=2,
+                )
+            )
             _cleanup_trial_artifacts(
-                trial_dir, project_root,
-                cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+                trial_dir,
+                project_root,
+                cleanup_model=model_cleanup,
+                cleanup_processed=cleanup_processed,
             )
             raise optuna.TrialPruned("trial failed (no metrics)")
 
@@ -1197,13 +1377,15 @@ def run_optimization_loop(
         score_fast = metrics.get("score_fast")
         total_sec = time.time() - start_time
 
-        metrics.update({
-            "total_sec": total_sec,
-            "seed": seed,
-            "split_id": split_id,
-            "enabled_steps": meta.get("enabled_steps"),
-            "variant_map": meta.get("variant_map"),
-        })
+        metrics.update(
+            {
+                "total_sec": total_sec,
+                "seed": seed,
+                "split_id": split_id,
+                "enabled_steps": meta.get("enabled_steps"),
+                "variant_map": meta.get("variant_map"),
+            }
+        )
         metrics_path.write_text(json.dumps(metrics, indent=2))
 
         trial.set_user_attr("total_sec", total_sec)
@@ -1215,14 +1397,18 @@ def run_optimization_loop(
 
         if score_fast is None:
             _cleanup_trial_artifacts(
-                trial_dir, project_root,
-                cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+                trial_dir,
+                project_root,
+                cleanup_model=model_cleanup,
+                cleanup_processed=cleanup_processed,
             )
             raise optuna.TrialPruned("no score")
-        
+
         _cleanup_trial_artifacts(
-            trial_dir, project_root,
-            cleanup_model=model_cleanup, cleanup_processed=cleanup_processed,
+            trial_dir,
+            project_root,
+            cleanup_model=model_cleanup,
+            cleanup_processed=cleanup_processed,
         )
         return float(score_fast)
 
@@ -1231,6 +1417,7 @@ def run_optimization_loop(
     def _on_trial_complete(study_obj, trial_obj):
         try:
             import optuna
+
             if trial_obj.state != optuna.trial.TrialState.COMPLETE:
                 return
             if study_obj.best_trial.number != trial_obj.number:
@@ -1246,7 +1433,9 @@ def run_optimization_loop(
                 trial_obj.number,
                 Path(pipeline_path),
             )
-            trial_obj.set_user_attr("best_chain_template", template_info.get("chain_template"))
+            trial_obj.set_user_attr(
+                "best_chain_template", template_info.get("chain_template")
+            )
             best_written.add(trial_obj.number)
             console.print(
                 f"[green]✓ New best trial {trial_obj.number} -> templates written ({template_info.get('base_name')})[/green]"
@@ -1261,7 +1450,9 @@ def run_optimization_loop(
                 db_path = Path(str(storage_url).replace("sqlite:///", ""))
                 signal_file = db_path.parent / ".optuna_stop_signal"
                 if signal_file.exists():
-                    console.print(f"[bold yellow]⚠ Stop signal detected at {signal_file}. Gracefully stopping study...[/bold yellow]")
+                    console.print(
+                        f"[bold yellow]⚠ Stop signal detected at {signal_file}. Gracefully stopping study...[/bold yellow]"
+                    )
                     study_obj.stop()
                     try:
                         signal_file.unlink()
@@ -1331,7 +1522,9 @@ def run_optimization_loop(
             for key in sorted(params.keys()):
                 best_lines.append(f"  {key}: {_fmt_param_value(params[key])}")
 
-        console.print(Panel("\n".join(best_lines), title="Best Trial", border_style="green"))
+        console.print(
+            Panel("\n".join(best_lines), title="Best Trial", border_style="green")
+        )
     except Exception:
         pass
 
@@ -1380,7 +1573,7 @@ def run_optimization_loop(
 
             best_chain_path = Path(best_payload["best_chain_template"])
             best_chain_name = best_chain_path.stem
-            
+
             next_steps = (
                 f"[bold]1.[/] Run preprocess chain:\n"
                 f"   • [cyan]uv run python scripts/mla.py preprocess project={project_name} preprocess_template={best_chain_name}[/cyan]\n"
@@ -1400,5 +1593,8 @@ def run_optimization_loop(
             "best_value": best_payload.get("best_value"),
             "best_chain_template": best_payload.get("best_chain_template"),
         },
-        artifacts=[artifact_dir / "study_best.json", artifact_dir / "study_config.json"],
+        artifacts=[
+            artifact_dir / "study_best.json",
+            artifact_dir / "study_config.json",
+        ],
     )

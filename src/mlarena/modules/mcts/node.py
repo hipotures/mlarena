@@ -2,7 +2,8 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
+
 
 @dataclass
 class Action:
@@ -48,6 +49,7 @@ class Action:
             prior=float(d.get("prior", 1.0)),
         )
 
+
 @dataclass
 class PipelineState:
     steps: List[Dict[str, Any]] = field(default_factory=list)
@@ -66,7 +68,7 @@ class PipelineState:
                     group = step.get("group") or step.get("name")
                     if group:
                         self.used_groups[group] = step.get("name")
-            
+
             # ALWAYS recover last_step_index from steps if it's unset (-1)
             if self.last_step_index == -1:
                 for step in self.steps:
@@ -81,49 +83,55 @@ class PipelineState:
         """
         canonical_steps = []
         for s in self.steps:
-            canonical_steps.append({
-                "name": s["name"],
-                "template": s.get("template") or s["name"],
-                "group": s.get("group") or s.get("name"),
-                "variant": s["variant"],
-                "config": s["config"],
-                "searched_index": int(s.get("searched_index", -1)),
-                "original_index": int(s.get("original_index", -1)),
-                "param_sample_id": int(s.get("param_sample_id", 0)),
-            })
-            
+            canonical_steps.append(
+                {
+                    "name": s["name"],
+                    "template": s.get("template") or s["name"],
+                    "group": s.get("group") or s.get("name"),
+                    "variant": s["variant"],
+                    "config": s["config"],
+                    "searched_index": int(s.get("searched_index", -1)),
+                    "original_index": int(s.get("original_index", -1)),
+                    "param_sample_id": int(s.get("param_sample_id", 0)),
+                }
+            )
+
         serialized = json.dumps(canonical_steps, sort_keys=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def add_action(self, action: Action) -> PipelineState:
         """Return a new state with the action applied."""
         if action.group_name in self.used_groups:
-            raise ValueError(f"Group '{action.group_name}' already used by '{self.used_groups[action.group_name]}'")
-            
+            raise ValueError(
+                f"Group '{action.group_name}' already used by '{self.used_groups[action.group_name]}'"
+            )
+
         if action.searched_index <= self.last_step_index:
-            raise ValueError(f"Action index {action.searched_index} violates order (last: {self.last_step_index})")
+            raise ValueError(
+                f"Action index {action.searched_index} violates order (last: {self.last_step_index})"
+            )
 
         new_step = {
             "name": action.step_name,
             "template": action.template_name,
-            "group": action.group_name, 
+            "group": action.group_name,
             "variant": action.variant_name,
             "config": action.config,
             "searched_index": action.searched_index,
             "original_index": action.original_index,
-            "param_sample_id": int(action.param_sample_id)
+            "param_sample_id": int(action.param_sample_id),
         }
-        
+
         new_steps = list(self.steps) + [new_step]
-        
+
         # Explicitly propagate and update used_groups to preserve fixed step constraints
         new_used = dict(self.used_groups)
         new_used[action.group_name] = action.step_name
-        
+
         new_state = PipelineState(
             steps=new_steps,
             depth=len(new_steps),
             used_groups=new_used,
-            last_step_index=action.searched_index
+            last_step_index=action.searched_index,
         )
         return new_state

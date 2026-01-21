@@ -9,6 +9,7 @@ This module implements the preprocessing interface expected by MLArena:
 - fit_transform(train_df, val_df, test_df, config) -> (train_df, val_df, test_df, state_dict)
 - transform(df, state_dict, config) -> df  # Optional, for inference
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple
@@ -24,7 +25,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Impute missing values in numeric and categorical columns.
 
@@ -75,12 +78,20 @@ def fit_transform(
         "categorical_strategy": categorical_strategy,
         "missing_counts": {
             "train": {
-                "numeric": int(train_df[numeric_cols].isnull().sum().sum()) if numeric_cols else 0,
-                "categorical": int(train_df[categorical_cols].isnull().sum().sum()) if categorical_cols else 0,
+                "numeric": int(train_df[numeric_cols].isnull().sum().sum())
+                if numeric_cols
+                else 0,
+                "categorical": int(train_df[categorical_cols].isnull().sum().sum())
+                if categorical_cols
+                else 0,
             },
             "test": {
-                "numeric": int(test_df[numeric_cols].isnull().sum().sum()) if numeric_cols else 0,
-                "categorical": int(test_df[categorical_cols].isnull().sum().sum()) if categorical_cols else 0,
+                "numeric": int(test_df[numeric_cols].isnull().sum().sum())
+                if numeric_cols
+                else 0,
+                "categorical": int(test_df[categorical_cols].isnull().sum().sum())
+                if categorical_cols
+                else 0,
             },
         },
     }
@@ -88,9 +99,15 @@ def fit_transform(
     # Impute numeric columns
     if numeric_cols:
         try:
-            num_imputer = SimpleImputer(strategy=numeric_strategy, fill_value=fill_value, keep_empty_features=True)
+            num_imputer = SimpleImputer(
+                strategy=numeric_strategy,
+                fill_value=fill_value,
+                keep_empty_features=True,
+            )
         except TypeError:
-            num_imputer = SimpleImputer(strategy=numeric_strategy, fill_value=fill_value)
+            num_imputer = SimpleImputer(
+                strategy=numeric_strategy, fill_value=fill_value
+            )
 
         train_df[numeric_cols] = num_imputer.fit_transform(train_df[numeric_cols])
         test_df[numeric_cols] = num_imputer.transform(test_df[numeric_cols])
@@ -100,17 +117,27 @@ def fit_transform(
             orig_df[numeric_cols] = num_imputer.transform(orig_df[numeric_cols])
 
         state["numeric_imputer_params"] = {
-            "statistics": num_imputer.statistics_.tolist() if hasattr(num_imputer, 'statistics_') else [],
+            "statistics": num_imputer.statistics_.tolist()
+            if hasattr(num_imputer, "statistics_")
+            else [],
         }
 
     # Impute categorical columns
     if categorical_cols:
         try:
-            cat_imputer = SimpleImputer(strategy=categorical_strategy, fill_value="missing", keep_empty_features=True)
+            cat_imputer = SimpleImputer(
+                strategy=categorical_strategy,
+                fill_value="missing",
+                keep_empty_features=True,
+            )
         except TypeError:
-            cat_imputer = SimpleImputer(strategy=categorical_strategy, fill_value="missing")
+            cat_imputer = SimpleImputer(
+                strategy=categorical_strategy, fill_value="missing"
+            )
 
-        train_df[categorical_cols] = cat_imputer.fit_transform(train_df[categorical_cols])
+        train_df[categorical_cols] = cat_imputer.fit_transform(
+            train_df[categorical_cols]
+        )
         test_df[categorical_cols] = cat_imputer.transform(test_df[categorical_cols])
         if val_df is not None:
             val_df[categorical_cols] = cat_imputer.transform(val_df[categorical_cols])
@@ -118,13 +145,17 @@ def fit_transform(
             orig_df[categorical_cols] = cat_imputer.transform(orig_df[categorical_cols])
 
         state["categorical_imputer_params"] = {
-            "statistics": [str(s) for s in cat_imputer.statistics_] if hasattr(cat_imputer, 'statistics_') else [],
+            "statistics": [str(s) for s in cat_imputer.statistics_]
+            if hasattr(cat_imputer, "statistics_")
+            else [],
         }
 
     return train_df, val_df, test_df, orig_df, state
 
 
-def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
+def transform(
+    df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]
+) -> pd.DataFrame:
     """
     Apply fitted imputers to new data.
 

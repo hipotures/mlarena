@@ -7,7 +7,7 @@ Parameters: drift_metric, max_psi, max_ks, max_pvalue, min_auc, action, max_drop
 """
 
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple
 import warnings
 
 import pandas as pd
@@ -48,7 +48,7 @@ def _calculate_psi(train_col: pd.Series, test_col: pd.Series, bins: int = 10) ->
     if pd.api.types.is_numeric_dtype(train_col):
         # Numeric: create bins based on train quantiles
         try:
-            _, bin_edges = pd.qcut(train_clean, q=bins, retbins=True, duplicates='drop')
+            _, bin_edges = pd.qcut(train_clean, q=bins, retbins=True, duplicates="drop")
             train_binned = pd.cut(train_clean, bins=bin_edges, include_lowest=True)
             test_binned = pd.cut(test_clean, bins=bin_edges, include_lowest=True)
         except (ValueError, TypeError):
@@ -65,7 +65,9 @@ def _calculate_psi(train_col: pd.Series, test_col: pd.Series, bins: int = 10) ->
 
     # Align distributions
     all_bins = train_dist.index.union(test_dist.index)
-    train_pct = train_dist.reindex(all_bins, fill_value=0.001)  # Small epsilon to avoid log(0)
+    train_pct = train_dist.reindex(
+        all_bins, fill_value=0.001
+    )  # Small epsilon to avoid log(0)
     test_pct = test_dist.reindex(all_bins, fill_value=0.001)
 
     # Calculate PSI
@@ -74,7 +76,9 @@ def _calculate_psi(train_col: pd.Series, test_col: pd.Series, bins: int = 10) ->
     return psi
 
 
-def _calculate_ks_statistic(train_col: pd.Series, test_col: pd.Series) -> Tuple[float, float]:
+def _calculate_ks_statistic(
+    train_col: pd.Series, test_col: pd.Series
+) -> Tuple[float, float]:
     """
     Calculate Kolmogorov-Smirnov statistic for numeric features.
 
@@ -98,7 +102,9 @@ def _calculate_ks_statistic(train_col: pd.Series, test_col: pd.Series) -> Tuple[
         return np.nan, np.nan
 
 
-def _calculate_chi2_statistic(train_col: pd.Series, test_col: pd.Series) -> Tuple[float, float]:
+def _calculate_chi2_statistic(
+    train_col: pd.Series, test_col: pd.Series
+) -> Tuple[float, float]:
     """
     Calculate Chi-Square statistic for categorical features.
 
@@ -125,10 +131,7 @@ def _calculate_chi2_statistic(train_col: pd.Series, test_col: pd.Series) -> Tupl
     test_counts = test_dist.reindex(all_cats, fill_value=0)
 
     # Create contingency table
-    contingency = pd.DataFrame({
-        'train': train_counts,
-        'test': test_counts
-    }).T
+    contingency = pd.DataFrame({"train": train_counts, "test": test_counts}).T
 
     try:
         chi2_stat, p_value, _, _ = stats.chi2_contingency(contingency)
@@ -138,9 +141,7 @@ def _calculate_chi2_statistic(train_col: pd.Series, test_col: pd.Series) -> Tupl
 
 
 def _calculate_model_auc(
-    train_col: pd.Series,
-    test_col: pd.Series,
-    random_state: int = 42
+    train_col: pd.Series, test_col: pd.Series, random_state: int = 42
 ) -> float:
     """
     Train a simple model to discriminate train vs test (AUC).
@@ -165,25 +166,20 @@ def _calculate_model_auc(
 
     # Combine data
     X_combined = pd.concat([train_clean, test_clean], axis=0).values.reshape(-1, 1)
-    y_combined = np.concatenate([
-        np.zeros(len(train_clean)),
-        np.ones(len(test_clean))
-    ])
+    y_combined = np.concatenate([np.zeros(len(train_clean)), np.ones(len(test_clean))])
 
     # Handle categorical
     if not pd.api.types.is_numeric_dtype(train_col):
         # Simple label encoding
         from sklearn.preprocessing import LabelEncoder
+
         le = LabelEncoder()
         X_combined = le.fit_transform(X_combined.ravel()).reshape(-1, 1)
 
     try:
         # Train simple classifier
         clf = RandomForestClassifier(
-            n_estimators=50,
-            max_depth=3,
-            random_state=random_state,
-            n_jobs=-1
+            n_estimators=50, max_depth=3, random_state=random_state, n_jobs=-1
         )
 
         # Use small sample if data is too large
@@ -209,7 +205,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Drift detection preprocessing - detect and optionally remove features with distribution drift.
 
@@ -264,16 +262,12 @@ def fit_transform(
 
     # Validate drift_metric choice
     validation.validate_choice(
-        config["drift_metric"],
-        ["psi", "ks", "chi2", "model_auc"],
-        "drift_metric"
+        config["drift_metric"], ["psi", "ks", "chi2", "model_auc"], "drift_metric"
     )
 
     # Validate action choice
     validation.validate_choice(
-        config["action"],
-        ["none", "drop", "flag_only"],
-        "action"
+        config["action"], ["none", "drop", "flag_only"], "action"
     )
 
     # 3. Create sub-module artifact directory
@@ -287,17 +281,28 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns + config["exclude_cols"]
 
     # Get all columns except excluded
-    columns_to_check = [col for col in train_df.columns if col not in exclude_cols and col in test_df.columns]
+    columns_to_check = [
+        col
+        for col in train_df.columns
+        if col not in exclude_cols and col in test_df.columns
+    ]
 
     if len(columns_to_check) == 0:
-        warnings.warn("No columns to check for drift (all excluded or not in both train/test)")
-        return train_df, val_df, test_df, {
-            "version": "1.0",
-            "drift_results": {},
-            "columns_dropped": [],
-            "columns_flagged": [],
-            "config": {k: v for k, v in config.items() if not k.startswith("_")},
-        }
+        warnings.warn(
+            "No columns to check for drift (all excluded or not in both train/test)"
+        )
+        return (
+            train_df,
+            val_df,
+            test_df,
+            {
+                "version": "1.0",
+                "drift_results": {},
+                "columns_dropped": [],
+                "columns_flagged": [],
+                "config": {k: v for k, v in config.items() if not k.startswith("_")},
+            },
+        )
 
     # 6. Calculate drift metrics
     drift_results = {}
@@ -309,17 +314,23 @@ def fit_transform(
         if drift_metric == "psi":
             psi = _calculate_psi(train_df[col], test_df[col])
             result["psi"] = float(psi) if not np.isnan(psi) else None
-            result["drifted"] = bool(psi > config["max_psi"]) if not np.isnan(psi) else False
+            result["drifted"] = (
+                bool(psi > config["max_psi"]) if not np.isnan(psi) else False
+            )
 
         elif drift_metric == "ks":
             # Only for numeric columns
             if pd.api.types.is_numeric_dtype(train_df[col]):
                 ks_stat, p_value = _calculate_ks_statistic(train_df[col], test_df[col])
-                result["ks_statistic"] = float(ks_stat) if not np.isnan(ks_stat) else None
+                result["ks_statistic"] = (
+                    float(ks_stat) if not np.isnan(ks_stat) else None
+                )
                 result["p_value"] = float(p_value) if not np.isnan(p_value) else None
-                result["drifted"] = bool(
-                    (ks_stat > config["max_ks"] or p_value < config["max_pvalue"])
-                ) if not np.isnan(ks_stat) else False
+                result["drifted"] = (
+                    bool((ks_stat > config["max_ks"] or p_value < config["max_pvalue"]))
+                    if not np.isnan(ks_stat)
+                    else False
+                )
             else:
                 result["ks_statistic"] = None
                 result["p_value"] = None
@@ -328,24 +339,38 @@ def fit_transform(
         elif drift_metric == "chi2":
             # Only for categorical columns
             if not pd.api.types.is_numeric_dtype(train_df[col]):
-                chi2_stat, p_value = _calculate_chi2_statistic(train_df[col], test_df[col])
-                result["chi2_statistic"] = float(chi2_stat) if not np.isnan(chi2_stat) else None
+                chi2_stat, p_value = _calculate_chi2_statistic(
+                    train_df[col], test_df[col]
+                )
+                result["chi2_statistic"] = (
+                    float(chi2_stat) if not np.isnan(chi2_stat) else None
+                )
                 result["p_value"] = float(p_value) if not np.isnan(p_value) else None
-                result["drifted"] = bool(p_value < config["max_pvalue"]) if not np.isnan(p_value) else False
+                result["drifted"] = (
+                    bool(p_value < config["max_pvalue"])
+                    if not np.isnan(p_value)
+                    else False
+                )
             else:
                 result["chi2_statistic"] = None
                 result["p_value"] = None
                 result["drifted"] = False
 
         elif drift_metric == "model_auc":
-            auc = _calculate_model_auc(train_df[col], test_df[col], config["random_state"])
+            auc = _calculate_model_auc(
+                train_df[col], test_df[col], config["random_state"]
+            )
             result["auc"] = float(auc) if not np.isnan(auc) else None
-            result["drifted"] = bool(auc > config["min_auc"]) if not np.isnan(auc) else False
+            result["drifted"] = (
+                bool(auc > config["min_auc"]) if not np.isnan(auc) else False
+            )
 
         drift_results[col] = result
 
     # 7. Identify drifted columns
-    drifted_cols = [col for col, res in drift_results.items() if res.get("drifted", False)]
+    drifted_cols = [
+        col for col, res in drift_results.items() if res.get("drifted", False)
+    ]
 
     # 8. Apply max_drop_fraction limit
     max_allowed_drops = int(len(columns_to_check) * config["max_drop_fraction"])
@@ -354,20 +379,17 @@ def fit_transform(
         # Sort by drift severity and take top K
         if drift_metric == "psi":
             drifted_cols_sorted = sorted(
-                drifted_cols,
-                key=lambda c: drift_results[c].get("psi", 0),
-                reverse=True
+                drifted_cols, key=lambda c: drift_results[c].get("psi", 0), reverse=True
             )
         elif drift_metric in ["ks", "chi2"]:
             drifted_cols_sorted = sorted(
-                drifted_cols,
-                key=lambda c: drift_results[c].get("p_value", 1)
+                drifted_cols, key=lambda c: drift_results[c].get("p_value", 1)
             )
         elif drift_metric == "model_auc":
             drifted_cols_sorted = sorted(
                 drifted_cols,
                 key=lambda c: drift_results[c].get("auc", 0.5),
-                reverse=True
+                reverse=True,
             )
         else:
             drifted_cols_sorted = drifted_cols

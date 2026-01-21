@@ -79,7 +79,9 @@ class ModuleRegistry:
         if force_reload:
             # Purge cached modules to force decorator side effects after a clear.
             for modname in list(sys.modules.keys()):
-                if modname == "mlarena.modules" or modname.startswith("mlarena.modules."):
+                if modname == "mlarena.modules" or modname.startswith(
+                    "mlarena.modules."
+                ):
                     sys.modules.pop(modname, None)
 
         # Import modules package (uses cache if force_reload=False)

@@ -4,13 +4,11 @@ Pipeline execution logic for MLArena.
 Resolves module dependencies and coordinates state updates.
 """
 
-import traceback
 from datetime import datetime as dt
 from typing import Dict, List
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 
 from .module import BaseModule, ModuleResult
 from .experiment import OverwriteLockedError
@@ -686,7 +684,7 @@ class PipelineExecutor:
 
                     json_output = getattr(module, "invocation_params", {}).get("json_output", False)
                     if not json_output:
-                        console.print(f"\n[dim]Use [cyan]force=true[/cyan] to re-run this module[/dim]\n")
+                        console.print("\n[dim]Use [cyan]force=true[/cyan] to re-run this module[/dim]\n")
 
                     results[name] = ModuleResult(success=True, payload=state_entry.payload)
                     continue
@@ -905,7 +903,7 @@ class PipelineExecutor:
 
                     from mlarena.core.module import print_next_steps
                     print_next_steps(name, module.context.project_name, module.context.experiment_id, console)
-                except Exception as e:
+                except Exception:
                     pass
 
                 results[name] = outcome

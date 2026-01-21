@@ -7,7 +7,7 @@ Parameters: column_types_override, min_unique_fraction, max_missing_fraction, dr
 """
 
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Tuple
 import warnings
 
 import pandas as pd
@@ -27,7 +27,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Sanity check preprocessing - basic cleaning and type enforcement.
 
@@ -81,20 +83,20 @@ def fit_transform(
         config["min_unique_fraction"],
         min_value=0.0,
         max_value=1.0,
-        param_name="min_unique_fraction"
+        param_name="min_unique_fraction",
     )
     validation.validate_numeric_range(
         config["max_missing_fraction"],
         min_value=0.0,
         max_value=1.0,
-        param_name="max_missing_fraction"
+        param_name="max_missing_fraction",
     )
     if config["max_missing_fraction_row"] is not None:
         validation.validate_numeric_range(
             config["max_missing_fraction_row"],
             min_value=0.0,
             max_value=1.0,
-            param_name="max_missing_fraction_row"
+            param_name="max_missing_fraction_row",
         )
 
     # 3. Create sub-module artifact directory
@@ -105,8 +107,12 @@ def fit_transform(
     test_df_original = dataframe_utils.copy_dataframe(test_df)
 
     # 5. Protected columns (never drop these)
-    protected_cols = [id_column] + ([target_column] if target_column else []) + \
-                    ignored_columns + config["ignore_columns"]
+    protected_cols = (
+        [id_column]
+        + ([target_column] if target_column else [])
+        + ignored_columns
+        + config["ignore_columns"]
+    )
     protected_cols = [col for col in protected_cols if col]  # Remove None/empty
 
     # 6. Perform sanity checks and transformations
@@ -168,11 +174,13 @@ def fit_transform(
         unique_fraction = train_df[col].nunique() / len(train_df)
         if unique_fraction < config["min_unique_fraction"]:
             constant_cols.append(col)
-            issues_found["constant_columns"].append({
-                "column": col,
-                "unique_count": int(train_df[col].nunique()),
-                "unique_fraction": float(unique_fraction),
-            })
+            issues_found["constant_columns"].append(
+                {
+                    "column": col,
+                    "unique_count": int(train_df[col].nunique()),
+                    "unique_fraction": float(unique_fraction),
+                }
+            )
 
     # 6.4. Detect high missing columns (in train only)
     high_missing_cols = []
@@ -183,11 +191,13 @@ def fit_transform(
         missing_fraction = train_df[col].isnull().mean()
         if missing_fraction > config["max_missing_fraction"]:
             high_missing_cols.append(col)
-            issues_found["high_missing_columns"].append({
-                "column": col,
-                "missing_count": int(train_df[col].isnull().sum()),
-                "missing_fraction": float(missing_fraction),
-            })
+            issues_found["high_missing_columns"].append(
+                {
+                    "column": col,
+                    "missing_count": int(train_df[col].isnull().sum()),
+                    "missing_fraction": float(missing_fraction),
+                }
+            )
 
     # 6.5. Combine columns to drop
     columns_to_drop = list(set(constant_cols + high_missing_cols))
@@ -203,7 +213,12 @@ def fit_transform(
     # 6.6. Drop rows with too many missing values
     if config["max_missing_fraction_row"] is not None:
         max_missing = config["max_missing_fraction_row"]
-        for df_name, df in [("train", train_df), ("test", test_df), ("val", val_df), ("orig", orig_df)]:
+        for df_name, df in [
+            ("train", train_df),
+            ("test", test_df),
+            ("val", val_df),
+            ("orig", orig_df),
+        ]:
             if df is None:
                 continue
             missing_fraction = df.isnull().mean(axis=1)
@@ -228,26 +243,26 @@ def fit_transform(
         # For train, keep first occurrence
         duplicates_removed_train = train_df.duplicated().sum()
         if duplicates_removed_train > 0:
-            train_df = train_df.drop_duplicates(keep='first')
+            train_df = train_df.drop_duplicates(keep="first")
             issues_found["duplicate_rows_train"] = int(duplicates_removed_train)
 
         # For test, keep first occurrence
         duplicates_removed_test = test_df.duplicated().sum()
         if duplicates_removed_test > 0:
-            test_df = test_df.drop_duplicates(keep='first')
+            test_df = test_df.drop_duplicates(keep="first")
             issues_found["duplicate_rows_test"] = int(duplicates_removed_test)
 
         # For val, keep first occurrence
         if val_df is not None:
             duplicates_removed_val = val_df.duplicated().sum()
             if duplicates_removed_val > 0:
-                val_df = val_df.drop_duplicates(keep='first')
+                val_df = val_df.drop_duplicates(keep="first")
 
         # For orig, keep first occurrence
         if orig_df is not None:
             duplicates_removed_orig = orig_df.duplicated().sum()
             if duplicates_removed_orig > 0:
-                orig_df = orig_df.drop_duplicates(keep='first')
+                orig_df = orig_df.drop_duplicates(keep="first")
                 issues_found["duplicate_rows_orig"] = int(duplicates_removed_orig)
 
     # 6.7. Enforce column types (if specified)
@@ -269,11 +284,9 @@ def fit_transform(
             types_changed[col] = {"from": old_dtype, "to": dtype}
         except Exception as e:
             warnings.warn(f"Could not convert column '{col}' to {dtype}: {e}")
-            issues_found["type_mismatches"].append({
-                "column": col,
-                "target_type": dtype,
-                "error": str(e)
-            })
+            issues_found["type_mismatches"].append(
+                {"column": col, "target_type": dtype, "error": str(e)}
+            )
 
     # 7. Reset indices after dropping duplicates
     train_df = train_df.reset_index(drop=True)
@@ -319,7 +332,9 @@ def fit_transform(
         "columns_dropped_count": len(columns_to_drop),
         "duplicates_removed_train": int(duplicates_removed_train),
         "duplicates_removed_test": int(duplicates_removed_test),
-        "duplicates_removed_orig": int(duplicates_removed_orig) if orig_df is not None else 0,
+        "duplicates_removed_orig": int(duplicates_removed_orig)
+        if orig_df is not None
+        else 0,
         "types_changed": types_changed,
     }
 

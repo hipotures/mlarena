@@ -49,7 +49,14 @@ def _apply_polynomial_features(
     interaction_only: bool,
     remaining_slots: int,
     existing_cols: set,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, List[str], Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    List[str],
+    Dict[str, Any],
+]:
     if degree is None or degree <= 1 or not poly_cols:
         return train_df, val_df, test_df, orig_df, [], {}
 
@@ -59,33 +66,50 @@ def _apply_polynomial_features(
             "Skipping polynomial features because input contains NaN. "
             "Run an imputer earlier in the chain or set poly_degree: null."
         )
-        return train_df, val_df, test_df, orig_df, [], {
-            "type": "polynomial",
-            "skipped": True,
-            "reason": "nan_in_input",
-            "input_columns": poly_cols,
-        }
+        return (
+            train_df,
+            val_df,
+            test_df,
+            orig_df,
+            [],
+            {
+                "type": "polynomial",
+                "skipped": True,
+                "reason": "nan_in_input",
+                "input_columns": poly_cols,
+            },
+        )
 
     # Safety check: estimate number of features to avoid OOM
     n = len(poly_cols)
     from math import comb
+
     if interaction_only:
         num_expected = sum(comb(n, i) for i in range(1, degree + 1))
     else:
-        num_expected = comb(n + degree, degree) - 1 # excluding bias if not requested, but close enough
-    
+        num_expected = (
+            comb(n + degree, degree) - 1
+        )  # excluding bias if not requested, but close enough
+
     if num_expected > 10000:
         warnings.warn(
             f"Polynomial expansion (degree {degree}) for {n} columns would create ~{num_expected} features. "
             f"Skipping to avoid OOM (limit: 10,000)."
         )
-        return train_df, val_df, test_df, orig_df, [], {
-            "type": "polynomial",
-            "skipped": True,
-            "reason": "too_many_features",
-            "num_expected": num_expected,
-            "input_columns": poly_cols,
-        }
+        return (
+            train_df,
+            val_df,
+            test_df,
+            orig_df,
+            [],
+            {
+                "type": "polynomial",
+                "skipped": True,
+                "reason": "too_many_features",
+                "num_expected": num_expected,
+                "input_columns": poly_cols,
+            },
+        )
 
     poly = PolynomialFeatures(
         degree=degree,
@@ -96,13 +120,27 @@ def _apply_polynomial_features(
     train_poly = poly.fit_transform(train_df[poly_cols])
     test_poly = poly.transform(test_df[poly_cols])
     val_poly = poly.transform(val_df[poly_cols]) if val_df is not None else None
-    orig_poly = poly.transform(orig_df[poly_cols]) if orig_df is not None and all(c in orig_df.columns for c in poly_cols) else None
+    orig_poly = (
+        poly.transform(orig_df[poly_cols])
+        if orig_df is not None and all(c in orig_df.columns for c in poly_cols)
+        else None
+    )
 
     feature_names = poly.get_feature_names_out(poly_cols)
-    poly_train_df = pd.DataFrame(train_poly, columns=feature_names, index=train_df.index)
+    poly_train_df = pd.DataFrame(
+        train_poly, columns=feature_names, index=train_df.index
+    )
     poly_test_df = pd.DataFrame(test_poly, columns=feature_names, index=test_df.index)
-    poly_val_df = pd.DataFrame(val_poly, columns=feature_names, index=val_df.index) if val_df is not None else None
-    poly_orig_df = pd.DataFrame(orig_poly, columns=feature_names, index=orig_df.index) if orig_poly is not None else None
+    poly_val_df = (
+        pd.DataFrame(val_poly, columns=feature_names, index=val_df.index)
+        if val_df is not None
+        else None
+    )
+    poly_orig_df = (
+        pd.DataFrame(orig_poly, columns=feature_names, index=orig_df.index)
+        if orig_poly is not None
+        else None
+    )
 
     # Only keep new columns to avoid overwriting originals
     new_feature_names = [name for name in feature_names if name not in train_df.columns]
@@ -155,7 +193,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Feature polynomial preprocessing sub-module.
     """
@@ -194,7 +234,9 @@ def fit_transform(
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_polynomial")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "feature_polynomial"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -207,7 +249,9 @@ def fit_transform(
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, orig_features
+        )
 
     if not numeric_cols and config["poly_degree"]:
         warnings.warn("No numeric columns available for polynomial features")
@@ -220,20 +264,26 @@ def fit_transform(
 
     # 6. Polynomial features
     if config["poly_degree"]:
-        poly_cols = config["poly_columns"] if config["poly_columns"] is not None else numeric_cols
+        poly_cols = (
+            config["poly_columns"]
+            if config["poly_columns"] is not None
+            else numeric_cols
+        )
         poly_cols = [col for col in poly_cols if col in numeric_cols]
 
-        train_df, val_df, test_df, orig_df, poly_cols_added, polynomial_details = _apply_polynomial_features(
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            orig_df=orig_df,
-            poly_cols=poly_cols,
-            degree=config["poly_degree"],
-            include_bias=config["poly_include_bias"],
-            interaction_only=config["poly_interaction_only"],
-            remaining_slots=max_new,
-            existing_cols=existing_cols,
+        train_df, val_df, test_df, orig_df, poly_cols_added, polynomial_details = (
+            _apply_polynomial_features(
+                train_df=train_df,
+                val_df=val_df,
+                test_df=test_df,
+                orig_df=orig_df,
+                poly_cols=poly_cols,
+                degree=config["poly_degree"],
+                include_bias=config["poly_include_bias"],
+                interaction_only=config["poly_interaction_only"],
+                remaining_slots=max_new,
+                existing_cols=existing_cols,
+            )
         )
         new_columns.extend(poly_cols_added)
 
@@ -244,7 +294,9 @@ def fit_transform(
         "total_new_features": len(new_columns),
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
-    artifacts.save_report(feature_report, submodule_dir, "feature_polynomial_report.json")
+    artifacts.save_report(
+        feature_report, submodule_dir, "feature_polynomial_report.json"
+    )
 
     transformation_summary = report.create_preprocessing_report(
         train_before=train_df_original,

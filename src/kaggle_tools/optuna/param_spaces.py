@@ -118,7 +118,9 @@ def xgboost_param_space(trial: optuna.Trial, config: Dict[str, List]) -> Dict[st
     return params
 
 
-def lightgbm_param_space(trial: optuna.Trial, config: Dict[str, List]) -> Dict[str, Any]:
+def lightgbm_param_space(
+    trial: optuna.Trial, config: Dict[str, List]
+) -> Dict[str, Any]:
     """
     Generate LightGBM parameter space from config.
 
@@ -158,7 +160,9 @@ def lightgbm_param_space(trial: optuna.Trial, config: Dict[str, List]) -> Dict[s
     return params
 
 
-def catboost_param_space(trial: optuna.Trial, config: Dict[str, List]) -> Dict[str, Any]:
+def catboost_param_space(
+    trial: optuna.Trial, config: Dict[str, List]
+) -> Dict[str, Any]:
     """
     Generate CatBoost parameter space from config.
 

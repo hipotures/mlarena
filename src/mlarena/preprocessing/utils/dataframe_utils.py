@@ -49,7 +49,9 @@ def get_datetime_columns(df: pd.DataFrame, exclude: List[str] = None) -> List[st
         List of datetime column names
     """
     exclude = exclude or []
-    datetime_cols = df.select_dtypes(include=["datetime", "datetime64"]).columns.tolist()
+    datetime_cols = df.select_dtypes(
+        include=["datetime", "datetime64"]
+    ).columns.tolist()
     return [col for col in datetime_cols if col not in exclude]
 
 
@@ -69,7 +71,9 @@ def get_boolean_columns(df: pd.DataFrame, exclude: List[str] = None) -> List[str
     return [col for col in boolean_cols if col not in exclude]
 
 
-def filter_original_columns(columns: List[str], original_features: Optional[List[str]] = None) -> List[str]:
+def filter_original_columns(
+    columns: List[str], original_features: Optional[List[str]] = None
+) -> List[str]:
     """
     Filter a column list to only those present in the original feature set.
 
@@ -104,9 +108,7 @@ def safe_drop_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
 
 
 def align_columns(
-    train_df: pd.DataFrame,
-    test_df: pd.DataFrame,
-    fill_value: any = np.nan
+    train_df: pd.DataFrame, test_df: pd.DataFrame, fill_value: any = np.nan
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Ensure train and test have same columns (add missing with fill_value).

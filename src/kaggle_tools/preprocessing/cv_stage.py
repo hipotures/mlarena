@@ -7,7 +7,7 @@ in ways that would leak validation information if fitted on the entire train set
 CRITICAL: These MUST be fitted per-fold within cross-validation loops.
 """
 
-from typing import List, Optional
+from typing import List
 
 import pandas as pd
 import numpy as np
@@ -104,7 +104,9 @@ class TargetEncodingTransformer(BaseTransformer):
         for col, encoding_map in self._encodings.items():
             if col in result.columns:
                 # Map categories to encoded values, use global mean for unseen categories
-                result[f"{col}_te"] = result[col].map(encoding_map).fillna(self._global_mean)
+                result[f"{col}_te"] = (
+                    result[col].map(encoding_map).fillna(self._global_mean)
+                )
 
         return result
 
@@ -141,7 +143,9 @@ class FrequencyEncodingTransformer(BaseTransformer):
         """
         for col in self.columns:
             if col in df.columns:
-                self._freq_maps[col] = df[col].value_counts(normalize=self.normalize).to_dict()
+                self._freq_maps[col] = (
+                    df[col].value_counts(normalize=self.normalize).to_dict()
+                )
 
         self.fitted = True
         return self

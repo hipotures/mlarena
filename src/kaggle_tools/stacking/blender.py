@@ -35,7 +35,9 @@ class WeightedBlender:
         """
         self.weights = weights
 
-    def blend(self, predictions: List[pd.Series], weights: Optional[List[float]] = None) -> pd.Series:
+    def blend(
+        self, predictions: List[pd.Series], weights: Optional[List[float]] = None
+    ) -> pd.Series:
         """
         Blend predictions using weighted average.
 
@@ -69,8 +71,8 @@ class WeightedBlender:
         if len(weights) != n_models:
             raise ValueError(
                 f"Number of weights ({len(weights)}) must match "
-                    f"number of predictions ({n_models})"
-                )
+                f"number of predictions ({n_models})"
+            )
 
             if not np.isclose(weights.sum(), 1.0):
                 raise ValueError(f"Weights must sum to 1.0, got: {weights.sum()}")
@@ -159,7 +161,12 @@ class PowerBlender:
         self.weights = weights
         self.power = power
 
-    def blend(self, predictions: List[pd.Series], power: Optional[float] = None, weights: Optional[List[float]] = None) -> pd.Series:
+    def blend(
+        self,
+        predictions: List[pd.Series],
+        power: Optional[float] = None,
+        weights: Optional[List[float]] = None,
+    ) -> pd.Series:
         """
         Blend predictions using power averaging.
 
@@ -200,7 +207,7 @@ class PowerBlender:
         result = pd.Series(0.0, index=predictions[0].index)
 
         for pred, weight in zip(predictions, weights):
-            result += weight * (pred ** power)
+            result += weight * (pred**power)
 
         result = result ** (1.0 / power)
 

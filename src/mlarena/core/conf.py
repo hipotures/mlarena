@@ -1,26 +1,29 @@
 """
 Unified configuration system for MLArena.
 
-Combines OmegaConf for hierarchical merging and CLI overrides with 
+Combines OmegaConf for hierarchical merging and CLI overrides with
 Pydantic for type validation.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-import os
+from typing import Any, Dict, List, Optional
 
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import OmegaConf
 from pydantic import BaseModel, Field, ConfigDict
+
 
 class CommonConfig(BaseModel):
     """Shared parameters used as fallbacks by modules."""
+
     seed: int = 42
     time_limit: Optional[int] = None
     use_gpu: Optional[bool] = None
     preset: Optional[str] = None
 
+
 class GlobalConfig(BaseModel):
     """The root configuration tree."""
+
     model_config = ConfigDict(
         extra="allow",
         arbitrary_types_allowed=True,
@@ -31,14 +34,14 @@ class GlobalConfig(BaseModel):
     project: str
     experiment_id: Optional[str] = None
     profile: Optional[str] = None
-    
+
     # Auto-flow & Global settings
     model_template: str = "baseline"
     preprocess_template: Optional[str] = None
     wait_seconds: int = 30
     skip_submit: bool = False
     skip_git: bool = False
-    
+
     # Execution control
     force: bool = False
     json_output: bool = False
@@ -48,17 +51,19 @@ class GlobalConfig(BaseModel):
     lock: bool = False  # Create overwrite.lock after successful completion
     skip_deps: bool = False
     show_payload: bool = False
-    
+
     # Sections
     common: CommonConfig = Field(default_factory=CommonConfig)
     mcts_section: Dict[str, Any] = Field(default_factory=dict, alias="mcts_config")
     optuna: Dict[str, Any] = Field(default_factory=dict)
-    
+
     # Modules - dynamic sections
     init: Dict[str, Any] = Field(default_factory=dict)
     eda: Dict[str, Any] = Field(default_factory=dict)
     preprocess: Dict[str, Any] = Field(default_factory=dict)
-    preprocess_tune: Dict[str, Any] = Field(default_factory=dict, alias="preprocess-tune")
+    preprocess_tune: Dict[str, Any] = Field(
+        default_factory=dict, alias="preprocess-tune"
+    )
     feat: Dict[str, Any] = Field(default_factory=dict)
     tune: Dict[str, Any] = Field(default_factory=dict)
     model: Dict[str, Any] = Field(default_factory=dict)
@@ -78,15 +83,24 @@ class ConfigBuilder:
         self.project_name = project_name
         self.repo_root = repo_root
         self.project_root = repo_root / "projects" / "kaggle" / project_name
-        
+
     def _get_profile_path(self, profile_name: str) -> Path:
         """Resolve profile name to a YAML path."""
         # Try project-local profile first, then global
-        local_path = self.project_root / "templates" / "profiles" / f"{profile_name}.yaml"
+        local_path = (
+            self.project_root / "templates" / "profiles" / f"{profile_name}.yaml"
+        )
         if local_path.exists():
             return local_path
-            
-        global_path = self.repo_root / "src" / "mlarena" / "templates" / "profiles" / f"{profile_name}.yaml"
+
+        global_path = (
+            self.repo_root
+            / "src"
+            / "mlarena"
+            / "templates"
+            / "profiles"
+            / f"{profile_name}.yaml"
+        )
         return global_path
 
     def build(self, cli_overrides: List[str]) -> GlobalConfig:
@@ -98,14 +112,16 @@ class ConfigBuilder:
         4. CLI Overrides (e.g., 'model.time_limit=300')
         """
         # 1. Start with base dict from Pydantic defaults
-        base_conf = OmegaConf.create(GlobalConfig(project=self.project_name).model_dump())
-        
+        base_conf = OmegaConf.create(
+            GlobalConfig(project=self.project_name).model_dump()
+        )
+
         # 2. Parse CLI first to check for 'profile' or other early-decision flags
         # We don't merge it yet, just peek
         cli_conf = OmegaConf.from_cli(cli_overrides)
-        
+
         layers = [base_conf]
-        
+
         # 3. Load profile if specified
         profile_name = cli_conf.get("profile")
         if profile_name:
@@ -115,28 +131,48 @@ class ConfigBuilder:
             else:
                 # Fallback for built-in smoke/dev if files don't exist yet
                 if profile_name == "smoke":
-                    layers.append(OmegaConf.create({"common": {"time_limit": 60, "preset": "medium", "use_gpu": False}}))
+                    layers.append(
+                        OmegaConf.create(
+                            {
+                                "common": {
+                                    "time_limit": 60,
+                                    "preset": "medium",
+                                    "use_gpu": False,
+                                }
+                            }
+                        )
+                    )
                 elif profile_name == "dev":
-                    layers.append(OmegaConf.create({"common": {"time_limit": 300, "preset": "high", "use_gpu": False}}))
+                    layers.append(
+                        OmegaConf.create(
+                            {
+                                "common": {
+                                    "time_limit": 300,
+                                    "preset": "high",
+                                    "use_gpu": False,
+                                }
+                            }
+                        )
+                    )
 
         # 4. Load project-specific config.yaml
         project_yaml = self.project_root / "config.yaml"
         if project_yaml.exists():
             layers.append(OmegaConf.load(project_yaml))
-            
+
         # 5. Add CLI overrides last (highest priority)
         layers.append(cli_conf)
-        
+
         # 6. Merge all layers
         merged_conf = OmegaConf.merge(*layers)
-        
+
         # 6b. Enforce quiet flags if json_output is true
         if merged_conf.get("json_output"):
             # Ensure module sections exist
             for section in ["preprocess", "model"]:
                 if section not in merged_conf:
                     merged_conf[section] = {}
-            
+
             if (
                 merged_conf.preprocess.get("quiet_preprocess_panel") is None
                 and merged_conf.preprocess.get("quiet_preprocess_panels") is None
@@ -149,7 +185,7 @@ class ConfigBuilder:
                 merged_conf.model.quiet_model_panel = True
             if merged_conf.model.get("verbosity") is None:
                 merged_conf.model.verbosity = 0
-            
+
             # Also common parameters
             if "common" not in merged_conf:
                 merged_conf.common = {}
@@ -159,7 +195,7 @@ class ConfigBuilder:
 
         # 7. Convert to Pydantic for validation
         container = OmegaConf.to_container(merged_conf, resolve=True)
-        
+
         # Split mcts boolean vs dict
         if "mcts" in container:
             val = container["mcts"]
@@ -168,24 +204,26 @@ class ConfigBuilder:
                 container["mcts_config"] = val
                 # Check if it also contains a boolean flag (from mcts=true)
                 if "enabled" in val:
-                     container["mcts"] = bool(val.pop("enabled"))
+                    container["mcts"] = bool(val.pop("enabled"))
                 else:
-                     # If it's a dict, we assume it's NOT the flag unless explicitly set
-                     # If user passed mcts=true, OmegaConf merges it into this dict.
-                     container["mcts"] = False 
+                    # If it's a dict, we assume it's NOT the flag unless explicitly set
+                    # If user passed mcts=true, OmegaConf merges it into this dict.
+                    container["mcts"] = False
             elif isinstance(val, bool):
                 container["mcts"] = val
                 container["mcts_config"] = {}
 
         config = GlobalConfig(**container)
-        
+
         # Set runtime state
         config.project_root = self.project_root
-        
+
         return config
+
 
 def get_config(project: str, overrides: List[str] = None) -> GlobalConfig:
     """Convenience helper to get config for a project."""
     from mlarena.cli.main import REPO_ROOT
+
     builder = ConfigBuilder(project, REPO_ROOT)
     return builder.build(overrides or [])

@@ -9,6 +9,7 @@ Key difference from dataset_merger:
 - Returns orig as separate dataset (4th return value)
 - Models decide whether to merge train+orig during training
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -26,7 +27,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: Optional[pd.DataFrame] = None,
     eval_df: Optional[pd.DataFrame] = None,
-) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Optional[pd.DataFrame], Optional[pd.DataFrame], Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    Optional[pd.DataFrame],
+    pd.DataFrame,
+    Optional[pd.DataFrame],
+    Optional[pd.DataFrame],
+    Dict[str, Any],
+]:
     """
     Load and align external dataset with Kaggle data.
 
@@ -63,22 +71,29 @@ def fit_transform(
 
     if not orig_path.exists():
         raise FileNotFoundError(
-            f"External dataset not found: {orig_path}\n"
-            f"Project root: {project_root}"
+            f"External dataset not found: {orig_path}\nProject root: {project_root}"
         )
 
-    console.print(f"[cyan]Loading external dataset:[/cyan] {orig_path.relative_to(project_root)}")
-    orig_df_loaded = pd.read_csv(orig_path, compression='infer')
-    console.print(f"  External rows: {len(orig_df_loaded):,}, columns: {len(orig_df_loaded.columns)}")
+    console.print(
+        f"[cyan]Loading external dataset:[/cyan] {orig_path.relative_to(project_root)}"
+    )
+    orig_df_loaded = pd.read_csv(orig_path, compression="infer")
+    console.print(
+        f"  External rows: {len(orig_df_loaded):,}, columns: {len(orig_df_loaded.columns)}"
+    )
 
     # 1a. Drop specified columns (if any) or auto-detect ID columns
     drop_cols = list(config.get("drop_columns", []))
     drop_id = config.get("drop_id", True)  # Default: True
 
     if drop_id:
-        id_cols = [c for c in orig_df_loaded.columns if c.lower().startswith("id_") or c.lower().endswith("_id")]
+        id_cols = [
+            c
+            for c in orig_df_loaded.columns
+            if c.lower().startswith("id_") or c.lower().endswith("_id")
+        ]
         drop_cols.extend(id_cols)
-    
+
     # Deduplicate and filter existing
     drop_cols = sorted(list(set(drop_cols)))
     dropped = [c for c in drop_cols if c in orig_df_loaded.columns]
@@ -104,7 +119,9 @@ def fit_transform(
         orig_df_loaded = orig_df_loaded.rename(columns=column_mapping)
 
         # Report applied mappings
-        console.print(f"\n[cyan]Applied column mappings ({len(column_mapping)}):[/cyan]")
+        console.print(
+            f"\n[cyan]Applied column mappings ({len(column_mapping)}):[/cyan]"
+        )
         for orig_col, kaggle_col in sorted(column_mapping.items()):
             console.print(f"  {orig_col} → {kaggle_col}")
 
@@ -114,7 +131,7 @@ def fit_transform(
 
     common_cols = kaggle_cols & orig_cols
     kaggle_only = kaggle_cols - orig_cols  # Missing in external
-    orig_only = orig_cols - kaggle_cols    # Extra in external
+    orig_only = orig_cols - kaggle_cols  # Extra in external
 
     # Store for reporting
     alignment_stats = {
@@ -142,19 +159,27 @@ def fit_transform(
 
         final_columns_train = sorted(common_cols)
         # Test might not have target column
-        final_columns_test = sorted(common_cols - {target_col} if target_col else common_cols)
+        final_columns_test = sorted(
+            common_cols - {target_col} if target_col else common_cols
+        )
 
         orig_aligned = orig_df_loaded[final_columns_train].copy()
         train_aligned = train_df[final_columns_train].copy()
         test_aligned = test_df[final_columns_test].copy()
-        eval_aligned = eval_df[final_columns_train].copy() if eval_df is not None else None
+        eval_aligned = (
+            eval_df[final_columns_train].copy() if eval_df is not None else None
+        )
 
     elif mode == "union":
         # Keep all columns (union), fill missing with NA
         # Train columns (includes target if present)
         train_cols_all = kaggle_cols | orig_cols
         # Test columns (excludes target)
-        test_cols_all = (kaggle_cols | orig_cols) - {target_col} if target_col else (kaggle_cols | orig_cols)
+        test_cols_all = (
+            (kaggle_cols | orig_cols) - {target_col}
+            if target_col
+            else (kaggle_cols | orig_cols)
+        )
 
         # Add missing columns to external dataset
         for col in kaggle_only:
@@ -170,7 +195,7 @@ def fit_transform(
         for col in orig_only:
             if col != target_col:
                 test_copy[col] = pd.NA
-        
+
         # Add missing columns to eval (if exists)
         eval_copy = eval_df.copy() if eval_df is not None else None
         if eval_copy is not None:
@@ -183,7 +208,9 @@ def fit_transform(
         orig_aligned = orig_df_loaded[final_columns_train].copy()
         train_aligned = train_copy[final_columns_train].copy()
         test_aligned = test_copy[final_columns_test].copy()
-        eval_aligned = eval_copy[final_columns_train].copy() if eval_copy is not None else None
+        eval_aligned = (
+            eval_copy[final_columns_train].copy() if eval_copy is not None else None
+        )
 
     else:
         raise ValueError(
@@ -201,15 +228,21 @@ def fit_transform(
 
         # CRITICAL: Add to test too (all test is kaggle=0)
         test_aligned[source_flag] = 0
-        
+
         if eval_aligned is not None:
             eval_aligned[source_flag] = 0
 
-        console.print(f"\n[cyan]Source tracking enabled:[/cyan] '{source_flag}' (0=Kaggle, 1=External)")
+        console.print(
+            f"\n[cyan]Source tracking enabled:[/cyan] '{source_flag}' (0=Kaggle, 1=External)"
+        )
 
     # 5. Generate detailed report
     console.print("\n")
-    table = Table(title="External Dataset Loader Report", show_header=True, header_style="bold cyan")
+    table = Table(
+        title="External Dataset Loader Report",
+        show_header=True,
+        header_style="bold cyan",
+    )
     table.add_column("Metric", style="cyan", width=20)
     table.add_column("Value", style="white")
 
@@ -228,24 +261,30 @@ def fit_transform(
 
     # Warn about mismatches
     if kaggle_only:
-        console.print(f"\n[yellow]⚠ Columns in Kaggle but NOT in external ({len(kaggle_only)}):[/yellow]")
+        console.print(
+            f"\n[yellow]⚠ Columns in Kaggle but NOT in external ({len(kaggle_only)}):[/yellow]"
+        )
         for col in sorted(kaggle_only)[:10]:  # Show first 10
             console.print(f"  - {col}")
         if len(kaggle_only) > 10:
-            console.print(f"  ... and {len(kaggle_only)-10} more")
+            console.print(f"  ... and {len(kaggle_only) - 10} more")
 
     if orig_only:
-        console.print(f"\n[yellow]⚠ Columns in external but NOT in Kaggle ({len(orig_only)}):[/yellow]")
+        console.print(
+            f"\n[yellow]⚠ Columns in external but NOT in Kaggle ({len(orig_only)}):[/yellow]"
+        )
         for col in sorted(orig_only)[:10]:
             console.print(f"  - {col}")
         if len(orig_only) > 10:
-            console.print(f"  ... and {len(orig_only)-10} more")
+            console.print(f"  ... and {len(orig_only) - 10} more")
 
     # Mode-specific notes
     if mode == "align" and (kaggle_only or orig_only):
-        console.print(f"\n[dim]Mode 'align': Using only {len(common_cols)} matched columns[/dim]")
+        console.print(
+            f"\n[dim]Mode 'align': Using only {len(common_cols)} matched columns[/dim]"
+        )
     elif mode == "union" and (kaggle_only or orig_only):
-        console.print(f"\n[dim]Mode 'union': Missing columns filled with NA[/dim]")
+        console.print("\n[dim]Mode 'union': Missing columns filled with NA[/dim]")
 
     # Warn if low match rate
     match_rate = len(common_cols) / len(kaggle_cols) if kaggle_cols else 0
@@ -255,7 +294,7 @@ def fit_transform(
             f"Consider using 'column_mapping' to align column names.[/bold yellow]"
         )
 
-    console.print(f"\n[green]✓ External dataset loaded and aligned[/green]")
+    console.print("\n[green]✓ External dataset loaded and aligned[/green]")
 
     # 6. Return state
     state_dict = {
@@ -280,7 +319,9 @@ def fit_transform(
     return train_aligned, val_df, test_aligned, eval_aligned, orig_aligned, state_dict
 
 
-def transform(df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]) -> pd.DataFrame:
+def transform(
+    df: pd.DataFrame, state_dict: Dict[str, Any], config: Dict[str, Any]
+) -> pd.DataFrame:
     """
     Transform function (not used for external_dataset, but required for interface compatibility).
 

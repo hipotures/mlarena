@@ -5,11 +5,10 @@ Stacking trains a meta-model on out-of-fold predictions from base models,
 which can learn optimal combination weights and non-linear interactions.
 """
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import pandas as pd
-import numpy as np
-from sklearn.linear_model import LogisticRegression, Ridge
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
 from rich.console import Console
 
@@ -82,7 +81,9 @@ class MetaLearner:
             scoring="roc_auc",
         )
 
-        console.print(f"[green]✓[/green] [bold]Meta-model CV score:[/bold] [yellow]{cv_scores.mean():.4f}[/yellow] (+/- {cv_scores.std():.4f})")
+        console.print(
+            f"[green]✓[/green] [bold]Meta-model CV score:[/bold] [yellow]{cv_scores.mean():.4f}[/yellow] (+/- {cv_scores.std():.4f})"
+        )
 
         return self
 

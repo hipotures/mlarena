@@ -49,7 +49,6 @@ import json
 import pandas as pd
 import numpy as np
 from sklearn.feature_selection import (
-    VarianceThreshold,
     SelectKBest,
     mutual_info_classif,
     mutual_info_regression,
@@ -74,7 +73,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     """
     Feature selection preprocessing.
 
@@ -173,7 +179,7 @@ def fit_transform(
             "rfe",
             "none",
         ],
-        "selection_method"
+        "selection_method",
     )
 
     if config["selection_method"] != "none":
@@ -181,21 +187,23 @@ def fit_transform(
             validation.validate_choice(
                 config["importance_model_type"],
                 ["lgbm", "xgb", "rf"],
-                "importance_model_type"
+                "importance_model_type",
             )
 
         # Validate n_features type
         if config.get("n_features") is not None:
             n_feat = config["n_features"]
             if not isinstance(n_feat, (int, float)):
-                raise ValueError(f"n_features must be a number or None, got {type(n_feat).__name__}")
+                raise ValueError(
+                    f"n_features must be a number or None, got {type(n_feat).__name__}"
+                )
 
         if config.get("importance_cumulative") is not None:
             validation.validate_numeric_range(
                 config["importance_cumulative"],
                 min_value=0.0,
                 max_value=1.0,
-                param_name="importance_cumulative"
+                param_name="importance_cumulative",
             )
             if config.get("n_features") is not None:
                 raise ValueError(
@@ -203,14 +211,16 @@ def fit_transform(
                     "Use only one selection option."
                 )
             if config["selection_method"] == "rfe":
-                raise ValueError("importance_cumulative is not supported for selection_method=rfe.")
+                raise ValueError(
+                    "importance_cumulative is not supported for selection_method=rfe."
+                )
 
         # Validate numeric ranges
         validation.validate_numeric_range(
             config["max_drop_fraction"],
             min_value=0.0,
             max_value=1.0,
-            param_name="max_drop_fraction"
+            param_name="max_drop_fraction",
         )
 
         validation.validate_numeric_range(
@@ -252,14 +262,14 @@ def fit_transform(
             config["optuna_cv_folds"],
             min_value=2,
             max_value=20,
-            param_name="optuna_cv_folds"
+            param_name="optuna_cv_folds",
         )
 
         validation.validate_numeric_range(
             config["optuna_trials"],
             min_value=1,
             max_value=1000,
-            param_name="optuna_trials"
+            param_name="optuna_trials",
         )
 
         if config.get("optuna_timeout") is not None:
@@ -267,7 +277,7 @@ def fit_transform(
                 config["optuna_timeout"],
                 min_value=1,
                 max_value=None,
-                param_name="optuna_timeout"
+                param_name="optuna_timeout",
             )
 
         if config["optuna_num_boost_round"] is not None:
@@ -275,26 +285,36 @@ def fit_transform(
                 config["optuna_num_boost_round"],
                 min_value=1,
                 max_value=100000,
-                param_name="optuna_num_boost_round"
+                param_name="optuna_num_boost_round",
             )
 
         if config["optuna_pruner"] not in ["median", "none"]:
-            raise ValueError(
-                "optuna_pruner must be 'median' or 'none'"
-            )
+            raise ValueError("optuna_pruner must be 'median' or 'none'")
 
-        for bool_key in ["optuna_export_trials", "optuna_save_storage", "optuna_load_if_exists", "use_gpu"]:
+        for bool_key in [
+            "optuna_export_trials",
+            "optuna_save_storage",
+            "optuna_load_if_exists",
+            "use_gpu",
+        ]:
             if not isinstance(config.get(bool_key), bool):
                 raise ValueError(f"{bool_key} must be a boolean")
 
-        if config.get("optuna_storage_path") is not None and not isinstance(config["optuna_storage_path"], str):
+        if config.get("optuna_storage_path") is not None and not isinstance(
+            config["optuna_storage_path"], str
+        ):
             raise ValueError("optuna_storage_path must be a string or null")
 
-        if not isinstance(config.get("optuna_study_name"), str) or not config["optuna_study_name"].strip():
+        if (
+            not isinstance(config.get("optuna_study_name"), str)
+            or not config["optuna_study_name"].strip()
+        ):
             raise ValueError("optuna_study_name must be a non-empty string")
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "feature_selector")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "feature_selector"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -323,11 +343,13 @@ def fit_transform(
     exclude_cols = [id_column, target_column] + ignored_columns
     exclude_cols = [col for col in exclude_cols if col]  # Remove None values
 
-    all_feature_cols = [col for col in train_df.columns if col not in exclude_cols]
+    [col for col in train_df.columns if col not in exclude_cols]
     numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
 
     if not numeric_cols:
-        warnings.warn("No numeric columns found for feature selection. Returning unchanged.")
+        warnings.warn(
+            "No numeric columns found for feature selection. Returning unchanged."
+        )
         transformation_summary = report.create_preprocessing_report(
             train_before=train_df_original,
             train_after=train_df,
@@ -353,8 +375,12 @@ def fit_transform(
         raise ValueError(f"Target column '{target_column}' not found in training data")
 
     # 8. Perform feature selection
-    optuna_trials_limit = config["optuna_trials"] if config["optuna_trials"] > 1 else None
-    optuna_timeout_limit = config["optuna_timeout"] if config.get("optuna_timeout") is not None else None
+    optuna_trials_limit = (
+        config["optuna_trials"] if config["optuna_trials"] > 1 else None
+    )
+    optuna_timeout_limit = (
+        config["optuna_timeout"] if config.get("optuna_timeout") is not None else None
+    )
 
     selected_features, feature_scores, selection_meta = _select_features(
         X_train=X_train,
@@ -397,7 +423,11 @@ def fit_transform(
     base_keep = [col for col in train_df.columns if col not in numeric_cols]
 
     # Protect key numeric columns (encoded categoricals ending with "_cb")
-    protected_numeric = [col for col in numeric_cols if col.endswith("_cb")] if config.get("protect_cb_features", True) else []
+    protected_numeric = (
+        [col for col in numeric_cols if col.endswith("_cb")]
+        if config.get("protect_cb_features", True)
+        else []
+    )
 
     # Keep non-feature columns + protected numeric + selected numeric features
     keep_cols = base_keep + protected_numeric + selected_features
@@ -439,15 +469,20 @@ def fit_transform(
         "total_features_before": len(numeric_cols),
         "total_features_after": len(selected_features),
         "features_dropped": len(numeric_cols) - len(selected_features),
-        "drop_fraction": (len(numeric_cols) - len(selected_features)) / len(numeric_cols) if numeric_cols else 0,
+        "drop_fraction": (len(numeric_cols) - len(selected_features))
+        / len(numeric_cols)
+        if numeric_cols
+        else 0,
         "selected_features": selected_features,
-        "dropped_features": [col for col in numeric_cols if col not in selected_features],
+        "dropped_features": [
+            col for col in numeric_cols if col not in selected_features
+        ],
         "selection_meta": selection_meta,
-        "feature_scores": {
-            feature: score for feature, score in score_items_sorted
-        },
+        "feature_scores": {feature: score for feature, score in score_items_sorted},
     }
-    artifacts.save_report(feature_report, submodule_dir, "feature_selection_report.json")
+    artifacts.save_report(
+        feature_report, submodule_dir, "feature_selection_report.json"
+    )
 
     # 11. Generate and save transformation report
     transformation_summary = report.create_preprocessing_report(
@@ -523,8 +558,12 @@ def _select_features(
     total_features = X_train.shape[1]
     selection_meta: Dict[str, Any] = {}
 
-    optuna_enabled = (optuna_trials is not None and optuna_trials > 1) or optuna_timeout is not None
-    if optuna_enabled and (method != "model_importance" or importance_model_type != "lgbm"):
+    optuna_enabled = (
+        optuna_trials is not None and optuna_trials > 1
+    ) or optuna_timeout is not None
+    if optuna_enabled and (
+        method != "model_importance" or importance_model_type != "lgbm"
+    ):
         warnings.warn(
             "Optuna tuning is only supported for selection_method=model_importance with "
             "importance_model_type=lgbm; ignoring optuna settings."
@@ -577,7 +616,9 @@ def _select_features(
         else:
             order = np.argsort(scores)[::-1]
             cumulative = np.cumsum(scores[order]) / total
-            cutoff_idx = int(np.searchsorted(cumulative, importance_cumulative, side="left")) + 1
+            cutoff_idx = (
+                int(np.searchsorted(cumulative, importance_cumulative, side="left")) + 1
+            )
             cutoff_idx = min(cutoff_idx, total_features)
             n_features_to_select = max(cutoff_idx, min_features_to_keep)
 
@@ -608,7 +649,9 @@ def _select_features(
             try:
                 import lightgbm as lgb
             except ImportError:
-                warnings.warn("LightGBM not available, falling back to RandomForest for importance model.")
+                warnings.warn(
+                    "LightGBM not available, falling back to RandomForest for importance model."
+                )
                 model_type_used = "rf"
                 if problem_type in ["binary", "multiclass"]:
                     model = RandomForestClassifier(
@@ -647,7 +690,9 @@ def _select_features(
             try:
                 import xgboost as xgb
             except ImportError:
-                warnings.warn("XGBoost not available, falling back to RandomForest for importance model.")
+                warnings.warn(
+                    "XGBoost not available, falling back to RandomForest for importance model."
+                )
                 model_type_used = "rf"
                 if problem_type in ["binary", "multiclass"]:
                     model = RandomForestClassifier(
@@ -698,7 +743,9 @@ def _select_features(
         if selected_mask.sum() >= n_features_to_select:
             # Too many (or exact) -> trim to top-K among those above threshold
             candidate_idx = np.where(selected_mask)[0]
-            top_idx = candidate_idx[np.argsort(variances[candidate_idx])[::-1][:n_features_to_select]]
+            top_idx = candidate_idx[
+                np.argsort(variances[candidate_idx])[::-1][:n_features_to_select]
+            ]
             selected_mask = np.zeros(total_features, dtype=bool)
             selected_mask[top_idx] = True
         else:
@@ -718,7 +765,9 @@ def _select_features(
         # Cardinality threshold (min unique values per 1M records)
         # Count unique values for each feature
         n_rows = X_train.shape[0]
-        n_unique = np.array([len(np.unique(X_train[:, i])) for i in range(total_features)])
+        n_unique = np.array(
+            [len(np.unique(X_train[:, i])) for i in range(total_features)]
+        )
 
         # Normalize to per-million scale
         unique_per_million = (n_unique / n_rows) * 1_000_000
@@ -730,7 +779,11 @@ def _select_features(
         if selected_mask.sum() >= n_features_to_select:
             # Too many (or exact) -> trim to top-K among those above threshold
             candidate_idx = np.where(selected_mask)[0]
-            top_idx = candidate_idx[np.argsort(unique_per_million[candidate_idx])[::-1][:n_features_to_select]]
+            top_idx = candidate_idx[
+                np.argsort(unique_per_million[candidate_idx])[::-1][
+                    :n_features_to_select
+                ]
+            ]
             selected_mask = np.zeros(total_features, dtype=bool)
             selected_mask[top_idx] = True
         else:
@@ -773,10 +826,14 @@ def _select_features(
 
     elif method == "correlation":
         # Correlation with target
-        correlations = np.array([
-            abs(pearsonr(X_train[:, i], y_train)[0]) if len(np.unique(X_train[:, i])) > 1 else 0
-            for i in range(total_features)
-        ])
+        correlations = np.array(
+            [
+                abs(pearsonr(X_train[:, i], y_train)[0])
+                if len(np.unique(X_train[:, i])) > 1
+                else 0
+                for i in range(total_features)
+            ]
+        )
         feature_scores = correlations
         _apply_cumulative_cutoff(correlations)
         top_indices = np.argsort(correlations)[::-1][:n_features_to_select]
@@ -831,6 +888,7 @@ def _select_features(
             else:
                 try:
                     import lightgbm as lgb
+
                     if problem_type in ["binary", "multiclass"]:
                         model = lgb.LGBMClassifier(
                             n_estimators=n_estimators,
@@ -852,15 +910,30 @@ def _select_features(
                     model.fit(X_train, y_train)
                     importances = model.feature_importances_
                 except ImportError:
-                    warnings.warn("LightGBM not available, falling back to RandomForest")
+                    warnings.warn(
+                        "LightGBM not available, falling back to RandomForest"
+                    )
                     return _select_features(
-                        X_train, y_train, feature_names, "model_importance",
-                        select_features, min_variance, min_importance,
-                        "rf", n_estimators, max_depth, random_state,
-                        max_drop_fraction, problem_type,
-                        optuna_trials, optuna_timeout, optuna_cv_folds,
-                        optuna_early_stopping_rounds, optuna_num_boost_round,
-                        optuna_pruner, use_gpu,
+                        X_train,
+                        y_train,
+                        feature_names,
+                        "model_importance",
+                        select_features,
+                        min_variance,
+                        min_importance,
+                        "rf",
+                        n_estimators,
+                        max_depth,
+                        random_state,
+                        max_drop_fraction,
+                        problem_type,
+                        optuna_trials,
+                        optuna_timeout,
+                        optuna_cv_folds,
+                        optuna_early_stopping_rounds,
+                        optuna_num_boost_round,
+                        optuna_pruner,
+                        use_gpu,
                         importance_cumulative,
                         perm_importance_repeats,
                         perm_importance_scoring,
@@ -872,12 +945,13 @@ def _select_features(
                         optuna_storage_path,
                         optuna_study_name,
                         optuna_load_if_exists,
-                        optuna_artifact_dir
+                        optuna_artifact_dir,
                     )
 
         elif importance_model_type == "xgb":
             try:
                 import xgboost as xgb
+
                 if problem_type in ["binary", "multiclass"]:
                     model = xgb.XGBClassifier(
                         n_estimators=n_estimators,
@@ -899,13 +973,26 @@ def _select_features(
             except ImportError:
                 warnings.warn("XGBoost not available, falling back to RandomForest")
                 return _select_features(
-                    X_train, y_train, feature_names, "model_importance",
-                    select_features, min_variance, min_importance,
-                    "rf", n_estimators, max_depth, random_state,
-                    max_drop_fraction, problem_type,
-                    optuna_trials, optuna_timeout, optuna_cv_folds,
-                    optuna_early_stopping_rounds, optuna_num_boost_round,
-                    optuna_pruner, use_gpu,
+                    X_train,
+                    y_train,
+                    feature_names,
+                    "model_importance",
+                    select_features,
+                    min_variance,
+                    min_importance,
+                    "rf",
+                    n_estimators,
+                    max_depth,
+                    random_state,
+                    max_drop_fraction,
+                    problem_type,
+                    optuna_trials,
+                    optuna_timeout,
+                    optuna_cv_folds,
+                    optuna_early_stopping_rounds,
+                    optuna_num_boost_round,
+                    optuna_pruner,
+                    use_gpu,
                     importance_cumulative,
                     perm_importance_repeats,
                     perm_importance_scoring,
@@ -917,7 +1004,7 @@ def _select_features(
                     optuna_storage_path,
                     optuna_study_name,
                     optuna_load_if_exists,
-                    optuna_artifact_dir
+                    optuna_artifact_dir,
                 )
         else:
             raise ValueError(f"Unknown importance_model_type: {importance_model_type}")
@@ -931,7 +1018,9 @@ def _select_features(
             if selected_mask.sum() >= n_features_to_select:
                 # Too many (or exact) -> trim to top-K among those above threshold
                 candidate_idx = np.where(selected_mask)[0]
-                top_idx = candidate_idx[np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]]
+                top_idx = candidate_idx[
+                    np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]
+                ]
                 selected_mask = np.zeros(total_features, dtype=bool)
                 selected_mask[top_idx] = True
             else:
@@ -945,7 +1034,9 @@ def _select_features(
         try:
             from sklearn.inspection import permutation_importance
         except ImportError as exc:  # pragma: no cover
-            raise ImportError("permutation_importance requires sklearn.inspection") from exc
+            raise ImportError(
+                "permutation_importance requires sklearn.inspection"
+            ) from exc
 
         model, model_type_used = _build_importance_model()
         model.fit(X_train, y_train)
@@ -981,7 +1072,9 @@ def _select_features(
         if select_features is not None:
             if selected_mask.sum() >= n_features_to_select:
                 candidate_idx = np.where(selected_mask)[0]
-                top_idx = candidate_idx[np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]]
+                top_idx = candidate_idx[
+                    np.argsort(importances[candidate_idx])[::-1][:n_features_to_select]
+                ]
                 selected_mask = np.zeros(total_features, dtype=bool)
                 selected_mask[top_idx] = True
             else:
@@ -1001,7 +1094,9 @@ def _select_features(
         model.fit(X_train, y_train)
 
         if not hasattr(model, "feature_importances_"):
-            raise ValueError("null_importance requires a model with feature_importances_")
+            raise ValueError(
+                "null_importance requires a model with feature_importances_"
+            )
 
         real_importances = np.asarray(model.feature_importances_, dtype=float)
         null_importances = []
@@ -1011,7 +1106,9 @@ def _select_features(
             y_perm = rng.permutation(y_train)
             null_model, _ = _build_importance_model()
             null_model.fit(X_train, y_perm)
-            null_importances.append(np.asarray(null_model.feature_importances_, dtype=float))
+            null_importances.append(
+                np.asarray(null_model.feature_importances_, dtype=float)
+            )
 
         null_matrix = np.vstack(null_importances)
         thresholds = np.quantile(null_matrix, null_importance_quantile, axis=0)
@@ -1019,11 +1116,17 @@ def _select_features(
         feature_scores = real_importances
         _apply_cumulative_cutoff(real_importances)
 
-        selected_mask = (real_importances > thresholds) & (real_importances >= min_importance)
+        selected_mask = (real_importances > thresholds) & (
+            real_importances >= min_importance
+        )
         if select_features is not None:
             if selected_mask.sum() >= n_features_to_select:
                 candidate_idx = np.where(selected_mask)[0]
-                top_idx = candidate_idx[np.argsort(real_importances[candidate_idx])[::-1][:n_features_to_select]]
+                top_idx = candidate_idx[
+                    np.argsort(real_importances[candidate_idx])[::-1][
+                        :n_features_to_select
+                    ]
+                ]
                 selected_mask = np.zeros(total_features, dtype=bool)
                 selected_mask[top_idx] = True
             else:
@@ -1073,6 +1176,7 @@ def _select_features(
         if importance_model_type == "lgbm":
             try:
                 import lightgbm as lgb
+
                 if problem_type in ["binary", "multiclass"]:
                     estimator = lgb.LGBMClassifier(
                         n_estimators=n_estimators,
@@ -1090,12 +1194,15 @@ def _select_features(
                         verbosity=-1,
                     )
             except ImportError:
-                warnings.warn("LightGBM not available, falling back to RandomForest for RFE")
+                warnings.warn(
+                    "LightGBM not available, falling back to RandomForest for RFE"
+                )
                 importance_model_type = "rf"
 
         if importance_model_type == "xgb":
             try:
                 import xgboost as xgb
+
                 if problem_type in ["binary", "multiclass"]:
                     estimator = xgb.XGBClassifier(
                         n_estimators=n_estimators,
@@ -1115,7 +1222,9 @@ def _select_features(
                         verbosity=0,
                     )
             except ImportError:
-                warnings.warn("XGBoost not available, falling back to RandomForest for RFE")
+                warnings.warn(
+                    "XGBoost not available, falling back to RandomForest for RFE"
+                )
                 importance_model_type = "rf"
 
         if importance_model_type == "rf":
@@ -1145,7 +1254,9 @@ def _select_features(
         raise ValueError(f"Unknown selection method: {method}")
 
     # Get selected feature names
-    selected_features = [feature_names[i] for i in range(total_features) if selected_mask[i]]
+    selected_features = [
+        feature_names[i] for i in range(total_features) if selected_mask[i]
+    ]
 
     return selected_features, feature_scores, selection_meta
 
@@ -1191,7 +1302,9 @@ def _run_optuna_lgbm_importance(
     try:
         import optuna
     except ImportError as exc:
-        raise ImportError("Optuna is required for tuning. Install optuna==4.6.0.") from exc
+        raise ImportError(
+            "Optuna is required for tuning. Install optuna==4.6.0."
+        ) from exc
 
     if problem_type == "binary":
         objective = "binary"
@@ -1237,18 +1350,24 @@ def _run_optuna_lgbm_importance(
 
     def objective_fn(trial: optuna.Trial) -> float:
         params = dict(base_params)
-        params.update({
-            "boosting_type": trial.suggest_categorical("boosting_type", ["gbdt", "dart"]),
-            "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.2, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 16, 512, log=True),
-            "min_child_samples": trial.suggest_int("min_child_samples", 5, 200),
-            "feature_fraction": trial.suggest_float("feature_fraction", 0.5, 1.0),
-            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 1.0),
-            "bagging_freq": trial.suggest_int("bagging_freq", 0, 10),
-            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
-            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
-            "max_depth": trial.suggest_int("max_depth", 3, 12),
-        })
+        params.update(
+            {
+                "boosting_type": trial.suggest_categorical(
+                    "boosting_type", ["gbdt", "dart"]
+                ),
+                "learning_rate": trial.suggest_float(
+                    "learning_rate", 1e-3, 0.2, log=True
+                ),
+                "num_leaves": trial.suggest_int("num_leaves", 16, 512, log=True),
+                "min_child_samples": trial.suggest_int("min_child_samples", 5, 200),
+                "feature_fraction": trial.suggest_float("feature_fraction", 0.5, 1.0),
+                "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 1.0),
+                "bagging_freq": trial.suggest_int("bagging_freq", 0, 10),
+                "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
+                "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
+                "max_depth": trial.suggest_int("max_depth", 3, 12),
+            }
+        )
 
         callbacks = [LightGBMPruningCallback(trial, metric=metric)]
         if optuna_early_stopping_rounds and optuna_early_stopping_rounds > 0:
@@ -1275,7 +1394,9 @@ def _run_optuna_lgbm_importance(
             elif mean_keys:
                 metric_key = mean_keys[0]
             else:
-                raise ValueError(f"Missing metric '{metric_key}' in LightGBM CV results.")
+                raise ValueError(
+                    f"Missing metric '{metric_key}' in LightGBM CV results."
+                )
         if not cv_results.get(metric_key):
             raise ValueError(f"Missing metric '{metric_key}' in LightGBM CV results.")
         best_score = cv_results[metric_key][-1]
@@ -1301,18 +1422,20 @@ def _run_optuna_lgbm_importance(
         study_name=optuna_study_name,
         load_if_exists=optuna_load_if_exists if storage_uri else False,
     )
-    study.enqueue_trial({
-        "boosting_type": "gbdt",
-        "learning_rate": 0.1,
-        "num_leaves": 31,
-        "min_child_samples": 20,
-        "feature_fraction": 1.0,
-        "bagging_fraction": 1.0,
-        "bagging_freq": 0,
-        "lambda_l1": 1e-8,
-        "lambda_l2": 1e-8,
-        "max_depth": max_depth,
-    })
+    study.enqueue_trial(
+        {
+            "boosting_type": "gbdt",
+            "learning_rate": 0.1,
+            "num_leaves": 31,
+            "min_child_samples": 20,
+            "feature_fraction": 1.0,
+            "bagging_fraction": 1.0,
+            "bagging_freq": 0,
+            "lambda_l1": 1e-8,
+            "lambda_l2": 1e-8,
+            "max_depth": max_depth,
+        }
+    )
     study.optimize(
         objective_fn,
         n_trials=optuna_trials,
@@ -1359,9 +1482,15 @@ def _run_optuna_lgbm_importance(
                 "distributions": {k: str(v) for k, v in trial.distributions.items()},
                 "user_attrs": trial.user_attrs,
                 "system_attrs": trial.system_attrs,
-                "intermediate_values": {str(k): v for k, v in trial.intermediate_values.items()},
-                "datetime_start": trial.datetime_start.isoformat() if trial.datetime_start else None,
-                "datetime_complete": trial.datetime_complete.isoformat() if trial.datetime_complete else None,
+                "intermediate_values": {
+                    str(k): v for k, v in trial.intermediate_values.items()
+                },
+                "datetime_start": trial.datetime_start.isoformat()
+                if trial.datetime_start
+                else None,
+                "datetime_complete": trial.datetime_complete.isoformat()
+                if trial.datetime_complete
+                else None,
             }
 
         trials_payload = {

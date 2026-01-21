@@ -19,7 +19,6 @@ Parameters:
 
 from pathlib import Path
 from typing import Any, Dict, Tuple, List
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -33,9 +32,13 @@ from mlarena.preprocessing.utils import (
 )
 
 
-def _compute_bounds_quantile(series: pd.Series, lower_q: float, upper_q: float) -> Tuple[float, float]:
+def _compute_bounds_quantile(
+    series: pd.Series, lower_q: float, upper_q: float
+) -> Tuple[float, float]:
     if lower_q is None or upper_q is None:
-        raise ValueError("Quantile method requires both lower_quantile and upper_quantile.")
+        raise ValueError(
+            "Quantile method requires both lower_quantile and upper_quantile."
+        )
     lower = float(series.quantile(lower_q))
     upper = float(series.quantile(upper_q))
     return lower, upper
@@ -60,7 +63,9 @@ def _compute_bounds_zscore(series: pd.Series, threshold: float) -> Tuple[float, 
     return lower, upper
 
 
-def _compute_bounds_mad(series: pd.Series, threshold: float, scale: float) -> Tuple[float, float]:
+def _compute_bounds_mad(
+    series: pd.Series, threshold: float, scale: float
+) -> Tuple[float, float]:
     median = series.median()
     mad = np.median(np.abs(series - median))
     scaled_mad = mad * scale
@@ -117,10 +122,16 @@ def _apply_isolation_forest(
 ) -> Tuple[pd.Series, pd.Series | None, pd.Series, pd.Series | None, Dict[str, Any]]:
     non_null = train_series.dropna()
     if non_null.empty:
-        return train_series, val_series, test_series, orig_series, {
-            "skipped": True,
-            "reason": "all_nan",
-        }
+        return (
+            train_series,
+            val_series,
+            test_series,
+            orig_series,
+            {
+                "skipped": True,
+                "reason": "all_nan",
+            },
+        )
 
     model = IsolationForest(
         contamination=contamination,
@@ -149,10 +160,16 @@ def _apply_isolation_forest(
                 val_df[flag_col] = val_mask.astype(int)
             if orig_df is not None and orig_mask is not None:
                 orig_df[flag_col] = orig_mask.astype(int)
-        return train_series, val_series, test_series, orig_series, {
-            "skipped": False,
-            "bounds": None,
-        }
+        return (
+            train_series,
+            val_series,
+            test_series,
+            orig_series,
+            {
+                "skipped": False,
+                "bounds": None,
+            },
+        )
 
     if action == "set_na":
         train_series = train_series.mask(train_mask, np.nan)
@@ -170,10 +187,16 @@ def _apply_isolation_forest(
         if orig_series is not None and orig_mask is not None:
             orig_series = orig_series.mask(orig_mask, median_train)
 
-    return train_series, val_series, test_series, orig_series, {
-        "skipped": False,
-        "bounds": None,
-    }
+    return (
+        train_series,
+        val_series,
+        test_series,
+        orig_series,
+        {
+            "skipped": False,
+            "bounds": None,
+        },
+    )
 
 
 def fit_transform(
@@ -182,7 +205,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Outlier handling preprocessing.
 
@@ -236,7 +261,16 @@ def fit_transform(
 
     validation.validate_choice(
         config["outlier_method"],
-        ["none", "quantile", "percentile", "iqr", "zscore", "gaussian", "mad", "isolation_forest"],
+        [
+            "none",
+            "quantile",
+            "percentile",
+            "iqr",
+            "zscore",
+            "gaussian",
+            "mad",
+            "isolation_forest",
+        ],
         "outlier_method",
     )
     validation.validate_choice(
@@ -245,23 +279,46 @@ def fit_transform(
         "action",
     )
     if config["lower_quantile"] is not None:
-        validation.validate_numeric_range(config["lower_quantile"], 0.0, 1.0, "lower_quantile")
+        validation.validate_numeric_range(
+            config["lower_quantile"], 0.0, 1.0, "lower_quantile"
+        )
     if config["upper_quantile"] is not None:
-        validation.validate_numeric_range(config["upper_quantile"], 0.0, 1.0, "upper_quantile")
+        validation.validate_numeric_range(
+            config["upper_quantile"], 0.0, 1.0, "upper_quantile"
+        )
     if config["upper_quantile"] is not None and config["lower_quantile"] is not None:
         if config["upper_quantile"] <= config["lower_quantile"]:
             raise ValueError("upper_quantile must be greater than lower_quantile.")
 
-    validation.validate_numeric_range(config["iqr_factor"], min_value=0.0, max_value=None, param_name="iqr_factor")
-    validation.validate_numeric_range(config["zscore_threshold"], min_value=0.0, max_value=None, param_name="zscore_threshold")
-    validation.validate_numeric_range(config["mad_threshold"], min_value=0.0, max_value=None, param_name="mad_threshold")
-    validation.validate_numeric_range(config["mad_scale"], min_value=0.0, max_value=None, param_name="mad_scale")
     validation.validate_numeric_range(
-        config["isoforest_contamination"], min_value=0.0, max_value=0.5, param_name="isoforest_contamination"
+        config["iqr_factor"], min_value=0.0, max_value=None, param_name="iqr_factor"
+    )
+    validation.validate_numeric_range(
+        config["zscore_threshold"],
+        min_value=0.0,
+        max_value=None,
+        param_name="zscore_threshold",
+    )
+    validation.validate_numeric_range(
+        config["mad_threshold"],
+        min_value=0.0,
+        max_value=None,
+        param_name="mad_threshold",
+    )
+    validation.validate_numeric_range(
+        config["mad_scale"], min_value=0.0, max_value=None, param_name="mad_scale"
+    )
+    validation.validate_numeric_range(
+        config["isoforest_contamination"],
+        min_value=0.0,
+        max_value=0.5,
+        param_name="isoforest_contamination",
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "outlier_handler")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "outlier_handler"
+    )
 
     # 4. Save original DataFrames for reporting
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -270,15 +327,21 @@ def fit_transform(
     # 5. Identify numeric columns
     exclude_cols = [id_column, target_column] + ignored_columns + config["exclude_cols"]
     if config["include_cols"] is not None:
-        numeric_cols = [col for col in config["include_cols"] if col in train_df.columns]
+        numeric_cols = [
+            col for col in config["include_cols"] if col in train_df.columns
+        ]
     else:
-        numeric_cols = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
+        numeric_cols = dataframe_utils.get_numeric_columns(
+            train_df, exclude=exclude_cols
+        )
 
     numeric_cols = [col for col in numeric_cols if col in test_df.columns]
     use_orig_only = bool(config.get("use_original_features_only"))
     if use_orig_only:
         orig_features = config.get("_original_features")
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, orig_features
+        )
 
     if not numeric_cols or config["outlier_method"] == "none":
         transformation_summary = report.create_preprocessing_report(
@@ -289,12 +352,17 @@ def fit_transform(
             config=config,
         )
         artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
-        return train_df, val_df, test_df, {
-            "version": "1.0",
-            "method": config["outlier_method"],
-            "message": "No numeric columns to process or method=none",
-            "config": {k: v for k, v in config.items() if not k.startswith("_")},
-        }
+        return (
+            train_df,
+            val_df,
+            test_df,
+            {
+                "version": "1.0",
+                "method": config["outlier_method"],
+                "message": "No numeric columns to process or method=none",
+                "config": {k: v for k, v in config.items() if not k.startswith("_")},
+            },
+        )
 
     outlier_stats: Dict[str, Dict[str, Any]] = {}
     flag_columns: List[str] = []
@@ -316,19 +384,30 @@ def fit_transform(
         }
 
         if method in ["quantile", "percentile"]:
-            lower, upper = _compute_bounds_quantile(train_df[col], config["lower_quantile"], config["upper_quantile"])
+            lower, upper = _compute_bounds_quantile(
+                train_df[col], config["lower_quantile"], config["upper_quantile"]
+            )
         elif method == "iqr":
             lower, upper = _compute_bounds_iqr(train_df[col], config["iqr_factor"])
         elif method in ["zscore", "gaussian"]:
-            lower, upper = _compute_bounds_zscore(train_df[col], config["zscore_threshold"])
+            lower, upper = _compute_bounds_zscore(
+                train_df[col], config["zscore_threshold"]
+            )
         elif method == "mad":
-            lower, upper = _compute_bounds_mad(train_df[col], config["mad_threshold"], config["mad_scale"])
+            lower, upper = _compute_bounds_mad(
+                train_df[col], config["mad_threshold"], config["mad_scale"]
+            )
 
         if method in ["quantile", "percentile", "iqr", "zscore", "gaussian", "mad"]:
             flag_col = f"{col}_outlier_flag" if action == "flag_only" else None
             # Train
             train_series, train_mask = _apply_bounds_action(
-                train_df[col], lower, upper, action, flag_col, train_df if flag_col else None
+                train_df[col],
+                lower,
+                upper,
+                action,
+                flag_col,
+                train_df if flag_col else None,
             )
             train_df[col] = train_series
             if action == "trim" and train_mask is not None:
@@ -336,7 +415,9 @@ def fit_transform(
             # Val
             if val_df is not None:
                 val_series, val_mask = _apply_bounds_action(
-                    val_df[col] if col in val_df.columns else pd.Series([], dtype=float),
+                    val_df[col]
+                    if col in val_df.columns
+                    else pd.Series([], dtype=float),
                     lower,
                     upper,
                     action,
@@ -345,13 +426,23 @@ def fit_transform(
                 )
                 if col in val_df.columns:
                     val_df[col] = val_series
-                if action == "trim" and val_mask is not None and trim_masks["val"] is not None and col in val_df.columns:
+                if (
+                    action == "trim"
+                    and val_mask is not None
+                    and trim_masks["val"] is not None
+                    and col in val_df.columns
+                ):
                     trim_masks["val"] = trim_masks["val"] | val_mask
             else:
                 val_mask = None
             # Test
             test_series, test_mask = _apply_bounds_action(
-                test_df[col], lower, upper, action, flag_col, test_df if flag_col else None
+                test_df[col],
+                lower,
+                upper,
+                action,
+                flag_col,
+                test_df if flag_col else None,
             )
             test_df[col] = test_series
             if action == "trim" and test_mask is not None:
@@ -359,7 +450,9 @@ def fit_transform(
             # Orig
             if orig_df is not None:
                 orig_series, orig_mask = _apply_bounds_action(
-                    orig_df[col] if col in orig_df.columns else pd.Series([], dtype=float),
+                    orig_df[col]
+                    if col in orig_df.columns
+                    else pd.Series([], dtype=float),
                     lower,
                     upper,
                     action,
@@ -368,18 +461,31 @@ def fit_transform(
                 )
                 if col in orig_df.columns:
                     orig_df[col] = orig_series
-                if action == "trim" and orig_mask is not None and trim_masks["orig"] is not None and col in orig_df.columns:
+                if (
+                    action == "trim"
+                    and orig_mask is not None
+                    and trim_masks["orig"] is not None
+                    and col in orig_df.columns
+                ):
                     trim_masks["orig"] = trim_masks["orig"] | orig_mask
             else:
                 orig_mask = None
 
-            column_detail.update({
-                "bounds": {"lower": lower, "upper": upper},
-                "train_outliers": int(train_mask.sum()) if train_mask is not None else 0,
-                "val_outliers": int(val_mask.sum()) if val_mask is not None else 0,
-                "test_outliers": int(test_mask.sum()) if test_mask is not None else 0,
-                "orig_outliers": int(orig_mask.sum()) if orig_mask is not None else 0,
-            })
+            column_detail.update(
+                {
+                    "bounds": {"lower": lower, "upper": upper},
+                    "train_outliers": int(train_mask.sum())
+                    if train_mask is not None
+                    else 0,
+                    "val_outliers": int(val_mask.sum()) if val_mask is not None else 0,
+                    "test_outliers": int(test_mask.sum())
+                    if test_mask is not None
+                    else 0,
+                    "orig_outliers": int(orig_mask.sum())
+                    if orig_mask is not None
+                    else 0,
+                }
+            )
             if flag_col:
                 flag_columns.append(flag_col)
 
@@ -387,32 +493,46 @@ def fit_transform(
             if action == "trim":
                 raise ValueError("action='trim' is not supported for isolation_forest")
             flag_col = f"{col}_outlier_flag" if action == "flag_only" else None
-            train_series, val_series, test_series, orig_series, detail = _apply_isolation_forest(
-                train_df[col],
-                val_df[col] if (val_df is not None and col in val_df.columns) else None,
-                test_df[col],
-                contamination=config["isoforest_contamination"],
-                random_state=config["random_state"],
-                action=action,
-                flag_col=flag_col,
-                train_df=train_df,
-                val_df=val_df,
-                test_df=test_df,
-                orig_series=orig_df[col] if (orig_df is not None and col in orig_df.columns) else None,
-                orig_df=orig_df,
+            train_series, val_series, test_series, orig_series, detail = (
+                _apply_isolation_forest(
+                    train_df[col],
+                    val_df[col]
+                    if (val_df is not None and col in val_df.columns)
+                    else None,
+                    test_df[col],
+                    contamination=config["isoforest_contamination"],
+                    random_state=config["random_state"],
+                    action=action,
+                    flag_col=flag_col,
+                    train_df=train_df,
+                    val_df=val_df,
+                    test_df=test_df,
+                    orig_series=orig_df[col]
+                    if (orig_df is not None and col in orig_df.columns)
+                    else None,
+                    orig_df=orig_df,
+                )
             )
             train_df[col] = train_series
             if val_df is not None and val_series is not None and col in val_df.columns:
                 val_df[col] = val_series
             test_df[col] = test_series
-            if orig_df is not None and orig_series is not None and col in orig_df.columns:
+            if (
+                orig_df is not None
+                and orig_series is not None
+                and col in orig_df.columns
+            ):
                 orig_df[col] = orig_series
 
-            column_detail.update({
-                "bounds": detail.get("bounds"),
-                "train_outliers": int(train_df[col].isna().sum()) if action == "set_na" else None,
-                "note": "IsolationForest applied",
-            })
+            column_detail.update(
+                {
+                    "bounds": detail.get("bounds"),
+                    "train_outliers": int(train_df[col].isna().sum())
+                    if action == "set_na"
+                    else None,
+                    "note": "IsolationForest applied",
+                }
+            )
             if flag_col:
                 flag_columns.append(flag_col)
 

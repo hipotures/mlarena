@@ -39,7 +39,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     artifact_dir = Path(config.get("_artifact_dir", "."))
     dataset_config = config.get("_dataset", {})
     id_column = dataset_config.get("id_column", "id")
@@ -61,7 +68,9 @@ def fit_transform(
     }
     validation.validate_config(config, required_params, optional_params)
 
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "mixup_augmentation")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "mixup_augmentation"
+    )
 
     train_df_original = dataframe_utils.copy_dataframe(train_df)
     test_df_original = dataframe_utils.copy_dataframe(test_df)
@@ -75,7 +84,9 @@ def fit_transform(
 
     use_orig_only = bool(config.get("use_original_features_only"))
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, config.get("_original_features"))
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, config.get("_original_features")
+        )
 
     if config["include_cols"]:
         numeric_cols = [c for c in config["include_cols"] if c in numeric_cols]
@@ -142,7 +153,9 @@ def fit_transform(
     if problem_type in {"binary", "multiclass"}:
         if config["allow_soft_labels"]:
             if problem_type == "multiclass":
-                warnings.warn("Soft labels for multiclass are not supported; using hard labels.")
+                warnings.warn(
+                    "Soft labels for multiclass are not supported; using hard labels."
+                )
                 config["allow_soft_labels"] = False
         if config["allow_soft_labels"]:
             if not np.issubdtype(y_a.dtype, np.number):
@@ -160,7 +173,9 @@ def fit_transform(
     base_df[target_column] = y_new
 
     train_df = pd.concat([train_df, base_df], axis=0)
-    train_df = train_df.sample(frac=1.0, random_state=config["random_state"]).reset_index(drop=True)
+    train_df = train_df.sample(
+        frac=1.0, random_state=config["random_state"]
+    ).reset_index(drop=True)
 
     transformation_summary = report.create_preprocessing_report(
         train_df_original,

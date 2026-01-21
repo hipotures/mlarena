@@ -71,7 +71,9 @@ class CVObjective:
 
         if self.X is None or self.y is None:
             if train_df is None or target_col is None:
-                raise ValueError("Provide either (train_df and target_col) or (X and y) to CVObjective.")
+                raise ValueError(
+                    "Provide either (train_df and target_col) or (X and y) to CVObjective."
+                )
             self.X = train_df.drop(columns=[target_col])
             self.y = train_df[target_col]
 

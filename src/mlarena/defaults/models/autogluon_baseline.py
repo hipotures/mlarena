@@ -24,10 +24,10 @@ from kaggle_tools.config_models import ModelConfig
 console = Console()
 
 # Suppress C++ compiler warnings and Python warnings
-os.environ['PYTHONWARNINGS'] = 'ignore'
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', category=FutureWarning)
-warnings.filterwarnings('ignore', category=DeprecationWarning)
+os.environ["PYTHONWARNINGS"] = "ignore"
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def train(
@@ -70,7 +70,7 @@ def train(
     preset = config.hyperparameters.presets or "medium"
     time_limit = config.hyperparameters.time_limit or 300
     use_gpu = bool(config.hyperparameters.use_gpu)
-    verbosity = getattr(config.hyperparameters, 'verbosity', 2)
+    verbosity = getattr(config.hyperparameters, "verbosity", 2)
 
     if verbosity == 0:
         console.quiet = True
@@ -113,7 +113,9 @@ def train(
     # Drop ignored columns (keep target)
     drop_cols = set((config.dataset.ignored_columns or []) + [config.dataset.id_column])
     drop_cols.discard(target_column)
-    train_data = train_df.drop(columns=[c for c in drop_cols if c in train_df.columns], errors="ignore")
+    train_data = train_df.drop(
+        columns=[c for c in drop_cols if c in train_df.columns], errors="ignore"
+    )
 
     if target_column not in train_data.columns:
         raise ValueError(f"Target column '{target_column}' not found in training data")
@@ -121,24 +123,36 @@ def train(
     # Prepare tuning_data (same preprocessing as train_data)
     tuning_data = None
     if tuning_df is not None:
-        tuning_data = tuning_df.drop(columns=[c for c in drop_cols if c in tuning_df.columns], errors="ignore")
+        tuning_data = tuning_df.drop(
+            columns=[c for c in drop_cols if c in tuning_df.columns], errors="ignore"
+        )
 
         if target_column not in tuning_data.columns:
-            console.print(f"[yellow]⚠[/yellow] [bold]Tuning:[/bold] target '{target_column}' not in tuning_df, [red]ignoring[/red]")
+            console.print(
+                f"[yellow]⚠[/yellow] [bold]Tuning:[/bold] target '{target_column}' not in tuning_df, [red]ignoring[/red]"
+            )
             tuning_data = None
         else:
-            console.print(f"[green]✓[/green] [bold]Tuning:[/bold] Using tuning_data with [cyan]{len(tuning_data):,}[/cyan] rows")
+            console.print(
+                f"[green]✓[/green] [bold]Tuning:[/bold] Using tuning_data with [cyan]{len(tuning_data):,}[/cyan] rows"
+            )
 
     # Prepare eval_data (for offline leaderboard only, NOT passed to fit)
     eval_data = None
     if eval_df is not None:
-        eval_data = eval_df.drop(columns=[c for c in drop_cols if c in eval_df.columns], errors="ignore")
+        eval_data = eval_df.drop(
+            columns=[c for c in drop_cols if c in eval_df.columns], errors="ignore"
+        )
 
         if target_column not in eval_data.columns:
-            console.print(f"[yellow]⚠[/yellow] [bold]Eval:[/bold] target '{target_column}' not in eval_df, [red]ignoring[/red]")
+            console.print(
+                f"[yellow]⚠[/yellow] [bold]Eval:[/bold] target '{target_column}' not in eval_df, [red]ignoring[/red]"
+            )
             eval_data = None
         else:
-            console.print(f"[green]✓[/green] [bold]Eval:[/bold] Using eval_data with [cyan]{len(eval_data):,}[/cyan] rows for leaderboard")
+            console.print(
+                f"[green]✓[/green] [bold]Eval:[/bold] Using eval_data with [cyan]{len(eval_data):,}[/cyan] rows for leaderboard"
+            )
 
     # Handle sample weights (if provided) and (optionally) extend for external rows.
     # Preprocessing weights are typically a single-column DataFrame (column name may vary).
@@ -152,14 +166,20 @@ def train(
         if sample_weight_strategy in ["auto_weight", "balance_weight"]:
             # Special AutoGluon strategies - pass directly to TabularPredictor
             sample_weight_param = sample_weight_strategy
-            console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Using strategy [magenta]{sample_weight_strategy}[/magenta]")
+            console.print(
+                f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Using strategy [magenta]{sample_weight_strategy}[/magenta]"
+            )
         else:
             # Custom column name - assume it's already in train_data
             if sample_weight_strategy in train_data.columns:
                 sample_weight_param = sample_weight_strategy
-                console.print(f"[green]✓[/green] [bold]Sample Weights:[/bold] Using custom column [yellow]{sample_weight_strategy}[/yellow]")
+                console.print(
+                    f"[green]✓[/green] [bold]Sample Weights:[/bold] Using custom column [yellow]{sample_weight_strategy}[/yellow]"
+                )
             else:
-                console.print(f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] column '{sample_weight_strategy}' [red]not found[/red], ignoring")
+                console.print(
+                    f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] column '{sample_weight_strategy}' [red]not found[/red], ignoring"
+                )
     elif sample_weight is not None:
         # Legacy behavior: weights from artifacts (preprocessing modules like adversarial_validation)
         weights_series: Optional[pd.Series] = None
@@ -181,7 +201,11 @@ def train(
                 weights_series = None
 
         if weights_series is not None:
-            weights = pd.to_numeric(weights_series, errors="coerce").reset_index(drop=True).astype(float)
+            weights = (
+                pd.to_numeric(weights_series, errors="coerce")
+                .reset_index(drop=True)
+                .astype(float)
+            )
             if weights.isna().any():
                 if weights.notna().any():
                     weights = weights.fillna(float(weights.mean()))
@@ -201,18 +225,28 @@ def train(
             if len(weights) == expected_rows:
                 sample_weight_param = "__sample_weight__"
                 train_data[sample_weight_param] = weights.values
-                console.print(f"[green]✓[/green] [bold]Sample Weights:[/bold] Using weights from artifacts: [yellow]{sample_weight_param}[/yellow]")
+                console.print(
+                    f"[green]✓[/green] [bold]Sample Weights:[/bold] Using weights from artifacts: [yellow]{sample_weight_param}[/yellow]"
+                )
 
                 # Apply neutral weight to tuning data
                 if tuning_data is not None:
-                    tuning_weight = float(weights.mean()) if weights.notna().any() else 1.0
+                    tuning_weight = (
+                        float(weights.mean()) if weights.notna().any() else 1.0
+                    )
                     tuning_data[sample_weight_param] = tuning_weight
-                    console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{tuning_weight:.4f}[/green]) to tuning data")
+                    console.print(
+                        f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{tuning_weight:.4f}[/green]) to tuning data"
+                    )
                 # Apply neutral weight to eval data (leaderboard)
                 if eval_data is not None:
-                    eval_weight = float(weights.mean()) if weights.notna().any() else 1.0
+                    eval_weight = (
+                        float(weights.mean()) if weights.notna().any() else 1.0
+                    )
                     eval_data[sample_weight_param] = eval_weight
-                    console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{eval_weight:.4f}[/green]) to eval data")
+                    console.print(
+                        f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] Applied neutral weight ([green]{eval_weight:.4f}[/green]) to eval data"
+                    )
             else:
                 console.print(
                     f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] [red]Ignoring weights[/red]: expected {expected_rows:,} rows, got {len(weights):,}"
@@ -223,7 +257,10 @@ def train(
     weight_evaluation_param = config.dataset.weight_evaluation
     if weight_evaluation_param is None:
         # Auto-detect: True if using explicit weights (not 'auto_weight'/'balance_weight')
-        if sample_weight_param and sample_weight_param not in ["auto_weight", "balance_weight"]:
+        if sample_weight_param and sample_weight_param not in [
+            "auto_weight",
+            "balance_weight",
+        ]:
             weight_evaluation_param = True
         else:
             weight_evaluation_param = False
@@ -235,13 +272,20 @@ def train(
         weight_evaluation_param = False
 
     if sample_weight_param:
-        console.print(f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] weight_evaluation=[magenta]{weight_evaluation_param}[/magenta]")
-        if weight_evaluation_param and sample_weight_param in ["auto_weight", "balance_weight"]:
-            console.print(f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] [red]WARNING[/red]: weight_evaluation=True with {sample_weight_param} is not recommended")
+        console.print(
+            f"[cyan]i[/cyan] [bold]Sample Weights:[/bold] weight_evaluation=[magenta]{weight_evaluation_param}[/magenta]"
+        )
+        if weight_evaluation_param and sample_weight_param in [
+            "auto_weight",
+            "balance_weight",
+        ]:
+            console.print(
+                f"[yellow]⚠[/yellow] [bold]Sample Weights:[/bold] [red]WARNING[/red]: weight_evaluation=True with {sample_weight_param} is not recommended"
+            )
 
     # Train model
     # Get verbosity from config or default to 2 (standard logging)
-    verbosity = getattr(config.hyperparameters, 'verbosity', 2)
+    verbosity = getattr(config.hyperparameters, "verbosity", 2)
 
     predictor = TabularPredictor(
         label=target_column,
@@ -265,7 +309,9 @@ def train(
         # Set use_bag_holdout if bagging enabled
         num_bag_folds = getattr(config.hyperparameters, "num_bag_folds", 0)
         num_bag_sets = getattr(config.hyperparameters, "num_bag_sets", None)
-        bagging_enabled = (num_bag_folds and num_bag_folds > 0) or (num_bag_sets is not None and num_bag_sets > 0)
+        bagging_enabled = (num_bag_folds and num_bag_folds > 0) or (
+            num_bag_sets is not None and num_bag_sets > 0
+        )
 
         if bagging_enabled:
             use_bag_holdout = True  # Default
@@ -274,7 +320,9 @@ def train(
                 use_bag_holdout = config.model.get("use_bag_holdout", True)
 
             fit_kwargs["use_bag_holdout"] = use_bag_holdout
-            console.print(f"[cyan]i[/cyan] [bold]Tuning:[/bold] Bagging enabled with use_bag_holdout=[magenta]{use_bag_holdout}[/magenta]")
+            console.print(
+                f"[cyan]i[/cyan] [bold]Tuning:[/bold] Bagging enabled with use_bag_holdout=[magenta]{use_bag_holdout}[/magenta]"
+            )
 
     if config.hyperparameters.excluded_models:
         fit_kwargs["excluded_model_types"] = config.hyperparameters.excluded_models
@@ -293,14 +341,20 @@ def train(
         fit_kwargs.update(fit_args)
 
     # NEW: Add HPO support
-    hpo_tune_kwargs = getattr(config.hyperparameters, "hyperparameter_tune_kwargs", None)
+    hpo_tune_kwargs = getattr(
+        config.hyperparameters, "hyperparameter_tune_kwargs", None
+    )
     search_space_dict = getattr(config.hyperparameters, "search_space", None)
 
     if hpo_tune_kwargs:
         # Enable HPO
         fit_kwargs["hyperparameter_tune_kwargs"] = hpo_tune_kwargs
-        console.print(f"[cyan]i[/cyan] [bold]HPO:[/bold] Enabled with [yellow]{hpo_tune_kwargs['num_trials']}[/yellow] trials")
-        console.print(f"[cyan]i[/cyan] [bold]HPO:[/bold] Scheduler: [magenta]{hpo_tune_kwargs['scheduler']}[/magenta], Searcher: [magenta]{hpo_tune_kwargs['searcher']}[/magenta]")
+        console.print(
+            f"[cyan]i[/cyan] [bold]HPO:[/bold] Enabled with [yellow]{hpo_tune_kwargs['num_trials']}[/yellow] trials"
+        )
+        console.print(
+            f"[cyan]i[/cyan] [bold]HPO:[/bold] Scheduler: [magenta]{hpo_tune_kwargs['scheduler']}[/magenta], Searcher: [magenta]{hpo_tune_kwargs['searcher']}[/magenta]"
+        )
 
     if search_space_dict:
         # Convert YAML search space to autogluon.common.space objects
@@ -311,16 +365,22 @@ def train(
         # Only apply search spaces for included models (if specified)
         if included_models:
             filtered_space = {
-                model: params for model, params in converted_space.items() if model in included_models
+                model: params
+                for model, params in converted_space.items()
+                if model in included_models
             }
             converted_space = filtered_space
 
         # Set hyperparameters with search spaces
         fit_kwargs["hyperparameters"] = converted_space
 
-        console.print(f"[cyan]i[/cyan] [bold]HPO:[/bold] Search spaces defined for: [yellow]{list(converted_space.keys())}[/yellow]")
+        console.print(
+            f"[cyan]i[/cyan] [bold]HPO:[/bold] Search spaces defined for: [yellow]{list(converted_space.keys())}[/yellow]"
+        )
         for model_type in converted_space:
-            console.print(f"    • [cyan]{model_type:10s}[/cyan] | [yellow]{len(converted_space[model_type])}[/yellow] parameters")
+            console.print(
+                f"    • [cyan]{model_type:10s}[/cyan] | [yellow]{len(converted_space[model_type])}[/yellow] parameters"
+            )
 
     # Forward any model-specific hyperparameters (e.g., NN_TORCH, FASTAI) to AutoGluon.
     known_keys = {
@@ -345,7 +405,9 @@ def train(
             for model_type, params in model_hparams.items():
                 if model_type not in existing:
                     existing[model_type] = params
-                elif isinstance(existing[model_type], dict) and isinstance(params, dict):
+                elif isinstance(existing[model_type], dict) and isinstance(
+                    params, dict
+                ):
                     existing[model_type].update(params)
         else:
             fit_kwargs["hyperparameters"] = model_hparams
@@ -361,9 +423,13 @@ def train(
     if eval_data is not None:
         leaderboard = predictor.leaderboard(data=eval_data, silent=True)
         # Extract best model score on eval data
-        best_model_row = leaderboard[leaderboard['model'] == best_model_name]
-        eval_score = best_model_row['score_val'].values[0] if not best_model_row.empty else None
-        console.print(f"[green]✓[/green] [bold]Eval:[/bold] Leaderboard score on eval_data: [yellow]{eval_score:.6f}[/yellow]")
+        best_model_row = leaderboard[leaderboard["model"] == best_model_name]
+        eval_score = (
+            best_model_row["score_val"].values[0] if not best_model_row.empty else None
+        )
+        console.print(
+            f"[green]✓[/green] [bold]Eval:[/bold] Leaderboard score on eval_data: [yellow]{eval_score:.6f}[/yellow]"
+        )
     else:
         leaderboard = predictor.leaderboard(silent=True)
 

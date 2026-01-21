@@ -43,7 +43,9 @@ class LogTransformer(BaseTransformer):
         """
         if self.columns is None:
             # Auto-detect numeric columns
-            self._fitted_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+            self._fitted_columns = df.select_dtypes(
+                include=[np.number]
+            ).columns.tolist()
         else:
             self._fitted_columns = [col for col in self.columns if col in df.columns]
 
@@ -309,7 +311,9 @@ class FrequencyEncodingTransformer(BaseTransformer):
         """
         for col in self.columns:
             if col in df.columns:
-                self._freq_maps[col] = df[col].value_counts(normalize=self.normalize).to_dict()
+                self._freq_maps[col] = (
+                    df[col].value_counts(normalize=self.normalize).to_dict()
+                )
 
         self.fitted = True
         return self

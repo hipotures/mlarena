@@ -23,10 +23,12 @@ from typing import Any, Dict, List, Tuple, Optional
 import yaml
 
 
-EXCLUDED_KEYS = {'cache'}  # Runtime meta-parameters not affecting output
+EXCLUDED_KEYS = {"cache"}  # Runtime meta-parameters not affecting output
 
 
-def canonicalize_yaml_dict(template_dict: Dict[str, Any], project_root: Optional[Path] = None) -> Dict[str, Any]:
+def canonicalize_yaml_dict(
+    template_dict: Dict[str, Any], project_root: Optional[Path] = None
+) -> Dict[str, Any]:
     """
     Normalize a template dictionary for semantic hashing.
 
@@ -56,6 +58,7 @@ def canonicalize_yaml_dict(template_dict: Dict[str, Any], project_root: Optional
         >>> canonical['module']
         'external_dataset'
     """
+
     def normalize(obj: Any) -> Any:
         """Recursive normalization with path relativization."""
         if isinstance(obj, dict):
@@ -100,7 +103,7 @@ def _relativize_path(path_str: str, project_root: Optional[Path] = None) -> str:
         >>> _relativize_path("/other/absolute/path.csv", Path("/home/user/project"))
         '/other/absolute/path.csv'
     """
-    if not path_str or not path_str.startswith('/'):
+    if not path_str or not path_str.startswith("/"):
         # Already relative or empty
         return path_str
 
@@ -114,7 +117,7 @@ def _relativize_path(path_str: str, project_root: Optional[Path] = None) -> str:
         # Try relative to common subdirectories
         # Look for known markers: data/, experiments/, code/, templates/
         for part in p.parts:
-            if part in {'data', 'experiments', 'code', 'templates', 'artifacts'}:
+            if part in {"data", "experiments", "code", "templates", "artifacts"}:
                 idx = p.parts.index(part)
                 return str(Path(*p.parts[idx:]))
 
@@ -126,7 +129,9 @@ def _relativize_path(path_str: str, project_root: Optional[Path] = None) -> str:
         return path_str
 
 
-def compute_template_hash(template_dict: Dict[str, Any], project_root: Optional[Path] = None) -> str:
+def compute_template_hash(
+    template_dict: Dict[str, Any], project_root: Optional[Path] = None
+) -> str:
     """
     Compute semantic hash of a single template.
 
@@ -160,16 +165,15 @@ def compute_template_hash(template_dict: Dict[str, Any], project_root: Optional[
 
     # Use JSON for deterministic serialization
     # YAML has multiple valid representations, JSON has one canonical form
-    canonical_json = json.dumps(canonical, sort_keys=True, separators=(',', ':'))
+    canonical_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
 
     # SHA-256 hash, truncate to 12 chars
-    digest = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+    digest = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
     return digest[:12]
 
 
 def compute_chain_hash(
-    template_dicts: List[Dict[str, Any]],
-    project_root: Optional[Path] = None
+    template_dicts: List[Dict[str, Any]], project_root: Optional[Path] = None
 ) -> Tuple[str, List[str]]:
     """
     Compute combined hash for a preprocessing chain.
@@ -209,10 +213,10 @@ def compute_chain_hash(
     individual_hashes = [compute_template_hash(t, project_root) for t in template_dicts]
 
     # Concatenate with pipe separator
-    combined_input = '|'.join(individual_hashes)
+    combined_input = "|".join(individual_hashes)
 
     # Hash the concatenation
-    combined_digest = hashlib.sha256(combined_input.encode('utf-8')).hexdigest()
+    combined_digest = hashlib.sha256(combined_input.encode("utf-8")).hexdigest()
     return combined_digest[:12], individual_hashes
 
 
@@ -222,7 +226,7 @@ def save_canonical_configs(
     template_names: List[str],
     combined_hash: str,
     individual_hashes: List[str],
-    project_root: Optional[Path] = None
+    project_root: Optional[Path] = None,
 ):
     """
     Save canonical YAML configs to experiments/pre-{template}/[HASH]/config/.
@@ -268,10 +272,7 @@ def save_canonical_configs(
 
         # Serialize to YAML with consistent formatting
         yaml_content = yaml.dump(
-            canonical,
-            sort_keys=True,
-            default_flow_style=False,
-            allow_unicode=True
+            canonical, sort_keys=True, default_flow_style=False, allow_unicode=True
         )
 
         config_path = config_dir / f"{idx}-{tpl_name}.yaml"

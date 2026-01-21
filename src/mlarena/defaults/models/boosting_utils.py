@@ -53,7 +53,9 @@ def _default_metric(problem_type: str) -> str:
     return "roc_auc"
 
 
-def resolve_metric(config: ModelConfig, y: pd.Series) -> Tuple[str, Callable[[Any, Any], float], bool, bool]:
+def resolve_metric(
+    config: ModelConfig, y: pd.Series
+) -> Tuple[str, Callable[[Any, Any], float], bool, bool]:
     metric_name = (config.dataset.metric or "").strip().lower()
     problem_type = _infer_problem_type(config, y)
     if not metric_name:
@@ -67,7 +69,10 @@ def resolve_metric(config: ModelConfig, y: pd.Series) -> Tuple[str, Callable[[An
         needs_proba = True
         greater_is_better = True
         if problem_type == "multiclass":
-            base_fn = lambda yt, yp: roc_auc_score(yt, yp, multi_class="ovr", average="macro")
+            def base_fn(yt, yp):
+                return roc_auc_score(
+                            yt, yp, multi_class="ovr", average="macro"
+                        )
         else:
             base_fn = roc_auc_score
     elif metric_name in {"accuracy", "acc"}:
@@ -78,7 +83,8 @@ def resolve_metric(config: ModelConfig, y: pd.Series) -> Tuple[str, Callable[[An
         base_fn = log_loss
     elif metric_name in {"rmse", "root_mean_squared_error"}:
         greater_is_better = False
-        base_fn = lambda yt, yp: mean_squared_error(yt, yp, squared=False)
+        def base_fn(yt, yp):
+            return mean_squared_error(yt, yp, squared=False)
     elif metric_name in {"mse", "mean_squared_error"}:
         greater_is_better = False
         base_fn = mean_squared_error
@@ -95,11 +101,14 @@ def resolve_metric(config: ModelConfig, y: pd.Series) -> Tuple[str, Callable[[An
         base_fn = r2_score
     elif metric_name in {"f1", "f1_score"}:
         if problem_type == "multiclass":
-            base_fn = lambda yt, yp: f1_score(yt, yp, average="macro")
+            def base_fn(yt, yp):
+                return f1_score(yt, yp, average="macro")
         else:
             base_fn = f1_score
     else:
-        base_fn = accuracy_score if problem_type != "regression" else mean_absolute_error
+        base_fn = (
+            accuracy_score if problem_type != "regression" else mean_absolute_error
+        )
         greater_is_better = problem_type != "regression"
 
     def score_fn(y_true: Any, y_pred: Any) -> float:
@@ -148,14 +157,18 @@ def prepare_training_data(
 
     drop_cols = set((config.dataset.ignored_columns or []) + [config.dataset.id_column])
     drop_cols.discard(target_column)
-    train_data = train_df.drop(columns=[c for c in drop_cols if c in train_df.columns], errors="ignore")
+    train_data = train_df.drop(
+        columns=[c for c in drop_cols if c in train_df.columns], errors="ignore"
+    )
 
     if target_column not in train_data.columns:
         raise ValueError(f"Target column '{target_column}' not found in training data")
 
     tuning_data = None
     if tuning_df is not None:
-        tuning_data = tuning_df.drop(columns=[c for c in drop_cols if c in tuning_df.columns], errors="ignore")
+        tuning_data = tuning_df.drop(
+            columns=[c for c in drop_cols if c in tuning_df.columns], errors="ignore"
+        )
         if target_column not in tuning_data.columns:
             tuning_data = None
             if console:
@@ -165,7 +178,9 @@ def prepare_training_data(
 
     eval_data = None
     if eval_df is not None:
-        eval_data = eval_df.drop(columns=[c for c in drop_cols if c in eval_df.columns], errors="ignore")
+        eval_data = eval_df.drop(
+            columns=[c for c in drop_cols if c in eval_df.columns], errors="ignore"
+        )
         if target_column not in eval_data.columns:
             eval_data = None
             if console:
@@ -254,7 +269,9 @@ def _resolve_sample_weight(
     if weights is None:
         return None
 
-    weights = pd.to_numeric(weights, errors="coerce").reset_index(drop=True).astype(float)
+    weights = (
+        pd.to_numeric(weights, errors="coerce").reset_index(drop=True).astype(float)
+    )
     if weights.isna().any():
         fill_value = float(weights.mean()) if weights.notna().any() else 1.0
         weights = weights.fillna(fill_value)
@@ -262,7 +279,9 @@ def _resolve_sample_weight(
     expected_rows = len(train_data)
     if merged_rows and len(weights) == base_train_rows:
         fill_value = float(weights.mean()) if weights.notna().any() else 1.0
-        weights = pd.concat([weights, pd.Series([fill_value] * merged_rows)], ignore_index=True)
+        weights = pd.concat(
+            [weights, pd.Series([fill_value] * merged_rows)], ignore_index=True
+        )
 
     if len(weights) != expected_rows:
         if console:
@@ -302,7 +321,9 @@ def cast_categorical_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def detect_categorical_features(df: pd.DataFrame, max_unique_ratio: float = 0.05) -> list[int]:
+def detect_categorical_features(
+    df: pd.DataFrame, max_unique_ratio: float = 0.05
+) -> list[int]:
     cat_indices: list[int] = []
     for idx, col in enumerate(df.columns):
         if df[col].dtype == "object" or df[col].dtype.name == "category":
@@ -315,7 +336,9 @@ def detect_categorical_features(df: pd.DataFrame, max_unique_ratio: float = 0.05
     return cat_indices
 
 
-def build_leaderboard(model_name: str, score: Optional[float], metric_name: str) -> pd.DataFrame:
+def build_leaderboard(
+    model_name: str, score: Optional[float], metric_name: str
+) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
@@ -326,4 +349,3 @@ def build_leaderboard(model_name: str, score: Optional[float], metric_name: str)
             }
         ]
     )
-

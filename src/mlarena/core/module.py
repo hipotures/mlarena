@@ -8,7 +8,7 @@ containers shared across all pipeline modules.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -165,12 +165,13 @@ def print_next_steps(
 
     if console is None:
         from rich.console import Console
+
         console = Console()
 
     next_steps = suggest_next_steps(current_module, project_name, experiment_id)
 
     if next_steps:
-        console.print(f"\n[bold]Next steps:[/bold]")
+        console.print("\n[bold]Next steps:[/bold]")
         for step in next_steps:
             # Print without leading spaces to avoid bash history issues
             console.print(f"[dim]{step}[/dim]")

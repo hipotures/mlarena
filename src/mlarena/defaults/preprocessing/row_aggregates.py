@@ -12,12 +12,10 @@ Parameters:
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 import warnings
 
 import pandas as pd
-import numpy as np
-from scipy import stats as sp_stats
 
 from mlarena.preprocessing.utils import (
     validation,
@@ -33,8 +31,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
-    
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     # 1. Extract & Validate
     artifact_dir = Path(config.get("_artifact_dir", "."))
     dataset_config = config.get("_dataset", {})
@@ -48,11 +47,11 @@ def fit_transform(
         "exclude_cols": [],
         "stats": ["mean", "std", "sum"],
         "prefix": "row_",
-        "nan_policy": "omit", # omit = ignore NaNs (pandas default), fill_zero = fill 0 before calc
+        "nan_policy": "omit",  # omit = ignore NaNs (pandas default), fill_zero = fill 0 before calc
         "use_original_features_only": True,
     }
     validation.validate_config(config, required_params, optional_params)
-    
+
     allowed_stats = ["sum", "mean", "std", "min", "max", "range", "mad", "skew", "kurt"]
     for s in config["stats"]:
         validation.validate_choice(s, allowed_stats, "stats")
@@ -65,18 +64,20 @@ def fit_transform(
     # 3. Determine columns
     exclude_cols = [id_column, target_column] + ignored_columns + config["exclude_cols"]
     exclude_cols = [c for c in exclude_cols if c]
-    
+
     all_numeric = dataframe_utils.get_numeric_columns(train_df, exclude=exclude_cols)
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
-    
+
     if config["include_cols"]:
         numeric_cols = [c for c in config["include_cols"] if c in all_numeric]
     else:
         numeric_cols = all_numeric
 
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, orig_features)
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, orig_features
+        )
 
     if not numeric_cols:
         warnings.warn("No numeric columns found for row aggregates.")
@@ -88,17 +89,18 @@ def fit_transform(
     nan_policy = config["nan_policy"]
 
     def process_df(df, is_train=False):
-        if df is None: return None
-        
+        if df is None:
+            return None
+
         subset = df[numeric_cols]
         if nan_policy == "fill_zero":
             subset = subset.fillna(0)
-            
+
         res_df = pd.DataFrame(index=df.index)
-        
+
         # Calculate stats
         requested = set(config["stats"])
-        
+
         if "sum" in requested:
             res_df[f"{prefix}sum"] = subset.sum(axis=1)
         if "mean" in requested:
@@ -121,10 +123,10 @@ def fit_transform(
             res_df[f"{prefix}skew"] = subset.skew(axis=1)
         if "kurt" in requested:
             res_df[f"{prefix}kurt"] = subset.kurt(axis=1)
-            
+
         if is_train:
             new_features.extend(res_df.columns.tolist())
-            
+
         return pd.concat([df, res_df], axis=1)
 
     train_df = process_df(train_df, is_train=True)
@@ -137,10 +139,10 @@ def fit_transform(
         "input_cols_count": len(numeric_cols),
         "stats_computed": config["stats"],
         "new_features": new_features,
-        "config": {k: v for k, v in config.items() if not k.startswith("_")}
+        "config": {k: v for k, v in config.items() if not k.startswith("_")},
     }
     artifacts.save_report(report_data, submodule_dir, "row_aggregates_report.json")
-    
+
     summary = report.create_preprocessing_report(
         train_before=train_df_original,
         train_after=train_df,
@@ -153,7 +155,7 @@ def fit_transform(
     state_dict = {
         "version": "1.0",
         "new_features": new_features,
-        "config": report_data["config"]
+        "config": report_data["config"],
     }
 
     return train_df, val_df, test_df, orig_df, state_dict

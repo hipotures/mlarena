@@ -31,8 +31,7 @@ def fetch_submissions(competition: str) -> list[dict]:
 
 
 def find_submission_by_message(
-    submissions: list[dict],
-    experiment_id: str
+    submissions: list[dict], experiment_id: str
 ) -> Optional[dict]:
     """
     Find submission by searching for experiment_id in description field.
@@ -52,8 +51,7 @@ def find_submission_by_message(
 
 
 def find_submission_by_filename(
-    submissions: list[dict],
-    filename: str
+    submissions: list[dict], filename: str
 ) -> Optional[dict]:
     """
     Find submission by exact filename match.

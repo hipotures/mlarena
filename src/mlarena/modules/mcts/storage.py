@@ -8,10 +8,12 @@ from enum import IntEnum
 from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 
+
 class StudyDirection(IntEnum):
     NOT_SET = 0
     MINIMIZE = 1
     MAXIMIZE = 2
+
 
 class TrialState(IntEnum):
     RUNNING = 0
@@ -19,6 +21,7 @@ class TrialState(IntEnum):
     PRUNED = 2
     FAIL = 3
     WAITING = 4
+
 
 SCHEMA = """
 -- Studies
@@ -132,6 +135,7 @@ CREATE TABLE IF NOT EXISTS mcts_evaluations (
 );
 """
 
+
 class MCTSStorage:
     def __init__(self, storage_url: str):
         self.url = storage_url
@@ -139,20 +143,20 @@ class MCTSStorage:
             self.path = Path(storage_url.replace("sqlite:///", ""))
         else:
             self.path = Path(storage_url)
-            
+
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Higher timeout for NFS/Contention (30 seconds)
         conn = sqlite3.connect(self.path, timeout=30.0)
-        
+
         # Apply performance and integrity pragmas
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA busy_timeout=5000")
-        
+
         return conn
 
     @contextlib.contextmanager
@@ -172,41 +176,44 @@ class MCTSStorage:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
 
-    def create_study(self, study_name: str, direction: StudyDirection) -> tuple[int, bool]:
+    def create_study(
+        self, study_name: str, direction: StudyDirection
+    ) -> tuple[int, bool]:
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT study_id FROM studies WHERE study_name=?", (study_name,))
+            cur.execute(
+                "SELECT study_id FROM studies WHERE study_name=?", (study_name,)
+            )
             row = cur.fetchone()
             if row:
                 return row[0], False
-            
+
             cur.execute("INSERT INTO studies (study_name) VALUES (?)", (study_name,))
             study_id = cur.lastrowid
-            
+
             cur.execute(
                 "INSERT INTO study_directions (study_id, objective, direction) VALUES (?, ?, ?)",
-                (study_id, 0, direction.value)
+                (study_id, 0, direction.value),
             )
             return study_id, True
 
     def create_trial(
-        self, 
-        study_id: int, 
+        self,
+        study_id: int,
         pipeline_signature: str,
         depth: int,
         parent_trial_id: Optional[int] = None,
         number: Optional[int] = None,
         params: Optional[Dict[str, Any]] = None,
         state: TrialState = TrialState.WAITING,
-        conn: Optional[sqlite3.Connection] = None
+        conn: Optional[sqlite3.Connection] = None,
     ) -> tuple[int, int]:
-        
         # Max retries for number collision
         max_retries = 10
-        
+
         def _exec(c):
             cur = c.cursor()
-            
+
             # Assignment and Insert with Retry
             for attempt in range(max_retries):
                 # 1. Re-check if signature exists UNDER THIS PARENT (handles concurrent inserts)
@@ -216,7 +223,7 @@ class MCTSStorage:
                 else:
                     query = "SELECT trial_id FROM mcts_nodes WHERE study_id = ? AND parent_trial_id IS NULL AND pipeline_signature = ?"
                     cur.execute(query, (study_id, pipeline_signature))
-                
+
                 existing = cur.fetchone()
                 if existing:
                     tid = existing[0]
@@ -228,9 +235,12 @@ class MCTSStorage:
                 try:
                     # Inner savepoint for retry
                     c.execute(f"SAVEPOINT trial_creation_{attempt}")
-                    
+
                     if number is None:
-                        cur.execute("SELECT MAX(number) FROM trials WHERE study_id=?", (study_id,))
+                        cur.execute(
+                            "SELECT MAX(number) FROM trials WHERE study_id=?",
+                            (study_id,),
+                        )
                         res = cur.fetchone()
                         trial_number = (res[0] or 0) + 1
                     else:
@@ -238,36 +248,42 @@ class MCTSStorage:
 
                     cur.execute(
                         "INSERT INTO trials (study_id, number, state, datetime_start) VALUES (?, ?, ?, datetime('now'))",
-                        (study_id, trial_number, state.value)
+                        (study_id, trial_number, state.value),
                     )
                     trial_id = cur.lastrowid
-                    
+
                     if params:
                         for k, v in params.items():
                             cur.execute(
                                 "INSERT INTO trial_params (trial_id, param_name, param_value) VALUES (?, ?, ?)",
-                                (trial_id, k, json.dumps(v))
+                                (trial_id, k, json.dumps(v)),
                             )
-                    
+
                     cur.execute(
                         "INSERT INTO mcts_nodes (trial_id, study_id, parent_trial_id, depth, pipeline_signature) VALUES (?, ?, ?, ?, ?)",
-                        (trial_id, study_id, parent_trial_id, depth, pipeline_signature)
+                        (
+                            trial_id,
+                            study_id,
+                            parent_trial_id,
+                            depth,
+                            pipeline_signature,
+                        ),
                     )
-                    
+
                     c.execute(f"RELEASE SAVEPOINT trial_creation_{attempt}")
                     return trial_id, trial_number
-                    
+
                 except sqlite3.IntegrityError:
                     # Explicitly rollback and release if needed (SQLite release happens automatically on commit/rollback of parent, but we use sub-savepoints)
                     c.execute(f"ROLLBACK TO SAVEPOINT trial_creation_{attempt}")
                     c.execute(f"RELEASE SAVEPOINT trial_creation_{attempt}")
-                    # In next iteration of the loop, we will re-check signature 
+                    # In next iteration of the loop, we will re-check signature
                     # and potentially return existing trial_id.
                     if attempt == max_retries - 1:
                         raise
-                    time.sleep(random.uniform(0.01, 0.1)) # Backoff
-            
-            return -1, -1 # Should not happen
+                    time.sleep(random.uniform(0.01, 0.1))  # Backoff
+
+            return -1, -1  # Should not happen
 
         if conn:
             return _exec(conn)
@@ -277,7 +293,13 @@ class MCTSStorage:
                 c.commit()
                 return res
 
-    def get_trial_id_by_signature(self, study_id: int, pipeline_signature: str, parent_trial_id: Optional[int] = None, conn: Optional[sqlite3.Connection] = None) -> Optional[int]:
+    def get_trial_id_by_signature(
+        self,
+        study_id: int,
+        pipeline_signature: str,
+        parent_trial_id: Optional[int] = None,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> Optional[int]:
         def _exec(c):
             cur = c.cursor()
             if parent_trial_id is not None:
@@ -295,7 +317,13 @@ class MCTSStorage:
             with self._connect() as conn_local:
                 return _exec(conn_local)
 
-    def add_edge(self, parent_trial_id: int, child_trial_id: int, action: Dict[str, Any], conn: Optional[sqlite3.Connection] = None):
+    def add_edge(
+        self,
+        parent_trial_id: int,
+        child_trial_id: int,
+        action: Dict[str, Any],
+        conn: Optional[sqlite3.Connection] = None,
+    ):
         # Edge should be immutable: (parent, child) must always map to the same action.
         # We use DO NOTHING on conflict and verify semantic equality of JSON objects.
         query = """
@@ -303,10 +331,13 @@ class MCTSStorage:
             VALUES (?, ?, ?)
             ON CONFLICT(parent_trial_id, child_trial_id) DO NOTHING
         """
+
         def _exec(c):
             try:
                 # Canonicalize new writes (stable order, no whitespace). Old rows may still use default formatting.
-                action_json = json.dumps(action, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                action_json = json.dumps(
+                    action, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                )
                 cur = c.execute(query, (parent_trial_id, child_trial_id, action_json))
 
                 # If conflict happened (row already existed), validate immutability semantically.
@@ -326,18 +357,25 @@ class MCTSStorage:
                         if existing_obj is not None:
                             # Normalize both sides to canonical Action record to avoid legacy-key mismatches
                             from mlarena.modules.mcts.node import Action as MCTSAction
-                            existing_norm = MCTSAction.from_record(existing_obj).to_record()
+
+                            existing_norm = MCTSAction.from_record(
+                                existing_obj
+                            ).to_record()
                             action_norm = MCTSAction.from_record(action).to_record()
                             if existing_norm != action_norm:
                                 # Detailed diff logging
-                                diff_keys = set(existing_norm.keys()) | set(action_norm.keys())
+                                diff_keys = set(existing_norm.keys()) | set(
+                                    action_norm.keys()
+                                )
                                 diff_report = []
                                 for k in sorted(diff_keys):
                                     v_old = existing_norm.get(k)
                                     v_new = action_norm.get(k)
                                     if v_old != v_new:
-                                        diff_report.append(f"  [{k}]: DB={v_old!r} vs NEW={v_new!r}")
-                                
+                                        diff_report.append(
+                                            f"  [{k}]: DB={v_old!r} vs NEW={v_new!r}"
+                                        )
+
                                 diff_str = "\n".join(diff_report)
                                 raise sqlite3.IntegrityError(
                                     f"Edge already exists with different action_json. "
@@ -356,7 +394,10 @@ class MCTSStorage:
                 if "UNIQUE constraint failed: mcts_edges.child_trial_id" in str(e):
                     # Tree violation: child already has a different parent
                     cur = c.cursor()
-                    cur.execute("SELECT parent_trial_id FROM mcts_edges WHERE child_trial_id=?", (child_trial_id,))
+                    cur.execute(
+                        "SELECT parent_trial_id FROM mcts_edges WHERE child_trial_id=?",
+                        (child_trial_id,),
+                    )
                     row = cur.fetchone()
                     existing_parent = row[0] if row else "unknown"
                     raise sqlite3.IntegrityError(
@@ -396,7 +437,9 @@ class MCTSStorage:
             cur.execute(query, (study_id,))
             return [dict(row) for row in cur.fetchall()]
 
-    def get_trial_by_number(self, study_id: int, number: int) -> Optional[Dict[str, Any]]:
+    def get_trial_by_number(
+        self, study_id: int, number: int
+    ) -> Optional[Dict[str, Any]]:
         """Fetch a trial (+ node stats if present) by its trial.number within a study."""
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row
@@ -415,26 +458,37 @@ class MCTSStorage:
             row = cur.fetchone()
             return dict(row) if row else None
 
-    def update_node_stats(self, trial_id: int, n_visits: int, value_sum: float, value_best: Optional[float], conn: Optional[sqlite3.Connection] = None):
+    def update_node_stats(
+        self,
+        trial_id: int,
+        n_visits: int,
+        value_sum: float,
+        value_best: Optional[float],
+        conn: Optional[sqlite3.Connection] = None,
+    ):
         if conn:
             conn.execute(
                 "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
-                (n_visits, value_sum, value_best, trial_id)
+                (n_visits, value_sum, value_best, trial_id),
             )
         else:
             with self._connect() as c:
                 c.execute(
                     "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?",
-                    (n_visits, value_sum, value_best, trial_id)
+                    (n_visits, value_sum, value_best, trial_id),
                 )
                 c.commit()
 
-    def update_node_stats_many(self, updates: List[Tuple[int, int, float, Optional[float]]], conn: Optional[sqlite3.Connection] = None):
+    def update_node_stats_many(
+        self,
+        updates: List[Tuple[int, int, float, Optional[float]]],
+        conn: Optional[sqlite3.Connection] = None,
+    ):
         """Batch update node stats. updates is list of (trial_id, n_visits, value_sum, value_best|None)."""
         query = "UPDATE mcts_nodes SET n_visits=?, value_sum=?, value_best=? WHERE trial_id=?"
         # Reorder params to match query: (n_visits, value_sum, value_best, trial_id)
         params = [(u[1], u[2], u[3], u[0]) for u in updates]
-        
+
         if conn:
             conn.executemany(query, params)
         else:
@@ -442,35 +496,42 @@ class MCTSStorage:
                 c.executemany(query, params)
                 c.commit()
 
-    def set_trial_value(self, trial_id: int, value: float, conn: Optional[sqlite3.Connection] = None):
+    def set_trial_value(
+        self, trial_id: int, value: float, conn: Optional[sqlite3.Connection] = None
+    ):
         if conn:
             conn.execute(
                 "INSERT OR REPLACE INTO trial_values (trial_id, objective, value) VALUES (?, ?, ?)",
-                (trial_id, 0, value)
+                (trial_id, 0, value),
             )
         else:
             with self._connect() as c:
                 c.execute(
                     "INSERT OR REPLACE INTO trial_values (trial_id, objective, value) VALUES (?, ?, ?)",
-                    (trial_id, 0, value)
+                    (trial_id, 0, value),
                 )
                 c.commit()
 
-    def set_trial_state(self, trial_id: int, state: str | TrialState, conn: Optional[sqlite3.Connection] = None):
+    def set_trial_state(
+        self,
+        trial_id: int,
+        state: str | TrialState,
+        conn: Optional[sqlite3.Connection] = None,
+    ):
         if isinstance(state, str):
             state_enum = getattr(TrialState, state.upper())
         else:
             state_enum = state
-            
+
         def _exec(c):
             c.execute(
                 "UPDATE trials SET state=? WHERE trial_id=?",
-                (state_enum.value, trial_id)
+                (state_enum.value, trial_id),
             )
             if state_enum in (TrialState.COMPLETE, TrialState.FAIL, TrialState.PRUNED):
                 c.execute(
                     "UPDATE trials SET datetime_complete=datetime('now') WHERE trial_id=?",
-                    (trial_id,)
+                    (trial_id,),
                 )
 
         if conn:
@@ -483,14 +544,17 @@ class MCTSStorage:
     def get_best_trial(self, study_id: int) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT direction FROM study_directions WHERE study_id=? AND objective=0", (study_id,))
+            cur.execute(
+                "SELECT direction FROM study_directions WHERE study_id=? AND objective=0",
+                (study_id,),
+            )
             row = cur.fetchone()
             if not row:
                 return None
             direction = row[0]
-            
+
             order = "DESC" if direction == StudyDirection.MAXIMIZE.value else "ASC"
-            
+
             query = f"""
                 SELECT t.trial_id, tv.value
                 FROM trials t
@@ -505,7 +569,17 @@ class MCTSStorage:
                 return {"trial_id": res[0], "value": res[1]}
             return None
 
-    def add_evaluation(self, trial_id: int, fidelity: str, status: str, value: Optional[float], metric: str, duration: float, details: Optional[Dict[str, Any]] = None, conn: Optional[sqlite3.Connection] = None):
+    def add_evaluation(
+        self,
+        trial_id: int,
+        fidelity: str,
+        status: str,
+        value: Optional[float],
+        metric: str,
+        duration: float,
+        details: Optional[Dict[str, Any]] = None,
+        conn: Optional[sqlite3.Connection] = None,
+    ):
         details_json = json.dumps(details) if details else None
         if conn:
             conn.execute(
@@ -514,7 +588,7 @@ class MCTSStorage:
                 (trial_id, fidelity, status, value, metric_name, duration_sec, details_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (trial_id, fidelity, status, value, metric, duration, details_json)
+                (trial_id, fidelity, status, value, metric, duration, details_json),
             )
         else:
             with self._connect() as c:
@@ -524,7 +598,7 @@ class MCTSStorage:
                     (trial_id, fidelity, status, value, metric_name, duration_sec, details_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (trial_id, fidelity, status, value, metric, duration, details_json)
+                    (trial_id, fidelity, status, value, metric, duration, details_json),
                 )
                 c.commit()
 

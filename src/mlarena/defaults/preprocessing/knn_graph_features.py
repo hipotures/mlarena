@@ -51,7 +51,9 @@ def _build_fit_frames(
     return frames
 
 
-def _impute_values(df: pd.DataFrame, cols: List[str], strategy: str) -> Dict[str, float]:
+def _impute_values(
+    df: pd.DataFrame, cols: List[str], strategy: str
+) -> Dict[str, float]:
     values: Dict[str, float] = {}
     for col in cols:
         if strategy == "median":
@@ -63,7 +65,9 @@ def _impute_values(df: pd.DataFrame, cols: List[str], strategy: str) -> Dict[str
     return values
 
 
-def _apply_impute(df: pd.DataFrame, cols: List[str], values: Dict[str, float]) -> pd.DataFrame:
+def _apply_impute(
+    df: pd.DataFrame, cols: List[str], values: Dict[str, float]
+) -> pd.DataFrame:
     df_out = df.copy()
     for col in cols:
         if col not in df_out.columns:
@@ -109,7 +113,14 @@ def fit_transform(
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
     eval_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame,
+    pd.DataFrame | None,
+    pd.DataFrame | None,
+    Dict[str, Any],
+]:
     artifact_dir = Path(config.get("_artifact_dir", "."))
     dataset_config = config.get("_dataset", {})
     id_column = dataset_config.get("id_column", "id")
@@ -132,10 +143,18 @@ def fit_transform(
         "random_state": 42,
     }
     validation.validate_config(config, required_params, optional_params)
-    validation.validate_choice(config["fit_on"], ["train", "train_val", "train_test", "train_val_test"], "fit_on")
-    validation.validate_choice(config["missing_strategy"], ["mean", "median", "zero"], "missing_strategy")
+    validation.validate_choice(
+        config["fit_on"],
+        ["train", "train_val", "train_test", "train_val_test"],
+        "fit_on",
+    )
+    validation.validate_choice(
+        config["missing_strategy"], ["mean", "median", "zero"], "missing_strategy"
+    )
 
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "knn_graph_features")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "knn_graph_features"
+    )
 
     train_df_original = dataframe_utils.copy_dataframe(train_df)
     test_df_original = dataframe_utils.copy_dataframe(test_df)
@@ -146,7 +165,9 @@ def fit_transform(
 
     use_orig_only = bool(config.get("use_original_features_only"))
     if use_orig_only:
-        numeric_cols = dataframe_utils.filter_original_columns(numeric_cols, config.get("_original_features"))
+        numeric_cols = dataframe_utils.filter_original_columns(
+            numeric_cols, config.get("_original_features")
+        )
 
     if config["include_cols"]:
         numeric_cols = [c for c in config["include_cols"] if c in numeric_cols]
@@ -195,8 +216,15 @@ def fit_transform(
 
     prefix = str(config["prefix"]).strip() or "knn"
 
-    drop_self_train = config["fit_on"] in {"train", "train_val", "train_test", "train_val_test"}
-    drop_self_val = config["fit_on"] in {"train_val", "train_val_test"} and val_df is not None
+    drop_self_train = config["fit_on"] in {
+        "train",
+        "train_val",
+        "train_test",
+        "train_val_test",
+    }
+    drop_self_val = (
+        config["fit_on"] in {"train_val", "train_val_test"} and val_df is not None
+    )
     drop_self_test = config["fit_on"] in {"train_test", "train_val_test"}
 
     def _transform_df(df: pd.DataFrame | None, drop_self: bool) -> pd.DataFrame | None:
@@ -207,8 +235,17 @@ def fit_transform(
         x = df_out[numeric_cols].to_numpy(dtype=float)
         if scaler is not None:
             x = scaler.transform(x)
-        k_eff = min(k, max(1, nn.n_samples_fit_ - (1 if drop_self and not config["include_self"] else 0)))
-        features = _knn_features(nn, x, k_eff, drop_self, config["include_self"], config["add_density"])
+        k_eff = min(
+            k,
+            max(
+                1,
+                nn.n_samples_fit_
+                - (1 if drop_self and not config["include_self"] else 0),
+            ),
+        )
+        features = _knn_features(
+            nn, x, k_eff, drop_self, config["include_self"], config["add_density"]
+        )
         if features.size == 0:
             return df_out
         col_names = [
@@ -248,7 +285,9 @@ def fit_transform(
         "model_path": str((submodule_dir / "knn.pkl").relative_to(artifact_dir)),
     }
     if scaler is not None:
-        state_dict["scaler_path"] = str((submodule_dir / "scaler.pkl").relative_to(artifact_dir))
+        state_dict["scaler_path"] = str(
+            (submodule_dir / "scaler.pkl").relative_to(artifact_dir)
+        )
     state_dict["impute_values"] = impute_values
 
     return train_df, val_df, test_df, eval_df, orig_df, state_dict

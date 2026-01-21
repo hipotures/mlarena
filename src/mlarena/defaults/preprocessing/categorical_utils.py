@@ -3,6 +3,7 @@ Shared utilities for handling categorical columns in preprocessing pipelines.
 
 Helper functions to read and apply categorical metadata from previous preprocessing steps.
 """
+
 from __future__ import annotations
 
 import json
@@ -58,7 +59,9 @@ def read_categorical_columns_from_previous_step(
             state = json.load(f)
 
         # Navigate to custom_module_state
-        preprocess_payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
+        preprocess_payload = (
+            state.get("modules", {}).get("preprocess", {}).get("payload", {})
+        )
         custom_state = preprocess_payload.get("custom_module_state", {})
         categorical_columns = custom_state.get("categorical_columns", [])
 
@@ -66,13 +69,21 @@ def read_categorical_columns_from_previous_step(
             console.print(
                 f"[cyan]✓[/cyan] Loaded {len(categorical_columns)} categorical columns from {input_source}"
             )
-            console.print(f"  Columns: {', '.join(categorical_columns[:5])}" +
-                         (f" ... (+{len(categorical_columns)-5} more)" if len(categorical_columns) > 5 else ""))
+            console.print(
+                f"  Columns: {', '.join(categorical_columns[:5])}"
+                + (
+                    f" ... (+{len(categorical_columns) - 5} more)"
+                    if len(categorical_columns) > 5
+                    else ""
+                )
+            )
 
         return categorical_columns
 
     except Exception as e:
-        console.print(f"[yellow]Warning: Failed to read categorical metadata from {input_source}: {e}[/yellow]")
+        console.print(
+            f"[yellow]Warning: Failed to read categorical metadata from {input_source}: {e}[/yellow]"
+        )
         return []
 
 
@@ -107,22 +118,29 @@ def apply_categorical_dtypes(
             skipped.append(col)
             continue
 
-        if df[col].dtype.name == 'category':
+        if df[col].dtype.name == "category":
             # Already category, skip
             continue
 
         try:
-            df[col] = df[col].astype('category')
+            df[col] = df[col].astype("category")
             converted.append(col)
         except Exception as e:
-            console.print(f"[yellow]Warning: Failed to convert '{col}' to category in {df_name}: {e}[/yellow]")
+            console.print(
+                f"[yellow]Warning: Failed to convert '{col}' to category in {df_name}: {e}[/yellow]"
+            )
 
     if converted:
-        console.print(f"[cyan]✓[/cyan] Converted {len(converted)} columns to category dtype in {df_name}")
+        console.print(
+            f"[cyan]✓[/cyan] Converted {len(converted)} columns to category dtype in {df_name}"
+        )
 
     if skipped:
-        console.print(f"[yellow]Note: {len(skipped)} columns not found in {df_name}: {', '.join(skipped[:3])}" +
-                     (f" ... (+{len(skipped)-3} more)" if len(skipped) > 3 else "") + "[/yellow]")
+        console.print(
+            f"[yellow]Note: {len(skipped)} columns not found in {df_name}: {', '.join(skipped[:3])}"
+            + (f" ... (+{len(skipped) - 3} more)" if len(skipped) > 3 else "")
+            + "[/yellow]"
+        )
 
     return df
 

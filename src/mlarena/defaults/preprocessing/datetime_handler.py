@@ -100,7 +100,9 @@ def fit_transform(
     test_df: pd.DataFrame,
     config: Dict[str, Any],
     orig_df: pd.DataFrame | None = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]]:
+) -> Tuple[
+    pd.DataFrame, pd.DataFrame | None, pd.DataFrame, pd.DataFrame | None, Dict[str, Any]
+]:
     """
     Datetime preprocessing: parse datetime columns, expand features, add cyclical encodings, compute time diffs.
     """
@@ -145,7 +147,9 @@ def fit_transform(
     )
 
     # 3. Create sub-module artifact directory
-    submodule_dir = artifacts.get_submodule_artifact_dir(artifact_dir, "datetime_handler")
+    submodule_dir = artifacts.get_submodule_artifact_dir(
+        artifact_dir, "datetime_handler"
+    )
 
     # 4. Save originals
     train_df_original = dataframe_utils.copy_dataframe(train_df)
@@ -154,15 +158,25 @@ def fit_transform(
     # 5. Determine columns to process
     datetime_cols = config["datetime_cols"] or []
     datetime_formats = config.get("datetime_formats", {}) or {}
-    expand_cols = config["expand_datetime_cols"] if config["expand_datetime_cols"] is not None else datetime_cols
+    expand_cols = (
+        config["expand_datetime_cols"]
+        if config["expand_datetime_cols"] is not None
+        else datetime_cols
+    )
     use_orig_only = bool(config.get("use_original_features_only"))
     orig_features = config.get("_original_features") if use_orig_only else None
 
     # Exclude id/target/ignored
     exclude_cols = [id_column, target_column] + ignored_columns
-    datetime_cols = [col for col in datetime_cols if col not in exclude_cols and col in train_df.columns]
+    datetime_cols = [
+        col
+        for col in datetime_cols
+        if col not in exclude_cols and col in train_df.columns
+    ]
     if use_orig_only:
-        datetime_cols = dataframe_utils.filter_original_columns(datetime_cols, orig_features)
+        datetime_cols = dataframe_utils.filter_original_columns(
+            datetime_cols, orig_features
+        )
     expand_cols = [col for col in expand_cols if col in datetime_cols]
 
     if not datetime_cols:
@@ -174,15 +188,20 @@ def fit_transform(
             config=config,
         )
         artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
-        return train_df, val_df, test_df, {
-            "version": "1.0",
-            "parsed_columns": [],
-            "derived_columns": [],
-            "cyclical_columns": [],
-            "time_diff_columns": [],
-            "message": "No datetime columns to process",
-            "config": {k: v for k, v in config.items() if not k.startswith("_")},
-        }
+        return (
+            train_df,
+            val_df,
+            test_df,
+            {
+                "version": "1.0",
+                "parsed_columns": [],
+                "derived_columns": [],
+                "cyclical_columns": [],
+                "time_diff_columns": [],
+                "message": "No datetime columns to process",
+                "config": {k: v for k, v in config.items() if not k.startswith("_")},
+            },
+        )
 
     # 6. Parse datetime columns
     parsed_columns: List[str] = []
@@ -227,7 +246,9 @@ def fit_transform(
     # 8. Expand datetime features
     for col in expand_cols:
         if not pd.api.types.is_datetime64_any_dtype(train_df[col]):
-            warnings.warn(f"Column {col} is not datetime after parsing; skipping feature expansion.")
+            warnings.warn(
+                f"Column {col} is not datetime after parsing; skipping feature expansion."
+            )
             continue
         for feat in feature_list:
             new_col = f"{col}_{feat}"
@@ -294,17 +315,35 @@ def fit_transform(
             continue
 
         if start_col not in train_df.columns or end_col not in train_df.columns:
-            warnings.warn(f"Skipping time diff pair {entry} because columns are missing in train.")
+            warnings.warn(
+                f"Skipping time diff pair {entry} because columns are missing in train."
+            )
             continue
         new_name = new_name or f"{end_col}_minus_{start_col}_{unit}"
 
-        train_df[new_name] = _compute_time_diff(train_df[start_col], train_df[end_col], unit)
-        if val_df is not None and start_col in val_df.columns and end_col in val_df.columns:
-            val_df[new_name] = _compute_time_diff(val_df[start_col], val_df[end_col], unit)
+        train_df[new_name] = _compute_time_diff(
+            train_df[start_col], train_df[end_col], unit
+        )
+        if (
+            val_df is not None
+            and start_col in val_df.columns
+            and end_col in val_df.columns
+        ):
+            val_df[new_name] = _compute_time_diff(
+                val_df[start_col], val_df[end_col], unit
+            )
         if start_col in test_df.columns and end_col in test_df.columns:
-            test_df[new_name] = _compute_time_diff(test_df[start_col], test_df[end_col], unit)
-        if orig_df is not None and start_col in orig_df.columns and end_col in orig_df.columns:
-            orig_df[new_name] = _compute_time_diff(orig_df[start_col], orig_df[end_col], unit)
+            test_df[new_name] = _compute_time_diff(
+                test_df[start_col], test_df[end_col], unit
+            )
+        if (
+            orig_df is not None
+            and start_col in orig_df.columns
+            and end_col in orig_df.columns
+        ):
+            orig_df[new_name] = _compute_time_diff(
+                orig_df[start_col], orig_df[end_col], unit
+            )
         time_diff_columns.append(new_name)
 
     # 10. Optionally drop original datetime columns

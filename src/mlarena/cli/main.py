@@ -9,7 +9,6 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -424,7 +423,7 @@ def run_preprocess_chain(
         _safe_clear_preprocess_chain_dir(chain_base_dir, project_root, console)
 
     if not (chain_base_dir / "config").exists():
-        from mlarena.utils.hash_utils import save_canonical_configs, compute_chain_hash
+        pass
 
     # Check for FUSED execution mode
     # Check both config.preprocess.fuse (yaml) and potential cli override if exposed
@@ -445,7 +444,7 @@ def run_preprocess_chain(
                     final_state = json.load(f)
                     module_entry = final_state.get("modules", {}).get("preprocess", {})
                     if module_entry.get("status") == "completed":
-                         console.print(f"\n[bold yellow]Using cached FUSED preprocessed data[/bold yellow]")
+                         console.print("\n[bold yellow]Using cached FUSED preprocessed data[/bold yellow]")
                          # Fill results for all steps (virtual)
                          for idx, tpl in enumerate(preprocess_templates):
                              results[f"preprocess-{tpl}"] = ModuleResult(success=True, payload={"cached": True})
@@ -784,7 +783,7 @@ def run_auto_flow(
     pipeline_modules = ["model", "predict", "submit", "fetch-score"]
 
     if force:
-        console.print(f"\n[dim]Force mode: ON[/dim]\n")
+        console.print("\n[dim]Force mode: ON[/dim]\n")
 
     # Validate prerequisites (init, eda must be run manually)
     console.print("[bold cyan]Validating prerequisites...[/bold cyan]")
@@ -792,7 +791,7 @@ def run_auto_flow(
     is_valid, error_msg = _validate_setup_modules(project_root, console)
 
     if not is_valid:
-        console.print(f"\n[bold red]✗ Prerequisites validation failed:[/bold red]\n")
+        console.print("\n[bold red]✗ Prerequisites validation failed:[/bold red]\n")
         console.print(f"[yellow]{error_msg}[/yellow]\n")
         return 1
 

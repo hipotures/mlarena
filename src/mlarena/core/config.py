@@ -15,7 +15,9 @@ except Exception:  # pragma: no cover - optional dependency
     yaml = None
 
 
-def load_pipeline_def(name: str, project_root: Optional[Path] = None) -> Tuple[Dict[str, Any], List[str]]:
+def load_pipeline_def(
+    name: str, project_root: Optional[Path] = None
+) -> Tuple[Dict[str, Any], List[str]]:
     """
     Load a pipeline definition JSON for a given project.
 
@@ -73,7 +75,9 @@ class TemplateLoader:
             templates[name] = file
         return templates
 
-    def _validate_case_insensitive(self, templates: Dict[str, Path], source: str) -> None:
+    def _validate_case_insensitive(
+        self, templates: Dict[str, Path], source: str
+    ) -> None:
         """
         Ensure template names are unique in a case-insensitive comparison.
 
@@ -127,7 +131,9 @@ class TemplateLoader:
 
         # Validate case-insensitive in global
         try:
-            self._validate_case_insensitive(global_templates, f"global {self.template_type}")
+            self._validate_case_insensitive(
+                global_templates, f"global {self.template_type}"
+            )
         except ValueError:
             return []
 
@@ -139,7 +145,9 @@ class TemplateLoader:
 
         # Validate case-insensitive in local
         try:
-            self._validate_case_insensitive(local_templates, f"local {self.template_type}")
+            self._validate_case_insensitive(
+                local_templates, f"local {self.template_type}"
+            )
         except ValueError:
             return []
 
@@ -174,12 +182,10 @@ class TemplateLoader:
         # Validate case-insensitive
         try:
             self._validate_case_insensitive(
-                self._scan_directory(global_dir),
-                f"global {self.template_type}"
+                self._scan_directory(global_dir), f"global {self.template_type}"
             )
             self._validate_case_insensitive(
-                self._scan_directory(local_dir),
-                f"local {self.template_type}"
+                self._scan_directory(local_dir), f"local {self.template_type}"
             )
         except ValueError:
             return []
@@ -223,7 +229,9 @@ class TemplateLoader:
 
         template_data = {}
 
-        def _merge_template_payload(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        def _merge_template_payload(
+            base: Dict[str, Any], override: Dict[str, Any]
+        ) -> Dict[str, Any]:
             """
             Merge a project template into a global template.
             - Meta-templates (chain) are not merged; the override replaces the base.
@@ -249,14 +257,23 @@ class TemplateLoader:
         def _load_by_name(name: str) -> Dict[str, Any]:
             repo_root = Path(__file__).resolve().parents[3]
             data: Dict[str, Any] = {}
-            global_file = repo_root / "src" / "mlarena" / "templates" / self.template_type / f"{name}.yaml"
+            global_file = (
+                repo_root
+                / "src"
+                / "mlarena"
+                / "templates"
+                / self.template_type
+                / f"{name}.yaml"
+            )
             if global_file.exists():
                 try:
                     data = yaml.safe_load(global_file.read_text()) or {}
                 except Exception:
                     data = {}
 
-            local_file = self.project_root / "templates" / self.template_type / f"{name}.yaml"
+            local_file = (
+                self.project_root / "templates" / self.template_type / f"{name}.yaml"
+            )
             if local_file.exists():
                 try:
                     local_data = yaml.safe_load(local_file.read_text()) or {}
@@ -332,7 +349,9 @@ def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:
     }
     for m in modules:
         if not isinstance(m, str):
-            raise ValueError(f"Pipeline '{name}' module entries must be strings. Got {m!r}")
+            raise ValueError(
+                f"Pipeline '{name}' module entries must be strings. Got {m!r}"
+            )
     # Optional: warn if referenced modules not registered (checked lazily to avoid circular import).
     try:
         from mlarena.core.registry import ModuleRegistry
@@ -347,7 +366,9 @@ def _validate_pipeline(data: Dict[str, Any], name: str) -> List[str]:
 
     for m in modules:
         if m not in allowed:
-            warnings.append(f"Pipeline '{name}': module '{m}' not in default allowed set.")
+            warnings.append(
+                f"Pipeline '{name}': module '{m}' not in default allowed set."
+            )
     return warnings
 
 

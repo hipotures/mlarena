@@ -15,19 +15,42 @@ from rich.console import Console
 # Source: https://auto.gluon.ai/stable/api/autogluon.tabular.TabularPredictor.html
 AUTOGLUON_METRICS = {
     "binary": [
-        "roc_auc", "accuracy", "balanced_accuracy", "f1", "mcc", "precision", "recall",
-        "log_loss", "pac_score"
+        "roc_auc",
+        "accuracy",
+        "balanced_accuracy",
+        "f1",
+        "mcc",
+        "precision",
+        "recall",
+        "log_loss",
+        "pac_score",
     ],
     "multiclass": [
-        "accuracy", "balanced_accuracy", "mcc", "log_loss", "pac_score",
-        "quadratic_kappa", "precision_macro", "precision_micro", "precision_weighted",
-        "recall_macro", "recall_micro", "recall_weighted",
-        "f1_macro", "f1_micro", "f1_weighted",
-        "roc_auc_ovo_macro", "roc_auc_ovr_macro"
+        "accuracy",
+        "balanced_accuracy",
+        "mcc",
+        "log_loss",
+        "pac_score",
+        "quadratic_kappa",
+        "precision_macro",
+        "precision_micro",
+        "precision_weighted",
+        "recall_macro",
+        "recall_micro",
+        "recall_weighted",
+        "f1_macro",
+        "f1_micro",
+        "f1_weighted",
+        "roc_auc_ovo_macro",
+        "roc_auc_ovr_macro",
     ],
     "regression": [
-        "root_mean_squared_error", "mean_squared_error", "mean_absolute_error",
-        "r2", "pearsonr", "median_absolute_error"
+        "root_mean_squared_error",
+        "mean_squared_error",
+        "mean_absolute_error",
+        "r2",
+        "pearsonr",
+        "median_absolute_error",
     ],
 }
 
@@ -62,9 +85,13 @@ def validate_and_fix_metric(
         return metric, None
 
     # Metric not supported - ask AI for best alternative
-    console.print(f"[yellow]⚠ Warning: '{metric}' not supported by AutoGluon for {problem_type}[/yellow]")
+    console.print(
+        f"[yellow]⚠ Warning: '{metric}' not supported by AutoGluon for {problem_type}[/yellow]"
+    )
     console.print(f"[yellow]  Kaggle metric: {kaggle_metric_name}[/yellow]")
-    console.print(f"[yellow]  Supported metrics: {', '.join(supported_metrics)}[/yellow]")
+    console.print(
+        f"[yellow]  Supported metrics: {', '.join(supported_metrics)}[/yellow]"
+    )
 
     # Import AI helper
     repo_root = Path(__file__).resolve().parents[4]
@@ -78,7 +105,7 @@ PROBLEM TYPE: {problem_type}
 INITIALLY DETECTED METRIC: {metric}
 
 AVAILABLE AUTOGLUON METRICS FOR {problem_type}:
-{', '.join(supported_metrics)}
+{", ".join(supported_metrics)}
 
 Select the metric that best approximates the Kaggle evaluation metric. Consider:
 - Correlation with Kaggle metric
@@ -102,7 +129,9 @@ Return ONLY valid JSON (no markdown, no explanation):
         console=console,
         transient=True,
     ) as progress:
-        task = progress.add_task("Asking AI to select alternative metric...", total=None)
+        task = progress.add_task(
+            "Asking AI to select alternative metric...", total=None
+        )
 
         try:
             ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
@@ -154,7 +183,11 @@ Return ONLY valid JSON (no markdown, no explanation):
 
 
 def log_ai_interaction(
-    project_root: Path, log_type: str, prompt: str, response: str, metadata: Optional[Dict] = None
+    project_root: Path,
+    log_type: str,
+    prompt: str,
+    response: str,
+    metadata: Optional[Dict] = None,
 ) -> Path:
     """Log AI request/response to project logs directory."""
     logs_dir = project_root / "logs"
@@ -235,7 +268,9 @@ Return ONLY valid JSON (no markdown, no explanation):
         console=console,
         transient=True,
     ) as progress:
-        task = progress.add_task("Asking AI to detect problem type and metric...", total=None)
+        task = progress.add_task(
+            "Asking AI to detect problem type and metric...", total=None
+        )
 
         try:
             ai_result, model = call_ai_json(prompt, primary="gemini", retries=2)
@@ -271,9 +306,13 @@ Return ONLY valid JSON (no markdown, no explanation):
 
         if detected_type in ["binary", "regression", "multiclass"]:
             submit_proba = ai_result.get("submit_probabilities")
-            console.print(f"[green]✓ AI detected ({model}): {detected_type} / {detected_metric}[/green]")
+            console.print(
+                f"[green]✓ AI detected ({model}): {detected_type} / {detected_metric}[/green]"
+            )
             return detected_type, detected_metric, submit_proba, ai_log
         else:
-            console.print(f"[yellow]AI returned invalid problem_type: {detected_type}[/yellow]")
+            console.print(
+                f"[yellow]AI returned invalid problem_type: {detected_type}[/yellow]"
+            )
 
     return None, None, None, ai_log

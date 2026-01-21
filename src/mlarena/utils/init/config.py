@@ -75,4 +75,4 @@ SUBMISSION_PROBAS = {str(bool(submit_probabilities))}
 
     config_path = project_root / "code/utils/config.py"
     config_path.write_text(config_content)
-    console.print(f"\n[green]✓[/green] Customized code/utils/config.py")
+    console.print("\n[green]✓[/green] Customized code/utils/config.py")

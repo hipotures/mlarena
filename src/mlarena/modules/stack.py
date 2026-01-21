@@ -6,7 +6,6 @@ Averages multiple prediction CSVs (simple arithmetic mean) to create an ensemble
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
 
 # pandas imported in execute()
 
@@ -31,6 +30,7 @@ class StackModule(BaseModule):
             ModuleResult containing the stacked submission path and input file list.
         """
         import pandas as pd
+
         artifact_dir: Path = self.context.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -42,18 +42,22 @@ class StackModule(BaseModule):
         if not files:
             marker = artifact_dir / "stack_failed.txt"
             marker.write_text("No prediction files provided.")
-            return ModuleResult(success=False, error="no predictions", artifacts=[marker])
+            return ModuleResult(
+                success=False, error="no predictions", artifacts=[marker]
+            )
 
         dfs = []
         for f in files:
             path = Path(f)
             if not path.exists():
                 continue
-            dfs.append(pd.read_csv(path, compression='infer'))
+            dfs.append(pd.read_csv(path, compression="infer"))
         if not dfs:
             marker = artifact_dir / "stack_failed.txt"
             marker.write_text("Provided prediction files missing.")
-            return ModuleResult(success=False, error="missing files", artifacts=[marker])
+            return ModuleResult(
+                success=False, error="missing files", artifacts=[marker]
+            )
 
         id_col = self.invocation_params.get("id_column")
         target_col = self.invocation_params.get("target_column")
@@ -67,7 +71,7 @@ class StackModule(BaseModule):
         base[target_col] = sum(preds) / len(preds)
 
         out_path = artifact_dir / "stacked_submission.csv.gz"
-        base.to_csv(out_path, index=False, compression='infer')
+        base.to_csv(out_path, index=False, compression="infer")
 
         return ModuleResult(
             success=True,

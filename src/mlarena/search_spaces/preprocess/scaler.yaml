@@ -24,10 +24,6 @@ variants:
     params:
       scaling_method: {type: choice, values: [quantile_normal]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
-  - name: rank_gauss
-    params:
-      scaling_method: {type: choice, values: [rank_gauss]}
-      n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
   - name: quantile_uniform
     params:
       scaling_method: {type: choice, values: [quantile_uniform]}

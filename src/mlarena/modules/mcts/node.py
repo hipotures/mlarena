@@ -21,6 +21,8 @@ class Action:
     param_sample_id: int = 0
     # Heuristic prior probability from Oracle
     prior: float = 1.0
+    # Group-specific weight for tree models (monotonic transforms get lower priority)
+    group_weight: float = 1.0
     # Store after-dependencies that should be auto-injected
     pending_after: List[Dict[str, Any]] = field(default_factory=list)
 

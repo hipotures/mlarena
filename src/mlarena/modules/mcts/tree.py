@@ -169,19 +169,26 @@ class MCTSTree:
             seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16) % (2**32)
             rng = random.Random(seed_hash)
 
+            # Apply group weights to all actions
+            for act in raw_pool:
+                group_weight = self.config.group_weights.get(act.group_name, 1.0)
+                act.group_weight = group_weight
+
             if self.config.oracle.enabled and raw_pool:
                 # --- Oracle Logic ---
                 # Evaluate actions: filters out low-prob ones (Pruning) and returns priors
                 filtered_pool, priors = self.oracle.evaluate_actions(node, raw_pool)
 
                 # Assign priors and Calculate Gumbel Score for Weighted Shuffle
-                # Score = log(P + eps) + Gumbel(0,1)
+                # Score = log(P * group_weight + eps) + Gumbel(0,1)
                 # Gumbel(0,1) ~ -log(-log(U)) where U ~ Uniform(0,1)
                 eps = 1e-9
 
                 scored_pool = []
                 for act, p in zip(filtered_pool, priors):
-                    act.prior = p  # Store original prior for PUCT
+                    # Apply group weight to prior
+                    weighted_p = p * getattr(act, "group_weight", 1.0)
+                    act.prior = weighted_p  # Store weighted prior for PUCT
 
                     # Gumbel noise
                     u = rng.random()
@@ -189,16 +196,39 @@ class MCTSTree:
                     gumbel = -math.log(-math.log(u))
 
                     # Log-prob + Gumbel
-                    score = math.log(p + eps) + gumbel
+                    score = math.log(weighted_p + eps) + gumbel
                     scored_pool.append((score, act))
 
                 # Sort by Gumbel score (equivalent to weighted sampling without replacement)
                 scored_pool.sort(key=lambda x: x[0], reverse=True)
                 node.action_pool = [x[1] for x in scored_pool]
+
+                if any(getattr(act, "group_weight", 1.0) != 1.0 for act in node.action_pool[:5]):
+                    logger.debug(
+                        f"[GroupWeights] Applied weights to actions at node. "
+                        f"Top 5: {[(act.group_name, getattr(act, 'group_weight', 1.0)) for act in node.action_pool[:5]]}"
+                    )
             else:
-                # --- Standard Logic ---
-                node.action_pool = raw_pool
-                rng.shuffle(node.action_pool)
+                # --- Standard Logic with Group Weights ---
+                # Weight-based shuffle: actions with lower group_weight appear later
+                weighted_pool = []
+                for act in raw_pool:
+                    weight = getattr(act, "group_weight", 1.0)
+                    # Score = log(weight) + Gumbel noise
+                    u = rng.random()
+                    u = max(1e-9, min(1.0 - 1e-9, u))
+                    gumbel = -math.log(-math.log(u))
+                    score = math.log(weight + 1e-9) + gumbel
+                    weighted_pool.append((score, act))
+
+                weighted_pool.sort(key=lambda x: x[0], reverse=True)
+                node.action_pool = [x[1] for x in weighted_pool]
+
+                if any(getattr(act, "group_weight", 1.0) != 1.0 for act in node.action_pool[:5]):
+                    logger.debug(
+                        f"[GroupWeights] Applied weights (no Oracle). "
+                        f"Top 5: {[(act.group_name, getattr(act, 'group_weight', 1.0)) for act in node.action_pool[:5]]}"
+                    )
 
         def op_key(a: Action):
             return (a.searched_index, a.step_name, a.variant_name)

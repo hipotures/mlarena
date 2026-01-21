@@ -66,6 +66,15 @@ class MCTSConfig(BaseModel):
     exploration_weight: float = 1.414
     prior_policy: Literal["uniform", "heuristic", "surrogate"] = "uniform"
 
+    # Group-specific weights for tree models (XGB/LGBM/CatBoost)
+    # Monotonic transformations (scaler, rank_features) are invariant for tree models
+    group_weights: Dict[str, float] = Field(
+        default_factory=lambda: {
+            "scaler": 0.2,  # Very low priority - mostly invariant for tree models
+            "rank_features": 0.2,  # Very low priority - mostly invariant for tree models
+        }
+    )
+
     # Progressive Widening
     expansion_width: float = 2.0  # k
     expansion_alpha: float = 0.5  # alpha

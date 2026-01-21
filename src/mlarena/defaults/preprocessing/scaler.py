@@ -4,7 +4,7 @@ Numerical Scaling and Transformation Sub-Module
 Purpose: Standardization and distribution transformations for models sensitive to scale/distribution
 Libraries: sklearn.preprocessing (StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer, PowerTransformer), numpy
 Parameters:
-  - scaling_method: Method for scaling (none|standard|minmax|robust|quantile_normal|quantile_uniform|rank_gauss|power_boxcox|power_yeo_johnson)
+  - scaling_method: Method for scaling (none|standard|minmax|robust|quantile_normal|quantile_uniform|power_yeo_johnson)
   - numeric_include: List of specific numeric columns to scale (None = all numeric)
   - numeric_exclude: List of numeric columns to exclude from scaling
   - log_transform: List of columns for log1p transformation (applied before scaling)
@@ -60,7 +60,7 @@ def fit_transform(
         config: Configuration dictionary with keys:
             - _artifact_dir: Path to save artifacts
             - _dataset: {id_column, target, ignored_columns}
-            - scaling_method: Scaling method (none|standard|minmax|robust|quantile_normal|quantile_uniform|rank_gauss|power_boxcox|power_yeo_johnson)
+            - scaling_method: Scaling method (none|standard|minmax|robust|quantile_normal|quantile_uniform|power_yeo_johnson)
             - numeric_include: Specific columns to scale (None = all numeric)
             - numeric_exclude: Columns to exclude from scaling
             - log_transform: Columns for log1p transformation

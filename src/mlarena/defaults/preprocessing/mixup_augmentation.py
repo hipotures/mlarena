@@ -126,6 +126,11 @@ def fit_transform(
         lam = np.clip(lam, clip_val, 1.0 - clip_val)
 
     base_df = train_df.iloc[idx_a].copy()
+    # Remove identifier from synthetic rows to avoid duplicated IDs
+    # (and leakage via joins / group-splitting keyed by id).
+    if id_column in base_df.columns:
+        base_df[id_column] = pd.NA
+
     x_a = train_df.iloc[idx_a][numeric_cols].to_numpy(dtype=float)
     x_b = train_df.iloc[idx_b][numeric_cols].to_numpy(dtype=float)
     mixed = lam[:, None] * x_a + (1.0 - lam)[:, None] * x_b

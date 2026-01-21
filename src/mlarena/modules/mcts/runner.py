@@ -286,13 +286,30 @@ class MCTSRunner:
 
     def _get_feature_count(self, raw_json: Dict[str, Any]) -> Optional[int]:
         """Extract number of features after preprocessing from raw_json."""
+        if not raw_json:
+            self.logger.debug("[FEATURES] raw_json is empty or None")
+            return None
+
         shapes = raw_json.get("shapes", {})
         if not shapes:
             # Fallback to payload shapes
-            shapes = (raw_json.get("payload") or {}).get("shapes", {})
+            payload = raw_json.get("payload")
+            if payload:
+                shapes = payload.get("shapes", {})
 
-        if shapes.get("train_after"):
-            return shapes["train_after"][1]  # (n_rows, n_features)
+        if not shapes:
+            self.logger.debug(f"[FEATURES] No shapes found. Keys in raw_json: {list(raw_json.keys())}")
+            return None
+
+        if shapes and shapes.get("train_after"):
+            try:
+                n_feat = int(shapes["train_after"][1])  # (n_rows, n_features)
+                self.logger.debug(f"[FEATURES] Extracted {n_feat} features from train_after")
+                return n_feat
+            except (IndexError, TypeError, ValueError) as e:
+                self.logger.debug(f"[FEATURES] Failed to extract from train_after: {e}")
+
+        self.logger.debug(f"[FEATURES] train_after not found. Shapes keys: {list(shapes.keys())}")
         return None
 
     def _log_leaderboard_debug(

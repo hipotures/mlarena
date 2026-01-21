@@ -42,10 +42,12 @@ class TemplateMaterializer:
                     }
                 )
 
-        # 2. Add searched steps from state with their recorded index
+        # 2. Add searched steps + auto-inject "after" requirements
         for s in state.steps:
             # Fallback for legacy records that might only have 'step_index'
             orig_idx = s.get("original_index", s.get("step_index", 0))
+
+            # Add the main step
             all_pipeline_steps.append(
                 {
                     "original_index": orig_idx,
@@ -55,7 +57,26 @@ class TemplateMaterializer:
                 }
             )
 
-        # 3. Sort by original index to maintain super-chain order
+            # AUTO-INJECT: Process pending_after requirements
+            pending = s.get("pending_after", [])
+            for req in pending:
+                req_group = req.get("group")
+
+                # Skip if this group is already used (avoid duplicates)
+                if req_group in state.used_groups:
+                    continue
+
+                # Inject step immediately after current step
+                # Use fractional index: orig_idx + 0.5 to place right after
+                injected_step = {
+                    "original_index": orig_idx + 0.5,  # Fractional to preserve order
+                    "name": f"auto_{req_group}",  # Unique auto-generated name
+                    "module": req_group,  # Use group as module name
+                    "config": {},  # Use defaults from template
+                }
+                all_pipeline_steps.append(injected_step)
+
+        # 3. Sort by original index (fractional indices work correctly)
         all_pipeline_steps.sort(key=lambda x: x["original_index"])
 
         chain_list: List[str] = []

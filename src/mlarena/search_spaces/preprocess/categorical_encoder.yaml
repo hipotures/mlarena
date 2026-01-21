@@ -1,4 +1,4 @@
-group: encoding
+group: categorical_encoder
 template: categorical_auto
 
 base_config:

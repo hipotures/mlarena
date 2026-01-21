@@ -36,10 +36,11 @@ variants:
     params:
       encoding_method: {type: choice, values: [one_hot]}
       drop_first: {type: bool}
+    requires_preproc: [{group: categorical_encoder}]
   - name: ordinal
     params:
       encoding_method: {type: choice, values: [ordinal]}
-    requires_preproc: [{group: imputer}]
+    requires_preproc: [{group: imputer}, {group: categorical_encoder}]
   # DISABLED: Causes data leakage in Preprocess->Model architecture (Global Target Encoding)
   # - name: target_mean
   #   params:
@@ -49,6 +50,7 @@ variants:
     params:
       encoding_method: {type: choice, values: [target_mean_oof]}
       oof_folds: {type: int_range, min: 3, max: 8}
+    requires_preproc: [{group: categorical_encoder}]
   # DISABLED: Potential leakage if not strictly OOF
   # - name: catboost
   #   params:
@@ -57,53 +59,65 @@ variants:
     params:
       encoding_method: {type: choice, values: [hashing]}
       hash_dim: {type: int_range, min: 4, max: 16}
+    requires_preproc: [{group: categorical_encoder}]
   - name: leave_one_out
     params:
       encoding_method: {type: choice, values: [leave_one_out]}
       loo_sigma: {type: float_range, min: 0.0, max: 0.5}
+    requires_preproc: [{group: categorical_encoder}]
   - name: m_estimate
     params:
       encoding_method: {type: choice, values: [m_estimate]}
       m_estimate_m: {type: float_range, min: 0.1, max: 100.0, log: true}
+    requires_preproc: [{group: categorical_encoder}]
   - name: james_stein
     params:
       encoding_method: {type: choice, values: [james_stein]}
       james_stein_sigma: {type: float_range, min: 0.0, max: 1.0}
+    requires_preproc: [{group: categorical_encoder}]
   - name: glmm
     params:
       encoding_method: {type: choice, values: [glmm]}
       glmm_sigma: {type: float_range, min: 0.0, max: 1.0}
+    requires_preproc: [{group: categorical_encoder}]
   - name: woe
     params:
       encoding_method: {type: choice, values: [woe]}
       woe_regularization: {type: float_range, min: 0.01, max: 10.0, log: true}
       woe_sigma: {type: float_range, min: 0.0, max: 1.0}
+    requires_preproc: [{group: categorical_encoder}]
   - name: binary
     params:
       encoding_method: {type: choice, values: [binary]}
+    requires_preproc: [{group: categorical_encoder}]
   - name: base_n
     params:
       encoding_method: {type: choice, values: [base_n]}
       base_n: {type: int_range, min: 2, max: 10}
+    requires_preproc: [{group: categorical_encoder}]
   - name: count
     params:
       encoding_method: {type: choice, values: [count]}
       normalize: {type: fixed, value: false}
       add_log: {type: fixed, value: false}
+    requires_preproc: [{group: categorical_encoder}]
   - name: frequency
     params:
       encoding_method: {type: choice, values: [count]}
       normalize: {type: fixed, value: true}
       add_log: {type: fixed, value: false}
+    requires_preproc: [{group: categorical_encoder}]
   - name: log_count
     params:
       encoding_method: {type: choice, values: [count]}
       normalize: {type: fixed, value: false}
       add_log: {type: fixed, value: true}
       min_count: {type: int_range, min: 1, max: 20}
+    requires_preproc: [{group: categorical_encoder}]
   - name: freq_log
     params:
       encoding_method: {type: choice, values: [count]}
       normalize: {type: fixed, value: true}
       add_log: {type: fixed, value: true}
       min_count: {type: int_range, min: 1, max: 20}
+    requires_preproc: [{group: categorical_encoder}]

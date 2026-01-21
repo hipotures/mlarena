@@ -18,6 +18,8 @@ class Action:
     param_sample_id: int = 0
     # Heuristic prior probability from Oracle
     prior: float = 1.0
+    # Store after-dependencies that should be auto-injected
+    pending_after: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_record(self) -> Dict[str, Any]:
         """Convert action to a stable dictionary format for database storage."""
@@ -31,6 +33,7 @@ class Action:
             "original_index": self.original_index,
             "param_sample_id": int(self.param_sample_id),
             "prior": float(self.prior),
+            "pending_after": self.pending_after,
         }
 
     @staticmethod
@@ -47,6 +50,7 @@ class Action:
             original_index=int(d.get("original_index", d.get("step_index", 0))),
             param_sample_id=int(d.get("param_sample_id", 0)),
             prior=float(d.get("prior", 1.0)),
+            pending_after=d.get("pending_after", []),
         )
 
 
@@ -93,6 +97,7 @@ class PipelineState:
                     "searched_index": int(s.get("searched_index", -1)),
                     "original_index": int(s.get("original_index", -1)),
                     "param_sample_id": int(s.get("param_sample_id", 0)),
+                    "pending_after": s.get("pending_after", []),
                 }
             )
 
@@ -120,6 +125,7 @@ class PipelineState:
             "searched_index": action.searched_index,
             "original_index": action.original_index,
             "param_sample_id": int(action.param_sample_id),
+            "pending_after": action.pending_after,
         }
 
         new_steps = list(self.steps) + [new_step]

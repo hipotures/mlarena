@@ -56,6 +56,53 @@ class SuperChainActionSpace:
             i: s["index"] for i, s in enumerate(self.searched_steps)
         }
 
+        # Validate that there are no circular 'after' dependencies
+        self._validate_after_dependencies()
+
+    def _validate_after_dependencies(self) -> None:
+        """Detect circular 'after' dependencies in search spaces."""
+        from collections import defaultdict
+
+        after_graph = defaultdict(set)
+
+        # Build dependency graph from all search spaces
+        for space_name, space in self.search_spaces.items():
+            variants = space.get("variants", [])
+            for variant in variants:
+                requirements = variant.get("requires_preproc", [])
+                for req in requirements:
+                    if req.get("step") == "after":
+                        req_group = req.get("group")
+                        if req_group:
+                            after_graph[space_name].add(req_group)
+
+        # DFS cycle detection
+        visited = set()
+        rec_stack = set()
+
+        def has_cycle(node, path):
+            if node not in after_graph:
+                return False
+
+            visited.add(node)
+            rec_stack.add(node)
+
+            for neighbor in after_graph[node]:
+                if neighbor not in visited:
+                    if has_cycle(neighbor, path + [neighbor]):
+                        return True
+                elif neighbor in rec_stack:
+                    raise ValueError(
+                        f"Circular 'after' dependency detected: {' -> '.join(path + [neighbor])}"
+                    )
+
+            rec_stack.remove(node)
+            return False
+
+        for node in after_graph:
+            if node not in visited:
+                has_cycle(node, [node])
+
     @property
     def total_steps_count(self) -> int:
         return len(self.steps)
@@ -93,11 +140,25 @@ class SuperChainActionSpace:
                 # Check for dependencies (requires_preproc)
                 requirements = variant.get("requires_preproc", [])
                 met = True
+                pending_after = []
+
                 for req in requirements:
                     req_group = req.get("group")
-                    if req_group and req_group not in state.used_groups:
-                        met = False
-                        break
+                    step_timing = req.get("step", "before")  # Default to "before"
+
+                    if step_timing == "before":
+                        # Current behavior: must already be in used_groups
+                        if req_group and req_group not in state.used_groups:
+                            met = False
+                            break
+                    elif step_timing == "after":
+                        # New behavior: collect for later auto-injection
+                        pending_after.append(req)
+                    else:
+                        # Validation: reject invalid values
+                        raise ValueError(
+                            f"Invalid 'step' value: {step_timing}. Must be 'before' or 'after'"
+                        )
 
                 if not met:
                     continue
@@ -114,6 +175,7 @@ class SuperChainActionSpace:
                         i
                     ],  # Original index in super-chain
                     param_sample_id=0,
+                    pending_after=pending_after,  # NEW: Pass after-dependencies
                 )
                 actions.append(action)
 

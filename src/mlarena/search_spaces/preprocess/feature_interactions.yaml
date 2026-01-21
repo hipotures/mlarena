@@ -8,7 +8,10 @@ base_config:
 
 variants:
   - name: arithmetic
+    requires_preproc:
+      - {group: imputer, step: after}
     params:
+      auto_pair_numeric: {type: fixed, value: true}
       interaction_types:
         type: subset
         values: [add, sub, mul, div]

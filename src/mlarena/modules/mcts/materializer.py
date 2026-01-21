@@ -1,8 +1,11 @@
 from __future__ import annotations
 import yaml
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from mlarena.modules.mcts.node import PipelineState
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateMaterializer:
@@ -59,11 +62,15 @@ class TemplateMaterializer:
 
             # AUTO-INJECT: Process pending_after requirements
             pending = s.get("pending_after", [])
+            if pending:
+                logger.info(f"Auto-injecting {len(pending)} step(s) after {s['name']}")
+
             for req in pending:
                 req_group = req.get("group")
 
                 # Skip if this group is already used (avoid duplicates)
                 if req_group in state.used_groups:
+                    logger.debug(f"  → Skipping {req_group} (already in pipeline)")
                     continue
 
                 # Inject step immediately after current step
@@ -75,6 +82,7 @@ class TemplateMaterializer:
                     "config": {},  # Use defaults from template
                 }
                 all_pipeline_steps.append(injected_step)
+                logger.debug(f"  → Injected auto_{req_group} at index {orig_idx + 0.5}")
 
         # 3. Sort by original index (fractional indices work correctly)
         all_pipeline_steps.sort(key=lambda x: x["original_index"])

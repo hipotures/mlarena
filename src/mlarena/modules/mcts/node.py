@@ -1,8 +1,11 @@
 from __future__ import annotations
 import hashlib
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -115,6 +118,10 @@ class PipelineState:
             raise ValueError(
                 f"Action index {action.searched_index} violates order (last: {self.last_step_index})"
             )
+
+        # Log pending_after if present
+        if action.pending_after:
+            logger.debug(f"Adding action {action.step_name}:{action.variant_name} with pending_after: {[r.get('group') for r in action.pending_after]}")
 
         new_step = {
             "name": action.step_name,

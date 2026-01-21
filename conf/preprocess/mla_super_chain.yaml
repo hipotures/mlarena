@@ -36,7 +36,7 @@ preprocessors:
 - name: train_fraction
   group: train_fraction_fixed
   template: train_fraction
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
     default_enabled_fast: true
@@ -132,9 +132,9 @@ preprocessors:
     heavy_variants: []
     # - kmeans
 - name: categorical_encoder
-  group: encoding
+  group: categorical_encoder
   template: categorical_encoder
-  enabled: true
+  enabled: false
   meta:
     heavy_step: false
 - name: encoder
@@ -269,7 +269,7 @@ production:
   seed: 42
 
 mcts:
-  study_name: s6e1_017
+  study_name: s6e1_019
   direction: maximize
   budget: 10000
   storage_url: sqlite:///experiments/db/mcts.db
@@ -293,7 +293,7 @@ mcts:
     time_lambda: 0.0
     
   oracle:
-    enabled: true
+    enabled: false
     model_path: default
     dry_run: false
     pruning_threshold: 0.2

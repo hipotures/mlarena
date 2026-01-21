@@ -2,7 +2,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import yaml
+import logging
 from mlarena.modules.mcts.node import PipelineState, Action
+
+logger = logging.getLogger(__name__)
 
 # Hardcoded for now, mimicking preprocess_tune
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -164,6 +167,11 @@ class SuperChainActionSpace:
                     continue
 
                 vname = variant.get("name")
+
+                # Log pending_after requirements
+                if pending_after:
+                    logger.debug(f"Action {step_name}:{vname} has {len(pending_after)} pending_after: {[r.get('group') for r in pending_after]}")
+
                 action = Action(
                     step_name=step_name,
                     template_name=template_name,

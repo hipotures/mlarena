@@ -284,6 +284,17 @@ class MCTSRunner:
             return "CAT"
         return model_name
 
+    def _get_feature_count(self, raw_json: Dict[str, Any]) -> Optional[int]:
+        """Extract number of features after preprocessing from raw_json."""
+        shapes = raw_json.get("shapes", {})
+        if not shapes:
+            # Fallback to payload shapes
+            shapes = (raw_json.get("payload") or {}).get("shapes", {})
+
+        if shapes.get("train_after"):
+            return shapes["train_after"][1]  # (n_rows, n_features)
+        return None
+
     def _log_leaderboard_debug(
         self, raw: Dict[str, Any], trial_number: int, top_k: int = 5
     ) -> None:
@@ -739,6 +750,9 @@ class MCTSRunner:
 
                     if not self.mcts_live:
                         # Rich styling for success message
+                        n_features = self._get_feature_count(raw)
+                        feat_str = f" F={n_features}" if n_features else ""
+
                         txt = Text(
                             f"I={iteration} (Ts={n_executed}/{self.config.budget}) ",
                             style="dim",
@@ -746,7 +760,7 @@ class MCTSRunner:
                         txt.append("✓", style="bold green")
                         parent_no = node.number if node.number is not None else 0
                         txt.append(
-                            f" T={trial_number} P={parent_no} D={child.state.depth} ",
+                            f" T={trial_number} P={parent_no} D={child.state.depth}{feat_str} ",
                             style="dim",
                         )
                         txt.append(
@@ -800,6 +814,11 @@ class MCTSRunner:
                         self.storage.set_trial_state(trial_id, TrialState.COMPLETE)
                 else:
                     if not self.mcts_live:
+                        # Try to get feature count even on failure (if available)
+                        raw_fail = result.details.get("raw_json", {})
+                        n_features = self._get_feature_count(raw_fail) if raw_fail else None
+                        feat_str = f" F={n_features}" if n_features else ""
+
                         txt = Text(
                             f"I={iteration} (Ts={n_executed}/{self.config.budget}) ",
                             style="dim",
@@ -807,7 +826,7 @@ class MCTSRunner:
                         txt.append(" ✗ ", style="bold red")
                         parent_no = node.number if node.number is not None else 0
                         txt.append(
-                            f" T={trial_number} P={parent_no} D={child.state.depth}",
+                            f" T={trial_number} P={parent_no} D={child.state.depth}{feat_str}",
                             style="bold red",
                         )
                         self.console.print(txt)
@@ -1053,9 +1072,12 @@ class MCTSRunner:
                     if model_alias
                     else f"{result.value:.5f}"
                 )
+                n_features = self._get_feature_count(raw)
+                feat_str = f" F={n_features}" if n_features else ""
+
                 txt = Text(f"I=0 (Ts=0/{self.config.budget}) ", style="dim")
                 txt.append("✓", style="bold green")
-                txt.append(f" T={trial_number} P=~ D=0 ", style="dim")
+                txt.append(f" T={trial_number} P=~ D=0{feat_str} ", style="dim")
                 txt.append(
                     f"{self._format_duration_sec(result.duration)} ", style="dim"
                 )

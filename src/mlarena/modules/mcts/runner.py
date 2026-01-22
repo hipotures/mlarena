@@ -928,7 +928,9 @@ class MCTSRunner:
 
                     # Log action details
                     act = child.action_from_parent
-                    act_info = f"A=[step={act.step_name} var={act.variant_name} sid={act.param_sample_id}]"
+                    act_info = (
+                        f"A={act.step_name}/{act.variant_name}/{act.param_sample_id}"
+                    )
 
                     is_new_best = False
                     if self.direction == StudyDirection.MAXIMIZE:
@@ -1011,7 +1013,7 @@ class MCTSRunner:
                             f"{self._format_run_duration(raw, result.duration)} ",
                             style="dim",
                         )
-                        txt.append(f"{act_info}: ", style="cyan")
+                        txt.append(f"{act_info} ", style="cyan")
 
                         model_alias = self._format_model_alias(
                             raw.get("best_model")
@@ -1323,7 +1325,7 @@ class MCTSRunner:
                 txt.append("✓", style="bold green")
                 txt.append(f" T={trial_number} P=~ D=0{feat_str} ", style="dim")
                 txt.append(f"{self._format_run_duration(raw, result.duration)} ", style="dim")
-                txt.append("A=[step=baseline var=fixed sid=0]: ", style="cyan")
+                txt.append("A=baseline/fixed/0 ", style="cyan")
                 txt.append(value_text, style="bold white")
                 txt.append(" =", style="bold blue")
                 self.console.print(txt)

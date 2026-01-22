@@ -284,32 +284,154 @@ class MCTSRunner:
             return "CAT"
         return model_name
 
+    def _get_feature_count_from_preprocess(
+        self, preprocess_template: str
+    ) -> Optional[int]:
+        from mlarena.core.config import TemplateLoader
+        from mlarena.utils.hash_utils import compute_chain_hash
+
+        loader = TemplateLoader(self.context.project_root, template_type="preprocess")
+        template_cfg = loader.load(preprocess_template)
+        if not template_cfg:
+            self.logger.debug(
+                f"[FEATURES] Preprocess template not found: {preprocess_template}"
+            )
+            return None
+
+        chain = template_cfg.get("chain") if isinstance(template_cfg, dict) else None
+        if chain is not None:
+            if not isinstance(chain, list) or not chain:
+                self.logger.debug(
+                    f"[FEATURES] Invalid chain in preprocess template: {preprocess_template}"
+                )
+                return None
+            templates = [str(t) for t in chain]
+        else:
+            templates = [preprocess_template]
+
+        template_configs = []
+        for tpl in templates:
+            cfg = loader.load(tpl)
+            if not cfg:
+                self.logger.debug(
+                    f"[FEATURES] Missing chain template config: {tpl}"
+                )
+                return None
+            template_configs.append(cfg)
+
+        combined_hash, _ = compute_chain_hash(
+            template_configs, self.context.project_root
+        )
+        chain_exp_id = f"pre-{preprocess_template}"
+        chain_base_dir = (
+            self.context.project_root / "experiments" / chain_exp_id / combined_hash
+        )
+        final_step_id = f"{len(templates) - 1}-{templates[-1]}"
+        state_path = chain_base_dir / final_step_id / "state.json"
+
+        if not state_path.exists():
+            self.logger.debug(
+                f"[FEATURES] Preprocess state.json not found at {state_path}"
+            )
+            return None
+
+        try:
+            state = json.loads(state_path.read_text())
+        except Exception as e:
+            self.logger.debug(
+                f"[FEATURES] Failed reading preprocess state.json at {state_path}: {e}"
+            )
+            return None
+
+        module_shapes = (
+            state.get("modules", {})
+            .get("preprocess", {})
+            .get("payload", {})
+            .get("shapes", {})
+        )
+        n_feat = self._get_feature_count({"shapes": module_shapes})
+        if n_feat is not None:
+            return n_feat
+
+        steps = (state.get("pipeline_progress") or {}).get("steps") or []
+        for step in reversed(steps):
+            n_feat = self._get_feature_count({"shapes": step.get("shapes") or {}})
+            if n_feat is not None:
+                return n_feat
+        return None
+
     def _get_feature_count(self, raw_json: Dict[str, Any]) -> Optional[int]:
-        """Extract number of features after preprocessing from raw_json."""
+        """Extract number of features after preprocessing from raw_json or state.json."""
         if not raw_json:
             self.logger.debug("[FEATURES] raw_json is empty or None")
             return None
 
-        shapes = raw_json.get("shapes", {})
-        if not shapes:
-            # Fallback to payload shapes
-            payload = raw_json.get("payload")
-            if payload:
-                shapes = payload.get("shapes", {})
-
-        if not shapes:
-            self.logger.debug(f"[FEATURES] No shapes found. Keys in raw_json: {list(raw_json.keys())}")
+        def _from_shapes(shapes: Dict[str, Any]) -> Optional[int]:
+            if shapes and shapes.get("train_after"):
+                try:
+                    n_feat = int(shapes["train_after"][1])  # (n_rows, n_features)
+                    self.logger.debug(
+                        f"[FEATURES] Extracted {n_feat} features from train_after"
+                    )
+                    return n_feat
+                except (IndexError, TypeError, ValueError) as e:
+                    self.logger.debug(
+                        f"[FEATURES] Failed to extract from train_after: {e}"
+                    )
             return None
 
-        if shapes and shapes.get("train_after"):
-            try:
-                n_feat = int(shapes["train_after"][1])  # (n_rows, n_features)
-                self.logger.debug(f"[FEATURES] Extracted {n_feat} features from train_after")
-                return n_feat
-            except (IndexError, TypeError, ValueError) as e:
-                self.logger.debug(f"[FEATURES] Failed to extract from train_after: {e}")
+        shapes = raw_json.get("shapes", {})
+        if not shapes:
+            payload = raw_json.get("payload") or {}
+            shapes = payload.get("shapes", {})
 
-        self.logger.debug(f"[FEATURES] train_after not found. Shapes keys: {list(shapes.keys())}")
+        n_feat = _from_shapes(shapes)
+        if n_feat is not None:
+            return n_feat
+
+        exp_id = raw_json.get("experiment_id")
+        if exp_id:
+            state_path = self.context.project_root / "experiments" / exp_id / "state.json"
+            if state_path.exists():
+                try:
+                    state = json.loads(state_path.read_text())
+                except Exception as e:
+                    self.logger.debug(
+                        f"[FEATURES] Failed reading state.json at {state_path}: {e}"
+                    )
+                else:
+                    module_shapes = (
+                        state.get("modules", {})
+                        .get("preprocess", {})
+                        .get("payload", {})
+                        .get("shapes", {})
+                    )
+                    n_feat = _from_shapes(module_shapes)
+                    if n_feat is not None:
+                        return n_feat
+
+                    steps = (
+                        (state.get("pipeline_progress") or {}).get("steps") or []
+                    )
+                    for step in reversed(steps):
+                        n_feat = _from_shapes(step.get("shapes") or {})
+                        if n_feat is not None:
+                            return n_feat
+
+        preprocess_template = raw_json.get("preprocessing_template")
+        if preprocess_template:
+            n_feat = self._get_feature_count_from_preprocess(preprocess_template)
+            if n_feat is not None:
+                return n_feat
+
+        if not shapes:
+            self.logger.debug(
+                f"[FEATURES] No shapes found. Keys in raw_json: {list(raw_json.keys())}"
+            )
+        else:
+            self.logger.debug(
+                f"[FEATURES] train_after not found. Shapes keys: {list(shapes.keys())}"
+            )
         return None
 
     def _log_leaderboard_debug(
@@ -767,8 +889,44 @@ class MCTSRunner:
 
                     if not self.mcts_live:
                         # Rich styling for success message
+                        # DEBUG: Check what's in raw
+                        if not raw:
+                            self.logger.debug(
+                                f"[FEATURES] raw_json empty; result.details keys: {list(result.details.keys())}"
+                            )
+                            raw = result.details
+
                         n_features = self._get_feature_count(raw)
-                        feat_str = f" F={n_features}" if n_features else ""
+
+                        # DEBUG: Print raw structure if features not found
+                        if n_features is None:
+                            raw_keys = list(raw.keys())[:10] if raw else []
+                            self.logger.debug(
+                                "[FEATURES] No features extracted. Raw is %s",
+                                "empty" if not raw else f"present with keys: {raw_keys}",
+                            )
+                            if raw and "shapes" in raw:
+                                shapes_data = raw["shapes"]
+                                shapes_keys = (
+                                    list(shapes_data.keys())
+                                    if isinstance(shapes_data, dict)
+                                    else "not dict"
+                                )
+                                self.logger.debug(
+                                    "[FEATURES] shapes type=%s, keys=%s",
+                                    type(shapes_data),
+                                    shapes_keys,
+                                )
+                                if (
+                                    isinstance(shapes_data, dict)
+                                    and "train_after" in shapes_data
+                                ):
+                                    self.logger.debug(
+                                        "[FEATURES] train_after=%s",
+                                        shapes_data["train_after"],
+                                    )
+
+                        feat_str = f" F={n_features}" if n_features is not None else ""
 
                         txt = Text(
                             f"I={iteration} (Ts={n_executed}/{self.config.budget}) ",
@@ -834,7 +992,7 @@ class MCTSRunner:
                         # Try to get feature count even on failure (if available)
                         raw_fail = result.details.get("raw_json", {})
                         n_features = self._get_feature_count(raw_fail) if raw_fail else None
-                        feat_str = f" F={n_features}" if n_features else ""
+                        feat_str = f" F={n_features}" if n_features is not None else ""
 
                         txt = Text(
                             f"I={iteration} (Ts={n_executed}/{self.config.budget}) ",
@@ -1090,7 +1248,7 @@ class MCTSRunner:
                     else f"{result.value:.5f}"
                 )
                 n_features = self._get_feature_count(raw)
-                feat_str = f" F={n_features}" if n_features else ""
+                feat_str = f" F={n_features}" if n_features is not None else ""
 
                 txt = Text(f"I=0 (Ts=0/{self.config.budget}) ", style="dim")
                 txt.append("✓", style="bold green")

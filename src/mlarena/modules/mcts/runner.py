@@ -8,6 +8,7 @@ import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from collections import defaultdict
+from datetime import datetime as dt
 
 from mlarena.core.module import ModuleContext, ModuleResult
 from mlarena.modules.mcts.config import load_mcts_config
@@ -155,6 +156,8 @@ class MCTSRunner:
         if bool(params.get("telegram_test") or context.config.telegram_test):
             self.notifier.send_test(source="MCTSRunner")
 
+        self._preprocess_state_cache: Dict[str, Optional[Dict[str, Any]]] = {}
+
         self._setup_logging()
 
     def _apply_overrides(self, params: Dict[str, Any]):
@@ -284,9 +287,13 @@ class MCTSRunner:
             return "CAT"
         return model_name
 
-    def _get_feature_count_from_preprocess(
+    def _load_preprocess_state(
         self, preprocess_template: str
-    ) -> Optional[int]:
+    ) -> Optional[Dict[str, Any]]:
+        cached = self._preprocess_state_cache.get(preprocess_template)
+        if preprocess_template in self._preprocess_state_cache:
+            return cached
+
         from mlarena.core.config import TemplateLoader
         from mlarena.utils.hash_utils import compute_chain_hash
 
@@ -296,6 +303,7 @@ class MCTSRunner:
             self.logger.debug(
                 f"[FEATURES] Preprocess template not found: {preprocess_template}"
             )
+            self._preprocess_state_cache[preprocess_template] = None
             return None
 
         chain = template_cfg.get("chain") if isinstance(template_cfg, dict) else None
@@ -304,6 +312,7 @@ class MCTSRunner:
                 self.logger.debug(
                     f"[FEATURES] Invalid chain in preprocess template: {preprocess_template}"
                 )
+                self._preprocess_state_cache[preprocess_template] = None
                 return None
             templates = [str(t) for t in chain]
         else:
@@ -316,6 +325,7 @@ class MCTSRunner:
                 self.logger.debug(
                     f"[FEATURES] Missing chain template config: {tpl}"
                 )
+                self._preprocess_state_cache[preprocess_template] = None
                 return None
             template_configs.append(cfg)
 
@@ -333,6 +343,7 @@ class MCTSRunner:
             self.logger.debug(
                 f"[FEATURES] Preprocess state.json not found at {state_path}"
             )
+            self._preprocess_state_cache[preprocess_template] = None
             return None
 
         try:
@@ -341,24 +352,78 @@ class MCTSRunner:
             self.logger.debug(
                 f"[FEATURES] Failed reading preprocess state.json at {state_path}: {e}"
             )
+            self._preprocess_state_cache[preprocess_template] = None
+            return None
+
+        self._preprocess_state_cache[preprocess_template] = state
+        return state
+
+    def _get_feature_count_from_preprocess(
+        self, preprocess_template: str
+    ) -> Optional[int]:
+        def _from_shapes(shapes: Dict[str, Any]) -> Optional[int]:
+            if shapes and shapes.get("train_after"):
+                try:
+                    return int(shapes["train_after"][1])  # (n_rows, n_features)
+                except (IndexError, TypeError, ValueError):
+                    return None
+            return None
+
+        state = self._load_preprocess_state(preprocess_template)
+        if not state:
             return None
 
         module_shapes = (
-            state.get("modules", {})
-            .get("preprocess", {})
-            .get("payload", {})
-            .get("shapes", {})
+            state.get("modules", {}).get("preprocess", {}).get("payload", {}).get("shapes", {})
         )
-        n_feat = self._get_feature_count({"shapes": module_shapes})
+        n_feat = _from_shapes(module_shapes)
         if n_feat is not None:
             return n_feat
 
         steps = (state.get("pipeline_progress") or {}).get("steps") or []
         for step in reversed(steps):
-            n_feat = self._get_feature_count({"shapes": step.get("shapes") or {}})
+            n_feat = _from_shapes(step.get("shapes") or {})
             if n_feat is not None:
                 return n_feat
         return None
+
+    def _get_preprocess_duration(self, preprocess_template: str) -> Optional[int]:
+        state = self._load_preprocess_state(preprocess_template)
+        if not state:
+            return None
+
+        module_entry = state.get("modules", {}).get("preprocess", {})
+        started_at = module_entry.get("started_at")
+        finished_at = module_entry.get("finished_at")
+
+        if not started_at or not finished_at:
+            progress = state.get("pipeline_progress") or {}
+            started_at = started_at or progress.get("start_time")
+            finished_at = finished_at or progress.get("end_time")
+
+        if not started_at or not finished_at:
+            return None
+
+        try:
+            started_dt = dt.fromisoformat(started_at.replace("Z", "+00:00"))
+            finished_dt = dt.fromisoformat(finished_at.replace("Z", "+00:00"))
+        except Exception as e:
+            self.logger.debug(f"[FEATURES] Failed parsing timestamps: {e}")
+            return None
+
+        duration = (finished_dt - started_dt).total_seconds()
+        return int(round(duration))
+
+    def _format_run_duration(
+        self, raw_json: Dict[str, Any], model_duration: Optional[float]
+    ) -> str:
+        model_sec = int(round(model_duration or 0.0))
+        preprocess_template = raw_json.get("preprocessing_template")
+        if preprocess_template:
+            pre_sec = self._get_preprocess_duration(preprocess_template)
+            if pre_sec is not None:
+                return f"{pre_sec}+{model_sec}s"
+        return self._format_duration_sec(model_duration)
 
     def _get_feature_count(self, raw_json: Dict[str, Any]) -> Optional[int]:
         """Extract number of features after preprocessing from raw_json or state.json."""
@@ -939,7 +1004,7 @@ class MCTSRunner:
                             style="dim",
                         )
                         txt.append(
-                            f"{self._format_duration_sec(result.duration)} ",
+                            f"{self._format_run_duration(raw, result.duration)} ",
                             style="dim",
                         )
                         txt.append(f"{act_info}: ", style="cyan")
@@ -1253,9 +1318,7 @@ class MCTSRunner:
                 txt = Text(f"I=0 (Ts=0/{self.config.budget}) ", style="dim")
                 txt.append("✓", style="bold green")
                 txt.append(f" T={trial_number} P=~ D=0{feat_str} ", style="dim")
-                txt.append(
-                    f"{self._format_duration_sec(result.duration)} ", style="dim"
-                )
+                txt.append(f"{self._format_run_duration(raw, result.duration)} ", style="dim")
                 txt.append("A=[step=baseline var=fixed sid=0]: ", style="cyan")
                 txt.append(value_text, style="bold white")
                 txt.append(" =", style="bold blue")

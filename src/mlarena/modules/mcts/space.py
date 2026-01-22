@@ -144,6 +144,7 @@ class SuperChainActionSpace:
                 requirements = variant.get("requires_preproc", [])
                 met = True
                 pending_after = []
+                activated_by_before = []
 
                 for req in requirements:
                     req_group = req.get("group")
@@ -154,6 +155,8 @@ class SuperChainActionSpace:
                         if req_group and req_group not in state.used_groups:
                             met = False
                             break
+                        if req_group:
+                            activated_by_before.append(req_group)
                     elif step_timing == "after":
                         # New behavior: collect for later auto-injection
                         pending_after.append(req)
@@ -168,9 +171,24 @@ class SuperChainActionSpace:
 
                 vname = variant.get("name")
 
-                # Log pending_after requirements
+                if activated_by_before:
+                    logger.debug(
+                        "Dependency step=before: %s:%s activated by %s",
+                        step_name,
+                        vname,
+                        activated_by_before,
+                    )
                 if pending_after:
-                    logger.debug(f"Action {step_name}:{vname} has {len(pending_after)} pending_after: {[r.get('group') for r in pending_after]}")
+                    after_groups = [
+                        r.get("group") for r in pending_after if r.get("group")
+                    ]
+                    if after_groups:
+                        logger.debug(
+                            "Dependency step=after: %s:%s activates %s",
+                            step_name,
+                            vname,
+                            after_groups,
+                        )
 
                 action = Action(
                     step_name=step_name,

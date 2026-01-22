@@ -67,11 +67,23 @@ class TemplateMaterializer:
 
             for req in pending:
                 req_group = req.get("group")
+                if not req_group:
+                    continue
 
                 # Skip if this group is already used (avoid duplicates)
                 if req_group in state.used_groups:
-                    logger.debug(f"  → Skipping {req_group} (already in pipeline)")
+                    logger.debug(
+                        "Dependency step=after: %s activates %s but it's already in pipeline",
+                        s["name"],
+                        req_group,
+                    )
                     continue
+
+                logger.debug(
+                    "Dependency step=after: %s activates %s (auto-inject)",
+                    s["name"],
+                    req_group,
+                )
 
                 # Inject step immediately after current step
                 # Use fractional index: orig_idx + 0.5 to place right after
@@ -82,7 +94,11 @@ class TemplateMaterializer:
                     "config": {},  # Use defaults from template
                 }
                 all_pipeline_steps.append(injected_step)
-                logger.debug(f"  → Injected auto_{req_group} at index {orig_idx + 0.5}")
+                logger.debug(
+                    "Auto-injected %s at index %.1f",
+                    f"auto_{req_group}",
+                    orig_idx + 0.5,
+                )
 
         # 3. Sort by original index (fractional indices work correctly)
         all_pipeline_steps.sort(key=lambda x: x["original_index"])

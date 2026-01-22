@@ -1369,18 +1369,30 @@ class MCTSRunner:
         templates_dir = self.materializer.templates_dir.resolve()
 
         try:
+            deleted_chain = 0
+            deleted_steps = 0
+
             # 1. Delete chain YAML
             chain_path = Path(templates["chain_path"]).resolve()
             if chain_path.exists() and chain_path.is_relative_to(templates_dir):
                 chain_path.unlink()
-                self.logger.debug(f"[CLEANUP] Deleted chain template: {chain_path}")
+                deleted_chain = 1
 
             # 2. Delete step YAMLs
             for p in templates["step_paths"]:
                 step_path = Path(p).resolve()
                 if step_path.exists() and step_path.is_relative_to(templates_dir):
                     step_path.unlink()
-                    self.logger.debug(f"[CLEANUP] Deleted step template: {step_path}")
+                    deleted_steps += 1
+
+            if deleted_chain or deleted_steps:
+                self.logger.debug(
+                    "[CLEANUP] Deleted templates: chain=%d steps=%d base=%s fidelity=%s",
+                    deleted_chain,
+                    deleted_steps,
+                    base_name,
+                    fidelity,
+                )
         except Exception as e:
             self.logger.warning(f"Failed to cleanup templates: {e}")
 

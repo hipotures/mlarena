@@ -337,11 +337,15 @@ class MCTSRunner:
             self.context.project_root / "experiments" / chain_exp_id / combined_hash
         )
         final_step_id = f"{len(templates) - 1}-{templates[-1]}"
-        state_path = chain_base_dir / final_step_id / "state.json"
-
-        if not state_path.exists():
+        candidate_paths = [
+            chain_base_dir / "state.json",  # unified pipeline (hash-level)
+            chain_base_dir / final_step_id / "state.json",  # classic chain
+        ]
+        state_path = next((p for p in candidate_paths if p.exists()), None)
+        if not state_path:
             self.logger.debug(
-                f"[FEATURES] Preprocess state.json not found at {state_path}"
+                "[FEATURES] Preprocess state.json not found at %s",
+                ", ".join(str(p) for p in candidate_paths),
             )
             self._preprocess_state_cache[preprocess_template] = None
             return None

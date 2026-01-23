@@ -76,13 +76,19 @@ class ModuleRegistry:
         Args:
             force_reload: Reload modules from disk instead of using cached imports.
         """
-        if force_reload:
-            # Purge cached modules to force decorator side effects after a clear.
-            for modname in list(sys.modules.keys()):
-                if modname == "mlarena.modules" or modname.startswith(
-                    "mlarena.modules."
-                ):
-                    sys.modules.pop(modname, None)
-
-        # Import modules package (uses cache if force_reload=False)
+        # Ensure package is imported so it exists in sys.modules.
         importlib.import_module("mlarena.modules")
+
+        if not force_reload:
+            return
+
+        # Reload in place to avoid breaking references held by tests.
+        module_names = [
+            name
+            for name in sys.modules.keys()
+            if name == "mlarena.modules" or name.startswith("mlarena.modules.")
+        ]
+        for modname in sorted(module_names, key=len, reverse=True):
+            module = sys.modules.get(modname)
+            if module is not None:
+                importlib.reload(module)

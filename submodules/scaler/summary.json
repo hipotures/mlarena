@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "train": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      12,
+      8
+    ],
+    "shape_after": [
+      12,
+      8
+    ],
+    "rows_before": 12,
+    "rows_after": 12,
+    "cols_before": 8,
+    "cols_after": 8,
+    "added_columns": [],
+    "removed_columns": [],
+    "kept_columns_count": 8,
+    "rows_changed": 0,
+    "cols_changed": 0
+  },
+  "test": {
+    "submodule": "preprocessing",
+    "shape_before": [
+      12,
+      8
+    ],
+    "shape_after": [
+      12,
+      8
+    ],
+    "rows_before": 12,
+    "rows_after": 12,
+    "cols_before": 8,
+    "cols_after": 8,
+    "added_columns": [],
+    "removed_columns": [],
+    "kept_columns_count": 8,
+    "rows_changed": 0,
+    "cols_changed": 0
+  },
+  "config": {
+    "method": "power_boxcox",
+    "scaling_method": "none",
+    "numeric_include": null,
+    "numeric_exclude": [],
+    "log_transform": [],
+    "clip_lower_quantile": null,
+    "clip_upper_quantile": null,
+    "n_quantiles": 1000,
+    "random_state": 42,
+    "power_standardize": true
+  },
+  "metadata": {
+    "train_test_cols_match": true,
+    "train_test_rows_ratio": 1.0
+  },
+  "scaling": {
+    "method": "none",
+    "scaled_columns": [],
+    "log_transformed_columns": [],
+    "clipped_columns": [],
+    "clip_bounds": {},
+    "column_stats": {
+      "num_a": {
+        "before": {
+          "mean": -5.0,
+          "std": 0.0,
+          "min": -5.0,
+          "max": -5.0
+        },
+        "after": {
+          "mean": -5.0,
+          "std": 0.0,
+          "min": -5.0,
+          "max": -5.0
+        }
+      },
+      "num_b": {
+        "before": {
+          "mean": 13.0,
+          "std": 7.211102550927978,
+          "min": 2.0,
+          "max": 24.0
+        },
+        "after": {
+          "mean": 13.0,
+          "std": 7.211102550927978,
+          "min": 2.0,
+          "max": 24.0
+        }
+      }
+    }
+  }
+}

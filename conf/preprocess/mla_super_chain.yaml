@@ -300,3 +300,37 @@ mcts:
     eps: 0.001
     max_actions: 5
     use_prior_in_puct: true
+
+rant:
+  enabled: true
+  study_name: s6e1_rant_001
+  direction: maximize
+  storage_url: sqlite:///experiments/db/rant.db
+  seed: 42
+  initial_random_trials: 50
+  top_k: 10
+  children_per_parent: 5
+  rounds_per_run: 1
+  min_core_len: 3
+  max_core_len: 9
+  allow_heavy_steps: true
+  allow_heavy_variants: true
+  max_parents_per_architecture: 1
+  refinement:
+    grid_size: 20
+    log_grid_size: 20
+    allow_two_param_mutations: false
+  runtime:
+    executor: cli
+    role: driver_worker
+    poll_interval_sec: 2.0
+    max_idle_polls: 60
+    storage_timeout_sec: 60
+  failure:
+    max_sampling_attempts_per_insert: 200
+    max_total_sampling_attempts_per_round: 50000
+    max_consecutive_runtime_failures: 20
+    stale_running_sec: 7200
+    stale_running_policy: requeue
+    max_retries_per_trial: 1
+  debug: false

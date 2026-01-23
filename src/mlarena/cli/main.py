@@ -1416,6 +1416,16 @@ def main(argv: List[str] | None = None) -> int:
                 for k, v in _flatten_dict(config.mcts_section).items():
                     params[f"mcts.{k}"] = v
 
+        # Handle RANT flag
+        if hasattr(config, "rant"):
+            params["rant"] = config.rant
+
+        # Inject all fields from 'rant' section if rant is active
+        if config.rant and hasattr(config, "rant_section"):
+            if isinstance(config.rant_section, dict):
+                for k, v in _flatten_dict(config.rant_section).items():
+                    params[f"rant.{k}"] = v
+
         # Also inject common fields (these override template defaults if explicitly set via CLI)
         for field, value in config.common.model_dump().items():
             if value is not None:

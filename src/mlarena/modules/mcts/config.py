@@ -34,6 +34,10 @@ class DedupeConfig(BaseModel):
     strategy: str = "unique_signature"
 
 
+class EvaluationConfig(BaseModel):
+    model: Optional[str] = None
+
+
 class OracleConfig(BaseModel):
     enabled: bool = False
     model_path: Optional[str] = None
@@ -111,6 +115,7 @@ class MCTSConfig(BaseModel):
     templates: TemplatesConfig = Field(default_factory=TemplatesConfig)
     parallelism: ParallelismConfig = Field(default_factory=ParallelismConfig)
     dedupe: DedupeConfig = Field(default_factory=DedupeConfig)
+    evaluation: Optional[EvaluationConfig] = None
 
     @field_validator("direction")
     def validate_direction(cls, v):

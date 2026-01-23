@@ -47,6 +47,7 @@ class GlobalConfig(BaseModel):
     json_output: bool = False
     mcts: bool = False
     mcts_live: bool = False
+    rant: bool = False
     telegram_test: bool = False
     lock: bool = False  # Create overwrite.lock after successful completion
     skip_deps: bool = False
@@ -55,6 +56,7 @@ class GlobalConfig(BaseModel):
     # Sections
     common: CommonConfig = Field(default_factory=CommonConfig)
     mcts_section: Dict[str, Any] = Field(default_factory=dict, alias="mcts_config")
+    rant_section: Dict[str, Any] = Field(default_factory=dict, alias="rant_config")
     optuna: Dict[str, Any] = Field(default_factory=dict)
 
     # Modules - dynamic sections
@@ -212,6 +214,22 @@ class ConfigBuilder:
             elif isinstance(val, bool):
                 container["mcts"] = val
                 container["mcts_config"] = {}
+
+        # Split rant boolean vs dict (same pattern as mcts)
+        if "rant" in container:
+            val = container["rant"]
+            if isinstance(val, dict):
+                # It's a dictionary (from rant.budget=10 etc)
+                container["rant_config"] = val
+                # Check if it also contains a boolean flag (from rant=true)
+                if "enabled" in val:
+                    container["rant"] = bool(val.pop("enabled"))
+                else:
+                    # If it's a dict, we assume it's NOT the flag unless explicitly set
+                    container["rant"] = False
+            elif isinstance(val, bool):
+                container["rant"] = val
+                container["rant_config"] = {}
 
         config = GlobalConfig(**container)
 

@@ -48,7 +48,15 @@ def run_processor_test(processor_cls, config, dataset, module_name):
     res_train, res_val, res_test = result[0], result[1], result[2]
     
     assert isinstance(res_train, pd.DataFrame), "Train result must be DataFrame"
-    assert len(res_train) == len(dataset), "Train result row count mismatch"
+
+    allow_row_change = module_name in {"noise_injection", "mixup_augmentation"}
+    if module_name == "imbalance_handler":
+        method = config.get("imbalance_method")
+        if method in {"random_over", "random_under", "smote", "smotenc", "adasyn"}:
+            allow_row_change = True
+
+    if not allow_row_change:
+        assert len(res_train) == len(dataset), "Train result row count mismatch"
 
 def test_preprocess_variants_e2e(all_search_spaces, dataset_no_null, dataset_with_null):
     """

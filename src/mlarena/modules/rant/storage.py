@@ -390,7 +390,7 @@ class RANTStorage:
 
                     # Find next waiting trial
                     cur.execute(
-                        "SELECT t.trial_id, t.number, rt.pipeline_json, rt.round, rt.phase "
+                        "SELECT t.trial_id, t.number, rt.pipeline_json, rt.round, rt.phase, rt.parent_trial_id "
                         "FROM trials t "
                         "JOIN rant_trials rt ON t.trial_id = rt.trial_id "
                         "WHERE t.study_id=? AND t.state=? "
@@ -401,7 +401,7 @@ class RANTStorage:
                     if not row:
                         return None
 
-                    trial_id, trial_number, pipeline_json, round_num, phase = row
+                    trial_id, trial_number, pipeline_json, round_num, phase, parent_trial_id = row
 
                     # Atomically update to RUNNING
                     cur.execute(
@@ -429,7 +429,8 @@ class RANTStorage:
                         'trial_number': trial_number,
                         'pipeline': json.loads(pipeline_json),
                         'round': round_num,
-                        'phase': phase
+                        'phase': phase,
+                        'parent_trial_id': parent_trial_id
                     }
 
             except sqlite3.OperationalError as e:
@@ -543,6 +544,16 @@ class RANTStorage:
                     "SELECT COUNT(*) FROM rant_trials WHERE study_id=? AND round=?",
                     (study_id, round_num)
                 )
+            return cur.fetchone()[0]
+
+    def count_total_trials(self, study_id: int) -> int:
+        """Count all trials for a study."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) FROM trials WHERE study_id=?",
+                (study_id,)
+            )
             return cur.fetchone()[0]
 
     def mark_round_complete(self, study_id: int, round_num: int):

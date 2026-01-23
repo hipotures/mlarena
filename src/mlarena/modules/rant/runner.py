@@ -6,11 +6,12 @@ from typing import Dict, Any
 from dataclasses import dataclass
 
 from mlarena.modules.rant.config import RANTConfig
-from mlarena.modules.rant.storage import RANTStorage, StudyDirection, TrialState
+from mlarena.modules.rant.storage import RANTStorage, StudyDirection, TrialState, compute_signature
 from mlarena.modules.rant.space import PipelineGenerator
 from mlarena.modules.rant.refinement import RefinementEngine
 from mlarena.modules.rant.materializer import TemplateMaterializer
 from mlarena.modules.mcts.executor import MlaCliExecutor
+from rich.console import Console
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,8 @@ class RANTRunner:
 
         self.worker_id = f"worker_{time.time()}"
         self.study_name = study_name
+        self.iteration = 0
+        self.console = Console(force_terminal=True)
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -170,6 +173,20 @@ class RANTRunner:
 
         # Step 2: Check and handle stale trials
         self._handle_stale_trials()
+
+        # Step 2.5: Insert baseline trial once per study (if no trials yet)
+        if self.storage.count_total_trials(self.study_id) == 0:
+            baseline = self._build_baseline_pipeline()
+            trial_id, created = self.storage.insert_trial(
+                study_id=self.study_id,
+                round_num=round_num,
+                phase="baseline",
+                pipeline=baseline,
+                parent_trial_id=None,
+                max_attempts=self.config.failure.max_sampling_attempts_per_insert
+            )
+            if created:
+                self.logger.info(f"Inserted baseline trial (trial_id={trial_id})")
 
         # Step 3: Phase A - Random generation
         current_random = self.storage.count_trials(self.study_id, round_num, phase="random")
@@ -323,6 +340,7 @@ class RANTRunner:
                     )
                     consecutive_failures += 1
                     self.logger.warning(f"Trial {trial['trial_number']} FAIL (consecutive={consecutive_failures})")
+                self._emit_trial_line(trial, result)
 
             except Exception as e:
                 self.logger.error(f"Trial {trial['trial_number']} execution error: {e}", exc_info=True)
@@ -331,6 +349,7 @@ class RANTRunner:
                     state=TrialState.FAIL
                 )
                 consecutive_failures += 1
+                self._emit_trial_line(trial, None, error=str(e))
 
             # Check max consecutive failures
             if consecutive_failures >= self.config.failure.max_consecutive_runtime_failures:
@@ -415,6 +434,66 @@ class RANTRunner:
             else:  # "fail"
                 self.storage.store_trial_result(stale_id, TrialState.FAIL)
                 self.logger.info(f"Failed stale trial {stale_id}")
+
+    def _build_baseline_pipeline(self) -> Dict[str, Any]:
+        """Build a deterministic baseline pipeline using fixed harness only."""
+        full_chain = self.generator.fixed_start + self.generator.fixed_end
+        pipeline_sig = compute_signature(full_chain, include_params=True)
+        arch_sig = compute_signature(full_chain, include_params=False)
+        return {
+            'core': [],
+            'injected': [],
+            'full_chain': full_chain,
+            'pipeline_signature': pipeline_sig,
+            'architecture_signature': arch_sig,
+            'seed': self.config.seed
+        }
+
+    def _format_action(self, pipeline: Dict[str, Any]) -> str:
+        """Create a short action string for logging."""
+        core = pipeline.get('core') or []
+        if not core:
+            return "baseline"
+        parts = []
+        for step in core:
+            group = step.get('group') or step.get('step') or step.get('name')
+            variant = step.get('variant')
+            if group and variant:
+                parts.append(f"{group}/{variant}")
+            elif group:
+                parts.append(str(group))
+        return "+".join(parts) if parts else "core"
+
+    def _emit_trial_line(self, trial: Dict[str, Any], result: Dict[str, Any] | None, error: str | None = None):
+        """Print a single-line progress update for each trial execution."""
+        self.iteration += 1
+        phase = trial.get("phase") or "unknown"
+        if phase == "baseline":
+            depth = 0
+        elif phase == "random":
+            depth = 1
+        elif phase == "refine":
+            depth = 2
+        else:
+            depth = "?"
+
+        status = "✓" if result and result.get("success") else "✗"
+        value = result.get("value") if result else None
+        value_str = f"{value:.6f}" if isinstance(value, (int, float)) else "NA"
+        duration = result.get("duration") if result else None
+        dur_str = f"{duration:.1f}s" if isinstance(duration, (int, float)) else "?"
+        parent = trial.get("parent_trial_id")
+        parent_str = str(parent) if parent is not None else "-"
+        action = self._format_action(trial.get("pipeline", {}))
+        err_suffix = f" ERR={error}" if error else ""
+
+        line = (
+            f"I={self.iteration} {status} "
+            f"T={trial.get('trial_number')} P={parent_str} "
+            f"R={trial.get('round')} D={depth} "
+            f"A={action} V={value_str} t={dur_str}{err_suffix}"
+        )
+        self.console.print(line)
 
     def _setup_logging(self):
         log_dir = self.context.project_root / "experiments" / "logs"

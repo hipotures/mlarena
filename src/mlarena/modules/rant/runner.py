@@ -554,9 +554,10 @@ class RANTRunner:
                     self._emit_trial_line(trial, None, error=reason)
                     continue
 
-                result = self._execute_trial(trial)
+                result, templates = self._execute_trial(trial)
 
                 if result['success']:
+                    is_new_best = self._is_new_best(result.get('value'))
                     self.storage.store_trial_result(
                         trial_id=trial['trial_id'],
                         state=TrialState.COMPLETE,
@@ -566,13 +567,20 @@ class RANTRunner:
                     consecutive_failures = 0
                     self.logger.info(f"Trial {trial['trial_number']} COMPLETE (value={result['value']:.6f})")
                 else:
+                    is_new_best = False
                     self.storage.store_trial_result(
                         trial_id=trial['trial_id'],
                         state=TrialState.FAIL
                     )
                     consecutive_failures += 1
                     self.logger.warning(f"Trial {trial['trial_number']} FAIL (consecutive={consecutive_failures})")
-                self._emit_trial_line(trial, result)
+                keep = self._should_keep_templates(
+                    trial_id=trial['trial_id'],
+                    success=bool(result['success']),
+                    is_new_best=is_new_best,
+                )
+                self._cleanup_templates(templates, keep=keep)
+                self._emit_trial_line(trial, result, is_new_best=is_new_best)
 
             except Exception as e:
                 self.logger.error(f"Trial {trial['trial_number']} execution error: {e}", exc_info=True)
@@ -581,14 +589,14 @@ class RANTRunner:
                     state=TrialState.FAIL
                 )
                 consecutive_failures += 1
-                self._emit_trial_line(trial, None, error=str(e))
+                self._emit_trial_line(trial, None, error=str(e), is_new_best=False)
 
             # Check max consecutive failures
             if consecutive_failures >= self.config.failure.max_consecutive_runtime_failures:
                 self.logger.error(f"Max consecutive failures reached ({consecutive_failures}), worker exits")
                 break
 
-    def _execute_trial(self, trial: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_trial(self, trial: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """Execute a single trial.
 
         Args:
@@ -645,7 +653,62 @@ class RANTRunner:
             'metric': result.metric,
             'duration': result.duration,
             'details': result.details
-        }
+        }, templates
+
+    def _is_new_best(self, value: float | None) -> bool:
+        """Check and update best value."""
+        if not isinstance(value, (int, float)):
+            return False
+        is_new_best = False
+        if self.best_value is None:
+            is_new_best = True
+        elif self.direction == StudyDirection.MAXIMIZE and value > self.best_value:
+            is_new_best = True
+        elif self.direction == StudyDirection.MINIMIZE and value < self.best_value:
+            is_new_best = True
+        if is_new_best:
+            self.best_value = float(value)
+        return is_new_best
+
+    def _should_keep_templates(self, trial_id: int, success: bool, is_new_best: bool) -> bool:
+        """Decide whether to retain templates for this trial."""
+        policy = self.config.templates.retention
+        if policy == "all":
+            return True
+        if not success:
+            return bool(self.config.templates.retain_failures)
+        if policy == "best":
+            return bool(is_new_best)
+        if policy == "top_k":
+            top_k = self.config.templates.retain_top_k
+            top = self.storage.select_top_k_global(
+                study_id=self.study_id,
+                k=top_k,
+                direction=self.direction,
+                only_unexpanded=False,
+                max_per_architecture=top_k,
+            )
+            return any(t.get("trial_id") == trial_id for t in top)
+        return False
+
+    def _cleanup_templates(self, templates: Dict[str, Any], keep: bool) -> None:
+        """Delete template files unless keep=True."""
+        if keep or self.config.templates.retention == "all":
+            return
+        base_name = templates.get("base_name")
+        if not base_name:
+            return
+        templates_dir = self.materializer.templates_dir.resolve()
+        try:
+            chain_path = Path(templates.get("chain_path", "")).resolve()
+            if chain_path.exists() and chain_path.is_relative_to(templates_dir):
+                chain_path.unlink()
+            for p in templates.get("step_paths", []):
+                step_path = Path(p).resolve()
+                if step_path.exists() and step_path.is_relative_to(templates_dir):
+                    step_path.unlink()
+        except Exception as e:
+            self.logger.warning(f"Failed to cleanup templates: {e}")
 
     def _pipeline_allowed(self, pipeline: Dict[str, Any]) -> bool:
         """Validate pipeline against problem_type constraints."""
@@ -732,7 +795,13 @@ class RANTRunner:
                 parts.append(str(group))
         return "+".join(parts) if parts else "core"
 
-    def _emit_trial_line(self, trial: Dict[str, Any], result: Dict[str, Any] | None, error: str | None = None):
+    def _emit_trial_line(
+        self,
+        trial: Dict[str, Any],
+        result: Dict[str, Any] | None,
+        error: str | None = None,
+        is_new_best: bool | None = None,
+    ):
         """Print a single-line progress update for each trial execution."""
         self.iteration += 1
         phase = trial.get("phase") or "unknown"
@@ -747,16 +816,8 @@ class RANTRunner:
 
         ok = bool(result and result.get("success"))
         value = result.get("value") if result else None
-        is_new_best = False
-        if ok and isinstance(value, (int, float)):
-            if self.best_value is None:
-                is_new_best = True
-            elif self.direction == StudyDirection.MAXIMIZE and value > self.best_value:
-                is_new_best = True
-            elif self.direction == StudyDirection.MINIMIZE and value < self.best_value:
-                is_new_best = True
-        if is_new_best:
-            self.best_value = float(value)
+        if is_new_best is None:
+            is_new_best = self._is_new_best(value) if ok else False
         status = "★" if (ok and is_new_best) else ("✓" if ok else "✗")
         value_str = f"{value:.6f}" if isinstance(value, (int, float)) else "NA"
         raw_json = None

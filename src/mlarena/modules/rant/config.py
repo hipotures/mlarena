@@ -32,6 +32,12 @@ class FailureConfig(BaseModel):
     max_retries_per_trial: int = 1
 
 
+class TemplatesConfig(BaseModel):
+    retention: Literal["best", "top_k", "all"] = "best"
+    retain_top_k: int = 20
+    retain_failures: bool = True
+
+
 class RANTConfig(BaseModel):
     """Main RANT configuration.
 
@@ -69,6 +75,7 @@ class RANTConfig(BaseModel):
     refinement: RefinementConfig = Field(default_factory=RefinementConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     failure: FailureConfig = Field(default_factory=FailureConfig)
+    templates: TemplatesConfig = Field(default_factory=TemplatesConfig)
 
     # Debugging
     debug: bool = False

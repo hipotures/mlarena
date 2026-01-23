@@ -2,6 +2,8 @@ from __future__ import annotations
 import time
 import logging
 import json
+import os
+import signal
 import hashlib
 from datetime import datetime as dt
 from pathlib import Path
@@ -16,6 +18,7 @@ from mlarena.modules.rant.materializer import TemplateMaterializer
 from mlarena.modules.mcts.executor import MlaCliExecutor
 from rich.console import Console
 from rich.text import Text
+from mlarena.utils.notification import TelegramNotifier
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,7 @@ class ExecutionContext:
     project_root: Path
     config: RANTConfig
     model_template: str | None = None
+    telegram_test: bool = False
 
 
 class RANTRunner:
@@ -128,6 +132,10 @@ class RANTRunner:
         self._config_index_loaded = False
         self._config_index_map: Dict[tuple[str, str, str], int] = {}
         self._config_index_counter: Dict[tuple[str, str], int] = {}
+        self.notifier = TelegramNotifier()
+        if bool(context.telegram_test):
+            self.notifier.send_test(source="RANTRunner")
+        self._baseline_notified = False
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -155,7 +163,11 @@ class RANTRunner:
             self.logger.info("Interrupted by user (Ctrl+C). Exiting cleanly.")
             if self.config.runtime.kill_on_interrupt and getattr(self.executor, "current_proc", None):
                 try:
-                    self.executor.current_proc.terminate()
+                    proc = self.executor.current_proc
+                    if proc and proc.pid:
+                        os.killpg(proc.pid, signal.SIGTERM)
+                    else:
+                        proc.terminate()
                 except Exception:
                     pass
             return self._get_summary()
@@ -749,6 +761,30 @@ class RANTRunner:
             txt.append(err_suffix, style="red")
 
         self.console.print(txt)
+
+        # Telegram notifications (baseline + new best)
+        if ok and self.notifier.is_enabled:
+            proj_name = self.context.project or "Unknown Project"
+            if phase == "baseline" and not self._baseline_notified:
+                msg = (
+                    f"≈ <b>Baseline Score Set</b>\n\n"
+                    f"<b>Project:</b> {proj_name}\n"
+                    f"<b>RANT/Study:</b> {self.config.study_name}\n"
+                    f"<b>Baseline Score:</b> {value:.5f}\n"
+                    f"<b>Metric:</b> {result.get('metric')}"
+                )
+                self.notifier.send(msg)
+                self._baseline_notified = True
+            elif is_new_best and phase != "baseline":
+                msg = (
+                    f"↑ <b>New Best Score!</b>\n\n"
+                    f"<b>Project:</b> {proj_name}\n"
+                    f"<b>RANT/Study:</b> {self.config.study_name}\n"
+                    f"<b>Trial:</b> {trial.get('trial_number')}\n"
+                    f"<b>Score:</b> {value:.5f}\n"
+                    f"<b>Metric:</b> {result.get('metric')}"
+                )
+                self.notifier.send(msg)
 
     def _format_model_alias(self, model_name: str | None) -> str:
         if not model_name:

@@ -553,6 +553,14 @@ class RANTStorage:
             row = cur.fetchone()
             return row[0] if row else None
 
+    def get_trial_number(self, trial_id: int) -> Optional[int]:
+        """Resolve trial number from trial_id."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT number FROM trials WHERE trial_id=?", (trial_id,))
+            row = cur.fetchone()
+            return int(row[0]) if row else None
+
     def mark_expanded(self, trial_id: int, round_num: int):
         """Mark trial as expanded in given round."""
         with self._connect() as conn:

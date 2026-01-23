@@ -23,6 +23,7 @@ class ExecutionContext:
     project: str
     project_root: Path
     config: RANTConfig
+    model_template: str | None = None
 
 
 class RANTRunner:
@@ -114,6 +115,7 @@ class RANTRunner:
         self.iteration = 0
         self.target_trials = 0
         self.console = Console(force_terminal=True)
+        self.model_template = context.model_template
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -547,7 +549,7 @@ class RANTRunner:
         cmd = self.executor.build_command(
             project=self.context.project,
             module="model",
-            model_template=None,  # Use default model
+            model_template=self.model_template,
             preprocess_template=chain_name,
             exp_id=f"rant_t{trial_number:06d}"
         )
@@ -649,7 +651,11 @@ class RANTRunner:
         duration = result.get("duration") if result else None
         dur_str = f"{duration:.1f}s" if isinstance(duration, (int, float)) else "?"
         parent = trial.get("parent_trial_id")
-        parent_str = str(parent) if parent is not None else "~"
+        if parent is not None:
+            parent_num = self.storage.get_trial_number(parent)
+            parent_str = str(parent_num) if parent_num is not None else "?"
+        else:
+            parent_str = "~"
         action = self._format_action(trial.get("pipeline", {}))
         err_suffix = f" ERR={error}" if error else ""
 

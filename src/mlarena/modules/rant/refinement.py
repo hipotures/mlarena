@@ -252,34 +252,37 @@ class RefinementEngine:
             # No mutable parameters - return empty list
             return []
 
-        # Seeded shuffle
-        rng.shuffle(mutable_params)
+        # Precompute neighborhoods and drop params without neighbors
+        params_with_neighbors: List[tuple[Dict[str, Any], List[Any]]] = []
+        for param_info in mutable_params:
+            neighbors = self._compute_neighborhood(param_info, seed)
+            if neighbors:
+                params_with_neighbors.append((param_info, neighbors))
 
-        # Generate children
-        children = []
-        param_neighbors: Dict[int, List[Any]] = {}  # Cache neighborhoods
+        if not params_with_neighbors:
+            # All params were fixed or had no neighbors
+            return []
 
-        for i in range(n_children):
-            param_idx = i % len(mutable_params)
-            param_info = mutable_params[param_idx]
+        # Seeded shuffle to keep deterministic ordering
+        rng.shuffle(params_with_neighbors)
 
-            # Get or compute neighborhood
-            if param_idx not in param_neighbors:
-                neighbors = self._compute_neighborhood(param_info, seed)
-                param_neighbors[param_idx] = neighbors
-            else:
-                neighbors = param_neighbors[param_idx]
-
-            # Check if exhausted
-            neighbor_offset = i // len(mutable_params)
-            if neighbor_offset >= len(neighbors):
-                # Exhausted this parameter - stop
+        # Round-robin over neighbor offsets, skipping exhausted params
+        children: List[Dict[str, Any]] = []
+        neighbor_offset = 0
+        while len(children) < n_children:
+            any_added = False
+            for param_info, neighbors in params_with_neighbors:
+                if neighbor_offset >= len(neighbors):
+                    continue
+                new_value = neighbors[neighbor_offset]
+                child = self._mutate_parameter(parent, param_info, new_value)
+                children.append(child)
+                any_added = True
+                if len(children) >= n_children:
+                    break
+            if not any_added:
                 break
-
-            # Mutate parameter
-            new_value = neighbors[neighbor_offset]
-            child = self._mutate_parameter(parent, param_info, new_value)
-            children.append(child)
+            neighbor_offset += 1
 
         return children
 

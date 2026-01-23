@@ -25,6 +25,7 @@ from mlarena.core.pipeline import PipelineExecutor
 from mlarena.core.config import load_pipeline_def
 from mlarena.utils.project import load_project_config
 from mlarena.modules.mcts.runner import MCTSRunner
+from mlarena.modules.rant.runner import RANTRunner, ExecutionContext as RANTContext
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -925,6 +926,32 @@ class PreprocessTuneModule(BaseModule):
         cfg = self.context.config
         optuna_section = getattr(cfg, "optuna", {}) or {}
         legacy_section = getattr(cfg, "preprocess_tune", {}) or {}
+
+        # RANT Routing - Check both params and global config explicitly
+        use_rant = params.get("rant") or getattr(cfg, "rant", False)
+        if use_rant:
+            from mlarena.modules.rant.config import load_rant_config
+            # Use repo root for super_chain, not project root
+            super_chain_path = REPO_ROOT / "conf" / "preprocess" / "mla_super_chain.yaml"
+            rant_config = load_rant_config(super_chain_path)
+
+            # Override config with CLI params (rant.* prefix)
+            for key, value in params.items():
+                if key.startswith("rant."):
+                    field = key[5:]  # Remove "rant." prefix
+                    setattr(rant_config, field, value)
+
+            rant_context = RANTContext(
+                project=cfg.project,
+                project_root=self.context.project_root,
+                config=rant_config
+            )
+            runner = RANTRunner(rant_context)
+            try:
+                summary = runner.run()
+                return ModuleResult(success=True, payload=summary)
+            except Exception as exc:
+                return ModuleResult(success=False, error=str(exc))
 
         # MCTS Routing - Check both params and global config explicitly
         # Note: 'mcts' is the boolean flag in GlobalConfig.

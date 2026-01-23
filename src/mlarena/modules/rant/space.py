@@ -153,6 +153,9 @@ class PipelineGenerator:
         # Resolve dependencies recursively
         injected = self._resolve_dependencies(core, allow_heavy_variants, rng)
 
+        # Ensure imputer is present and ordered before all steps (avoids NaN failures)
+        self._ensure_imputer(core, injected, allow_heavy_variants, rng)
+
         # Build full pipeline
         return self._build_pipeline_result(core, injected, local_seed or self.seed)
 
@@ -269,6 +272,34 @@ class PipelineGenerator:
                         raise ValueError(f"Required group {req_group} not in pipeline for {step['group']}")
 
         return injected
+
+    def _ensure_imputer(
+        self,
+        core: List[Dict[str, Any]],
+        injected: List[Dict[str, Any]],
+        allow_heavy_variants: bool,
+        rng: random.Random,
+    ) -> None:
+        """Force imputer presence and ordering before other steps."""
+        imputer_group = "imputer"
+        if imputer_group not in self.steps_by_group:
+            return
+
+        all_steps = core + injected
+        if not any(s.get("group") == imputer_group for s in all_steps):
+            imputer_step = self._generate_step(imputer_group, allow_heavy_variants, rng)
+            if imputer_step:
+                injected.append(imputer_step)
+                all_steps.append(imputer_step)
+
+        # Ensure all steps require imputer (so it sorts before them)
+        for step in all_steps:
+            if step.get("group") == imputer_group:
+                continue
+            reqs = step.get("requires_preproc", [])
+            if not any(r.get("group") == imputer_group for r in reqs):
+                reqs = list(reqs) + [{"group": imputer_group}]
+                step["requires_preproc"] = reqs
 
     def _inject_step(
         self,

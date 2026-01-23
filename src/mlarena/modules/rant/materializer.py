@@ -42,8 +42,8 @@ class TemplateMaterializer:
         # Get full chain (fixed + sorted core/injected)
         full_chain = pipeline['full_chain']
 
-        # Sort by original_index to maintain super-chain order
-        sorted_chain = sorted(full_chain, key=lambda s: s.get('original_index', 0))
+        # Preserve generator order (fixed_start + topo-sorted core + fixed_end)
+        sorted_chain = full_chain
 
         chain_list: List[str] = []
         step_files: List[str] = []

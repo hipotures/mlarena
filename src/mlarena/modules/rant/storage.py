@@ -588,6 +588,16 @@ class RANTStorage:
             row = cur.fetchone()
             return float(row[0]) if row else None
 
+    def iter_trial_pipelines(self, study_id: int) -> list[str]:
+        """Return pipeline_json strings for a study ordered by trial_id."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT pipeline_json FROM rant_trials WHERE study_id=? ORDER BY trial_id",
+                (study_id,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
     def mark_expanded(self, trial_id: int, round_num: int):
         """Mark trial as expanded in given round."""
         with self._connect() as conn:

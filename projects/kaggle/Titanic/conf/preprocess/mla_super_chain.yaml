@@ -16,6 +16,9 @@ tune:
 evaluation:
   model: autogluon_thin_fast
   seed: 42
+rant:
+  min_core_len: 1
+  max_core_len: 2
 preprocessors:
   # Fixed start
   - name: sanity_check

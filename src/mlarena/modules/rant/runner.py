@@ -2,6 +2,7 @@ from __future__ import annotations
 import time
 import logging
 import json
+import hashlib
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Dict, Any
@@ -124,6 +125,9 @@ class RANTRunner:
         self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
         self.best_value = self.storage.select_best_value(self.study_id, self.direction)
         self._preprocess_state_cache: Dict[str, Any] = {}
+        self._config_index_loaded = False
+        self._config_index_map: Dict[tuple[str, str, str], int] = {}
+        self._config_index_counter: Dict[tuple[str, str], int] = {}
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -633,6 +637,7 @@ class RANTRunner:
 
     def _format_action(self, pipeline: Dict[str, Any]) -> str:
         """Create a short action string for logging."""
+        self._ensure_config_index_loaded()
         core = pipeline.get('core') or []
         if not core:
             return "baseline"
@@ -641,7 +646,9 @@ class RANTRunner:
             group = step.get('group') or step.get('step') or step.get('name')
             variant = step.get('variant')
             if group and variant:
-                parts.append(f"{group}/{variant}")
+                cfg = step.get('config', {})
+                idx = self._get_config_index(group, variant, cfg)
+                parts.append(f"{group}/{variant}/{idx}")
             elif group:
                 parts.append(str(group))
         return "+".join(parts) if parts else "core"
@@ -743,6 +750,40 @@ class RANTRunner:
         if "catboost" in name:
             return "CAT"
         return model_name
+
+    def _ensure_config_index_loaded(self) -> None:
+        if self._config_index_loaded:
+            return
+        try:
+            pipelines = self.storage.iter_trial_pipelines(self.study_id)
+        except Exception:
+            pipelines = []
+        for pipeline_json in pipelines:
+            try:
+                pipeline = json.loads(pipeline_json)
+            except Exception:
+                continue
+            for step in (pipeline.get("core") or []):
+                group = step.get("group") or step.get("step") or step.get("name")
+                variant = step.get("variant")
+                if not group or not variant:
+                    continue
+                cfg = step.get("config", {})
+                self._get_config_index(group, variant, cfg, assign_only=True)
+        self._config_index_loaded = True
+
+    def _get_config_index(self, group: str, variant: str, config: Dict[str, Any], assign_only: bool = False) -> int:
+        cfg_json = json.dumps(config or {}, sort_keys=True, separators=(",", ":"))
+        cfg_hash = hashlib.sha1(cfg_json.encode("utf-8")).hexdigest()[:8]
+        key = (group, variant, cfg_hash)
+        idx = self._config_index_map.get(key)
+        if idx is not None:
+            return idx
+        base_key = (group, variant)
+        next_idx = self._config_index_counter.get(base_key, 0)
+        self._config_index_counter[base_key] = next_idx + 1
+        self._config_index_map[key] = next_idx
+        return next_idx
 
     def _load_preprocess_state(self, preprocess_template: str) -> Dict[str, Any] | None:
         cached = self._preprocess_state_cache.get(preprocess_template)

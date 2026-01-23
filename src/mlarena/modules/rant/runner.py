@@ -1,6 +1,8 @@
 from __future__ import annotations
 import time
 import logging
+import json
+from datetime import datetime as dt
 from pathlib import Path
 from typing import Dict, Any
 from dataclasses import dataclass
@@ -121,6 +123,7 @@ class RANTRunner:
         self.best_value: float | None = None
         self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
         self.best_value = self.storage.select_best_value(self.study_id, self.direction)
+        self._preprocess_state_cache: Dict[str, Any] = {}
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -670,8 +673,10 @@ class RANTRunner:
             self.best_value = float(value)
         status = "★" if (ok and is_new_best) else ("✓" if ok else "✗")
         value_str = f"{value:.6f}" if isinstance(value, (int, float)) else "NA"
-        duration = result.get("duration") if result else None
-        dur_str = f"{duration:.1f}s" if isinstance(duration, (int, float)) else "?"
+        raw_json = None
+        if result and isinstance(result.get("details"), dict):
+            raw_json = result["details"].get("raw_json", {})
+        dur_str = self._format_run_duration(raw_json, result.get("duration") if result else None)
         parent = trial.get("parent_trial_id")
         if parent is not None:
             parent_num = self.storage.get_trial_number(parent)
@@ -695,9 +700,8 @@ class RANTRunner:
         txt.append(f"{dur_str} ", style="dim")
         txt.append(f"A={action} ", style="cyan")
         model_alias = ""
-        if result and isinstance(result.get("details"), dict):
-            raw = result["details"].get("raw_json", {})
-            best_model = raw.get("best_model") or raw.get("best_model_implementation")
+        if raw_json:
+            best_model = raw_json.get("best_model") or raw_json.get("best_model_implementation")
             model_alias = self._format_model_alias(best_model)
         label = f"{model_alias}=" if model_alias else "V="
         val_style = "bold yellow" if (ok and is_new_best) else ("bold white" if ok else "bold red")
@@ -737,6 +741,110 @@ class RANTRunner:
         if "catboost" in name:
             return "CAT"
         return model_name
+
+    def _load_preprocess_state(self, preprocess_template: str) -> Dict[str, Any] | None:
+        cached = self._preprocess_state_cache.get(preprocess_template)
+        if preprocess_template in self._preprocess_state_cache:
+            return cached
+
+        from mlarena.core.config import TemplateLoader
+        from mlarena.utils.hash_utils import compute_chain_hash
+
+        loader = TemplateLoader(self.context.project_root, template_type="preprocess")
+        template_cfg = loader.load(preprocess_template)
+        if not template_cfg:
+            self._preprocess_state_cache[preprocess_template] = None
+            return None
+
+        chain = template_cfg.get("chain") if isinstance(template_cfg, dict) else None
+        if chain is not None:
+            if not isinstance(chain, list) or not chain:
+                self._preprocess_state_cache[preprocess_template] = None
+                return None
+            templates = [str(t) for t in chain]
+        else:
+            templates = [preprocess_template]
+
+        template_configs = []
+        for tpl in templates:
+            cfg = loader.load(tpl)
+            if not cfg:
+                self._preprocess_state_cache[preprocess_template] = None
+                return None
+            template_configs.append(cfg)
+
+        combined_hash, _ = compute_chain_hash(
+            template_configs, self.context.project_root
+        )
+        chain_exp_id = f"pre-{preprocess_template}"
+        chain_base_dir = (
+            self.context.project_root / "experiments" / chain_exp_id / combined_hash
+        )
+        final_step_id = f"{len(templates) - 1}-{templates[-1]}"
+        candidate_paths = [
+            chain_base_dir / "state.json",
+            chain_base_dir / final_step_id / "state.json",
+        ]
+        state_path = next((p for p in candidate_paths if p.exists()), None)
+        if not state_path:
+            self._preprocess_state_cache[preprocess_template] = None
+            return None
+
+        try:
+            state = json.loads(state_path.read_text())
+        except Exception:
+            self._preprocess_state_cache[preprocess_template] = None
+            return None
+
+        self._preprocess_state_cache[preprocess_template] = state
+        return state
+
+    def _get_preprocess_duration(self, preprocess_template: str) -> float | None:
+        state = self._load_preprocess_state(preprocess_template)
+        if not state:
+            return None
+
+        module_entry = state.get("modules", {}).get("preprocess", {})
+        started_at = module_entry.get("started_at")
+        finished_at = module_entry.get("finished_at")
+
+        if not started_at or not finished_at:
+            progress = state.get("pipeline_progress") or {}
+            started_at = started_at or progress.get("start_time")
+            finished_at = finished_at or progress.get("end_time")
+
+        if not started_at or not finished_at:
+            return None
+
+        try:
+            started_dt = dt.fromisoformat(started_at.replace("Z", "+00:00"))
+            finished_dt = dt.fromisoformat(finished_at.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+        duration = (finished_dt - started_dt).total_seconds()
+        return float(duration)
+
+    def _format_seconds_value(self, seconds: float) -> str:
+        if seconds < 10:
+            return f"{seconds:.1f}"
+        return f"{int(round(seconds))}"
+
+    def _format_duration_sec(self, duration: float | None) -> str:
+        if duration is None:
+            return "?"
+        return f"{self._format_seconds_value(float(duration))}s"
+
+    def _format_run_duration(self, raw_json: Dict[str, Any] | None, model_duration: float | None) -> str:
+        model_sec = float(model_duration or 0.0)
+        preprocess_template = raw_json.get("preprocessing_template") if raw_json else None
+        if preprocess_template:
+            pre_sec = self._get_preprocess_duration(preprocess_template)
+            if pre_sec is not None:
+                pre_str = self._format_seconds_value(float(pre_sec))
+                model_str = self._format_seconds_value(model_sec)
+                return f"{pre_str}+{model_str}s"
+        return self._format_duration_sec(model_duration)
 
     def _delta_style(self, delta: float) -> str:
         if delta == 0:

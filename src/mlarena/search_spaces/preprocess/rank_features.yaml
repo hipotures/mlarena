@@ -1,5 +1,6 @@
 group: rank_features
 template: rank_features
+requires_preproc: [{group: imputer}]
 
 base_config:
   numeric_include: null

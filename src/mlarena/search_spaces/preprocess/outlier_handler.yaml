@@ -1,5 +1,6 @@
 group: outlier
 template: outlier_handler
+requires_preproc: [{group: imputer}]
 
 base_config:
   include_cols: null

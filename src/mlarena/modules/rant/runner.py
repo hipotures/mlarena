@@ -677,6 +677,8 @@ class RANTRunner:
         if result and isinstance(result.get("details"), dict):
             raw_json = result["details"].get("raw_json", {})
         dur_str = self._format_run_duration(raw_json, result.get("duration") if result else None)
+        n_features = self._get_feature_count(raw_json) if raw_json else None
+        feat_str = f" F={n_features}" if n_features is not None else ""
         parent = trial.get("parent_trial_id")
         if parent is not None:
             parent_num = self.storage.get_trial_number(parent)
@@ -694,7 +696,7 @@ class RANTRunner:
             status_style = "bold red"
         txt.append(status, style=status_style)
         txt.append(
-            f" T={trial.get('trial_number')} P={parent_str} D={depth} ",
+            f" T={trial.get('trial_number')} P={parent_str} D={depth}{feat_str} ",
             style="dim" if ok else "bold red",
         )
         txt.append(f"{dur_str} ", style="dim")
@@ -824,6 +826,60 @@ class RANTRunner:
 
         duration = (finished_dt - started_dt).total_seconds()
         return float(duration)
+
+    def _get_feature_count(self, raw_json: Dict[str, Any]) -> int | None:
+        """Extract number of features after preprocessing from raw_json or state.json."""
+        if not raw_json:
+            return None
+
+        def _from_shapes(shapes: Dict[str, Any]) -> int | None:
+            if shapes and shapes.get("train_after"):
+                try:
+                    return int(shapes["train_after"][1])  # (n_rows, n_features)
+                except (IndexError, TypeError, ValueError):
+                    return None
+            return None
+
+        shapes = raw_json.get("shapes", {})
+        if not shapes:
+            payload = raw_json.get("payload") or {}
+            shapes = payload.get("shapes", {})
+
+        n_feat = _from_shapes(shapes)
+        if n_feat is not None:
+            return n_feat
+
+        preprocess_template = raw_json.get("preprocessing_template")
+        if preprocess_template:
+            return self._get_feature_count_from_preprocess(preprocess_template)
+        return None
+
+    def _get_feature_count_from_preprocess(self, preprocess_template: str) -> int | None:
+        def _from_shapes(shapes: Dict[str, Any]) -> int | None:
+            if shapes and shapes.get("train_after"):
+                try:
+                    return int(shapes["train_after"][1])  # (n_rows, n_features)
+                except (IndexError, TypeError, ValueError):
+                    return None
+            return None
+
+        state = self._load_preprocess_state(preprocess_template)
+        if not state:
+            return None
+
+        module_shapes = (
+            state.get("modules", {}).get("preprocess", {}).get("payload", {}).get("shapes", {})
+        )
+        n_feat = _from_shapes(module_shapes)
+        if n_feat is not None:
+            return n_feat
+
+        steps = (state.get("pipeline_progress") or {}).get("steps") or []
+        for step in reversed(steps):
+            n_feat = _from_shapes(step.get("shapes") or {})
+            if n_feat is not None:
+                return n_feat
+        return None
 
     def _format_seconds_value(self, seconds: float) -> str:
         if seconds < 10:

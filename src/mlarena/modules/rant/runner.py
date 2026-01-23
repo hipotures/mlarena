@@ -543,17 +543,6 @@ class RANTRunner:
 
             # Execute trial
             try:
-                if not self._pipeline_allowed(trial.get("pipeline", {})):
-                    reason = "pipeline not allowed for this problem_type"
-                    self.logger.warning(f"Trial {trial['trial_number']} error: {reason}")
-                    self.storage.store_trial_result(
-                        trial_id=trial['trial_id'],
-                        state=TrialState.FAIL
-                    )
-                    consecutive_failures += 1
-                    self._emit_trial_line(trial, None, error=reason)
-                    continue
-
                 result, templates = self._execute_trial(trial)
 
                 if result['success']:
@@ -709,33 +698,6 @@ class RANTRunner:
                     step_path.unlink()
         except Exception as e:
             self.logger.warning(f"Failed to cleanup templates: {e}")
-
-    def _pipeline_allowed(self, pipeline: Dict[str, Any]) -> bool:
-        """Validate pipeline against problem_type constraints."""
-        problem_type = (self.context.problem_type or "").strip().lower()
-        if problem_type == "binary":
-            return True
-        full_chain = pipeline.get("full_chain") or []
-        imputer_idx = None
-        for i, step in enumerate(full_chain):
-            if step.get("group") == "imputer":
-                imputer_idx = i
-                break
-        if imputer_idx is None:
-            return False
-        for step in full_chain:
-            if step.get("variant") == "woe":
-                return False
-            cfg = step.get("config", {})
-            if isinstance(cfg, dict) and cfg.get("encoding_method") == "woe":
-                return False
-        # Ensure imputer is ordered before steps that require it
-        for i, step in enumerate(full_chain):
-            if i < imputer_idx:
-                for req in step.get("requires_preproc", []):
-                    if req.get("group") == "imputer":
-                        return False
-        return True
 
     def _handle_stale_trials(self):
         """Check and handle stale RUNNING trials."""

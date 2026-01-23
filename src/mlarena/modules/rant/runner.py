@@ -59,6 +59,7 @@ class RANTRunner:
         self.study_id, created = self.storage.create_study(study_name, direction)
 
         self.run_id = f"rant_s{self.study_id:04d}"
+        self.study_created = created
 
         # File logging (same location as MCTS: project_root/experiments/logs)
         self._setup_logging()
@@ -126,6 +127,13 @@ class RANTRunner:
         role = self.config.runtime.role
 
         try:
+            if role in {"driver", "driver_worker"}:
+                base = self.config.initial_random_trials + (self.config.top_k * self.config.children_per_parent)
+                budget = base * self.config.rounds_per_run
+                if self.storage.count_total_trials(self.study_id) == 0:
+                    budget += 1
+                status = "Starting NEW" if self.study_created else "Resuming EXISTING"
+                self.console.print(f"{status} RANT Study: {self.study_name} (Budget: {budget})")
             if role == "driver_worker":
                 self._run_driver_full()
             elif role == "driver":

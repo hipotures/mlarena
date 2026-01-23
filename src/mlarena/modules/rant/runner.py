@@ -12,6 +12,7 @@ from mlarena.modules.rant.refinement import RefinementEngine
 from mlarena.modules.rant.materializer import TemplateMaterializer
 from mlarena.modules.mcts.executor import MlaCliExecutor
 from rich.console import Console
+from rich.text import Text
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ class RANTRunner:
         self.worker_id = f"worker_{time.time()}"
         self.study_name = study_name
         self.iteration = 0
+        self.target_trials = 0
         self.console = Console(force_terminal=True)
 
     def run(self) -> Dict[str, Any]:
@@ -122,19 +124,23 @@ class RANTRunner:
         role = self.config.runtime.role
 
         try:
-            if role in ("driver", "driver_worker"):
+            if role == "driver_worker":
+                self._run_driver_full()
+            elif role == "driver":
                 self._run_driver()
-
-            if role == "worker":
+            elif role == "worker":
                 self._run_worker(exit_on_idle=False)
-            elif role == "driver_worker":
-                # After driver pass, exit when queue is empty
-                self._run_worker(exit_on_idle=True)
         except KeyboardInterrupt:
             self.logger.info("Interrupted by user (Ctrl+C). Exiting cleanly.")
             return self._get_summary()
 
-        return self._get_summary()
+        summary = self._get_summary()
+        best = summary.get("best_value")
+        if best is not None:
+            self.console.print(f"RANT completed. Best Score: {best:.6f}")
+        else:
+            self.console.print("RANT completed. Best Score: NA")
+        return summary
 
     def _run_driver(self):
         """Driver mode: Generate trials and optionally enqueue."""
@@ -143,6 +149,17 @@ class RANTRunner:
         for _ in range(self.config.rounds_per_run):
             try:
                 self._execute_round()
+            except Exception as e:
+                self.logger.error(f"Round execution failed: {e}", exc_info=True)
+                break
+
+    def _run_driver_full(self):
+        """Driver+worker mode: generate and execute a full round in one run."""
+        self.logger.info("Running in DRIVER+WORKER mode (full cycle)")
+
+        for _ in range(self.config.rounds_per_run):
+            try:
+                self._execute_round_full()
             except Exception as e:
                 self.logger.error(f"Round execution failed: {e}", exc_info=True)
                 break
@@ -187,6 +204,10 @@ class RANTRunner:
             )
             if created:
                 self.logger.info(f"Inserted baseline trial (trial_id={trial_id})")
+                self.target_trials += 1
+
+        # Track an estimated target count for progress display
+        self.target_trials += n_random + (top_k * children_per_parent)
 
         # Step 3: Phase A - Random generation
         current_random = self.storage.count_trials(self.study_id, round_num, phase="random")
@@ -282,7 +303,149 @@ class RANTRunner:
         self.storage.mark_round_complete(self.study_id, round_num)
         self.logger.info(f"Round {round_num}: Complete")
 
-    def _run_worker(self, exit_on_idle: bool = False):
+    def _execute_round_full(self):
+        """Execute a full round with interleaved execution (random -> eval -> refine -> eval)."""
+        # Step 1: Resolve active round or create new
+        round_num, metadata = self.storage.resolve_active_round(
+            study_id=self.study_id,
+            n_random=self.config.initial_random_trials,
+            top_k=self.config.top_k,
+            children_per_parent=self.config.children_per_parent,
+            min_core_len=self.config.min_core_len,
+            max_core_len=self.config.max_core_len,
+            refinement_config={
+                'grid_size': self.config.refinement.grid_size,
+                'log_grid_size': self.config.refinement.log_grid_size,
+            },
+            seed=self.config.seed
+        )
+
+        self.logger.info(f"Round {round_num}: N={metadata['n_random']}, K={metadata['top_k']}, P={metadata['children_per_parent']}")
+
+        # Use frozen metadata from DB (not CLI config)
+        n_random = metadata['n_random']
+        top_k = metadata['top_k']
+        children_per_parent = metadata['children_per_parent']
+
+        # Step 2: Check and handle stale trials
+        self._handle_stale_trials()
+
+        # Step 2.5: Insert baseline trial once per study (if no trials yet)
+        if self.storage.count_total_trials(self.study_id) == 0:
+            baseline = self._build_baseline_pipeline()
+            trial_id, created = self.storage.insert_trial(
+                study_id=self.study_id,
+                round_num=round_num,
+                phase="baseline",
+                pipeline=baseline,
+                parent_trial_id=None,
+                max_attempts=self.config.failure.max_sampling_attempts_per_insert
+            )
+            if created:
+                self.logger.info(f"Inserted baseline trial (trial_id={trial_id})")
+                self.target_trials += 1
+
+        # Track an estimated target count for progress display
+        self.target_trials += n_random + (top_k * children_per_parent)
+
+        # Step 3: Phase A - Random generation
+        current_random = self.storage.count_trials(self.study_id, round_num, phase="random")
+        attempts = 0
+        max_attempts = self.config.failure.max_total_sampling_attempts_per_round
+
+        while current_random < n_random and attempts < max_attempts:
+            try:
+                pipeline = self.generator.generate_random_pipeline(
+                    min_len=metadata['min_core_len'],
+                    max_len=metadata['max_core_len'],
+                    allow_heavy_steps=self.config.allow_heavy_steps,
+                    allow_heavy_variants=self.config.allow_heavy_variants,
+                )
+
+                trial_id, created = self.storage.insert_trial(
+                    study_id=self.study_id,
+                    round_num=round_num,
+                    phase="random",
+                    pipeline=pipeline,
+                    parent_trial_id=None,
+                    max_attempts=self.config.failure.max_sampling_attempts_per_insert
+                )
+
+                if created:
+                    current_random += 1
+                    self.logger.debug(f"Round {round_num}: Random trial {current_random}/{n_random} created (trial_id={trial_id})")
+
+                attempts += 1
+
+            except Exception as e:
+                self.logger.warning(f"Failed to generate random pipeline: {e}")
+                attempts += 1
+
+        if current_random < n_random:
+            self.logger.warning(f"Round {round_num}: Only generated {current_random}/{n_random} random trials (max attempts reached)")
+
+        # Step 4: Execute baseline + random trials for this round
+        self._run_worker(exit_on_idle=True, round_num=round_num, phases={"baseline", "random"})
+
+        # Step 5: Phase B - Top-K selection (now with fresh results)
+        direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
+        parents = self.storage.select_top_k_global(
+            study_id=self.study_id,
+            k=top_k,
+            direction=direction,
+            only_unexpanded=True,
+            max_per_architecture=self.config.max_parents_per_architecture
+        )
+
+        self.logger.info(f"Round {round_num}: Selected {len(parents)} parents for refinement")
+
+        # Step 6: Phase C - Refinement
+        for parent in parents:
+            try:
+                children = self.refinement_engine.generate_children(
+                    parent=parent['pipeline'],
+                    search_spaces=self.generator.search_spaces,
+                    n_children=children_per_parent,
+                    seed=hash(parent['trial_id'])
+                )
+
+                self.logger.debug(f"Round {round_num}: Generated {len(children)} children for parent {parent['trial_id']}")
+
+                for child in children:
+                    try:
+                        trial_id, created = self.storage.insert_trial(
+                            study_id=self.study_id,
+                            round_num=round_num,
+                            phase="refine",
+                            pipeline=child,
+                            parent_trial_id=parent['trial_id'],
+                            max_attempts=self.config.failure.max_sampling_attempts_per_insert
+                        )
+
+                        if created:
+                            self.logger.debug(f"Round {round_num}: Refinement child created (trial_id={trial_id})")
+
+                    except Exception as e:
+                        self.logger.warning(f"Failed to insert refinement child: {e}")
+
+                self.storage.mark_expanded(parent['trial_id'], round_num)
+
+            except Exception as e:
+                self.logger.warning(f"Failed to refine parent {parent['trial_id']}: {e}")
+
+        # Step 7: Execute refinement trials for this round
+        self._run_worker(exit_on_idle=True, round_num=round_num, phases={"refine"})
+
+        # Step 8: Mark round as complete
+        self.storage.mark_round_complete(self.study_id, round_num)
+        self.logger.info(f"Round {round_num}: Complete")
+
+    def _run_worker(
+        self,
+        exit_on_idle: bool = False,
+        round_num: int | None = None,
+        phases: set[str] | None = None,
+    ):
         """Worker mode: Claim and execute trials."""
         self.logger.info(f"Running in WORKER mode (worker_id={self.worker_id})")
 
@@ -293,7 +456,9 @@ class RANTRunner:
             # Claim next trial
             trial = self.storage.claim_next_waiting_trial(
                 study_id=self.study_id,
-                worker_id=self.worker_id
+                worker_id=self.worker_id,
+                round_num=round_num,
+                phases=sorted(phases) if phases else None
             )
 
             if not trial:
@@ -477,23 +642,49 @@ class RANTRunner:
         else:
             depth = "?"
 
-        status = "✓" if result and result.get("success") else "✗"
+        ok = bool(result and result.get("success"))
+        status = "✓" if ok else "✗"
         value = result.get("value") if result else None
         value_str = f"{value:.6f}" if isinstance(value, (int, float)) else "NA"
         duration = result.get("duration") if result else None
         dur_str = f"{duration:.1f}s" if isinstance(duration, (int, float)) else "?"
         parent = trial.get("parent_trial_id")
-        parent_str = str(parent) if parent is not None else "-"
+        parent_str = str(parent) if parent is not None else "~"
         action = self._format_action(trial.get("pipeline", {}))
         err_suffix = f" ERR={error}" if error else ""
 
-        line = (
-            f"I={self.iteration} {status} "
-            f"T={trial.get('trial_number')} P={parent_str} "
-            f"R={trial.get('round')} D={depth} "
-            f"A={action} V={value_str} t={dur_str}{err_suffix}"
+        ts_total = self.target_trials or "?"
+        txt = Text(f"I={self.iteration} (Ts={self.iteration}/{ts_total}) ", style="dim")
+        txt.append(status, style="bold green" if ok else "bold red")
+        txt.append(
+            f" T={trial.get('trial_number')} P={parent_str} D={depth} ",
+            style="dim" if ok else "bold red",
         )
-        self.console.print(line)
+        txt.append(f"{dur_str} ", style="dim")
+        txt.append(f"A={action} ", style="cyan")
+        model_alias = ""
+        if result and isinstance(result.get("details"), dict):
+            raw = result["details"].get("raw_json", {})
+            best_model = raw.get("best_model") or raw.get("best_model_implementation")
+            model_alias = self._format_model_alias(best_model)
+        label = f"{model_alias}=" if model_alias else "V="
+        txt.append(f"{label}{value_str}", style="bold white" if ok else "bold red")
+        if err_suffix:
+            txt.append(err_suffix, style="red")
+
+        self.console.print(txt)
+
+    def _format_model_alias(self, model_name: str | None) -> str:
+        if not model_name:
+            return ""
+        name = model_name.lower()
+        if "xgboost" in name or name.startswith("xgb"):
+            return "XGB"
+        if "lightgbm" in name or "lgbm" in name:
+            return "GBM"
+        if "catboost" in name:
+            return "CAT"
+        return model_name
 
     def _setup_logging(self):
         log_dir = self.context.project_root / "experiments" / "logs"
@@ -518,10 +709,12 @@ class RANTRunner:
         Returns:
             Summary dict with stats
         """
-        # TODO: Add more detailed stats
+        direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
+        best_value = self.storage.select_best_value(self.study_id, direction)
         return {
             'study_id': self.study_id,
             'study_name': self.study_name,
             'role': self.config.runtime.role,
-            'executor': self.config.runtime.executor
+            'executor': self.config.runtime.executor,
+            'best_value': best_value
         }

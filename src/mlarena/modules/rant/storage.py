@@ -376,7 +376,12 @@ class RANTStorage:
         raise RuntimeError(f"Failed to insert trial after {max_attempts} attempts")
 
     def claim_next_waiting_trial(
-        self, study_id: int, worker_id: str, max_attempts: int = 5
+        self,
+        study_id: int,
+        worker_id: str,
+        max_attempts: int = 5,
+        round_num: Optional[int] = None,
+        phases: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Atomically claim next WAITING trial and mark as RUNNING.
 
@@ -389,14 +394,23 @@ class RANTStorage:
                     cur = conn.cursor()
 
                     # Find next waiting trial
-                    cur.execute(
+                    query = (
                         "SELECT t.trial_id, t.number, rt.pipeline_json, rt.round, rt.phase, rt.parent_trial_id "
                         "FROM trials t "
                         "JOIN rant_trials rt ON t.trial_id = rt.trial_id "
-                        "WHERE t.study_id=? AND t.state=? "
-                        "ORDER BY t.trial_id ASC LIMIT 1",
-                        (study_id, TrialState.WAITING.value)
+                        "WHERE t.study_id=? AND t.state=?"
                     )
+                    params: List[Any] = [study_id, TrialState.WAITING.value]
+                    if round_num is not None:
+                        query += " AND rt.round=?"
+                        params.append(round_num)
+                    if phases:
+                        placeholders = ",".join(["?"] * len(phases))
+                        query += f" AND rt.phase IN ({placeholders})"
+                        params.extend(phases)
+                    query += " ORDER BY t.trial_id ASC LIMIT 1"
+
+                    cur.execute(query, params)
                     row = cur.fetchone()
                     if not row:
                         return None
@@ -519,6 +533,25 @@ class RANTStorage:
                     arch_counts[arch_sig] = count + 1
 
             return selected
+
+    def select_best_value(self, study_id: int, direction: StudyDirection) -> Optional[float]:
+        """Select best value from completed trials."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            order = "DESC" if direction == StudyDirection.MAXIMIZE else "ASC"
+            cur.execute(
+                f"""
+                SELECT tv.value
+                FROM trial_values tv
+                JOIN trials t ON tv.trial_id = t.trial_id
+                WHERE t.study_id=? AND t.state=?
+                ORDER BY tv.value {order}
+                LIMIT 1
+                """,
+                (study_id, TrialState.COMPLETE.value)
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def mark_expanded(self, trial_id: int, round_num: int):
         """Mark trial as expanded in given round."""

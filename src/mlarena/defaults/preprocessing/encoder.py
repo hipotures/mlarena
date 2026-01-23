@@ -1277,7 +1277,11 @@ def _encode_count(
 
         # Function to apply mapping safely
         def apply_map(series):
-            mapped = series.map(mapping).fillna(0)
+            mapped = series.map(mapping)
+            # Categorical map preserves dtype; fillna(0) fails if 0 not in categories.
+            if pd.api.types.is_categorical_dtype(mapped):
+                mapped = mapped.astype("float")
+            mapped = mapped.fillna(0)
             if add_log:
                 return np.log1p(mapped)
             return mapped

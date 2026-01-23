@@ -957,6 +957,7 @@ class PreprocessTuneModule(BaseModule):
                 project_root=self.context.project_root,
                 config=rant_config,
                 model_template=model_template,
+                problem_type=problem_type,
                 telegram_test=bool(params.get("telegram_test") or getattr(cfg, "telegram_test", False)),
             )
             runner = RANTRunner(rant_context)

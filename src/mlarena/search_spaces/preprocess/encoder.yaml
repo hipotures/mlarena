@@ -92,6 +92,7 @@ variants:
       woe_regularization: {type: float_range, min: 0.01, max: 10.0, log: true}
       woe_sigma: {type: float_range, min: 0.0, max: 1.0}
     requires_preproc: [{group: categorical_encoder}]
+    requires_problem_type: binary
   # DISABLED: binary creates O(log2(cardinality)) columns per feature, risky with many categories
   # - name: binary
   #   params:

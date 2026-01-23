@@ -17,7 +17,8 @@ class PipelineGenerator:
         self,
         super_chain_path: str | Path,
         search_spaces_dir: str | Path,
-        seed: int = 42
+        seed: int = 42,
+        problem_type: Optional[str] = None,
     ):
         """Initialize generator with super-chain and search spaces.
 
@@ -30,6 +31,7 @@ class PipelineGenerator:
         self.seed = seed
         self.rng = random.Random(seed)
         self.sampler = ParameterSampler(seed)
+        self.problem_type = (problem_type or "").strip().lower() or None
 
         # Load configurations
         self.super_chain = self._load_super_chain()
@@ -193,6 +195,9 @@ class PipelineGenerator:
         if not allow_heavy_variants and heavy_variants_list:
             variants = [v for v in variants if v['name'] not in heavy_variants_list]
 
+        # Filter by required problem type if specified
+        variants = [v for v in variants if self._variant_allowed(v)]
+
         if not variants:
             return None
 
@@ -310,6 +315,9 @@ class PipelineGenerator:
         else:
             variant = variants[0]  # Default to first
 
+        if variant and not self._variant_allowed(variant):
+            return None
+
         # Use fixed_config (no random sampling)
         base_config = space.get('base_config', {})
         config = {**base_config, **fixed_config}
@@ -324,6 +332,17 @@ class PipelineGenerator:
             'injected': True,
             'original_index': self.super_chain['preprocessors'].index(super_step)
         }
+
+    def _variant_allowed(self, variant: Dict[str, Any]) -> bool:
+        """Return True if variant matches required problem type (if any)."""
+        required = variant.get("requires_problem_type") or variant.get("requires_problem_types")
+        if not required:
+            return True
+        if isinstance(required, str):
+            required = [required]
+        if not self.problem_type:
+            return False
+        return self.problem_type in [str(r).strip().lower() for r in required]
 
     def _build_pipeline_result(
         self,

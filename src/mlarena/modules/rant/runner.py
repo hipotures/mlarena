@@ -18,6 +18,7 @@ from mlarena.modules.rant.materializer import TemplateMaterializer
 from mlarena.modules.mcts.executor import MlaCliExecutor
 from rich.console import Console
 from rich.text import Text
+from rich.table import Table
 from mlarena.utils.notification import TelegramNotifier
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class ExecutionContext:
     config: RANTConfig
     model_template: str | None = None
     telegram_test: bool = False
+    problem_type: str | None = None
 
 
 class RANTRunner:
@@ -70,11 +72,26 @@ class RANTRunner:
 
         # File logging (same location as MCTS: project_root/experiments/logs)
         self._setup_logging()
+        self.console = Console(force_terminal=True)
 
         if created:
             self.logger.info(f"Created new study: {study_name} (ID={self.study_id})")
         else:
             self.logger.info(f"Resuming study: {study_name} (ID={self.study_id})")
+            # Resume statistics table (like MCTS)
+            trials_found = self.storage.count_total_trials(self.study_id)
+            best_score = self.storage.select_best_value(self.study_id, direction)
+            baseline_score = self.storage.get_baseline_value(self.study_id)
+            metric_name = self.storage.get_any_metric(self.study_id) or "Unknown"
+
+            table = Table(title="RANT Resume Statistics")
+            table.add_column("Statistic", style="cyan")
+            table.add_column("Value", style="magenta")
+            table.add_row("Evaluation Metric", str(metric_name))
+            table.add_row("Trials Found", str(trials_found))
+            table.add_row("Baseline Score", f"{baseline_score:.5f}" if baseline_score is not None else "N/A")
+            table.add_row("Best Score", f"{best_score:.5f}" if best_score is not None else "N/A")
+            self.console.print(table)
 
         # Initialize components
         # Try to find super_chain: first in project_root, then in REPO_ROOT
@@ -97,7 +114,8 @@ class RANTRunner:
         self.generator = PipelineGenerator(
             super_chain_path=super_chain_path,
             search_spaces_dir=search_spaces_dir,
-            seed=self.config.seed
+            seed=self.config.seed,
+            problem_type=context.problem_type,
         )
 
         self.refinement_engine = RefinementEngine(
@@ -122,7 +140,6 @@ class RANTRunner:
         self.study_name = study_name
         self.iteration = 0
         self.target_trials = 0
-        self.console = Console(force_terminal=True)
         self.model_template = context.model_template
         self._baseline_value: float | None = None
         self.best_value: float | None = None
@@ -532,7 +549,8 @@ class RANTRunner:
                     self.storage.store_trial_result(
                         trial_id=trial['trial_id'],
                         state=TrialState.COMPLETE,
-                        value=result['value']
+                        value=result['value'],
+                        metric=result.get('metric')
                     )
                     consecutive_failures = 0
                     self.logger.info(f"Trial {trial['trial_number']} COMPLETE (value={result['value']:.6f})")

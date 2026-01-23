@@ -14,7 +14,7 @@ PROMPT_TEXT = "Załącznik zawiera archiwum kodu"
 
 def create_archive():
     source_dirs = ['src', 'conf', 'docs']
-    specific_scripts = ['mla.py', 'generate_s6e1_grid.py']
+    specific_scripts = ['mla.py', 'generate_s6e1_grid.py', 'generate_random_preprocess_experiments.py']
     allowed_extensions = {'.py', '.yaml', '.md', '.txt', '.rst'}
     
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')

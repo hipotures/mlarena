@@ -59,27 +59,30 @@ class MlaCliExecutor:
         lines = []
         for line in text.splitlines():
             # Strip box characters and extra whitespace
-            l = box_chars_re.sub('', line).strip()
-            if not l: continue
-            
+            cleaned_line = box_chars_re.sub('', line).strip()
+            if not cleaned_line:
+                continue
+
             # Skip common noise
-            if any(x in l for x in ["Traceback", "File \"", "python3 -c", "uv run", "MLA: uv run"]): continue
-            
+            if any(x in cleaned_line for x in ["Traceback", "File \"", "python3 -c", "uv run", "MLA: uv run"]):
+                continue
+
             # Skip very short lines or purely decorative ones (e.g. "----------")
-            if len(l) > 10 and len(set(l.replace(" ", ""))) <= 2: continue
-            
-            lines.append(l)
+            if len(cleaned_line) > 10 and len(set(cleaned_line.replace(" ", ""))) <= 2:
+                continue
+
+            lines.append(cleaned_line)
 
         if lines:
             # 1. Priority: Look for lines containing "Error" or "Exception"
-            for l in reversed(lines):
+            for line in reversed(lines):
                 # Check for common error markers (case-insensitive)
-                lower_l = l.lower()
-                if "error" in lower_l or "exception" in lower_l or "fail" in lower_l or "critical" in lower_l:
+                lower_line = line.lower()
+                if "error" in lower_line or "exception" in lower_line or "fail" in lower_line or "critical" in lower_line:
                     # If it's just the word "ERROR" (like a header), keep looking for something more descriptive
-                    if len(l) < 10 and lower_l == "error":
+                    if len(line) < 10 and lower_line == "error":
                         continue
-                    return l
+                    return line
             
             # 2. Fallback: Take the last non-empty line
             return lines[-1]

@@ -884,7 +884,7 @@ class PreprocessTuneModule(BaseModule):
                 warnings.filterwarnings(
                     "ignore", category=optuna.exceptions.ExperimentalWarning
                 )
-            except:
+            except Exception:
                 pass
 
             warnings.filterwarnings(
@@ -1180,7 +1180,7 @@ def run_optimization_loop(
 
     try:
         config = GlobalConfig(**config_dict)
-    except:
+    except Exception:
         config = config_dict  # Fallback
 
     sampler = optuna.samplers.TPESampler(seed=seed, constant_liar=True)

@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 
 from rich.console import Console
 
 from mlarena.core.module import BaseModule, ModuleResult
 from mlarena.core.registry import ModuleRegistry
 from mlarena.utils.project import data_paths, load_project_config
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 # Keys to remove from ydata profiling output

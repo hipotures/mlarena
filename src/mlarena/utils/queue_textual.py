@@ -5,13 +5,14 @@ Overrides execution to ensure clean logs (no Rich extras/colors).
 
 from __future__ import annotations
 
-import os
-import subprocess
-import re
 import json
+import os
+import re
 import requests
+import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from rich.console import Console
 from mlarena.utils.queue import TaskQueue
@@ -46,8 +47,6 @@ def send_telegram_notification(message: str) -> None:
     except Exception as e:
         print(f"Telegram Exception: {e}")
         pass
-
-from typing import Optional
 
 class TaskQueueTextual(TaskQueue):
     """TaskQueue specialized for TUI with plain-text logging."""
@@ -194,7 +193,8 @@ class TaskQueueTextual(TaskQueue):
                         score = abs(float(score))
                         if best_score is None or score < best_score:
                             best_score = score
-            except: continue
+            except Exception:
+                continue
         return best_score
 
     def _check_and_notify_best(self, task: dict, exp_id: str, console: Console) -> None:
@@ -202,7 +202,8 @@ class TaskQueueTextual(TaskQueue):
         try:
             # 1. Get current score
             state_path = self.project_root / "experiments" / exp_id / "state.json"
-            if not state_path.exists(): return
+            if not state_path.exists():
+                return
             
             current_score = None
             with open(state_path) as f:
@@ -216,7 +217,8 @@ class TaskQueueTextual(TaskQueue):
                     # Break after finding first (furthest) score
                     break
             
-            if current_score is None: return
+            if current_score is None:
+                return
 
             # 2. Compare with cached best score
             # Initialize if somehow None (though run_queue handles it)
@@ -233,17 +235,22 @@ class TaskQueueTextual(TaskQueue):
                 template = "N/A"
                 cmd = task["command"]
                 match = re.search(r'\bmodel_template=([^\s]+)', cmd) or re.search(r'\bpreprocess_template=([^\s]+)', cmd)
-                if match: template = match.group(1)
+                if match:
+                    template = match.group(1)
                 
                 duration = "N/A"
                 if task.get("started_at"):
                     try:
                         start = datetime.strptime(task["started_at"], "%Y-%m-%d %H:%M:%S")
                         dur_sec = (datetime.now() - start).total_seconds()
-                        if dur_sec < 60: duration = f"{dur_sec:.1f}s"
-                        elif dur_sec < 3600: duration = f"{dur_sec/60:.1f}m"
-                        else: duration = f"{dur_sec/3600:.1f}h"
-                    except: pass
+                        if dur_sec < 60:
+                            duration = f"{dur_sec:.1f}s"
+                        elif dur_sec < 3600:
+                            duration = f"{dur_sec/60:.1f}m"
+                        else:
+                            duration = f"{dur_sec/3600:.1f}h"
+                    except Exception:
+                        pass
 
                 project = self.project_root.name
                 msg = (

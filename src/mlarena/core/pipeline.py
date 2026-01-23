@@ -339,7 +339,7 @@ class PipelineExecutor:
                     try:
                         import json
                         with open(model_state_path) as f:
-                            state = json.load()
+                            state = json.load(f)
 
                         model_payload = state.get("modules", {}).get("model", {}).get("payload", {})
                         model_invocation = state.get("modules", {}).get("model", {}).get("invocation", {})
@@ -369,7 +369,7 @@ class PipelineExecutor:
                             try:
                                 import json
                                 with open(state_path) as f:
-                                    state = json.load()
+                                    state = json.load(f)
                                 payload = state.get("modules", {}).get("preprocess", {}).get("payload", {})
                                 shapes = payload.get("shapes", {})
                                 test_after = shapes.get("test_after")
@@ -767,7 +767,7 @@ class PipelineExecutor:
                         cli_invocation=getattr(module, "invocation_params", {}),
                         console=console
                     )
-                except:
+                except Exception:
                     pass
 
                 results[name] = ModuleResult(success=False, error=detail)
@@ -937,7 +937,7 @@ class PipelineExecutor:
                         cli_invocation=getattr(module, "invocation_params", {}),
                         console=console
                     )
-                except:
+                except Exception:
                     pass
 
                 results[name] = outcome

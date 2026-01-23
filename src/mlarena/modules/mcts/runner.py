@@ -211,12 +211,12 @@ class MCTSRunner:
             elif isinstance(existing, int):
                 try:
                     value = int(value)
-                except:
+                except (ValueError, TypeError):
                     pass
             elif isinstance(existing, float):
                 try:
                     value = float(value)
-                except:
+                except (ValueError, TypeError):
                     pass
 
             setattr(current, last, value)

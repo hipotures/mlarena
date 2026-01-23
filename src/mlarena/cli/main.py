@@ -449,7 +449,7 @@ def run_preprocess_chain(
                          for idx, tpl in enumerate(preprocess_templates):
                              results[f"preprocess-{tpl}"] = ModuleResult(success=True, payload={"cached": True})
                          return 0, results, final_exp_dir, preprocess_templates
-            except:
+            except Exception:
                 pass
 
     if fuse_mode and len(preprocess_templates) > 1:
@@ -683,7 +683,7 @@ def run_preprocess_chain(
                     if custom_state.get("eval_path"):
                         output_paths["eval_processed"] = custom_state["eval_path"]
                     shapes = final_payload.get("shapes")
-                except:
+                except Exception:
                     pass
 
             print_module_footer(
@@ -778,9 +778,6 @@ def run_auto_flow(
     skip_submit = config.skip_submit
     skip_git = config.skip_git
     wait_seconds = config.wait_seconds
-
-    # Pipeline sequence (prerequisites validated separately)
-    pipeline_modules = ["model", "predict", "submit", "fetch-score"]
 
     if force:
         console.print("\n[dim]Force mode: ON[/dim]\n")

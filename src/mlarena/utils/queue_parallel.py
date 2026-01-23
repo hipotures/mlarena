@@ -5,10 +5,14 @@ Overrides execution to ensure clean logs (no Rich extras/colors).
 
 from __future__ import annotations
 
+import json
 import os
-import subprocess
 import re
+import subprocess
 from datetime import datetime
+from typing import Optional
+
+from filelock import FileLock
 
 from rich.console import Console
 from mlarena.utils.queue import TaskQueue

@@ -47,7 +47,8 @@ def _render_grouped_paths(paths_dict: Dict[str, str], shapes_meta: Optional[Dict
     if not clean_paths:
         # Fallback for meta-info only
         for k, v in paths_dict.items():
-            if k in excluded_keys: continue
+            if k in excluded_keys:
+                continue
             lines.append(f"  [{COLOR_KEY}]{k.replace('_', ' ').title()}:[/{COLOR_KEY}] {v}")
         return lines
 
@@ -89,8 +90,10 @@ def _render_grouped_paths(paths_dict: Dict[str, str], shapes_meta: Optional[Dict
         processed_keys.add(actual_key)
         fname = display_paths[actual_key]
         label = actual_key.replace('_', ' ').title().replace('Processed', '').strip()
-        if label == "Val": label = "Tuning"
-        if label == "Original": label = "Orig"
+        if label == "Val":
+            label = "Tuning"
+        if label == "Original":
+            label = "Orig"
         
         # Get shape info
         shape_str = ""
@@ -98,9 +101,12 @@ def _render_grouped_paths(paths_dict: Dict[str, str], shapes_meta: Optional[Dict
             s_val = None
             # Robust shape lookup (mapping val->tuning etc)
             search_keys = [key_pattern]
-            if key_pattern == "tuning": search_keys.append("val")
-            if key_pattern == "val": search_keys.append("tuning")
-            if key_pattern == "orig": search_keys.append("original")
+            if key_pattern == "tuning":
+                search_keys.append("val")
+            if key_pattern == "val":
+                search_keys.append("tuning")
+            if key_pattern == "orig":
+                search_keys.append("original")
             
             for sk in search_keys:
                 s_match = next((k for k in shapes_meta if sk in k.lower()), None)
@@ -129,7 +135,8 @@ def _render_grouped_paths(paths_dict: Dict[str, str], shapes_meta: Optional[Dict
 
     # Remaining keys
     for key, fname in display_paths.items():
-        if key in processed_keys: continue
+        if key in processed_keys:
+            continue
         label = key.replace('_', ' ').title()
         label_spacing = " " * (max_key_len - len(label))
         lines.append(f"  [{KEY_STYLE}]{label}:[/{KEY_STYLE}]{label_spacing} {fname}")
@@ -793,7 +800,7 @@ def print_module_header(
     try:
         dt_val = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
         formatted_time = dt_val.strftime("%Y-%m-%d %H:%M:%S")
-    except:
+    except Exception:
         formatted_time = started_at
 
     lines = []
@@ -951,7 +958,7 @@ def print_module_footer(
     try:
         dt_val = datetime.fromisoformat(finished_at.replace('Z', '+00:00'))
         formatted_time = dt_val.strftime("%Y-%m-%d %H:%M:%S")
-    except:
+    except Exception:
         formatted_time = finished_at
 
     if error:

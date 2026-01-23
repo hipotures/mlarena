@@ -8,15 +8,15 @@ from typing import Any, Dict, Optional
 
 from rich.console import Console
 
+from mlarena.core.config import TemplateLoader
+from mlarena.core.module import BaseModule, ModuleResult
+from mlarena.core.registry import ModuleRegistry
+from mlarena.utils.project import data_paths, load_project_config
+
 # pandas imported in execute()
 
 console = Console()
 logger = logging.getLogger(__name__)
-
-from mlarena.core.module import BaseModule, ModuleResult
-from mlarena.core.registry import ModuleRegistry
-from mlarena.core.config import TemplateLoader
-from mlarena.utils.project import data_paths, load_project_config
 
 
 def _load_processed_or_raw(

@@ -118,6 +118,9 @@ class RANTRunner:
         self.console = Console(force_terminal=True)
         self.model_template = context.model_template
         self._baseline_value: float | None = None
+        self.best_value: float | None = None
+        self.direction = StudyDirection.MAXIMIZE if self.config.direction == "maximize" else StudyDirection.MINIMIZE
+        self.best_value = self.storage.select_best_value(self.study_id, self.direction)
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -654,8 +657,18 @@ class RANTRunner:
             depth = "?"
 
         ok = bool(result and result.get("success"))
-        status = "✓" if ok else "✗"
         value = result.get("value") if result else None
+        is_new_best = False
+        if ok and isinstance(value, (int, float)):
+            if self.best_value is None:
+                is_new_best = True
+            elif self.direction == StudyDirection.MAXIMIZE and value > self.best_value:
+                is_new_best = True
+            elif self.direction == StudyDirection.MINIMIZE and value < self.best_value:
+                is_new_best = True
+        if is_new_best:
+            self.best_value = float(value)
+        status = "★" if (ok and is_new_best) else ("✓" if ok else "✗")
         value_str = f"{value:.6f}" if isinstance(value, (int, float)) else "NA"
         duration = result.get("duration") if result else None
         dur_str = f"{duration:.1f}s" if isinstance(duration, (int, float)) else "?"
@@ -670,7 +683,11 @@ class RANTRunner:
 
         ts_total = self.target_trials or "?"
         txt = Text(f"I={self.iteration} (Ts={self.iteration}/{ts_total}) ", style="dim")
-        txt.append(status, style="bold green" if ok else "bold red")
+        if ok:
+            status_style = "bold yellow" if is_new_best else "bold green"
+        else:
+            status_style = "bold red"
+        txt.append(status, style=status_style)
         txt.append(
             f" T={trial.get('trial_number')} P={parent_str} D={depth} ",
             style="dim" if ok else "bold red",
@@ -683,7 +700,8 @@ class RANTRunner:
             best_model = raw.get("best_model") or raw.get("best_model_implementation")
             model_alias = self._format_model_alias(best_model)
         label = f"{model_alias}=" if model_alias else "V="
-        txt.append(f"{label}{value_str}", style="bold white" if ok else "bold red")
+        val_style = "bold yellow" if (ok and is_new_best) else ("bold white" if ok else "bold red")
+        txt.append(f"{label}{value_str}", style=val_style)
 
         if isinstance(value, (int, float)):
             delta_val = None

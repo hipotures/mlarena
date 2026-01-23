@@ -827,6 +827,14 @@ def _encode_ordinal(
             else:
                 cats = _safe_sort(pd.unique(values), ascending=True)
 
+            # sklearn requires numerical categories to be sorted
+            is_num = pd.api.types.is_numeric_dtype(values) or (
+                pd.api.types.is_categorical_dtype(values)
+                and pd.api.types.is_numeric_dtype(values.cat.categories)
+            )
+            if is_num:
+                cats = _safe_sort(cats, ascending=True)
+
             if not cats:
                 cats = [np.nan]
             categories.append(cats)

@@ -1,0 +1,57 @@
+project: Titanic
+experiment_prefix: mla_preprocess_titanic
+filter_by_eda: true
+tune:
+  allow_heavy_steps: false
+  allow_heavy_variants: false
+  workers: 2
+  storage_timeout: 100
+  model_cleanup: true
+  direction: maximize
+  max_trial_sec: 600
+  max_features_out: 500
+  quiet_preprocess_panel: false
+  quiet_model_panel: false
+  model_verbosity: 2
+preprocessors:
+  # Fixed start
+  - name: sanity_check
+    group: sanity
+    template: sanity_check
+    enabled: true
+    meta:
+      heavy_step: false
+      fixed: true
+
+  # Core (3 processors)
+  - name: imputer
+    group: imputer
+    template: imputer
+    enabled: true
+    meta:
+      heavy_step: false
+      heavy_variants: []
+
+  - name: categorical_encoder
+    group: categorical_encoder
+    template: categorical_encoder
+    enabled: false
+    meta:
+      heavy_step: false
+
+  - name: numeric_binner
+    group: numeric_binner
+    template: numeric_binner
+    enabled: true
+    meta:
+      heavy_step: false
+      heavy_variants: []
+
+  # Fixed end
+  - name: scaler
+    group: scaler
+    template: scaler
+    enabled: true
+    meta:
+      heavy_step: false
+      fixed: true

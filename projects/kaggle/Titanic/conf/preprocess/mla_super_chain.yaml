@@ -13,6 +13,9 @@ tune:
   quiet_preprocess_panel: false
   quiet_model_panel: false
   model_verbosity: 2
+evaluation:
+  model: autogluon_thin_fast
+  seed: 42
 preprocessors:
   # Fixed start
   - name: sanity_check

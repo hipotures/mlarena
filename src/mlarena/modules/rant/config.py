@@ -19,6 +19,7 @@ class RuntimeConfig(BaseModel):
     poll_interval_sec: float = 2.0
     max_idle_polls: int = 60
     storage_timeout_sec: int = 60
+    kill_on_interrupt: bool = True
 
 
 class FailureConfig(BaseModel):

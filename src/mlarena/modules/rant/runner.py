@@ -153,6 +153,11 @@ class RANTRunner:
                 self._run_worker(exit_on_idle=False)
         except KeyboardInterrupt:
             self.logger.info("Interrupted by user (Ctrl+C). Exiting cleanly.")
+            if self.config.runtime.kill_on_interrupt and getattr(self.executor, "current_proc", None):
+                try:
+                    self.executor.current_proc.terminate()
+                except Exception:
+                    pass
             return self._get_summary()
 
         summary = self._get_summary()
@@ -641,12 +646,18 @@ class RANTRunner:
         core = pipeline.get('core') or []
         if not core:
             return "baseline"
+        full_by_group = {}
+        for step in (pipeline.get("full_chain") or []):
+            group = step.get("group")
+            if group:
+                full_by_group[group] = step
         parts = []
         for step in core:
             group = step.get('group') or step.get('step') or step.get('name')
             variant = step.get('variant')
             if group and variant:
-                cfg = step.get('config', {})
+                full_step = full_by_group.get(group)
+                cfg = (full_step or step).get('config', {})
                 idx = self._get_config_index(group, variant, cfg)
                 parts.append(f"{group}/{variant}/{idx}")
             elif group:
@@ -763,7 +774,7 @@ class RANTRunner:
                 pipeline = json.loads(pipeline_json)
             except Exception:
                 continue
-            for step in (pipeline.get("core") or []):
+            for step in (pipeline.get("full_chain") or []):
                 group = step.get("group") or step.get("step") or step.get("name")
                 variant = step.get("variant")
                 if not group or not variant:

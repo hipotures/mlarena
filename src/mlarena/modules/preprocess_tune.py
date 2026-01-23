@@ -931,9 +931,20 @@ class PreprocessTuneModule(BaseModule):
         use_rant = params.get("rant") or getattr(cfg, "rant", False)
         if use_rant:
             from mlarena.modules.rant.config import load_rant_config
-            # Use repo root for super_chain, not project root
-            super_chain_path = REPO_ROOT / "conf" / "preprocess" / "mla_super_chain.yaml"
+            # Prefer project-local super_chain, fallback to repo root
+            project_chain = self.context.project_root / "conf" / "preprocess" / "mla_super_chain.yaml"
+            super_chain_path = project_chain if project_chain.exists() else (REPO_ROOT / "conf" / "preprocess" / "mla_super_chain.yaml")
             rant_config = load_rant_config(super_chain_path)
+
+            # Resolve model template (prefer CLI, fallback to super-chain evaluation, then global config)
+            model_template = params.get("model_template")
+            if not model_template:
+                super_chain = _load_yaml(super_chain_path)
+                eval_cfg = super_chain.get("evaluation", {}) or {}
+                if isinstance(eval_cfg, dict):
+                    model_template = eval_cfg.get("model")
+            if not model_template:
+                model_template = getattr(cfg, "model_template", None)
 
             # Override config with CLI params (rant.* prefix)
             for key, value in params.items():
@@ -944,7 +955,8 @@ class PreprocessTuneModule(BaseModule):
             rant_context = RANTContext(
                 project=cfg.project,
                 project_root=self.context.project_root,
-                config=rant_config
+                config=rant_config,
+                model_template=model_template,
             )
             runner = RANTRunner(rant_context)
             try:

@@ -117,6 +117,7 @@ class RANTRunner:
         self.target_trials = 0
         self.console = Console(force_terminal=True)
         self.model_template = context.model_template
+        self._baseline_value: float | None = None
 
     def run(self) -> Dict[str, Any]:
         """Run RANT according to runtime.role configuration.
@@ -683,6 +684,25 @@ class RANTRunner:
             model_alias = self._format_model_alias(best_model)
         label = f"{model_alias}=" if model_alias else "V="
         txt.append(f"{label}{value_str}", style="bold white" if ok else "bold red")
+
+        if isinstance(value, (int, float)):
+            delta_val = None
+            if parent is not None:
+                parent_val = self.storage.get_trial_value(parent)
+                if parent_val is not None:
+                    delta_val = value - parent_val
+            if delta_val is None and phase != "baseline":
+                baseline_val = self._baseline_value
+                if baseline_val is None:
+                    baseline_val = self.storage.get_baseline_value(self.study_id)
+                    if baseline_val is not None:
+                        self._baseline_value = baseline_val
+                if baseline_val is not None:
+                    delta_val = value - baseline_val
+
+            if delta_val is not None:
+                sign = "+" if delta_val >= 0 else ""
+                txt.append(f" ({sign}{delta_val:.5f})", style=self._delta_style(delta_val))
         if err_suffix:
             txt.append(err_suffix, style="red")
 
@@ -699,6 +719,13 @@ class RANTRunner:
         if "catboost" in name:
             return "CAT"
         return model_name
+
+    def _delta_style(self, delta: float) -> str:
+        if delta == 0:
+            return "dim"
+        if self.config.direction == "maximize":
+            return "green" if delta > 0 else "red"
+        return "green" if delta < 0 else "red"
 
     def _setup_logging(self):
         log_dir = self.context.project_root / "experiments" / "logs"

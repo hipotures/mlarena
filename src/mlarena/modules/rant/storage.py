@@ -561,6 +561,33 @@ class RANTStorage:
             row = cur.fetchone()
             return int(row[0]) if row else None
 
+    def get_trial_value(self, trial_id: int) -> Optional[float]:
+        """Resolve objective value from trial_id."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM trial_values WHERE trial_id=?", (trial_id,))
+            row = cur.fetchone()
+            return float(row[0]) if row else None
+
+    def get_baseline_value(self, study_id: int) -> Optional[float]:
+        """Return baseline trial value for a study, if available."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT tv.value
+                FROM rant_trials rt
+                JOIN trials t ON rt.trial_id = t.trial_id
+                JOIN trial_values tv ON rt.trial_id = tv.trial_id
+                WHERE rt.study_id=? AND rt.phase='baseline' AND t.state=?
+                ORDER BY rt.trial_id ASC
+                LIMIT 1
+                """,
+                (study_id, TrialState.COMPLETE.value),
+            )
+            row = cur.fetchone()
+            return float(row[0]) if row else None
+
     def mark_expanded(self, trial_id: int, round_num: int):
         """Mark trial as expanded in given round."""
         with self._connect() as conn:

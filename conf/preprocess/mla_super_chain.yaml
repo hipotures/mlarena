@@ -33,19 +33,6 @@ preprocessors:
     heavy_step: false
     default_enabled_fast: true
     fixed: true
-- name: train_fraction
-  group: train_fraction_fixed
-  template: train_fraction
-  enabled: false
-  meta:
-    heavy_step: false
-    default_enabled_fast: true
-    fixed: true
-  fixed_config:
-    train_fraction: 0.8
-    valid_fraction: 0.1
-    eval_fraction: 0.1
-    random_state: 42
 - name: target_transformer
   group: target_transformer_fixed
   template: target_transformer
@@ -311,8 +298,8 @@ rant:
   top_k: 10
   children_per_parent: 5
   rounds_per_run: 1
-  min_core_len: 3
-  max_core_len: 9
+  min_core_len: 1
+  max_core_len: 6
   allow_heavy_steps: true
   allow_heavy_variants: true
   max_parents_per_architecture: 1

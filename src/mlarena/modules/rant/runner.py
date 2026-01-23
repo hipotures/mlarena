@@ -574,13 +574,13 @@ class RANTRunner:
                     )
                     consecutive_failures += 1
                     self.logger.warning(f"Trial {trial['trial_number']} FAIL (consecutive={consecutive_failures})")
+                self._emit_trial_line(trial, result, is_new_best=is_new_best)
                 keep = self._should_keep_templates(
                     trial_id=trial['trial_id'],
                     success=bool(result['success']),
                     is_new_best=is_new_best,
                 )
                 self._cleanup_templates(templates, keep=keep)
-                self._emit_trial_line(trial, result, is_new_best=is_new_best)
 
             except Exception as e:
                 self.logger.error(f"Trial {trial['trial_number']} execution error: {e}", exc_info=True)

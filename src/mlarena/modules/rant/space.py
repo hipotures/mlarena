@@ -56,8 +56,11 @@ class PipelineGenerator:
             with open(yaml_file) as f:
                 space = yaml.safe_load(f)
                 template_name = space.get('template')
+                group_name = space.get('group')
                 if template_name:
                     spaces[template_name] = space
+                if group_name and group_name not in spaces:
+                    spaces[group_name] = space
         return spaces
 
     def _extract_fixed_harness(self) -> Tuple[List[Dict], List[Dict]]:
@@ -250,27 +253,14 @@ class PipelineGenerator:
 
             for req in requires:
                 req_group = req['group']
-                req_step_type = req.get('step')  # 'before', 'after', or None
-
-                if req_step_type == 'before':
-                    # Prerequisite check: must already exist in seen or core
-                    if req_group not in seen_groups:
-                        # Reject this pipeline (prerequisite not met)
-                        raise ValueError(f"Prerequisite not met: {req_group} required before {step['group']}")
-
-                elif req_step_type == 'after':
-                    # Auto-injection: inject deterministic step
-                    if req_group not in seen_groups:
-                        injected_step = self._inject_step(req, allow_heavy_variants, rng)
-                        if injected_step:
-                            injected.append(injected_step)
-                            seen_groups.add(req_group)
-                            # Recursively resolve injected step's dependencies
-                            queue.append(injected_step)
-
-                else:
-                    # Default: require to exist (no injection)
-                    if req_group not in seen_groups:
+                if req_group not in seen_groups:
+                    injected_step = self._inject_step(req, allow_heavy_variants, rng)
+                    if injected_step:
+                        injected.append(injected_step)
+                        seen_groups.add(req_group)
+                        # Recursively resolve injected step's dependencies
+                        queue.append(injected_step)
+                    else:
                         raise ValueError(f"Required group {req_group} not in pipeline for {step['group']}")
 
         return injected
@@ -392,8 +382,12 @@ class PipelineGenerator:
             for req in step.get('requires_preproc', []):
                 req_group = req['group']
                 if req_group in step_by_group:
-                    # Edge: req_group -> step['group'] (req must come before step)
-                    graph[req_group].append(step['group'])
+                    if req.get('step') == 'after':
+                        # Edge: step -> req (req must come after step)
+                        graph[step['group']].append(req_group)
+                    else:
+                        # Edge: req -> step (req must come before step)
+                        graph[req_group].append(step['group'])
 
         # DFS cycle detection
         WHITE, GRAY, BLACK = 0, 1, 2
@@ -444,10 +438,15 @@ class PipelineGenerator:
         for step in steps:
             for req in step.get('requires_preproc', []):
                 req_group = req['group']
-                if req_group in step_by_group and req.get('step') != 'before':
-                    # Edge: req_group -> step['group']
-                    graph[req_group].append(step['group'])
-                    indegree[step['group']] += 1
+                if req_group in step_by_group:
+                    if req.get('step') == 'after':
+                        # Edge: step -> req (req must come after step)
+                        graph[step['group']].append(req_group)
+                        indegree[req_group] += 1
+                    else:
+                        # Edge: req -> step (req must come before step)
+                        graph[req_group].append(step['group'])
+                        indegree[step['group']] += 1
 
         # Kahn's algorithm with random selection
         queue = [s['group'] for s in steps if indegree[s['group']] == 0]
@@ -470,9 +469,6 @@ class PipelineGenerator:
         if len(result) != len(steps):
             # Cycle detected (should not happen if _has_cycle passed)
             raise ValueError("Topological sort failed - cycle detected")
-
-        # Sort by original_index to maintain super-chain order where possible
-        result.sort(key=lambda s: s['original_index'])
 
         return result
 

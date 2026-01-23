@@ -69,6 +69,12 @@ CREATE TABLE IF NOT EXISTS trial_values (
 );
 CREATE INDEX IF NOT EXISTS idx_trial_values_value ON trial_values(value);
 
+CREATE TABLE IF NOT EXISTS rant_trial_metrics (
+  trial_id    INTEGER PRIMARY KEY,
+  metric_name TEXT,
+  FOREIGN KEY (trial_id) REFERENCES trials(trial_id) ON DELETE CASCADE
+);
+
 -- RANT-specific tables
 CREATE TABLE IF NOT EXISTS rant_rounds (
   study_id            INTEGER NOT NULL,
@@ -456,7 +462,11 @@ class RANTStorage:
         return None
 
     def store_trial_result(
-        self, trial_id: int, state: TrialState, value: Optional[float] = None
+        self,
+        trial_id: int,
+        state: TrialState,
+        value: Optional[float] = None,
+        metric: Optional[str] = None,
     ):
         """Store trial result (COMPLETE or FAIL)."""
         with self._connect() as conn:
@@ -472,8 +482,30 @@ class RANTStorage:
                     "INSERT OR REPLACE INTO trial_values (trial_id, objective, value) VALUES (?, 0, ?)",
                     (trial_id, value)
                 )
+            if metric:
+                cur.execute(
+                    "INSERT OR REPLACE INTO rant_trial_metrics (trial_id, metric_name) VALUES (?, ?)",
+                    (trial_id, metric)
+                )
 
             conn.commit()
+
+    def get_any_metric(self, study_id: int) -> Optional[str]:
+        """Return any recorded metric name for a study."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT rtm.metric_name
+                FROM rant_trial_metrics rtm
+                JOIN trials t ON rtm.trial_id = t.trial_id
+                WHERE t.study_id=? AND rtm.metric_name IS NOT NULL
+                LIMIT 1
+                """,
+                (study_id,)
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def select_top_k_global(
         self,

@@ -107,6 +107,9 @@ projects/kaggle/playground-series-s6e1/templates/preprocess/test*
 projects/kaggle/playground-series-s6e1/templates/preprocess/.*
 projects/kaggle/playground-series-s6e1/templates/model/test*
 
+# Ignore generated preprocess templates (all projects)
+projects/kaggle/*/templates/preprocess/
+
 # Ignore per-project queue state
 projects/kaggle/*/queue/
 .env

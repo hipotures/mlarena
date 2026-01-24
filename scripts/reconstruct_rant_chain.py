@@ -200,20 +200,28 @@ def extract_pipeline_steps(pipeline_data):
         pipeline_data: Pipeline dict from RANT trial
 
     Returns:
-        list: List of step dicts with 'step_name', 'variant', 'config'
+        list: List of step dicts with 'step_name', 'module', 'variant', 'config'
     """
     # RANT pipeline has 'full_chain' which is a list of steps
     full_chain = pipeline_data.get('full_chain', [])
 
     steps = []
     for step in full_chain:
-        step_name = step.get('step') or step.get('group')
-        variant = step.get('variant')
-        config = step.get('config', {})
+        if step.get("enabled") is False:
+            disabled_name = step.get("step") or step.get("name") or step.get("group") or step.get("template")
+            warn(f"Skipping disabled step: {disabled_name}")
+            continue
 
-        if step_name:
+        module_name = step.get('template') or step.get('name') or step.get('step') or step.get('group')
+        step_name = step.get('step') or step.get('name') or step.get('group') or module_name
+        variant = step.get('variant')
+        # Prefer config, fallback to fixed_config for fixed steps
+        config = step.get('config') or step.get('fixed_config', {})
+
+        if step_name and module_name:
             steps.append({
                 'step_name': step_name,
+                'module': module_name,
                 'variant': variant,
                 'config': config
             })
@@ -280,15 +288,14 @@ def generate_preprocess_templates(project, steps, final_name):
 
     for i, step in enumerate(steps):
         step_name = step['step_name']
-        variant = step['variant']
+        module_name = step.get("module") or step_name
+        variant = step.get('variant')
         config_data = step['config']
 
         # Generate step template
-        sub_data = {
-            "name": step_name,
-            "variant": variant,
-            "config": config_data
-        }
+        sub_data = {"module": module_name, "config": config_data}
+        if variant is not None:
+            sub_data["variant"] = variant
 
         # Naming: final_name-00-stepname.yaml
         sub_filename = f"{final_name}-{i:02d}-{step_name}.yaml"

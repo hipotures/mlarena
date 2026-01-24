@@ -151,7 +151,7 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             template_cfg = loaded_cfg.copy()
             template_cfg.update(self.config)
 
-        module_name = template_cfg.get("module")
+        module_name = self.loader_instance._resolve_module_name(template_cfg)
         if not module_name:
             # Fallback to basic template ops
             X.train = self.loader_instance._apply_template(X.train, template_cfg)
@@ -490,6 +490,46 @@ class PreprocessModule(BaseModule):
         if fills:
             df = df.fillna(fills)
         return df
+
+    def _module_file_exists(self, module_name: str) -> bool:
+        """Check if a preprocessing module file exists locally or globally."""
+        from pathlib import Path as P
+
+        repo_root = P(__file__).resolve().parents[3]
+        local_path = (
+            self.context.project_root / "code" / "preprocessing" / f"{module_name}.py"
+        )
+        global_path = (
+            repo_root
+            / "src"
+            / "mlarena"
+            / "defaults"
+            / "preprocessing"
+            / f"{module_name}.py"
+        )
+        return local_path.exists() or global_path.exists()
+
+    def _resolve_module_name(self, template_cfg: Dict[str, Any]) -> Optional[str]:
+        """Resolve module name from template config, supporting legacy 'name'."""
+        if not template_cfg:
+            return None
+        module_name = template_cfg.get("module")
+        if module_name:
+            return module_name
+
+        candidate = template_cfg.get("name")
+        if not candidate:
+            return None
+
+        if self._module_file_exists(candidate):
+            return candidate
+
+        if candidate.endswith("_fixed"):
+            base_name = candidate[: -len("_fixed")]
+            if base_name and self._module_file_exists(base_name):
+                return base_name
+
+        return None
 
     def _load_preprocessing_module(self, module_name: str):
         """
@@ -1119,7 +1159,7 @@ class PreprocessModule(BaseModule):
                 )
         # >>>>>> UNIFIED PIPELINE EXECUTION BLOCK END <<<<<<
 
-        custom_module_name = template_cfg.get("module") if template_cfg else None
+        custom_module_name = self._resolve_module_name(template_cfg) if template_cfg else None
 
         # Use custom preprocessing module if specified (not None and not empty string)
         custom_preprocess_state = {}

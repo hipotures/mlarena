@@ -1,7 +1,0 @@
-name: row_aggregates
-variant: basic
-config:
-  stats:
-  - mean
-  - min
-  - sum

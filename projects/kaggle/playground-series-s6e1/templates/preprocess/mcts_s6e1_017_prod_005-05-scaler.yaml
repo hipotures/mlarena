@@ -1,4 +1,0 @@
-name: scaler
-variant: robust
-config:
-  scaling_method: robust

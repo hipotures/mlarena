@@ -1,4 +1,0 @@
-name: scaler
-variant: minmax
-config:
-  scaling_method: minmax

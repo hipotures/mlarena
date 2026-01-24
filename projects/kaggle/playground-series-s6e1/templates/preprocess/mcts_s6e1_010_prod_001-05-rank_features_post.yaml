@@ -1,6 +1,0 @@
-name: rank_features_post
-variant: global_percentile
-config:
-  method: percentile
-  mode: global
-  tie_method: min

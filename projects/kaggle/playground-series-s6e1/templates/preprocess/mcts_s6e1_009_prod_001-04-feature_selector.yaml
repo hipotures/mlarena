@@ -1,6 +1,0 @@
-name: feature_selector
-variant: model_importance
-config:
-  importance_model_type: lgbm
-  n_features: 0.4
-  selection_method: model_importance

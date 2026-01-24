@@ -1,5 +1,0 @@
-name: rank_features_post
-variant: group_percentile
-config:
-  method: percentile
-  mode: by_group

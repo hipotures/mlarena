@@ -149,10 +149,24 @@ def fit_transform(
 
         return pd.concat([df, df_new], axis=1)
 
-    train_df = transform_and_merge(train_df, is_train=True)
-    test_df = transform_and_merge(test_df)
-    val_df = transform_and_merge(val_df)
-    orig_df = transform_and_merge(orig_df)
+    try:
+        # Transform all splits safely
+        # Use temporary variables to avoid partial updates on failure
+        new_train = transform_and_merge(train_df, is_train=True)
+        new_test = transform_and_merge(test_df)
+        new_val = transform_and_merge(val_df)
+        new_orig = transform_and_merge(orig_df)
+        
+        # Apply success
+        train_df = new_train
+        test_df = new_test
+        val_df = new_val
+        orig_df = new_orig
+        
+    except ValueError as e:
+        # Catch transform errors (e.g. NaNs in test/val)
+        warnings.warn(f"Discretizer transform failed: {e}. Skipping binning.")
+        return train_df, val_df, test_df, orig_df, {"error": str(e)}
 
     # Save fitted
     artifacts.save_fitted_object(est, submodule_dir, "discretizer.pkl")

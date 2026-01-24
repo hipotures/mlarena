@@ -299,26 +299,54 @@ def fit_transform(
             raise ValueError(f"Unknown scaling_method: {config['scaling_method']}")
 
         # Fit on train data
-        scaler.fit(train_df[numeric_cols])
+        try:
+            scaler.fit(train_df[numeric_cols])
+            
+            # Transform all datasets
+            # Use temp vars to avoid partial state if crash
+            new_train = scaler.transform(train_df[numeric_cols])
+            new_test = scaler.transform(test_df[numeric_cols])
+            
+            new_val = None
+            if val_df is not None:
+                new_val = scaler.transform(val_df[numeric_cols])
+                
+            new_orig = None
+            if orig_df is not None:
+                orig_numeric_cols = [col for col in numeric_cols if col in orig_df.columns]
+                if orig_numeric_cols:
+                    new_orig = scaler.transform(orig_df[orig_numeric_cols])
+            
+            new_eval = None
+            if eval_df is not None:
+                new_eval = scaler.transform(eval_df[numeric_cols])
 
-        # Transform all datasets
-        train_df[numeric_cols] = scaler.transform(train_df[numeric_cols])
-        test_df[numeric_cols] = scaler.transform(test_df[numeric_cols])
-        if val_df is not None:
-            val_df[numeric_cols] = scaler.transform(val_df[numeric_cols])
-        if orig_df is not None:
-            # Only scale columns that exist in orig_df
-            orig_numeric_cols = [col for col in numeric_cols if col in orig_df.columns]
-            if orig_numeric_cols:
-                orig_df[orig_numeric_cols] = scaler.transform(
-                    orig_df[orig_numeric_cols]
-                )
-        if eval_df is not None:
-            eval_df[numeric_cols] = scaler.transform(eval_df[numeric_cols])
+            # Apply changes
+            train_df[numeric_cols] = new_train
+            test_df[numeric_cols] = new_test
+            if new_val is not None:
+                val_df[numeric_cols] = new_val
+            if new_orig is not None:
+                orig_df[orig_numeric_cols] = new_orig
+            if new_eval is not None:
+                eval_df[numeric_cols] = new_eval
 
-        # Save scaler
-        scaler_path = artifacts.save_fitted_object(scaler, submodule_dir, "scaler.pkl")
-        scaled_cols = numeric_cols
+            # Save scaler
+            scaler_path = artifacts.save_fitted_object(scaler, submodule_dir, "scaler.pkl")
+            scaled_cols = numeric_cols
+
+        except ValueError as e:
+            import warnings
+            warnings.warn(f"Scaler fit/transform failed: {e}. Skipping scaling.")
+            state_dict = {
+                "version": "1.0",
+                "config": {k: v for k, v in config.items() if not k.startswith("_")},
+                "scaling_method": config["scaling_method"],
+                "scaled_columns": [],
+                "error": str(e),
+                "message": "Skipped due to error"
+            }
+            return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
     # 9. Collect statistics
     column_stats = {}

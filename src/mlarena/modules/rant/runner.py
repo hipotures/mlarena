@@ -841,6 +841,10 @@ class RANTRunner:
 
         self.console.print(txt)
 
+        # Also log to file for debugging
+        plain_txt = txt.plain
+        self.logger.debug(plain_txt)
+
         # Telegram notifications (baseline + new best)
         if ok and self.notifier.is_enabled:
             proj_name = self.context.project or "Unknown Project"

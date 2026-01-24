@@ -320,4 +320,4 @@ rant:
     stale_running_sec: 7200
     stale_running_policy: requeue
     max_retries_per_trial: 1
-  debug: false
+  debug: true

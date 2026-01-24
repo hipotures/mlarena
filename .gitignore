@@ -58,6 +58,8 @@ s6e1
 *.DS_Store
 *.lock
 *.old
+*.old*
+*.orig
 
 # Experiments - ignore all contents except init/, eda/, and state.json
 **/experiments/**

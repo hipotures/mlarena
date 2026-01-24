@@ -15,35 +15,42 @@ variants:
       outlier_method: {type: choice, values: [iqr]}
       iqr_factor: {type: float_range, min: 1.0, max: 3.0, step: 0.1, round: 2}
       action: {type: choice, values: [clip]}
+    requires_preproc: [{group: imputer}]
   - name: zscore
     params:
       outlier_method: {type: choice, values: [zscore]}
       zscore_threshold: {type: float_range, min: 2.0, max: 4.0, step: 0.1, round: 2}
       action: {type: choice, values: [clip]}
+    requires_preproc: [{group: imputer}]
   - name: gaussian
     params:
       outlier_method: {type: choice, values: [gaussian]}
       zscore_threshold: {type: float_range, min: 2.0, max: 4.0, step: 0.1, round: 2}
       action: {type: choice, values: [clip]}
+    requires_preproc: [{group: imputer}]
   - name: mad
     params:
       outlier_method: {type: choice, values: [mad]}
       mad_threshold: {type: float_range, min: 2.5, max: 5.0, step: 0.1, round: 2}
       action: {type: choice, values: [clip]}
+    requires_preproc: [{group: imputer}]
   - name: quantile
     params:
       outlier_method: {type: choice, values: [quantile]}
       lower_quantile: {type: float_range, min: 0.01, max: 0.05, step: 0.01, round: 2}
       upper_quantile: {type: float_range, min: 0.95, max: 0.99, step: 0.01, round: 2}
       action: {type: choice, values: [clip]}
+    requires_preproc: [{group: imputer}]
   - name: percentile
     params:
       outlier_method: {type: choice, values: [percentile]}
       lower_quantile: {type: float_range, min: 0.01, max: 0.05, step: 0.01, round: 2}
       upper_quantile: {type: float_range, min: 0.95, max: 0.99, step: 0.01, round: 2}
       action: {type: choice, values: [clip]}
+    requires_preproc: [{group: imputer}]
   - name: isolation_forest
     params:
       outlier_method: {type: choice, values: [isolation_forest]}
       isoforest_contamination: {type: float_range, min: 0.01, max: 0.1, step: 0.01, round: 2}
       action: {type: choice, values: [flag_only]}
+    requires_preproc: [{group: imputer}]

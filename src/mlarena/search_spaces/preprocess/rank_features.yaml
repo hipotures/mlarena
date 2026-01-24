@@ -19,19 +19,23 @@ variants:
       method: {type: choice, values: [percentile]}
       tie_method: {type: choice, values: [average, min, max]}
       fit_on_train: {type: bool}
+    requires_preproc: [{group: imputer}]
   - name: global_rank
     params:
       mode: {type: choice, values: [global]}
       method: {type: choice, values: [rank]}
       tie_method: {type: choice, values: [average, min, max]}
       fit_on_train: {type: bool}
+    requires_preproc: [{group: imputer}]
   - name: global_gauss
     params:
       mode: {type: choice, values: [global]}
       method: {type: choice, values: [gauss_rank]}
       tie_method: {type: choice, values: [average, min, max]}
       fit_on_train: {type: bool}
+    requires_preproc: [{group: imputer}]
   - name: group_percentile
     params:
       mode: {type: choice, values: [by_group]}
       method: {type: choice, values: [percentile]}
+    requires_preproc: [{group: imputer}]

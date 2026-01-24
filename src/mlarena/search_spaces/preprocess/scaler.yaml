@@ -15,26 +15,32 @@ variants:
     weight: 2.0
     params:
       scaling_method: {type: choice, values: [standard]}
+    requires_preproc: [{group: imputer}]
   - name: minmax
     params:
       scaling_method: {type: choice, values: [minmax]}
+    requires_preproc: [{group: imputer}]
   - name: robust
     weight: 2.0
     params:
       scaling_method: {type: choice, values: [robust]}
+    requires_preproc: [{group: imputer}]
   - name: robust_clipped
     params:
       scaling_method: {type: choice, values: [robust]}
       clip_lower_quantile: {type: float_range, min: 0.01, max: 0.05, step: 0.01}
       clip_upper_quantile: {type: float_range, min: 0.95, max: 0.99, step: 0.01}
+    requires_preproc: [{group: imputer}]
   - name: quantile_normal
     params:
       scaling_method: {type: choice, values: [quantile_normal]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+    requires_preproc: [{group: imputer}]
   - name: quantile_uniform
     params:
       scaling_method: {type: choice, values: [quantile_uniform]}
       n_quantiles: {type: int_range, min: 200, max: 2000, step: 100}
+    requires_preproc: [{group: imputer}]
 #  - name: power_boxcox
 #    params:
 #      scaling_method: {type: choice, values: [power_boxcox]}
@@ -43,4 +49,5 @@ variants:
     params:
       scaling_method: {type: choice, values: [power_yeo_johnson]}
       power_standardize: {type: bool}
+    requires_preproc: [{group: imputer}]
 requires_preproc: [{group: imputer}]

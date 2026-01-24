@@ -96,6 +96,15 @@ def _apply_interactions(
     List[str],
     List[Dict[str, Any]],
 ]:
+    def _safe_div(a: pd.Series, b: pd.Series) -> np.ndarray:
+        a_vals = np.asarray(a, dtype="float64")
+        b_vals = np.asarray(b, dtype="float64")
+        out = np.zeros_like(a_vals, dtype="float64")
+        mask = (b_vals != 0) & np.isfinite(a_vals) & np.isfinite(b_vals)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            np.divide(a_vals, b_vals, out=out, where=mask)
+        return out
+
     new_cols: List[str] = []
     details: List[Dict[str, Any]] = []
     allowed_ops = {"add", "sub", "mul", "div"}
@@ -151,20 +160,11 @@ def _apply_interactions(
                     val_df[col_a] * val_df[col_b] if val_df is not None else None
                 )
             elif op == "div":
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    train_series = np.where(
-                        train_df[col_b] != 0, train_df[col_a] / train_df[col_b], np.nan
-                    )
-                    test_series = np.where(
-                        test_df[col_b] != 0, test_df[col_a] / test_df[col_b], np.nan
-                    )
-                    val_series = (
-                        np.where(
-                            val_df[col_b] != 0, val_df[col_a] / val_df[col_b], np.nan
-                        )
-                        if val_df is not None
-                        else None
-                    )
+                train_series = _safe_div(train_df[col_a], train_df[col_b])
+                test_series = _safe_div(test_df[col_a], test_df[col_b])
+                val_series = (
+                    _safe_div(val_df[col_a], val_df[col_b]) if val_df is not None else None
+                )
 
             train_new_cols[new_name] = train_series
             test_new_cols[new_name] = test_series
@@ -182,12 +182,7 @@ def _apply_interactions(
                 elif op == "mul":
                     orig_new_cols[new_name] = orig_df[col_a] * orig_df[col_b]
                 elif op == "div":
-                    with np.errstate(divide="ignore", invalid="ignore"):
-                        orig_new_cols[new_name] = np.where(
-                            orig_df[col_b] != 0,
-                            orig_df[col_a] / orig_df[col_b],
-                            np.nan,
-                        )
+                    orig_new_cols[new_name] = _safe_div(orig_df[col_a], orig_df[col_b])
 
             new_cols.append(new_name)
             details.append(

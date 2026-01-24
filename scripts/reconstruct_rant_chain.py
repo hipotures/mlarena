@@ -88,16 +88,28 @@ def get_best_by_round(db_path, study_name):
         return []
     study_id = study_row["study_id"]
 
-    # Find best trial for each round
+    # Find best trial for each round (deterministic tie-breaker)
     query = """
-    SELECT rt.round, rt.trial_id, t.number, tv.value, rt.pipeline_json, rt.phase
-    FROM rant_trials rt
-    JOIN trials t ON rt.trial_id = t.trial_id
-    JOIN trial_values tv ON rt.trial_id = tv.trial_id
-    WHERE rt.study_id = ? AND t.state = 1
-    GROUP BY rt.round
-    HAVING tv.value = MAX(tv.value)
-    ORDER BY rt.round ASC
+    SELECT * FROM (
+        SELECT
+            rt.round,
+            rt.trial_id,
+            t.number,
+            tv.value,
+            rt.pipeline_json,
+            rt.phase,
+            rt.parent_trial_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY rt.round
+                ORDER BY tv.value DESC, t.number DESC
+            ) AS rn
+        FROM rant_trials rt
+        JOIN trials t ON rt.trial_id = t.trial_id
+        JOIN trial_values tv ON rt.trial_id = tv.trial_id
+        WHERE rt.study_id = ? AND t.state = 1
+    )
+    WHERE rn = 1
+    ORDER BY round ASC
     """
     results = conn.execute(query, (study_id,)).fetchall()
     conn.close()
@@ -112,9 +124,43 @@ def get_best_by_round(db_path, study_name):
             'value': row['value'],
             'pipeline': json.loads(row['pipeline_json']),
             'phase': row['phase'],
-            'round': row['round']
+            'round': row['round'],
+            'parent_trial_id': row['parent_trial_id']
         })
     return pipelines
+
+def _build_parent_map(conn, study_id):
+    rows = conn.execute(
+        "SELECT trial_id, parent_trial_id FROM rant_trials WHERE study_id = ?",
+        (study_id,),
+    ).fetchall()
+    return {row["trial_id"]: row["parent_trial_id"] for row in rows}
+
+def _resolve_root_trial(parent_map, trial_id):
+    # Follow parent pointers to root (random phase); guard against loops
+    seen = set()
+    cur = trial_id
+    while cur is not None and cur in parent_map and cur not in seen:
+        seen.add(cur)
+        parent = parent_map.get(cur)
+        if parent is None:
+            return cur
+        cur = parent
+    return cur
+
+def _select_diverse_by_root(trials, top_n, parent_map):
+    selected = []
+    seen_roots = set()
+    for row in trials:
+        root_id = _resolve_root_trial(parent_map, row["trial_id"])
+        root_key = f"root_{root_id}"
+        if root_key in seen_roots:
+            continue
+        selected.append(row)
+        seen_roots.add(root_key)
+        if len(selected) >= top_n:
+            break
+    return selected
 
 def get_best_top_n_diverse(db_path, study_name, top_n):
     """Get top N best pipelines from different trees (different parents).
@@ -148,45 +194,35 @@ def get_best_top_n_diverse(db_path, study_name, top_n):
     ORDER BY tv.value DESC
     """
     all_trials = conn.execute(query, (study_id,)).fetchall()
+
+    parent_map = _build_parent_map(conn, study_id)
     conn.close()
 
     if not all_trials:
         err(f"No completed trials found for study {study_name}")
         return []
 
-    # Select diverse pipelines (different parents)
+    # Select diverse pipelines (different root trees)
+    selected_rows = _select_diverse_by_root(all_trials, top_n, parent_map)
     selected = []
-    seen_parents = set()
-
-    for row in all_trials:
+    for row in selected_rows:
         parent_id = row['parent_trial_id']
-
-        # For trials with parent_trial_id = NULL (random phase), treat each as unique
-        # For trials with a parent, check if we already have a trial from this parent
-        if parent_id is None:
-            # Random phase trial - each is unique (no parent)
-            parent_key = f"random_{row['trial_id']}"
-        else:
-            parent_key = f"parent_{parent_id}"
-
-        if parent_key not in seen_parents:
-            selected.append({
-                'trial_id': row['trial_id'],
-                'trial_number': row['number'],
-                'value': row['value'],
-                'pipeline': json.loads(row['pipeline_json']),
-                'phase': row['phase'],
-                'round': row['round'],
-                'parent_trial_id': parent_id
-            })
-            seen_parents.add(parent_key)
-
-            info(f"Selected #{len(selected)}: Trial={row['trial_id']} (Number {row['number']}), "
-                 f"Score={row['value']:.5f}, Phase={row['phase']}, Round={row['round']}, "
-                 f"Parent={parent_id if parent_id else 'None (random)'}")
-
-            if len(selected) >= top_n:
-                break
+        root_id = _resolve_root_trial(parent_map, row['trial_id'])
+        selected.append({
+            'trial_id': row['trial_id'],
+            'trial_number': row['number'],
+            'value': row['value'],
+            'pipeline': json.loads(row['pipeline_json']),
+            'phase': row['phase'],
+            'round': row['round'],
+            'parent_trial_id': parent_id,
+            'root_trial_id': root_id
+        })
+        info(
+            f"Selected #{len(selected)}: Trial={row['trial_id']} (Number {row['number']}), "
+            f"Score={row['value']:.5f}, Phase={row['phase']}, Round={row['round']}, "
+            f"Root={root_id}"
+        )
 
     if len(selected) < top_n:
         warn(f"Only found {len(selected)} diverse trials (requested {top_n})")
@@ -562,8 +598,87 @@ def main():
             err("Could not retrieve pipelines by round.")
             return
 
-        # Use the last round's best pipeline
-        best_pipeline = pipelines[-1]
+        # If top-n provided, select best N by score (diverse by root)
+        if args.top_n and args.top_n > 0:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            study_row = conn.execute(
+                "SELECT study_id FROM studies WHERE study_name = ?",
+                (study_name,),
+            ).fetchone()
+            if not study_row:
+                conn.close()
+                err(f"Study {study_name} not found in DB")
+                return
+            parent_map = _build_parent_map(conn, study_row["study_id"])
+            conn.close()
+
+            sorted_pipelines = sorted(pipelines, key=lambda x: x["value"], reverse=True)
+            selected_rows = _select_diverse_by_root(sorted_pipelines, args.top_n, parent_map)
+
+            print("\n" + "="*60)
+            print(f"✅ Generating {len(selected_rows)} best-per-round configurations...")
+            print("="*60 + "\n")
+
+            generated_templates = []
+            for idx, pipeline in enumerate(selected_rows, start=1):
+                steps = extract_pipeline_steps(pipeline["pipeline"])
+                if not steps:
+                    warn(f"No preprocessing steps found in pipeline #{idx} (Trial {pipeline['trial_number']}), skipping")
+                    continue
+
+                template_name = f"{prefix}_{idx:03d}"
+                info(f"\n[{idx}/{len(selected_rows)}] Generating template: {template_name}")
+                info(f"  Source: Trial #{pipeline['trial_number']} (Score: {pipeline['value']:.5f})")
+
+                preprocess_name = generate_preprocess_templates(args.project, steps, template_name)
+                model_name = generate_model_template(args.project, cfg, fast_mode=args.fast, final_name=template_name)
+
+                generated_templates.append({
+                    'model_template': model_name,
+                    'preprocess_template': preprocess_name,
+                    'trial_number': pipeline['trial_number'],
+                    'score': pipeline['value']
+                })
+
+            print("\n" + "="*60)
+            print(f"✅ Generated {len(generated_templates)} configurations successfully!")
+            print("="*60)
+            for idx, tpl in enumerate(generated_templates, start=1):
+                print(f"\n{idx}. {tpl['model_template']}")
+                print(f"   Source: Trial #{tpl['trial_number']} | Score: {tpl['score']:.5f}")
+
+            if args.enqueue:
+                if _QUEUE_AVAILABLE:
+                    try:
+                        queue = TaskQueue(Path("projects/kaggle") / args.project)
+                        for tpl in generated_templates:
+                            command_str = f"model_template={tpl['model_template']}"
+                            queue.add_task(command_str, priority=10)
+                        print(f"\n🚀 [ENQUEUED] {len(generated_templates)} tasks added to queue")
+                    except Exception as e:
+                        err(f"Failed to enqueue tasks: {e}")
+                else:
+                    err("Queue module not found (src/mlarena/utils/queue.py missing?)")
+            else:
+                print("\n" + "-"*60)
+                print("Run commands:")
+                print("-"*60)
+                for idx, tpl in enumerate(generated_templates, start=1):
+                    print(f"\n# Template {idx} (Trial #{tpl['trial_number']}, Score: {tpl['score']:.5f})")
+                    print(f"uv run python scripts/mla.py project={args.project} model_template={tpl['model_template']}")
+
+                print("\n" + "-"*60)
+                print("Or enqueue all at once:")
+                print("-"*60)
+                for tpl in generated_templates:
+                    print(f"python scripts/mla.py queue --project {args.project} add \"model_template={tpl['model_template']}\"")
+
+            print("\n" + "="*60 + "\n")
+            return
+
+        # Default: pick the best round by score
+        best_pipeline = max(pipelines, key=lambda x: x["value"])
         steps = extract_pipeline_steps(best_pipeline['pipeline'])
         if not steps:
             err("No preprocessing steps found in pipeline.")

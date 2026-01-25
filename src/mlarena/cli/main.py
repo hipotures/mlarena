@@ -244,8 +244,16 @@ def _resolve_preprocess_tune_study_name(config: GlobalConfig, project_root: Path
 def _resolve_preprocess_tune_model_template(config: GlobalConfig, project_root: Path) -> Optional[str]:
     section = getattr(config, "preprocess_tune", {}) or {}
     super_chain_path = section.get("super_chain")
-    if not super_chain_path:
+    if config.rant:
+        project_chain = project_root / "conf" / "preprocess" / "mla_super_chain.yaml"
+        super_chain_path = project_chain if project_chain.exists() else (REPO_ROOT / "conf" / "preprocess" / "mla_super_chain.yaml")
+    elif not super_chain_path:
         super_chain_path = REPO_ROOT / "conf" / "preprocess" / "super_chain_optuna.yaml"
+    else:
+        super_chain_path = Path(super_chain_path)
+        if not super_chain_path.is_absolute():
+            project_candidate = project_root / super_chain_path
+            super_chain_path = project_candidate if project_candidate.exists() else (REPO_ROOT / super_chain_path)
     try:
         import yaml
         payload = yaml.safe_load(Path(super_chain_path).read_text()) or {}
@@ -253,6 +261,29 @@ def _resolve_preprocess_tune_model_template(config: GlobalConfig, project_root: 
         model_tpl = eval_cfg.get("model")
         if model_tpl:
             return str(model_tpl)
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_rant_study_name(config: GlobalConfig, project_root: Path) -> Optional[str]:
+    section = getattr(config, "rant_section", {}) or {}
+    if isinstance(section, dict):
+        name = section.get("study_name")
+        if name:
+            return str(name)
+
+    # Fallback: read project super-chain (RANT config)
+    super_chain_path = project_root / "conf" / "preprocess" / "mla_super_chain.yaml"
+    if not super_chain_path.exists():
+        super_chain_path = REPO_ROOT / "conf" / "preprocess" / "mla_super_chain.yaml"
+    try:
+        import yaml
+        payload = yaml.safe_load(Path(super_chain_path).read_text()) or {}
+        rant_cfg = payload.get("rant", {}) or {}
+        name = rant_cfg.get("study_name")
+        if name:
+            return str(name)
     except Exception:
         pass
     return None
@@ -1259,8 +1290,12 @@ def main(argv: List[str] | None = None) -> int:
 
     # Default experiment id for preprocess-tune
     if command == "preprocess-tune" and not config.experiment_id and not config.mcts:
-        study_name = _resolve_preprocess_tune_study_name(config, project_root)
-        config.experiment_id = f"optuna_{study_name}"
+        if config.rant:
+            study_name = _resolve_rant_study_name(config, project_root) or "preprocess"
+            config.experiment_id = f"rant_{study_name}"
+        else:
+            study_name = _resolve_preprocess_tune_study_name(config, project_root)
+            config.experiment_id = f"optuna_{study_name}"
     
     # Auto-flow: no command provided
     if command is None:

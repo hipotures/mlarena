@@ -40,7 +40,15 @@ class MCTSRunner:
         self.console = Console()
         self.show_preprocess_panels = self._wants_preprocess_panels()
 
-        super_chain_path = Path(params.get("super_chain", DEFAULT_SUPER_CHAIN))
+        super_chain_param = params.get("super_chain")
+        if super_chain_param:
+            super_chain_path = Path(super_chain_param)
+        else:
+            project_chain = (
+                context.project_root / "conf" / "preprocess" / "mla_super_chain.yaml"
+            )
+            super_chain_path = project_chain if project_chain.exists() else DEFAULT_SUPER_CHAIN
+
         if not super_chain_path.is_absolute():
             p_path = context.project_root / super_chain_path
             if p_path.exists():

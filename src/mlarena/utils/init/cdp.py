@@ -6,14 +6,11 @@ import os
 from urllib.parse import urlsplit, urlunsplit
 from typing import Optional
 
-PLAYWRIGHT_EVAL_SCRIPT = """
+PLAYWRIGHT_OVERVIEW_SCRIPT = """
 () => {
   const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
   const headingTags = ['H1','H2','H3','H4','H5','H6'];
   const headings = Array.from(document.querySelectorAll(headingTags.join(',')));
-  const evalHeading = headings.find(
-    (node) => normalize(node.textContent).toLowerCase() === 'evaluation'
-  );
   const collectSiblings = (start) => {
     const parts = [];
     let cursor = start.nextElementSibling;
@@ -29,27 +26,36 @@ PLAYWRIGHT_EVAL_SCRIPT = """
     }
     return parts.join('\\n\\n');
   };
-  if (evalHeading) {
-    const section = evalHeading.closest('section');
-    if (section) {
-      const sectionText = normalize(section.innerText || section.textContent || '');
-      if (sectionText) {
-        return sectionText;
+  const extractSection = (title) => {
+    const heading = headings.find(
+      (node) => normalize(node.textContent).toLowerCase() === title
+    );
+    if (heading) {
+      const section = heading.closest('section');
+      if (section) {
+        const sectionText = normalize(section.innerText || section.textContent || '');
+        if (sectionText) {
+          return sectionText;
+        }
+      }
+      const fallbackText = collectSiblings(heading);
+      if (fallbackText) {
+        return fallbackText;
       }
     }
-    const fallbackText = collectSiblings(evalHeading);
-    if (fallbackText) {
-      return fallbackText;
+    const blocks = Array.from(document.querySelectorAll('section, article, div'));
+    for (const block of blocks) {
+      const text = normalize(block.innerText || block.textContent || '');
+      if (text.toLowerCase().startsWith(title)) {
+        return text;
+      }
     }
-  }
-  const blocks = Array.from(document.querySelectorAll('section, article, div'));
-  for (const block of blocks) {
-    const text = normalize(block.innerText || block.textContent || '');
-    if (text.toLowerCase().startsWith('evaluation')) {
-      return text;
-    }
-  }
-  return '';
+    return '';
+  };
+  return {
+    description: extractSection('description'),
+    evaluation: extractSection('evaluation'),
+  };
 }
 """
 
@@ -78,8 +84,10 @@ def resolve_cdp_url(custom_url: Optional[str]) -> Optional[str]:
     return "http://127.0.0.1:9222"
 
 
-async def fetch_evaluation_text_via_cdp(competition_slug: str, cdp_url: str) -> str:
-    """Connect to Chrome via CDP and scrape the Evaluation section text."""
+async def fetch_overview_sections_via_cdp(
+    competition_slug: str, cdp_url: str
+) -> dict:
+    """Connect to Chrome via CDP and scrape Description/Evaluation section text."""
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
     from playwright.async_api import async_playwright
 
@@ -99,11 +107,24 @@ async def fetch_evaluation_text_via_cdp(competition_slug: str, cdp_url: str) -> 
             await page.wait_for_timeout(1000)
         except PlaywrightTimeoutError:
             return ""
-        text = await page.evaluate(PLAYWRIGHT_EVAL_SCRIPT)
-        return (text or "").strip()
+        sections = await page.evaluate(PLAYWRIGHT_OVERVIEW_SCRIPT)
+        if not isinstance(sections, dict):
+            return {}
+        return {k: (v or "").strip() for k, v in sections.items()}
     finally:
         if playwright:
             await playwright.stop()
+
+
+def _combine_overview_sections(sections: dict) -> str:
+    description = (sections.get("description") or "").strip()
+    evaluation = (sections.get("evaluation") or "").strip()
+    parts = []
+    if description:
+        parts.append(f"Description\\n{description}")
+    if evaluation:
+        parts.append(f"Evaluation\\n{evaluation}")
+    return "\\n\\n".join(parts).strip()
 
 
 def fetch_kaggle_evaluation(
@@ -122,17 +143,18 @@ def fetch_kaggle_evaluation(
         )
 
     try:
-        evaluation = asyncio.run(
-            fetch_evaluation_text_via_cdp(competition_slug, resolved_cdp)
+        sections = asyncio.run(
+            fetch_overview_sections_via_cdp(competition_slug, resolved_cdp)
         )
     except Exception as exc:
         raise RuntimeError(
             f"Failed to fetch evaluation via CDP ({resolved_cdp}): {exc}"
         ) from exc
 
+    evaluation = _combine_overview_sections(sections or {})
     if not evaluation:
         raise RuntimeError(
-            f"Could not extract Evaluation section via CDP ({resolved_cdp}). "
+            f"Could not extract Description/Evaluation sections via CDP ({resolved_cdp}). "
             "Ensure the Kaggle page is accessible and you are logged in."
         )
     return evaluation

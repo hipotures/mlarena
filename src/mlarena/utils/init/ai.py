@@ -119,7 +119,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     start_ai = time.perf_counter()
     ai_result: Dict[str, Any] = {}
-    model = "gemini-2.5-flash"
+    model = "gemini-3-flash-preview"
     status = "failed"
     error_text = ""
 
@@ -228,12 +228,12 @@ def detect_problem_type_and_metric(
 
     prompt = f"""You are a Kaggle competition expert analyzing evaluation metrics.
 
-Given the Evaluation section from a Kaggle competition, determine:
+Given the Description and Evaluation sections from a Kaggle competition, determine:
 1. problem_type: "binary", "regression", or "multiclass"
 2. metric: AutoGluon-compatible metric name
 3. submit_probabilities: true if the competition expects probability outputs in the submission (e.g., ROC AUC or log loss), false if it expects class labels or numeric values directly (e.g., accuracy, MAE)
 
-EVALUATION SECTION:
+DESCRIPTION + EVALUATION:
 {eval_text}
 
 AUTOGLUON METRIC MAPPING (use exact names):
@@ -258,7 +258,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     start_ai = time.perf_counter()
     ai_result: Dict[str, Any] = {}
-    model = "gemini-2.5-flash"
+    model = "gemini-3-flash-preview"
     status = "failed"
     error_text = ""
 

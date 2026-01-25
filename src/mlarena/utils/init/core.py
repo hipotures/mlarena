@@ -194,7 +194,7 @@ def init_project(
 
             eval_panel = Panel(
                 display_text,
-                title="[cyan]Evaluation Section from Kaggle[/cyan]",
+                title="[cyan]Kaggle Overview (Description + Evaluation)[/cyan]",
                 border_style="dim",
                 padding=(0, 1),
             )

@@ -285,48 +285,7 @@ def init_project(
     table.add_row("Location", str(project_root))
     console.print(table)
 
-    # Show model templates
-    try:
-        model_templates, _ = load_templates(
-            "model", project_root, suppress_warnings=True
-        )
-        if model_templates:
-            console.rule("[cyan]Model Templates[/cyan]")
-            tpl_table = Table(show_header=True, header_style="bold cyan")
-            tpl_table.add_column("Name", style="cyan")
-            tpl_table.add_column("Preset", style="green")
-            tpl_table.add_column("Time Limit", style="magenta")
-            tpl_table.add_column("GPU", style="yellow")
-            for name, payload in model_templates.items():
-                hyper = (payload.get("config") or {}).get("hyperparameters") or {}
-                preset = hyper.get("presets") or hyper.get("preset") or "-"
-                time_limit = hyper.get("time_limit")
-                time_str = f"{time_limit}s" if time_limit is not None else "-"
-                use_gpu = hyper.get("use_gpu")
-                gpu_str = "yes" if use_gpu else ("no" if use_gpu is not None else "-")
-                tpl_table.add_row(name, str(preset), time_str, gpu_str)
-            console.print(tpl_table)
-    except TemplateValidationError as exc:
-        console.print(f"[yellow]Could not read model templates: {exc}[/yellow]")
-
-    # Show preprocess templates
-    try:
-        preprocess_templates, _ = load_templates(
-            "preprocess", project_root, suppress_warnings=True
-        )
-        if preprocess_templates:
-            console.rule("[cyan]Preprocess Templates[/cyan]")
-            pre_table = Table(show_header=True, header_style="bold cyan")
-            pre_table.add_column("Name", style="cyan")
-            pre_table.add_column("Module", style="green")
-            pre_table.add_column("Cache", style="yellow")
-            for name, payload in preprocess_templates.items():
-                module = payload.get("module", "identity")
-                cache = payload.get("cache", True)
-                pre_table.add_row(name, module, "yes" if cache else "no")
-            console.print(pre_table)
-    except TemplateValidationError as exc:
-        console.print(f"[yellow]Could not read preprocess templates: {exc}[/yellow]")
+    # Skip template listing to avoid noisy validation warnings during init.
 
     # Next steps
     next_steps = (

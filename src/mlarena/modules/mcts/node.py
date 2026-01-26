@@ -25,6 +25,8 @@ class Action:
     group_weight: float = 1.0
     # Store after-dependencies that should be auto-injected
     pending_after: List[Dict[str, Any]] = field(default_factory=list)
+    # Store before-dependencies that should be auto-injected (for disabled required steps)
+    pending_before: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_record(self) -> Dict[str, Any]:
         """Convert action to a stable dictionary format for database storage."""
@@ -39,6 +41,7 @@ class Action:
             "param_sample_id": int(self.param_sample_id),
             "prior": float(self.prior),
             "pending_after": self.pending_after,
+            "pending_before": self.pending_before,
         }
 
     @staticmethod
@@ -56,6 +59,7 @@ class Action:
             param_sample_id=int(d.get("param_sample_id", 0)),
             prior=float(d.get("prior", 1.0)),
             pending_after=d.get("pending_after", []),
+            pending_before=d.get("pending_before", []),
         )
 
 
@@ -103,6 +107,7 @@ class PipelineState:
                     "original_index": int(s.get("original_index", -1)),
                     "param_sample_id": int(s.get("param_sample_id", 0)),
                     "pending_after": s.get("pending_after", []),
+                    "pending_before": s.get("pending_before", []),
                 }
             )
 
@@ -125,6 +130,10 @@ class PipelineState:
         if action.pending_after:
             logger.debug(f"Adding action {action.step_name}:{action.variant_name} with pending_after: {[r.get('group') for r in action.pending_after]}")
 
+        # Log pending_before if present (disabled dependencies)
+        if action.pending_before:
+            logger.debug(f"Adding action {action.step_name}:{action.variant_name} with pending_before: {[r.get('group') for r in action.pending_before]}")
+
         new_step = {
             "name": action.step_name,
             "template": action.template_name,
@@ -135,6 +144,7 @@ class PipelineState:
             "original_index": action.original_index,
             "param_sample_id": int(action.param_sample_id),
             "pending_after": action.pending_after,
+            "pending_before": action.pending_before,
         }
 
         new_steps = list(self.steps) + [new_step]

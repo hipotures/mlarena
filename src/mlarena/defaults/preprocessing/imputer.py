@@ -18,11 +18,14 @@ Parameters:
 
 from pathlib import Path
 from typing import Any, Dict, Tuple
+import logging
 
 import pandas as pd
 import numpy as np
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import BayesianRidge
+
+logger = logging.getLogger(__name__)
 
 # IterativeImputer is experimental
 try:
@@ -160,6 +163,31 @@ def fit_transform(
 
     # 7. Track missing values before imputation
     missing_before = _create_missing_report(train_df, numeric_cols + categorical_cols)
+    missing_before_total = sum(missing_before.values())
+
+    # DEBUG: Log missing value status
+    columns_with_missing = [col for col, count in missing_before.items() if count > 0]
+    logger.debug(
+        "Imputer invoked: %d total missing values across %d columns (out of %d total columns)",
+        missing_before_total,
+        len(columns_with_missing),
+        len(numeric_cols) + len(categorical_cols)
+    )
+
+    # Early return if no missing values
+    if missing_before_total == 0:
+        logger.debug("Imputer: No missing values detected - skipping imputation (no-op)")
+        state_dict = {
+            "version": "1.0",
+            "config": {k: v for k, v in config.items() if not k.startswith("_")},
+            "imputed_columns": 0,
+            "empty_columns_no_observed": [],
+            "missing_before_total": 0,
+            "missing_after_total": 0,
+            "column_strategies": {},
+            "was_noop": True,
+        }
+        return train_df, val_df, test_df, eval_df, orig_df, state_dict
 
     # 8. Perform imputation
     imputers = {}
@@ -335,15 +363,33 @@ def fit_transform(
         )
 
     # 14. Create state dict
+    missing_after_total = sum(missing_after.values())
+    total_imputed = missing_before_total - missing_after_total
+
     state_dict = {
         "version": "1.0",
         "config": {k: v for k, v in config.items() if not k.startswith("_")},
         "imputed_columns": len(numeric_cols) + len(categorical_cols),
         "empty_columns_no_observed": empty_columns_no_observed,
-        "missing_before_total": sum(missing_before.values()),
-        "missing_after_total": sum(missing_after.values()),
+        "missing_before_total": missing_before_total,
+        "missing_after_total": missing_after_total,
         "column_strategies": column_strategies_used,
+        "was_noop": False,
     }
+
+    # DEBUG: Log imputation summary
+    logger.debug(
+        "Imputer completed: %d values imputed, %d columns processed, %d values still missing",
+        total_imputed,
+        len(column_strategies_used),
+        missing_after_total
+    )
+    if empty_columns_no_observed:
+        logger.debug(
+            "Imputer: %d columns had no observed values (filled with defaults): %s",
+            len(empty_columns_no_observed),
+            empty_columns_no_observed
+        )
 
     return train_df, val_df, test_df, eval_df, orig_df, state_dict
 

@@ -45,10 +45,50 @@ class TemplateMaterializer:
                     }
                 )
 
-        # 2. Add searched steps + auto-inject "after" requirements
+        # 2. Add searched steps + auto-inject "before" and "after" requirements
         for s in state.steps:
             # Fallback for legacy records that might only have 'step_index'
             orig_idx = s.get("original_index", s.get("step_index", 0))
+
+            # AUTO-INJECT: Process pending_before requirements (disabled dependencies)
+            pending_before = s.get("pending_before", [])
+            if pending_before:
+                logger.info(f"Auto-injecting {len(pending_before)} step(s) before {s['name']}")
+
+            for req in pending_before:
+                req_group = req.get("group")
+                if not req_group:
+                    continue
+
+                # Skip if this group is already used (avoid duplicates)
+                if req_group in state.used_groups:
+                    logger.debug(
+                        "Dependency step=before: %s requires %s but it's already in pipeline",
+                        s["name"],
+                        req_group,
+                    )
+                    continue
+
+                logger.debug(
+                    "Dependency step=before: %s requires disabled step %s (auto-inject)",
+                    s["name"],
+                    req_group,
+                )
+
+                # Inject step immediately before current step
+                # Use fractional index: orig_idx - 0.5 to place right before
+                injected_step = {
+                    "original_index": orig_idx - 0.5,  # Fractional to preserve order
+                    "name": f"auto_{req_group}",  # Unique auto-generated name
+                    "module": req_group,  # Use group as module name
+                    "config": req.get("fixed_config", req.get("config", {})),  # Use config from requirement or defaults
+                }
+                all_pipeline_steps.append(injected_step)
+                logger.debug(
+                    "Auto-injected %s at index %.1f",
+                    f"auto_{req_group}",
+                    orig_idx - 0.5,
+                )
 
             # Add the main step
             all_pipeline_steps.append(
@@ -61,11 +101,11 @@ class TemplateMaterializer:
             )
 
             # AUTO-INJECT: Process pending_after requirements
-            pending = s.get("pending_after", [])
-            if pending:
-                logger.info(f"Auto-injecting {len(pending)} step(s) after {s['name']}")
+            pending_after = s.get("pending_after", [])
+            if pending_after:
+                logger.info(f"Auto-injecting {len(pending_after)} step(s) after {s['name']}")
 
-            for req in pending:
+            for req in pending_after:
                 req_group = req.get("group")
                 if not req_group:
                     continue

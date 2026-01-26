@@ -43,8 +43,14 @@ class SuperChainActionSpace:
         # Split steps into fixed harness and searched transforms
         self.fixed_steps = []
         self.searched_steps = []
+        # Map of all steps by group (including disabled) for dependency injection
+        self.steps_by_group_all = {}
 
         for idx, step in enumerate(self.all_steps):
+            group = step.get("group") or step.get("name")
+            # Store ALL steps (enabled + disabled) for dependency lookup
+            self.steps_by_group_all[group] = {"index": idx, "config": step}
+
             if not step.get("enabled", True):
                 continue
 
@@ -262,6 +268,7 @@ class SuperChainActionSpace:
                 requirements = variant.get("requires_preproc", [])
                 met = True
                 pending_after = []
+                pending_before = []
                 activated_by_before = []
 
                 for req in requirements:
@@ -269,14 +276,24 @@ class SuperChainActionSpace:
                     step_timing = req.get("step", "before")  # Default to "before"
 
                     if step_timing == "before":
-                        # Current behavior: must already be in used_groups
-                        if req_group and req_group not in state.used_groups:
+                        # Check if requirement is already satisfied
+                        if req_group and req_group in state.used_groups:
+                            # Already in pipeline - dependency satisfied
+                            activated_by_before.append(req_group)
+                        elif req_group and req_group in self.steps_by_group_all:
+                            # Available (possibly disabled) - auto-inject before this step
+                            pending_before.append(req)
+                            logger.debug(
+                                "Dependency step=before: %s will auto-inject disabled step %s",
+                                step_name,
+                                req_group,
+                            )
+                        elif req_group:
+                            # Required group not available at all - block action
                             met = False
                             break
-                        if req_group:
-                            activated_by_before.append(req_group)
                     elif step_timing == "after":
-                        # New behavior: collect for later auto-injection
+                        # Collect for later auto-injection
                         pending_after.append(req)
                     else:
                         # Validation: reject invalid values
@@ -319,7 +336,8 @@ class SuperChainActionSpace:
                         i
                     ],  # Original index in super-chain
                     param_sample_id=0,
-                    pending_after=pending_after,  # NEW: Pass after-dependencies
+                    pending_after=pending_after,  # Pass after-dependencies
+                    pending_before=pending_before,  # Pass before-dependencies (for disabled steps)
                 )
                 actions.append(action)
 

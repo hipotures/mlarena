@@ -244,8 +244,6 @@ def extract_pipeline_steps(pipeline_data):
     steps = []
     for step in full_chain:
         if step.get("enabled") is False:
-            disabled_name = step.get("step") or step.get("name") or step.get("group") or step.get("template")
-            warn(f"Skipping disabled step: {disabled_name}")
             continue
 
         module_name = step.get('template') or step.get('name') or step.get('step') or step.get('group')
@@ -463,6 +461,10 @@ def main():
     parser.add_argument("--env", choices=["local", "remote"], default="local", help="Environment (local or remote/NFS)")
     args = parser.parse_args()
 
+    # If user requests top-n without specifying mode, default to best_top_n.
+    if args.mode == "best" and args.top_n and args.top_n > 1:
+        args.mode = "best_top_n"
+
     # Auto-resolve config path for remote env
     default_config = "conf/preprocess/mla_super_chain.yaml"
     if args.config == default_config and args.env == "remote":
@@ -671,12 +673,14 @@ def main():
                 for idx, tpl in enumerate(generated_templates, start=1):
                     print(f"\n# Template {idx} (Trial #{tpl['trial_number']}, Score: {tpl['score']:.5f})")
                     print(f"uv run python scripts/mla.py project={args.project} model_template={tpl['model_template']}")
+                    print(f"uv run python scripts/mla.py project={args.project} model_template={tpl['model_template']} common.use_gpu=true")
 
                 print("\n" + "-"*60)
                 print("Or enqueue all at once:")
                 print("-"*60)
                 for tpl in generated_templates:
                     print(f"python scripts/mla.py queue --project {args.project} add \"model_template={tpl['model_template']}\"")
+                    print(f"python scripts/mla.py queue --project {args.project} add \"model_template={tpl['model_template']} common.use_gpu=true\"")
 
             print("\n" + "="*60 + "\n")
             return
@@ -796,12 +800,14 @@ def main():
             for idx, tpl in enumerate(generated_templates, start=1):
                 print(f"\n# Template {idx} (Trial #{tpl['trial_number']}, Score: {tpl['score']:.5f})")
                 print(f"uv run python scripts/mla.py project={args.project} model_template={tpl['model_template']}")
+                print(f"uv run python scripts/mla.py project={args.project} model_template={tpl['model_template']} common.use_gpu=true")
 
             print("\n" + "-"*60)
             print("Or enqueue all at once:")
             print("-"*60)
             for tpl in generated_templates:
                 print(f"python scripts/mla.py queue --project {args.project} add \"model_template={tpl['model_template']}\"")
+                print(f"python scripts/mla.py queue --project {args.project} add \"model_template={tpl['model_template']} common.use_gpu=true\"")
 
         print("\n" + "="*60 + "\n")
 

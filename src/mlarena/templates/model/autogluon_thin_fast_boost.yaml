@@ -1,0 +1,13 @@
+model: autogluon_baseline
+preset: medium
+time_limit: 120
+use_gpu: false
+seed: 42
+included_model_types:
+  - XGB
+  - GBM
+  - CAT
+fit_args:
+  save_space: true
+  fit_weighted_ensemble: false
+  auto_stack: false

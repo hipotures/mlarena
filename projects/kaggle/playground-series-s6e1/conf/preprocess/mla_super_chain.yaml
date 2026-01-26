@@ -274,6 +274,7 @@ mcts:
   max_depth: 12
   lookahead: 2
   seed: 42
+  randomize_order: true
 
   penalties:
     features_lambda: 0.01

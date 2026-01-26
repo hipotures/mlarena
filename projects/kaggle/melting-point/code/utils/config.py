@@ -1,6 +1,4 @@
-"""
-Configuration and constants for the competition
-"""
+"""Configuration for melting-point"""
 
 from pathlib import Path
 
@@ -11,7 +9,7 @@ CODE_DIR = PROJECT_ROOT / "code"
 SUBMISSIONS_DIR = PROJECT_ROOT / "submissions"
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
-# Data paths
+# Data paths (framework supports both .csv and .csv.gz with automatic fallback)
 TRAIN_PATH = DATA_DIR / "train.csv.gz"
 TEST_PATH = DATA_DIR / "test.csv.gz"
 SAMPLE_SUBMISSION_PATH = DATA_DIR / "sample_submission.csv.gz"
@@ -21,14 +19,23 @@ RANDOM_SEED = 42
 N_FOLDS = 5
 
 # Target column
-TARGET_COLUMN = "Tm"  # Melting point in Kelvin
+TARGET_COLUMN = "Tm"
+
+# Row identifier column (ignored when training)
+ID_COLUMN = "id"
+
+# Columns to ignore during training
+IGNORED_COLUMNS = ['id']
 
 # AutoGluon settings
 AUTOGLUON_TIME_LIMIT = 600  # seconds (10 minutes)
-AUTOGLUON_PRESET = "medium_quality"  # best_quality, high_quality, medium_quality, optimize_for_deployment
-AUTOGLUON_PROBLEM_TYPE = "regression"  # regression task
-AUTOGLUON_EVAL_METRIC = "mean_absolute_error"  # MAE
+AUTOGLUON_PRESET = "medium"  # best, high, medium, deployment
+AUTOGLUON_PROBLEM_TYPE = "regression"  # binary, regression, multiclass
+AUTOGLUON_EVAL_METRIC = "mean_absolute_error"  # AutoGluon metric (approximates Kaggle metric if different)
 
 # Competition details
 COMPETITION_NAME = "melting-point"
-METRIC = "mae"  # Mean Absolute Error (lower is better)
+METRIC = "mean_absolute_error"  # Kaggle evaluation metric
+
+# Submission format
+SUBMISSION_PROBAS = False

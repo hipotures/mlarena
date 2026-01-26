@@ -266,8 +266,8 @@ mcts:
   cleanup_processed: false
   selection_policy: puct
   exploration_weight: 3.0
-  expansion_width: 1.0
-  expansion_alpha: 0.35
+  expansion_width: 2.0
+  expansion_alpha: 0.5
   param_expansion_max_samples: 2
   param_expansion_alpha: 0.35
   param_expansion_width: 1.0

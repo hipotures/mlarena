@@ -466,12 +466,16 @@ def main():
     # Auto-resolve config path for remote env
     default_config = "conf/preprocess/mla_super_chain.yaml"
     if args.config == default_config and args.env == "remote":
-        remote_config = Path("/mnt/mlarena/conf/preprocess/mla_super_chain.yaml")
-        if remote_config.exists():
-            args.config = str(remote_config)
+        project_remote = Path("/mnt/mlarena/projects/kaggle") / args.project / "conf" / "preprocess" / "mla_super_chain.yaml"
+        legacy_remote = Path("/mnt/mlarena/conf/preprocess/mla_super_chain.yaml")
+        if project_remote.exists():
+            args.config = str(project_remote)
+            info(f"Using remote project config: {args.config}")
+        elif legacy_remote.exists():
+            args.config = str(legacy_remote)
             info(f"Using remote config: {args.config}")
         else:
-            warn(f"Remote config not found at {remote_config}, using local default.")
+            warn(f"Remote config not found at {project_remote} or {legacy_remote}, using local default.")
 
     config_path = Path(args.config)
     if not config_path.exists():

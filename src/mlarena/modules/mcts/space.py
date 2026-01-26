@@ -1,8 +1,10 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from collections import defaultdict
 import yaml
 import logging
+import random
 from mlarena.modules.mcts.node import PipelineState, Action
 
 logger = logging.getLogger(__name__)
@@ -106,14 +108,120 @@ class SuperChainActionSpace:
             if node not in visited:
                 has_cycle(node, [node])
 
+    def _random_toposort_indices(
+        self,
+        indices: List[int],
+        state: PipelineState,
+        seed: int
+    ) -> List[int]:
+        """Perform random topological sort on indices respecting dependencies.
+
+        Args:
+            indices: List of searched_index values to sort
+            state: Current pipeline state
+            seed: Seed for RNG
+
+        Returns:
+            Topologically sorted list of indices (random order when no dependencies)
+        """
+        if len(indices) <= 1:
+            return indices
+
+        rng = random.Random(seed)
+
+        # Build dependency graph
+        graph = defaultdict(list)
+        indegree = defaultdict(int)
+        step_by_idx = {}
+
+        # Initialize
+        for idx in indices:
+            indegree[idx] = 0
+            step_by_idx[idx] = self.steps[idx]
+
+        # Build edges based on requires_preproc
+        for idx in indices:
+            step_def = self.steps[idx]
+            template_name = step_def.get("template") or step_def.get("name")
+            space = self.search_spaces.get(template_name, {})
+            variants = space.get("variants", [])
+
+            # Check dependencies across ALL variants
+            for variant in variants:
+                requirements = variant.get("requires_preproc", [])
+                for req in requirements:
+                    req_group = req.get("group")
+                    step_timing = req.get("step", "before")
+
+                    if not req_group:
+                        continue
+
+                    # Find req_group in indices
+                    req_idx = None
+                    for candidate_idx in indices:
+                        candidate_def = self.steps[candidate_idx]
+                        candidate_group = candidate_def.get("group") or candidate_def.get("name")
+                        if candidate_group == req_group:
+                            req_idx = candidate_idx
+                            break
+
+                    if req_idx is not None:
+                        if step_timing == "before":
+                            # req_idx must come before idx
+                            graph[req_idx].append(idx)
+                            indegree[idx] += 1
+                        elif step_timing == "after":
+                            # idx must come before req_idx
+                            graph[idx].append(req_idx)
+                            indegree[req_idx] += 1
+
+        # Kahn's algorithm with random selection
+        queue = [idx for idx in indices if indegree[idx] == 0]
+        rng.shuffle(queue)
+
+        result = []
+        while queue:
+            current = queue.pop(0)
+            result.append(current)
+
+            for neighbor in graph[current]:
+                indegree[neighbor] -= 1
+                if indegree[neighbor] == 0:
+                    queue.append(neighbor)
+                    rng.shuffle(queue)
+
+        if len(result) != len(indices):
+            # Cycle detected - fallback to original order
+            logger.warning(
+                f"Topological sort failed (cycle detected). "
+                f"Falling back to sequential order. Indices: {indices}"
+            )
+            return sorted(indices)
+
+        return result
+
     @property
     def total_steps_count(self) -> int:
         return len(self.steps)
 
     def next_actions(
-        self, state: PipelineState, lookahead: Optional[int] = None
+        self,
+        state: PipelineState,
+        lookahead: Optional[int] = None,
+        randomize_order: bool = False,
+        seed: Optional[int] = None
     ) -> List[Action]:
-        """Generate possible next actions from the current state."""
+        """Generate possible next actions from the current state.
+
+        Args:
+            state: Current pipeline state
+            lookahead: Limit to N next steps (None = no limit)
+            randomize_order: Enable random topological sort
+            seed: Seed for randomization (required if randomize_order=True)
+
+        Returns:
+            List of valid actions
+        """
         actions: List[Action] = []
 
         # We can pick any searched step that comes AFTER the last used searched step index
@@ -124,7 +232,17 @@ class SuperChainActionSpace:
         if lookahead is not None and lookahead > 0:
             end_index = min(end_index, start_index + lookahead)
 
-        for i in range(start_index, end_index):
+        # Determine eligible indices
+        eligible_indices = list(range(start_index, end_index))
+
+        # Apply randomization if enabled
+        if randomize_order:
+            if seed is None:
+                raise ValueError("seed is required when randomize_order=True")
+            eligible_indices = self._random_toposort_indices(eligible_indices, state, seed)
+
+        # Generate actions for each eligible index
+        for i in eligible_indices:
             step_def = self.steps[i]
             step_name = step_def.get("name")
             group = step_def.get("group") or step_name

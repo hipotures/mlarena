@@ -84,6 +84,7 @@ class MCTSConfig(BaseModel):
     expansion_alpha: float = 0.5  # alpha
     seed: int = 42
     lookahead: int = 3  # Limit valid next steps to immediate N neighbors
+    randomize_order: bool = False  # Enable random topological sort for searched steps
 
     # 2nd-layer PW: number of parameter samples per (operator=step+variant) at a node
     # m_params(op) = max(1, floor(param_expansion_width * N_op^param_expansion_alpha))

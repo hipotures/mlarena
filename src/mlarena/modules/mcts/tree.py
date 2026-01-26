@@ -158,13 +158,29 @@ class MCTSTree:
         (2) param PW: how many param_sample_id per active operator
         """
         if node.action_pool is None:
+            import hashlib
+
+            # Determine randomize_order and seed
+            randomize = getattr(self.config, 'randomize_order', False)
+            seed_for_order = None
+
+            if randomize:
+                # Stable seed per node state for reproducibility
+                seed_base = (
+                    f"{self.config.seed}|order|{node.state.signature}"
+                    f"|last={node.state.last_step_index}"
+                )
+                seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16) % (2**32)
+                seed_for_order = seed_hash
+
             raw_pool = self.space.next_actions(
-                node.state, lookahead=getattr(self.config, "lookahead", 3)
+                node.state,
+                lookahead=getattr(self.config, "lookahead", 3),
+                randomize_order=randomize,
+                seed=seed_for_order
             )
 
             # Deterministic RNG for pool ordering
-            import hashlib
-
             seed_base = f"{self.config.seed}|pool|{node.state.signature}|last={node.state.last_step_index}"
             seed_hash = int(hashlib.md5(seed_base.encode()).hexdigest(), 16) % (2**32)
             rng = random.Random(seed_hash)

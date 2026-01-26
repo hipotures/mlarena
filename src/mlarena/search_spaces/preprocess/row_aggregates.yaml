@@ -7,6 +7,8 @@ base_config:
   stats: []
   prefix: row_
   nan_policy: omit
+requires_preproc:
+  - group: imputer
 
 variants:
   - name: basic

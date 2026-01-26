@@ -167,6 +167,20 @@ def fit_transform(
     if config["fit_on_val"] and val_df is not None and target_column in val_df.columns:
         fit_df = pd.concat([fit_df, val_df], axis=0)
 
+    # Drop numeric columns that are entirely NaN to avoid NaN-only imputations.
+    all_nan_cols = [col for col in numeric_cols if fit_df[col].isna().all()]
+    if all_nan_cols:
+        numeric_cols = [col for col in numeric_cols if col not in all_nan_cols]
+
+    if not numeric_cols:
+        state_dict = {
+            "version": "1.0",
+            "config": {k: v for k, v in config.items() if not k.startswith("_")},
+            "message": "No numeric columns available for pseudo-labeling.",
+            "n_added": 0,
+        }
+        return train_df, val_df, test_df, eval_df, orig_df, state_dict
+
     impute_values = _impute_values(fit_df, numeric_cols, config["missing_strategy"])
     fit_df = _apply_impute(fit_df, numeric_cols, impute_values)
 

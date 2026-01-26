@@ -687,7 +687,7 @@ class MCTSRunner:
 
                     # candidates in the underlying action space (operator candidates)
                     try:
-                        candidates = len(self.space.next_actions(node.state))
+                        candidates = len(self.space.next_actions(node.state, lookahead=None))
                     except Exception:
                         candidates = -1
 

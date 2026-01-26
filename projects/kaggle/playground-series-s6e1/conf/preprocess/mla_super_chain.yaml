@@ -272,7 +272,7 @@ mcts:
   param_expansion_alpha: 0.35
   param_expansion_width: 1.0
   max_depth: 12
-  lookahead: 2
+  lookahead: 12
   seed: 42
   randomize_order: true
 

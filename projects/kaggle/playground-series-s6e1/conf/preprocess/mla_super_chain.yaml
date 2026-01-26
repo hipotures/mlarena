@@ -256,7 +256,7 @@ production:
   seed: 42
 
 mcts:
-  study_name: s6e1_019
+  study_name: s6e1_022
   direction: maximize
   budget: 10000
   storage_url: sqlite:///experiments/db/mcts.db

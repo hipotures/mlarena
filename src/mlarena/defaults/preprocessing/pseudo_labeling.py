@@ -283,9 +283,7 @@ def fit_transform(
             )
 
     train_df = pd.concat([train_df, pseudo_df], axis=0)
-    train_df = train_df.sample(
-        frac=1.0, random_state=config["random_state"]
-    ).reset_index(drop=True)
+    train_df = train_df.sample(frac=1.0, random_state=config["random_state"])
 
     artifacts.save_fitted_object(model, submodule_dir, "pseudo_model.pkl")
     if scaler is not None:

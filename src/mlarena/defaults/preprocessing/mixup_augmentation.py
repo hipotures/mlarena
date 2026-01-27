@@ -173,9 +173,7 @@ def fit_transform(
     base_df[target_column] = y_new
 
     train_df = pd.concat([train_df, base_df], axis=0)
-    train_df = train_df.sample(
-        frac=1.0, random_state=config["random_state"]
-    ).reset_index(drop=True)
+    train_df = train_df.sample(frac=1.0, random_state=config["random_state"])
 
     transformation_summary = report.create_preprocessing_report(
         train_df_original,

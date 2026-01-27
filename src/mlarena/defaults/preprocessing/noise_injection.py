@@ -157,9 +157,7 @@ def fit_transform(
     aug_df[numeric_cols] = x_noisy
 
     train_df = pd.concat([train_df, aug_df], axis=0)
-    train_df = train_df.sample(
-        frac=1.0, random_state=config["random_state"]
-    ).reset_index(drop=True)
+    train_df = train_df.sample(frac=1.0, random_state=config["random_state"])
 
     transformation_summary = report.create_preprocessing_report(
         train_df_original,

@@ -58,7 +58,6 @@ def _apply_random_over(
     return (
         pd.concat(resampled, axis=0)
         .sample(frac=1, random_state=random_state)
-        .reset_index(drop=True)
     )
 
 
@@ -78,7 +77,6 @@ def _apply_random_under(
     return (
         pd.concat(resampled, axis=0)
         .sample(frac=1, random_state=random_state)
-        .reset_index(drop=True)
     )
 
 

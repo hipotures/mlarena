@@ -288,15 +288,7 @@ def fit_transform(
                 {"column": col, "target_type": dtype, "error": str(e)}
             )
 
-    # 7. Reset indices after dropping duplicates
-    train_df = train_df.reset_index(drop=True)
-    test_df = test_df.reset_index(drop=True)
-    if val_df is not None:
-        val_df = val_df.reset_index(drop=True)
-    if orig_df is not None:
-        orig_df = orig_df.reset_index(drop=True)
-
-    # 8. Generate and save detailed report
+    # 7. Generate and save detailed report
     sanity_report = {
         "issues_found": issues_found,
         "columns_dropped": columns_to_drop,
@@ -313,7 +305,7 @@ def fit_transform(
 
     artifacts.save_report(sanity_report, submodule_dir, "sanity_report.json")
 
-    # 9. Generate transformation summary
+    # 8. Generate transformation summary
     transformation_summary = report.create_preprocessing_report(
         train_before=train_df_original,
         train_after=train_df,
@@ -323,7 +315,7 @@ def fit_transform(
     )
     artifacts.save_report(transformation_summary, submodule_dir, "summary.json")
 
-    # 10. Create state dict
+    # 9. Create state dict
     state_dict = {
         "version": "1.0",
         "config": {k: v for k, v in config.items() if not k.startswith("_")},

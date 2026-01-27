@@ -326,7 +326,6 @@ class MLArenaStepWrapper(BaseEstimator, TransformerMixin):
             del new_train, new_test, new_val, new_eval, new_orig, result
             import gc
 
-            gc.collect()
 
             # 5. Merge State
             if "custom_module_state" not in X.state:

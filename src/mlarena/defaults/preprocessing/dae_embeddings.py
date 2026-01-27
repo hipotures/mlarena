@@ -231,7 +231,7 @@ def fit_transform(
     if config["max_rows"] and len(fit_df) > int(config["max_rows"]):
         fit_df = fit_df.sample(
             n=int(config["max_rows"]), random_state=config["random_state"]
-        ).reset_index(drop=True)
+        )
 
     impute_values = _impute_values(fit_df, numeric_cols, config["missing_strategy"])
     fit_df = _apply_impute(fit_df, numeric_cols, impute_values)

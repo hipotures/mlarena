@@ -103,9 +103,15 @@ def _extract_final_value(details_json):
         return None
 
 
-def _load_default_mcts_settings():
+def _load_default_mcts_settings(project_slug=None):
     """Load default study_name and oracle eps from mla_super_chain.yaml if available."""
-    config_path = Path(__file__).resolve().parents[1] / "conf" / "preprocess" / "mla_super_chain.yaml"
+    if project_slug:
+        # Use project-specific config
+        config_path = Path("projects/kaggle") / project_slug / "conf" / "preprocess" / "mla_super_chain.yaml"
+    else:
+        # Fallback to global config
+        config_path = Path(__file__).resolve().parents[1] / "conf" / "preprocess" / "mla_super_chain.yaml"
+
     if not config_path.exists():
         warn(f"Default config not found at {config_path}")
         return {}
@@ -747,14 +753,14 @@ def main():
                 info(f"Interpreting --study-id as study_name: {study_name}")
 
     if study_id is None and not study_name:
-        default_mcts = _load_default_mcts_settings()
+        default_mcts = _load_default_mcts_settings(args.project)
         if default_mcts.get("study_name"):
             study_name = default_mcts["study_name"]
             info(f"Using default study_name from mla_super_chain.yaml: {study_name}")
 
     if args.eps is None:
         if not default_mcts:
-            default_mcts = _load_default_mcts_settings()
+            default_mcts = _load_default_mcts_settings(args.project)
         if default_mcts.get("oracle_eps") is not None:
             args.eps = float(default_mcts["oracle_eps"])
             info(f"Using default oracle eps from mla_super_chain.yaml: {args.eps}")

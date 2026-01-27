@@ -72,9 +72,7 @@ def fit_transform(
         raise ValueError(f"eval_fraction must be in [0, 1), got {eval_fraction}")
 
     # Single shuffle
-    shuffled = train_df.sample(frac=1.0, random_state=random_state).reset_index(
-        drop=True
-    )
+    shuffled = train_df.sample(frac=1.0, random_state=random_state)
     n_total = len(shuffled)
 
     # 4-way split
@@ -82,24 +80,22 @@ def fit_transform(
     n_valid = int(n_total * valid_fraction)
     n_eval = int(n_total * eval_fraction)
 
-    train_out = shuffled.iloc[:n_train].reset_index(drop=True)
+    train_out = shuffled.iloc[:n_train]
 
     tuning_out = None
     if valid_fraction > 0:
-        tuning_out = shuffled.iloc[n_train : n_train + n_valid].reset_index(drop=True)
+        tuning_out = shuffled.iloc[n_train : n_train + n_valid]
 
     eval_out = None
     if eval_fraction > 0:
-        eval_out = shuffled.iloc[
-            n_train + n_valid : n_train + n_valid + n_eval
-        ].reset_index(drop=True)
+        eval_out = shuffled.iloc[n_train + n_valid : n_train + n_valid + n_eval]
 
     # If eval_df was passed in, merge or replace?
     # Usually train_fraction is the generator. If eval_df exists, we append to it?
     # For now, let's assume we append if both exist, or just use the new one.
     if eval_df is not None:
         if eval_out is not None:
-            eval_out = pd.concat([eval_df, eval_out], axis=0).reset_index(drop=True)
+            eval_out = pd.concat([eval_df, eval_out], axis=0)
         else:
             eval_out = eval_df
 

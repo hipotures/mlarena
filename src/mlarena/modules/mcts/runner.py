@@ -87,7 +87,10 @@ class MCTSRunner:
         self._apply_overrides(params)
 
         self.storage = MCTSStorage(self.config.storage_url)
-        self.space = SuperChainActionSpace(super_chain_path)
+        problem_type = None
+        if context.config_module is not None:
+            problem_type = getattr(context.config_module, "AUTOGLUON_PROBLEM_TYPE", None)
+        self.space = SuperChainActionSpace(super_chain_path, problem_type=problem_type)
         self.sampler = ParameterSampler(seed=self.config.seed)
 
         # Initialize root state with groups from fixed steps

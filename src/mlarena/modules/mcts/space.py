@@ -34,11 +34,12 @@ def _load_search_spaces() -> Dict[str, Dict[str, Any]]:
 
 
 class SuperChainActionSpace:
-    def __init__(self, super_chain_path: Path):
+    def __init__(self, super_chain_path: Path, problem_type: Optional[str] = None):
         self.super_chain_path = super_chain_path
         self.super_chain_config = _load_yaml(super_chain_path)
         self.all_steps = self.super_chain_config.get("preprocessors", []) or []
         self.search_spaces = _load_search_spaces()
+        self.problem_type = (problem_type or "").strip().lower() or None
 
         # Split steps into fixed harness and searched transforms
         self.fixed_steps = []
@@ -69,6 +70,19 @@ class SuperChainActionSpace:
 
         # Validate that there are no circular 'after' dependencies
         self._validate_after_dependencies()
+
+    def _variant_allowed(self, variant: Dict[str, Any]) -> bool:
+        """Return True if variant matches required problem type (if any)."""
+        required = variant.get("requires_problem_type") or variant.get(
+            "requires_problem_types"
+        )
+        if not required:
+            return True
+        if isinstance(required, str):
+            required = [required]
+        if not self.problem_type:
+            return False
+        return self.problem_type in [str(r).strip().lower() for r in required]
 
     def _validate_after_dependencies(self) -> None:
         """Detect circular 'after' dependencies in search spaces."""
@@ -139,6 +153,8 @@ class SuperChainActionSpace:
         graph = defaultdict(list)
         indegree = defaultdict(int)
         step_by_idx = {}
+        # Track edges to avoid duplicates from multiple variants
+        edges_seen = set()
 
         # Initialize
         for idx in indices:
@@ -154,6 +170,8 @@ class SuperChainActionSpace:
 
             # Check dependencies across ALL variants
             for variant in variants:
+                if not self._variant_allowed(variant):
+                    continue
                 requirements = variant.get("requires_preproc", [])
                 for req in requirements:
                     req_group = req.get("group")
@@ -172,14 +190,21 @@ class SuperChainActionSpace:
                             break
 
                     if req_idx is not None:
+                        # Create edge tuple to check for duplicates
                         if step_timing == "before":
-                            # req_idx must come before idx
-                            graph[req_idx].append(idx)
-                            indegree[idx] += 1
+                            edge = (req_idx, idx, "before")
+                            if edge not in edges_seen:
+                                edges_seen.add(edge)
+                                # req_idx must come before idx
+                                graph[req_idx].append(idx)
+                                indegree[idx] += 1
                         elif step_timing == "after":
-                            # idx must come before req_idx
-                            graph[idx].append(req_idx)
-                            indegree[req_idx] += 1
+                            edge = (idx, req_idx, "after")
+                            if edge not in edges_seen:
+                                edges_seen.add(edge)
+                                # idx must come before req_idx
+                                graph[idx].append(req_idx)
+                                indegree[req_idx] += 1
 
         # Kahn's algorithm with random selection
         queue = [idx for idx in indices if indegree[idx] == 0]
@@ -197,12 +222,12 @@ class SuperChainActionSpace:
                     rng.shuffle(queue)
 
         if len(result) != len(indices):
-            # Cycle detected - fallback to original order
+            # Cycle detected - fallback to original order (not sorted!)
             logger.warning(
                 f"Topological sort failed (cycle detected). "
-                f"Falling back to sequential order. Indices: {indices}"
+                f"Falling back to original order. Indices: {indices}"
             )
-            return sorted(indices)
+            return indices
 
         return result
 
@@ -230,11 +255,17 @@ class SuperChainActionSpace:
         """
         actions: List[Action] = []
 
-        # We can pick any searched step that comes AFTER the last used searched step index
-        # state.last_step_index refers to the index in self.steps (searched_steps)
-        start_index = state.last_step_index + 1
-        end_index = len(self.steps)
+        # Determine start index based on mode
+        if randomize_order:
+            # Random mode: all unused steps available (filtered by used_groups later)
+            start_index = 0
+            end_index = len(self.steps)
+        else:
+            # Sequential mode: only steps after last_step_index (preserves super-chain order)
+            start_index = state.last_step_index + 1
+            end_index = len(self.steps)
 
+        # Apply lookahead window
         if lookahead is not None and lookahead > 0:
             end_index = min(end_index, start_index + lookahead)
 
@@ -260,7 +291,11 @@ class SuperChainActionSpace:
             space = self.search_spaces.get(template_name, {})
             variants = space.get("variants", [])
 
-            if not variants:
+            if variants:
+                variants = [v for v in variants if self._variant_allowed(v)]
+                if not variants:
+                    continue
+            else:
                 variants = [{"name": "fixed", "params": {}}]
 
             for variant in variants:
@@ -344,7 +379,10 @@ class SuperChainActionSpace:
         return actions
 
     def analyze_next_actions(self, state: PipelineState) -> Dict[str, int]:
-        """Diagnostic method to understand why actions are filtered."""
+        """Diagnostic method to understand why actions are filtered.
+
+        Note: This method uses sequential mode logic only.
+        """
         stats = {
             "total_candidates": 0,
             "filtered_by_group": 0,
@@ -353,6 +391,7 @@ class SuperChainActionSpace:
             "steps_checked": 0,
         }
 
+        # Sequential mode logic (diagnostic only)
         start_index = state.last_step_index + 1
         stats["total_candidates"] = len(self.steps) - start_index
 
@@ -370,7 +409,12 @@ class SuperChainActionSpace:
             space = self.search_spaces.get(template_name, {})
             variants = space.get("variants", [])
 
-            if not variants:
+            if variants:
+                variants = [v for v in variants if self._variant_allowed(v)]
+                if not variants:
+                    stats["filtered_by_no_variants"] += 1
+                    continue
+            else:
                 # In next_actions we default to 'fixed', so this isn't strictly a filter there
                 # unless we change logic. Count it if empty but treated as 1 action.
                 # Currently next_actions adds 1 action.

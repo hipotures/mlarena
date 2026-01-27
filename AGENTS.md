@@ -17,6 +17,148 @@
 | **Projects** | `projects/kaggle/<slug>/` | User code location. `code/models/`, `code/utils/config.py`. |
 | **Queues** | `src/mlarena/utils/queue.py` | Task queue implementation (`mla queue`). |
 
+## 📁 Detailed Directory Tree
+
+```
+mlarena/                                    # Repository root
+│
+├── src/mlarena/                           # Framework source code
+│   ├── cli/
+│   │   └── main.py                       # CLI entry point, command parsing
+│   ├── core/
+│   │   ├── conf.py                       # OmegaConf + Pydantic config system
+│   │   ├── pipeline.py                   # Execution engine, dependency resolution
+│   │   ├── experiment.py                 # State management (state.json)
+│   │   ├── registry.py                   # Module discovery (@ModuleRegistry)
+│   │   └── module.py                     # BaseModule class
+│   ├── modules/                          # Pipeline modules
+│   │   ├── init.py                       # Project initialization
+│   │   ├── eda.py                        # Exploratory data analysis
+│   │   ├── preprocess.py                 # Preprocessing pipeline
+│   │   ├── model.py                      # Model training
+│   │   ├── predict.py                    # Prediction generation
+│   │   ├── submit.py                     # Kaggle submission
+│   │   ├── fetch_score.py                # Score scraping
+│   │   ├── mcts/                         # ⚡ MCTS search implementation
+│   │   │   ├── mcts_module.py           # MCTS pipeline module
+│   │   │   └── tree_search.py           # Tree search algorithm
+│   │   └── rant/                         # ⚡ RANT search implementation
+│   │       ├── rant_module.py           # RANT pipeline module
+│   │       └── random_tree.py           # Random tree algorithm
+│   ├── defaults/                         # Default implementations
+│   │   ├── models/                       # 🏋️ Model trainers
+│   │   │   ├── autogluon_tabular.py
+│   │   │   ├── catboost_model.py
+│   │   │   ├── lightgbm_model.py
+│   │   │   └── xgboost_model.py
+│   │   └── preprocessing/                # 🔧 Preprocessing steps
+│   │       ├── identity.py               # Pass-through (template)
+│   │       ├── imputer.py                # Missing value imputation
+│   │       ├── encoder.py                # Categorical encoding
+│   │       ├── feature_selector.py       # Feature selection
+│   │       ├── dae_embeddings.py         # Denoising autoencoder
+│   │       └── [30+ other modules]
+│   ├── search_spaces/                    # 🎲 MCTS/RANT search space definitions
+│   │   └── preprocess/                   # Preprocessing search spaces
+│   │       ├── imputer.yaml              # Imputation hyperparameters
+│   │       ├── encoder.yaml              # Encoder hyperparameters
+│   │       ├── feature_selector.yaml     # Feature selection ranges
+│   │       └── [25+ other search spaces]
+│   ├── templates/                        # 📋 Global YAML templates
+│   │   ├── model/                        # Model templates
+│   │   │   ├── baseline.yaml
+│   │   │   ├── cpu-dev-5m.yaml
+│   │   │   └── hpo/                      # HPO-specific templates
+│   │   ├── preprocess/                   # Preprocessing templates
+│   │   │   ├── baseline.yaml
+│   │   │   ├── identity.yaml
+│   │   │   └── [chains and custom configs]
+│   │   ├── profiles/                     # Config profiles
+│   │   │   ├── smoke.yaml                # Fast testing
+│   │   │   └── dev.yaml                  # Development
+│   │   └── project/                      # Project scaffolding
+│   └── utils/                            # Shared utilities
+│       ├── queue.py                      # Task queue
+│       ├── artifacts.py                  # Artifact management
+│       └── report.py                     # Report generation
+│
+├── conf/                                  # 🌐 Global configuration
+│   ├── generator_config.yaml             # Template generator settings
+│   └── preprocess/                       # Preprocessing configs
+│       └── mla_super_chain.yaml          # MCTS default settings
+│
+├── scripts/                               # 🔨 Entry points and utilities
+│   ├── mla.py                            # ⭐ Main CLI entry point
+│   ├── mcts_oracle.py                    # 🧙 MCTS oracle (best variant selector)
+│   ├── submissions_tracker.py            # Submission tracking
+│   ├── experiment_logger.py              # Experiment logging
+│   ├── task_queue.py                     # Task queue runner
+│   ├── task_queue_textual.py            # TUI for task queue
+│   └── utils/
+│       ├── clean.py                      # Artifact cleanup
+│       └── sync.py                       # Project synchronization
+│
+└── projects/kaggle/<slug>/               # 🏆 Competition projects
+    ├── data/                             # Raw competition data
+    │   ├── train.csv
+    │   ├── test.csv
+    │   └── sample_submission.csv
+    ├── code/                             # Competition-specific code
+    │   ├── models/                       # Custom model implementations
+    │   │   └── my_model.py
+    │   ├── preprocessing/                # Custom preprocessing modules
+    │   │   └── my_preprocess.py
+    │   └── utils/
+    │       └── config.py                 # ⚙️ Project constants (TARGET_COLUMN, etc.)
+    ├── conf/                             # 📝 Project-level configs
+    │   └── preprocess/                   # Project preprocessing configs
+    │       └── mla_super_chain.yaml      # MCTS settings override
+    ├── templates/                        # Project template overrides
+    │   ├── model/                        # Model templates (override globals)
+    │   │   └── custom-model.yaml
+    │   └── preprocess/                   # Preprocessing templates
+    │       └── custom-preprocess.yaml
+    ├── experiments/                      # 🧪 Experiment results
+    │   ├── logs/                         # 📊 MCTS/RANT logs (START HERE!)
+    │   │   ├── mcts.log                  # ← MCTS execution log
+    │   │   └── rant.log                  # ← RANT execution log
+    │   ├── db/                           # 💾 Optuna study databases
+    │   │   └── mcts_study.db             # SQLite database for MCTS
+    │   ├── eda/                          # EDA experiment
+    │   │   ├── state.json                # Module state + metadata
+    │   │   └── artifacts/                # Generated reports
+    │   └── exp-YYYYMMDD-HHMMSS/         # Timestamped experiments
+    │       ├── state.json                # ← Experiment state (read this!)
+    │       ├── state.lock                # File lock for concurrent writes
+    │       └── artifacts/                # Model outputs, predictions, etc.
+    ├── submissions/                      # Kaggle submissions
+    │   └── submissions.json              # Submission tracking
+    └── queue/                            # Task queue storage
+        └── tasks.json                    # Queued experiments
+
+# NFS Mount (for distributed computing)
+/mnt/mlarena/                             # 🖥️ Remote computing server mount
+└── projects/kaggle/<slug>/               # Same structure as local
+    └── experiments/                      # ← Check here if local is empty!
+        └── exp-YYYYMMDD-HHMMSS/
+```
+
+### 🔍 Quick Location Guide
+
+| What you need | Where to find it |
+|---------------|------------------|
+| **MCTS logs** | `projects/kaggle/<slug>/experiments/logs/mcts.log` |
+| **RANT logs** | `projects/kaggle/<slug>/experiments/logs/rant.log` |
+| **Optuna DB** | `projects/kaggle/<slug>/experiments/db/mcts_study.db` |
+| **Search spaces** | `src/mlarena/search_spaces/preprocess/*.yaml` |
+| **Experiment results** | `projects/kaggle/<slug>/experiments/exp-*/state.json` |
+| **Remote results** | `/mnt/mlarena/projects/kaggle/<slug>/experiments/` |
+| **Global templates** | `src/mlarena/templates/{model,preprocess}/` |
+| **Project templates** | `projects/kaggle/<slug>/templates/` |
+| **MCTS config** | `conf/preprocess/mla_super_chain.yaml` (global)<br>`projects/kaggle/<slug>/conf/preprocess/mla_super_chain.yaml` (project) |
+| **Preprocessing code** | `src/mlarena/defaults/preprocessing/*.py` |
+| **Model code** | `src/mlarena/defaults/models/*.py` |
+
 ## 🏗️ Architecture Shortcuts
 
 -   **Adding a Module**: Create file in `src/mlarena/modules/`, inherit `BaseModule`, decorate with `@ModuleRegistry.register`.

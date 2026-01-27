@@ -121,10 +121,8 @@ class PipelineState:
                 f"Group '{action.group_name}' already used by '{self.used_groups[action.group_name]}'"
             )
 
-        if action.searched_index <= self.last_step_index:
-            raise ValueError(
-                f"Action index {action.searched_index} violates order (last: {self.last_step_index})"
-            )
+        # Note: last_step_index order check removed to support randomize_order mode
+        # used_groups already ensures unique steps per depth level
 
         # Log pending_after if present
         if action.pending_after:
@@ -157,6 +155,7 @@ class PipelineState:
             steps=new_steps,
             depth=len(new_steps),
             used_groups=new_used,
-            last_step_index=action.searched_index,
+            # In random mode, keep max index seen; in sequential mode, this is same as action.searched_index
+            last_step_index=max(self.last_step_index, action.searched_index),
         )
         return new_state

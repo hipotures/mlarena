@@ -12,11 +12,29 @@ The system is designed for rapid iteration, reproducibility, and modularity, all
 -   **Templating System:** Standardize model and preprocessing configurations using YAML templates for easy reuse and modification.
 -   **Automated Submission & Score Fetching:** The pipeline can automatically submit to Kaggle and fetch the public score, closing the feedback loop quickly.
 
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Python 3.12+** - Required by project dependencies
+- **uv package manager** - Fast Python dependency manager ([installation guide](https://docs.astral.sh/uv/))
+  ```bash
+  # Linux/macOS
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  # Windows
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+  # Alternative: via pip
+  pip install uv
+  ```
+- **Kaggle API credentials** - Place your `kaggle.json` in `~/.kaggle/` with chmod 600
+
 ## Quick Start
 
 ### 1. Setup
 
-First-time setup is required to install dependencies and configure the Kaggle API.
+Install project dependencies using uv:
 
 ```bash
 # Install Python dependencies
@@ -265,6 +283,12 @@ The framework is designed with a four-layer architecture:
 
 ```
 mlarena/                         # Repository root
+├── conductor/                   # Project management & research tracking
+│   ├── tracks.md               # Active research tracks
+│   ├── product.md              # Product vision and roadmap
+│   ├── workflow.md             # Development workflow guide
+│   └── tech-stack.md           # Technology decisions
+│
 ├── scripts/                     # Entry points and utilities
 │   ├── mla.py                  # ⭐ Main CLI entry point
 │   ├── submissions_tracker.py  # Submission tracking (CLI + library)

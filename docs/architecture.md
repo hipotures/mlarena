@@ -72,3 +72,65 @@ MLArena is organized into four layers: a thin CLI wrapper, a core orchestrator, 
 ## Experiment state snapshot
 
 `state.json` tracks module status, payload, invocation parameters, git metadata, and artifacts such as processed datasets and submission files. The file is guarded by a lock to avoid concurrent writes and is reused when resuming modules with `experiment_id=...`.
+
+## Distributed Computing Architecture (Optional)
+
+For users running heavy computations on remote servers, mlarena supports a split environment architecture with automatic path compatibility:
+
+### Environment Setup
+
+- **Local Dev Server** (`~/ml/kaggle`): Development workspace
+  - Edit code, templates, and scripts here
+  - Manage task queue and git commits
+  - Run experiments locally when needed
+
+- **Remote Computing Server**: Execution environment for heavy workloads
+  - Physical location: `/home/xai/ml/mlarena`
+  - Symlink: `~/ml/kaggle` → `/home/xai/ml/mlarena` (for path compatibility)
+  - Heavy model training runs here
+  - Exports `/home/xai/ml/mlarena` via NFS
+
+- **NFS Mount** (`/mnt/mlarena` on local): Remote filesystem access
+  - Mounts remote `/home/xai/ml/mlarena`
+  - View experiment results locally without SSH
+  - Access state.json and artifacts directly
+
+### Path Compatibility
+
+The symlink `~/ml/kaggle` on remote ensures that paths work identically on both machines:
+
+```bash
+# Local development
+cd ~/ml/kaggle/projects/kaggle/<slug>
+vim code/models/my_model.py
+
+# Remote execution (same path!)
+cd ~/ml/kaggle/projects/kaggle/<slug>
+uv run python scripts/mla.py project=<slug>
+```
+
+### Synchronization
+
+Code is synchronized from local to remote, but **configuration stays local**:
+
+```bash
+# Sync code changes (scripts/, src/, project code/)
+rsync -av ~/ml/kaggle/ remote:~/ml/kaggle/
+
+# Configuration files are NOT synced automatically
+# This allows different settings per environment
+```
+
+### Viewing Results
+
+Access remote experiment results via NFS mount:
+
+```bash
+# View remote experiments locally
+cat /mnt/mlarena/projects/kaggle/<slug>/experiments/<id>/state.json
+
+# Or use the compatible path (if remote symlink exists)
+cat ~/ml/kaggle/projects/kaggle/<slug>/experiments/<id>/state.json
+```
+
+**Note**: This architecture is optional. Single-machine users can ignore this section.

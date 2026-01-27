@@ -6,7 +6,7 @@ This guide gets you from a fresh checkout to a full MLArena run in a few command
 
 ## Prerequisites
 
-- Python 3.10+ with [uv](https://github.com/astral-sh/uv) available (`pip install uv` if missing).
+- Python 3.12+ with [uv](https://docs.astral.sh/uv/) available (`pip install uv` if missing, or see [installation guide](https://docs.astral.sh/uv/getting-started/installation/)).
 - Kaggle API credentials in `~/.kaggle/kaggle.json` (`chmod 600` on the file).
 - Chromium installed for score scraping: `uv run playwright install chromium` (one-time).
 

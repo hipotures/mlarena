@@ -132,8 +132,9 @@ def load_mcts_config(path: Path) -> MCTSConfig:
     data = yaml.safe_load(path.read_text()) or {}
     mcts_data = data.get("mcts", {})
 
-    # If study_name is not in the yaml, we might need to handle it or expect it to be passed/injected
-    # For now, let's assume validation will fail if it's missing, unless we provide a default
-    # But study_name is mandatory in the model.
+    # If evaluation is not in mcts section, try to get it from root level
+    # This allows evaluation config to be shared between MCTS, RANT, and regular tuning
+    if "evaluation" not in mcts_data and "evaluation" in data:
+        mcts_data["evaluation"] = data["evaluation"]
 
     return MCTSConfig(**mcts_data)

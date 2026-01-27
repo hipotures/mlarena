@@ -321,6 +321,18 @@ def fit_transform(
             if eval_df is not None:
                 new_eval = scaler.transform(eval_df[numeric_cols])
 
+            # Check for non-finite values (inf, nan) in transformed data
+            if not np.isfinite(new_train).all() or not np.isfinite(new_test).all():
+                raise ValueError(
+                    "Scaler produced non-finite values (inf/nan). This can happen with extreme input values or toxic preprocessing combinations."
+                )
+            if new_val is not None and not np.isfinite(new_val).all():
+                raise ValueError("Scaler produced non-finite values in validation data.")
+            if new_orig is not None and not np.isfinite(new_orig).all():
+                raise ValueError("Scaler produced non-finite values in orig data.")
+            if new_eval is not None and not np.isfinite(new_eval).all():
+                raise ValueError("Scaler produced non-finite values in eval data.")
+
             # Apply changes
             train_df[numeric_cols] = new_train
             test_df[numeric_cols] = new_test

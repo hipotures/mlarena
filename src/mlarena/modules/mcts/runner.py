@@ -1107,6 +1107,8 @@ class MCTSRunner:
                             -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
                         )
                         self.tree.backpropagate(child, penalty)
+                        # Mark node as terminal to prevent expansion
+                        child.is_terminal = True
                         self.storage.set_trial_state(
                             trial_id, TrialState.FAIL, conn=conn
                         )

@@ -32,6 +32,9 @@ class MCTSNode:
     # Base action pool (operator candidates: step+variant) cached per node.
     action_pool: Optional[List[Action]] = None
 
+    # Terminal flag: if True, this node cannot be expanded (e.g., failed trials)
+    is_terminal: bool = False
+
     @property
     def value_mean(self) -> float:
         if self.n_visits == 0:
@@ -138,6 +141,10 @@ class MCTSTree:
         current = node
 
         while True:
+            # Check if current node is terminal (e.g., failed trial)
+            if current.is_terminal:
+                return current
+
             # With 2-layer PW, _get_untried_actions() already enforces both:
             # - operator PW (how many operators can be active)
             # - param PW (how many param samples per active operator)
@@ -359,6 +366,10 @@ class MCTSTree:
 
     def expand(self, node: MCTSNode) -> MCTSNode:
         """Expand a node by adding a new child with a sampled action."""
+        # Cannot expand terminal nodes (e.g., failed trials)
+        if node.is_terminal:
+            return node
+
         untried_actions = self._get_untried_actions_random_shuffle(
             node, self._get_untried_actions(node)
         )

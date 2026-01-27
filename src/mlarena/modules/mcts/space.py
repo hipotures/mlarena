@@ -299,6 +299,34 @@ class SuperChainActionSpace:
                 variants = [{"name": "fixed", "params": {}}]
 
             for variant in variants:
+                variant_name = variant.get("name")
+
+                # TOXIC COMBINATION CHECK: Block power_yeo_johnson scaler + log_count encoder
+                # This combination produces infinite values on certain datasets
+                if step_name == "encoder" and variant_name == "log_count":
+                    # Check if scaler:power_yeo_johnson already in pipeline
+                    has_power_yeo = any(
+                        s.get("name") == "scaler" and s.get("variant") == "power_yeo_johnson"
+                        for s in state.steps
+                    )
+                    if has_power_yeo:
+                        logger.debug(
+                            "Blocking toxic combination: scaler:power_yeo_johnson + encoder:log_count"
+                        )
+                        continue  # Skip this variant
+
+                if step_name == "scaler" and variant_name == "power_yeo_johnson":
+                    # Check if encoder:log_count already in pipeline
+                    has_log_count = any(
+                        s.get("name") == "encoder" and s.get("variant") == "log_count"
+                        for s in state.steps
+                    )
+                    if has_log_count:
+                        logger.debug(
+                            "Blocking toxic combination: encoder:log_count + scaler:power_yeo_johnson"
+                        )
+                        continue  # Skip this variant
+
                 # Check for dependencies (requires_preproc)
                 requirements = variant.get("requires_preproc", [])
                 met = True
@@ -339,13 +367,11 @@ class SuperChainActionSpace:
                 if not met:
                     continue
 
-                vname = variant.get("name")
-
                 if activated_by_before:
                     logger.debug(
                         "Dependency step=before: %s:%s activated by %s",
                         step_name,
-                        vname,
+                        variant_name,
                         activated_by_before,
                     )
                 if pending_after:
@@ -356,7 +382,7 @@ class SuperChainActionSpace:
                         logger.debug(
                             "Dependency step=after: %s:%s activates %s",
                             step_name,
-                            vname,
+                            variant_name,
                             after_groups,
                         )
 
@@ -364,7 +390,7 @@ class SuperChainActionSpace:
                     step_name=step_name,
                     template_name=template_name,
                     group_name=group,  # Use the actual group name from super-chain
-                    variant_name=vname,
+                    variant_name=variant_name,
                     config={},
                     searched_index=i,  # Index in self.steps
                     original_index=self.searched_index_map[

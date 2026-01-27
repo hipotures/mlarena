@@ -126,9 +126,6 @@ class MCTSConfig(BaseModel):
 
 
 def load_mcts_config(path: Path) -> MCTSConfig:
-    import logging
-    logger = logging.getLogger(__name__)
-
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
@@ -139,10 +136,5 @@ def load_mcts_config(path: Path) -> MCTSConfig:
     # This allows evaluation config to be shared between MCTS, RANT, and regular tuning
     if "evaluation" not in mcts_data and "evaluation" in data:
         mcts_data["evaluation"] = data["evaluation"]
-        logger.debug(f"MCTS config: Using root-level evaluation config: {data['evaluation']}")
-    elif "evaluation" in mcts_data:
-        logger.debug(f"MCTS config: Using mcts-level evaluation config: {mcts_data['evaluation']}")
-    else:
-        logger.debug("MCTS config: No evaluation config found")
 
     return MCTSConfig(**mcts_data)

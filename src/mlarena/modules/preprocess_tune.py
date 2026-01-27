@@ -971,10 +971,6 @@ class PreprocessTuneModule(BaseModule):
         # Note: 'mcts' is the boolean flag in GlobalConfig.
         use_mcts = params.get("mcts") or getattr(cfg, "mcts", False)
         if use_mcts:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"!!! BEFORE MCTSRunner: params['model_template'] = {params.get('model_template')}")
-            logger.warning(f"!!! BEFORE MCTSRunner: cfg.model_template = {getattr(cfg, 'model_template', None)}")
             runner = MCTSRunner(self.context, params)
             return runner.run()
 

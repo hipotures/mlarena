@@ -63,8 +63,6 @@ class MCTSRunner:
                     super_chain_path = p_path
 
         self.config = load_mcts_config(super_chain_path)
-        logger.warning(f"MCTS loaded config from: {super_chain_path}")
-        logger.warning(f"MCTS evaluation.model = {self.config.evaluation.model if self.config.evaluation else 'NONE'}")
 
         if params.get("study_name"):
             self.config.study_name = params["study_name"]
@@ -1268,18 +1266,14 @@ class MCTSRunner:
         model_template = None
         if self.config.evaluation and self.config.evaluation.model:
             model_template = self.config.evaluation.model
-            logger.info(f"Using model_template from evaluation config: {model_template}")
         elif self.params.get("model_template"):
             model_template = self.params.get("model_template")
-            logger.info(f"Using model_template from CLI params: {model_template}")
 
         if not model_template:
             raise ValueError(
                 "model_template is required but not found. "
                 "Set it via CLI param (model_template=...) or in super_chain.yaml (evaluation.model)"
             )
-
-        logger.info(f"Final model_template: {model_template}")
         cmd = self.executor.build_command(
             project=self.context.project_name,
             module="model",
@@ -1434,18 +1428,14 @@ class MCTSRunner:
         model_template = None
         if self.config.evaluation and self.config.evaluation.model:
             model_template = self.config.evaluation.model
-            logger.info(f"Using model_template from evaluation config: {model_template}")
         elif self.params.get("model_template"):
             model_template = self.params.get("model_template")
-            logger.info(f"Using model_template from CLI params: {model_template}")
 
         if not model_template:
             raise ValueError(
                 "model_template is required but not found. "
                 "Set it via CLI param (model_template=...) or in super_chain.yaml (evaluation.model)"
             )
-
-        logger.info(f"Final model_template: {model_template}")
         cmd = self.executor.build_command(
             project=self.context.project_name,
             module="model",

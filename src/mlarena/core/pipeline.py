@@ -6,6 +6,8 @@ Resolves module dependencies and coordinates state updates.
 
 from datetime import datetime as dt
 from typing import Dict, List
+from pathlib import Path
+import yaml
 
 from rich.console import Console
 from rich.panel import Panel
@@ -13,7 +15,6 @@ from rich.panel import Panel
 from .module import BaseModule, ModuleResult
 from .experiment import OverwriteLockedError
 from .display import print_module_header, print_module_footer, format_path_relative, extract_template_overrides
-from pathlib import Path
 
 
 class PipelineExecutor:
@@ -293,9 +294,36 @@ class PipelineExecutor:
             output_paths["submission"] = "submissions/"
 
         elif module_name == "preprocess-tune":
-            model_tpl = invocation.get("model_template")
-            if model_tpl:
-                input_paths["model_template"] = model_tpl
+            # For MCTS, override with evaluation.model from super_chain
+            use_mcts = invocation.get("mcts") or invocation.get("mcts.enabled")
+            if use_mcts and module and hasattr(module, 'context'):
+                # Load super_chain and get evaluation.model from module context
+                project_root = module.context.project_root
+                project_chain = project_root / "conf" / "preprocess" / "mla_super_chain.yaml"
+                if not project_chain.exists():
+                    # Fallback to repo root
+                    repo_root = Path(__file__).resolve().parents[2]
+                    project_chain = repo_root / "conf" / "preprocess" / "mla_super_chain.yaml"
+
+                if project_chain.exists():
+                    super_chain = yaml.safe_load(project_chain.read_text()) or {}
+                    eval_cfg = super_chain.get("evaluation", {}) or {}
+                    if isinstance(eval_cfg, dict) and eval_cfg.get("model"):
+                        model_tpl = eval_cfg["model"]
+                        input_paths["model_template"] = model_tpl
+                    else:
+                        model_tpl = invocation.get("model_template")
+                        if model_tpl:
+                            input_paths["model_template"] = model_tpl
+                else:
+                    model_tpl = invocation.get("model_template")
+                    if model_tpl:
+                        input_paths["model_template"] = model_tpl
+            else:
+                model_tpl = invocation.get("model_template")
+                if model_tpl:
+                    input_paths["model_template"] = model_tpl
+
             super_chain_path = invocation.get("super_chain")
             if super_chain_path:
                 input_paths["super_chain"] = super_chain_path

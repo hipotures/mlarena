@@ -1,0 +1,324 @@
+project: <slug>
+experiment_prefix: mla_preprocess
+filter_by_eda: true
+tune:
+  allow_heavy_steps: true
+  allow_heavy_variants: true
+  workers: 6
+  storage_timeout: 100
+  model_cleanup: true
+  direction: maximize
+  max_trial_sec: 600
+  max_features_out: 500
+  quiet_preprocess_panel: false
+  quiet_model_panel: false
+  model_verbosity: 2
+preprocessors:
+- name: external_dataset
+  group: external_data
+  template: external_dataset
+  enabled: true
+  meta:
+    heavy_step: false
+    fixed: true
+  fixed_config:
+    orig_path: data/Exam_Score_Prediction.csv
+    mode: union
+    source_flag: original_data_source
+- name: sanity_check
+  group: sanity
+  template: sanity_check
+  enabled: true
+  meta:
+    heavy_step: false
+    default_enabled_fast: true
+    fixed: true
+- name: target_transformer
+  group: target_transformer_fixed
+  template: target_transformer
+  enabled: false
+  meta:
+    heavy_step: false
+    fixed: true # DISABLED due to data leakage risk
+  fixed_config:
+    target_transform: none
+    clip_lower_quantile: null
+    clip_upper_quantile: null
+    shift_before_log: true
+    shift_value: null
+    standardize: true
+- name: datetime_handler
+  group: datetime
+  template: datetime_handler
+  enabled: false
+  meta:
+    heavy_step: false
+- name: time_series_features
+  group: time_series_features
+  template: time_series_features
+  enabled: false
+  meta:
+    heavy_step: true
+    default_enabled_fast: false
+    timeout_sec: 600
+- name: missingness_features
+  group: missingness_features
+  template: missingness_features
+  enabled: false
+  meta:
+    heavy_step: false
+- name: imputer
+  group: imputer
+  template: imputer
+  enabled: false
+  meta:
+    heavy_step: false
+    heavy_variants: []
+    # - knn
+    # - iterative
+    #fixed: true
+- name: rare_category_handler
+  group: rare_category
+  template: rare_category_handler
+  enabled: false
+  meta:
+    heavy_step: false
+- name: feature_group_agg
+  group: feature_group_agg
+  template: feature_group_agg
+  enabled: false
+  meta:
+    heavy_step: false
+- name: groupwise_normalizer
+  group: groupwise_normalizer
+  template: groupwise_normalizer
+  enabled: false
+  meta:
+    heavy_step: false
+- name: categorical_cross
+  group: categorical_cross
+  template: categorical_cross
+  enabled: false
+  meta:
+    heavy_step: true
+    timeout_sec: 300
+- name: rank_features_pre
+  group: rank_pre
+  template: rank_features
+  enabled: false
+  meta:
+    heavy_step: false
+  overrides:
+    allow_group_mode: true
+- name: numeric_binner
+  group: numeric_binner
+  template: numeric_binner
+  enabled: true
+  meta:
+    heavy_step: false
+    heavy_variants: []
+    # - kmeans
+- name: categorical_encoder
+  group: categorical_encoder
+  template: categorical_encoder
+  enabled: false
+  meta:
+    heavy_step: false
+- name: encoder
+  group: encoding
+  template: encoder
+  enabled: true
+  meta:
+    heavy_step: false
+    heavy_variants:
+    - target_mean_oof
+- name: outlier_handler
+  group: outlier
+  template: outlier_handler
+  enabled: true
+  meta:
+    heavy_step: false
+    heavy_variants: []
+    # - isolation_forest    
+- name: row_aggregates
+  group: row_aggregates
+  template: row_aggregates
+  enabled: true
+  meta:
+    heavy_step: false
+- name: scaler
+  group: scaler
+  template: scaler
+  enabled: true
+  meta:
+    heavy_step: false
+    heavy_variants: []
+    # - quantile_normal
+    # - quantile_uniform
+- name: feature_interactions
+  group: feature_interactions
+  template: feature_interactions
+  enabled: true
+  meta:
+    heavy_step: false
+- name: feature_polynomial
+  group: feature_polynomial
+  template: feature_polynomial
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 600
+- name: dae_embeddings
+  group: dae_embeddings
+  template: dae_embeddings
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 600
+- name: knn_graph_features
+  group: knn_graph_features
+  template: knn_graph_features
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 300
+- name: rank_features_post
+  group: rank_post
+  template: rank_features
+  enabled: true
+  meta:
+    heavy_step: false
+  overrides:
+    force_global_only: true
+- name: dimensionality_reducer
+  group: dimensionality_reducer
+  template: dimensionality_reducer
+  enabled: false
+  meta:
+    heavy_step: true
+    timeout_sec: 300
+- name: clustering_features
+  group: clustering_features
+  template: clustering_features
+  enabled: true
+  meta:
+    heavy_step: true
+    timeout_sec: 300
+- name: drift_detector
+  group: drift
+  template: drift_detector
+  enabled: false
+  meta:
+    heavy_step: false
+
+- name: noise_injection
+  group: noise_injection
+  template: noise_injection
+  enabled: false
+  meta:
+    heavy_step: false
+- name: mixup_augmentation
+  group: mixup_augmentation
+  template: mixup_augmentation
+  enabled: false
+  meta:
+    heavy_step: false
+- name: pseudo_labeling
+  group: pseudo_labeling
+  template: pseudo_labeling
+  enabled: true
+  meta:
+    heavy_step: false
+- name: imbalance_handler
+  group: imbalance
+  template: imbalance_handler
+  enabled: false
+  meta:
+    heavy_step: false
+- name: feature_selector
+  group: feature_selector
+  template: feature_selector
+  enabled: true
+  meta:
+    heavy_step: false
+    fixed: true
+  fixed_config:
+    selection_method: mi
+    n_features: 30
+    max_drop_fraction: 0.8
+    protect_cb_features: true
+evaluation:
+  model: autogluon_thin_fast
+  seed: 42
+
+production:
+  model: cpu-best-1h-boost
+  seed: 42
+
+mcts:
+  study_name: s6e1_019
+  direction: maximize
+  budget: 10000
+  storage_url: sqlite:///experiments/db/mcts.db
+  debug: true
+  model_verbosity: 0
+  model_cleanup: true
+  cleanup_processed: false
+  selection_policy: puct
+  exploration_weight: 3.0
+  expansion_width: 2.0
+  expansion_alpha: 0.5
+  param_expansion_max_samples: 2
+  param_expansion_alpha: 0.35
+  param_expansion_width: 1.0
+  max_depth: 12
+  lookahead: 12
+  seed: 42
+  randomize_order: true
+
+  penalties:
+    features_lambda: 0.01
+    time_lambda: 0.0
+    
+  oracle:
+    enabled: false
+    model_path: default
+    dry_run: false
+    pruning_threshold: 0.2
+    eps: 0.001
+    max_actions: 5
+    use_prior_in_puct: true
+
+rant:
+  enabled: true
+  study_name: s6e1_rant_001
+  direction: maximize
+  storage_url: sqlite:///experiments/db/rant.db
+  seed: 42
+  initial_random_trials: 50
+  top_k: 10
+  children_per_parent: 5
+  rounds_per_run: 1
+  min_core_len: 1
+  max_core_len: 6
+  allow_heavy_steps: true
+  allow_heavy_variants: true
+  max_parents_per_architecture: 1
+  refinement:
+    grid_size: 20
+    log_grid_size: 20
+    allow_two_param_mutations: false
+  runtime:
+    executor: cli
+    role: driver_worker
+    poll_interval_sec: 2.0
+    max_idle_polls: 60
+    storage_timeout_sec: 60
+  failure:
+    max_sampling_attempts_per_insert: 200
+    max_total_sampling_attempts_per_round: 50000
+    max_consecutive_runtime_failures: 20
+    stale_running_sec: 7200
+    stale_running_policy: requeue
+    max_retries_per_trial: 1
+  debug: true

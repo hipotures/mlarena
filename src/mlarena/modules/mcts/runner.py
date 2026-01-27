@@ -28,6 +28,8 @@ from rich.table import Table
 from rich.text import Text
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_SUPER_CHAIN = REPO_ROOT / "conf/preprocess/mla_super_chain.yaml"
 
@@ -61,6 +63,8 @@ class MCTSRunner:
                     super_chain_path = p_path
 
         self.config = load_mcts_config(super_chain_path)
+        logger.warning(f"MCTS loaded config from: {super_chain_path}")
+        logger.warning(f"MCTS evaluation.model = {self.config.evaluation.model if self.config.evaluation else 'NONE'}")
 
         if params.get("study_name"):
             self.config.study_name = params["study_name"]
@@ -1259,16 +1263,23 @@ class MCTSRunner:
             fid_path.write_text(templates["chain_path"].read_text())
 
         exp_id = f"exp-{preprocess_template}"
-        model_template = self.params.get("model_template")
-        if (
-            not model_template
-            and self.config.evaluation
-            and self.config.evaluation.model
-        ):
+        # Priority: evaluation config > CLI params
+        # This allows MCTS-specific evaluation config to override global defaults
+        model_template = None
+        if self.config.evaluation and self.config.evaluation.model:
             model_template = self.config.evaluation.model
-        if not model_template:
-            model_template = "baseline"
+            logger.info(f"Using model_template from evaluation config: {model_template}")
+        elif self.params.get("model_template"):
+            model_template = self.params.get("model_template")
+            logger.info(f"Using model_template from CLI params: {model_template}")
 
+        if not model_template:
+            raise ValueError(
+                "model_template is required but not found. "
+                "Set it via CLI param (model_template=...) or in super_chain.yaml (evaluation.model)"
+            )
+
+        logger.info(f"Final model_template: {model_template}")
         cmd = self.executor.build_command(
             project=self.context.project_name,
             module="model",
@@ -1418,16 +1429,23 @@ class MCTSRunner:
             fid_path.write_text(templates["chain_path"].read_text())
 
         exp_id = f"exp-{preprocess_template}"
-        model_template = self.params.get("model_template")
-        if (
-            not model_template
-            and self.config.evaluation
-            and self.config.evaluation.model
-        ):
+        # Priority: evaluation config > CLI params
+        # This allows MCTS-specific evaluation config to override global defaults
+        model_template = None
+        if self.config.evaluation and self.config.evaluation.model:
             model_template = self.config.evaluation.model
-        if not model_template:
-            model_template = "baseline"
+            logger.info(f"Using model_template from evaluation config: {model_template}")
+        elif self.params.get("model_template"):
+            model_template = self.params.get("model_template")
+            logger.info(f"Using model_template from CLI params: {model_template}")
 
+        if not model_template:
+            raise ValueError(
+                "model_template is required but not found. "
+                "Set it via CLI param (model_template=...) or in super_chain.yaml (evaluation.model)"
+            )
+
+        logger.info(f"Final model_template: {model_template}")
         cmd = self.executor.build_command(
             project=self.context.project_name,
             module="model",

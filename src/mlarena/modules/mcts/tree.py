@@ -9,6 +9,7 @@ from mlarena.modules.mcts.config import MCTSConfig
 from mlarena.modules.mcts.node import PipelineState, Action
 from mlarena.modules.mcts.space import SuperChainActionSpace
 from mlarena.modules.mcts.sampler import ParameterSampler
+from mlarena.modules.mcts.storage import TrialState
 from mlarena.core.oracle import ActionOracle
 
 import logging
@@ -102,6 +103,14 @@ class MCTSTree:
             node.n_visits = n["n_visits"]
             node.value_sum = n["value_sum"]
             node.value_best = n.get("value_best")
+            trial_state = n.get("trial_state")
+            if trial_state is not None:
+                try:
+                    ts_val = int(trial_state)
+                except (TypeError, ValueError):
+                    ts_val = None
+                if ts_val in (TrialState.FAIL.value, TrialState.PRUNED.value):
+                    node.is_terminal = True
 
             node_map[node.trial_id] = node
 

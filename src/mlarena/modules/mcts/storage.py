@@ -430,7 +430,7 @@ class MCTSStorage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             query = """
-                SELECT n.*, t.number FROM mcts_nodes n
+                SELECT n.*, t.number, t.state AS trial_state FROM mcts_nodes n
                 JOIN trials t ON t.trial_id = n.trial_id
                 WHERE t.study_id = ?
             """

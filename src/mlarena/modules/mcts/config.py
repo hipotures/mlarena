@@ -98,6 +98,8 @@ class MCTSConfig(BaseModel):
     executor: Literal["cli", "task_queue"] = "cli"
     json_output: bool = True
     debug: bool = True
+    # Failure penalty used during backprop (None => auto-scale from baseline)
+    fail_penalty: Optional[float] = None
 
     # Execution Details
     model_verbosity: int = 2

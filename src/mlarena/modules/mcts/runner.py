@@ -1103,9 +1103,24 @@ class MCTSRunner:
                     )
 
                     with self.storage.atomic() as conn:
-                        penalty = (
-                            -1.0 if self.direction == StudyDirection.MAXIMIZE else 1.0
-                        )
+                        # Failure penalty: configurable; if None, scale from baseline to be safely "bad"
+                        if self.config.fail_penalty is not None:
+                            penalty = float(self.config.fail_penalty)
+                        else:
+                            base = None
+                            if self.tree.root.n_visits > 0:
+                                base = self.tree.root.value_mean
+                            if base is None:
+                                base = self.tree.root.value_best
+                            if base is None:
+                                base = 0.0
+                            mag = abs(base) * 10.0
+                            if mag < 1e-6:
+                                mag = 1e6
+                            if self.direction == StudyDirection.MINIMIZE:
+                                penalty = base + mag
+                            else:
+                                penalty = base - mag
                         self.tree.backpropagate(child, penalty)
                         # Mark node as terminal to prevent expansion
                         child.is_terminal = True

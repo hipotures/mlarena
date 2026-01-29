@@ -368,11 +368,6 @@ def train_model(df, output_dir, num_gpus=0, eps=0.0):
             presets="best_quality",
             num_gpus=num_gpus,
             calibrate_decision_threshold=True,
-            hyperparameters={
-                "GBM": {},
-                "CAT": {},
-                "XGB": {},
-            },
         )
     )
 

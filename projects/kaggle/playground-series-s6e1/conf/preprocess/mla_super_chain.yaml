@@ -266,6 +266,12 @@ mcts:
   cleanup_processed: false
   selection_policy: puct
   exploration_weight: 1.2
+  selection_value: best
+  selection_prune_regressions: true
+  focus_on_new_best: false
+  focus_budget: 100
+  focus_stop_if_no_untried_at_focus: true
+  focus_log_every: 10
   expansion_width: 1.5
   expansion_alpha: 0.5
   param_expansion_max_samples: 6

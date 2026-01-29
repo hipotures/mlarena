@@ -69,6 +69,16 @@ class MCTSConfig(BaseModel):
     selection_policy: Literal["uct", "puct"] = "puct"
     exploration_weight: float = 1.414
     prior_policy: Literal["uniform", "heuristic", "surrogate"] = "uniform"
+    # Selection value strategy for exploitation term
+    selection_value: Literal["mean", "best", "hybrid"] = "mean"
+    selection_hybrid_alpha: float = 0.7  # weight for best vs mean when hybrid
+    # If True, skip children that regress vs parent by pruning.incumbent_margin
+    selection_prune_regressions: bool = False
+    # Focus mode after new best is found
+    focus_on_new_best: bool = False
+    focus_budget: int = 100
+    focus_stop_if_no_untried_at_focus: bool = True
+    focus_log_every: int = 10
 
     # Group-specific weights for tree models (XGB/LGBM/CatBoost)
     # Monotonic transformations (scaler, rank_features) are invariant for tree models

@@ -456,8 +456,40 @@ class MCTSTree:
             f"[SELECTION] Evaluating {len(node.children)} children of node {node.trial_id or 'Root'}:"
         )
 
-        for child in node.children:
-            exploit = child.value_mean
+        selection_value = getattr(self.config, "selection_value", "mean")
+        hybrid_alpha = getattr(self.config, "selection_hybrid_alpha", 0.7)
+        prune_regress = getattr(self.config, "selection_prune_regressions", False)
+
+        candidates = node.children
+        if prune_regress and node.value_best is not None:
+            margin = getattr(self.config.pruning, "incumbent_margin", 0.0)
+            if minimize:
+                candidates = [
+                    ch
+                    for ch in node.children
+                    if ch.value_best is None or ch.value_best <= node.value_best + margin
+                ]
+            else:
+                candidates = [
+                    ch
+                    for ch in node.children
+                    if ch.value_best is None or ch.value_best >= node.value_best - margin
+                ]
+            if not candidates:
+                candidates = node.children
+                logger.debug(
+                    "[PRUNE] All children regressed vs parent; fallback to full candidate set."
+                )
+
+        for child in candidates:
+            mean = child.value_mean
+            best = child.value_best if child.value_best is not None else mean
+            if selection_value == "best":
+                exploit = best
+            elif selection_value == "hybrid":
+                exploit = hybrid_alpha * best + (1.0 - hybrid_alpha) * mean
+            else:
+                exploit = mean
             # Convert to "higher is better" for selection when minimizing.
             if minimize:
                 exploit = -exploit

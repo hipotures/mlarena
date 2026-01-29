@@ -666,6 +666,34 @@ class MCTSRunner:
             n_executed = 0
             iteration = 0
             max_iterations = self.config.budget * 10  # Safety limit
+            focus_node: Optional[MCTSNode] = None
+            focus_remaining = 0
+            focus_anchor_best: Optional[float] = None
+
+            def _clear_focus(reason: str) -> None:
+                nonlocal focus_node, focus_remaining, focus_anchor_best
+                if focus_remaining > 0:
+                    self.logger.info(f"[FOCUS] Ending focus: {reason}")
+                focus_node = None
+                focus_remaining = 0
+                focus_anchor_best = None
+
+            def _decrement_focus() -> None:
+                nonlocal focus_node, focus_remaining, focus_anchor_best
+                if focus_remaining <= 0:
+                    return
+                focus_remaining -= 1
+                log_every = int(getattr(self.config, "focus_log_every", 0) or 0)
+                if log_every > 0 and focus_remaining % log_every == 0:
+                    self.logger.info(
+                        f"[FOCUS] Remaining iterations: {focus_remaining}"
+                    )
+                if focus_remaining <= 0:
+                    self.logger.info(
+                        "[FOCUS] Budget exhausted; returning to normal selection."
+                    )
+                    focus_node = None
+                    focus_anchor_best = None
 
             while n_executed < self.config.budget and not self.stop_requested:
                 if iteration >= max_iterations:
@@ -675,7 +703,26 @@ class MCTSRunner:
                     break
 
                 iteration += 1
-                node = self.tree.select(self.tree.root)
+                start_node = self.tree.root
+                if (
+                    self.config.focus_on_new_best
+                    and focus_node is not None
+                    and focus_remaining > 0
+                ):
+                    if focus_node.is_terminal:
+                        _clear_focus("focus node is terminal")
+                    else:
+                        start_node = focus_node
+                        if self.config.focus_stop_if_no_untried_at_focus:
+                            untried_focus = self.tree._get_untried_actions(focus_node)
+                            if not untried_focus and focus_anchor_best == best_so_far:
+                                _clear_focus(
+                                    "no untried at focus node and best unchanged"
+                                )
+                                start_node = self.tree.root
+
+                focus_used = start_node is focus_node and focus_remaining > 0
+                node = self.tree.select(start_node)
                 child = self.tree.expand(node)
 
                 if child == node:
@@ -777,6 +824,8 @@ class MCTSRunner:
 
                     # LOGGING MOVED TO DEBUG
                     self.logger.debug(f"Iter {iteration} skipped: {diag_info}")
+                    if focus_used:
+                        _decrement_focus()
                     continue
 
                 # 1. Create trial and edge in one transaction
@@ -822,6 +871,8 @@ class MCTSRunner:
                         self.live.update(self._render_tree(best_so_far))
                     # Do NOT consume budget for skipped/done trials during resume traversal
                     # n_executed += 1
+                    if focus_used:
+                        _decrement_focus()
                     continue
 
                 self.logger.info(
@@ -958,6 +1009,13 @@ class MCTSRunner:
                         self.logger.info(
                             f"*** NEW BEST SCORE: {best_so_far} (T={trial_number}, D={child.state.depth}) ***"
                         )
+                        if self.config.focus_on_new_best:
+                            focus_node = child
+                            focus_remaining = int(self.config.focus_budget)
+                            focus_anchor_best = best_so_far
+                            self.logger.info(
+                                f"[FOCUS] New best; focusing on T={trial_number} for next {focus_remaining} iterations"
+                            )
 
                         # Send Telegram Notification
                         proj_name = self.context.project_name or "Unknown Project"
@@ -1148,6 +1206,8 @@ class MCTSRunner:
 
                 if self.live:
                     self.live.update(self._render_tree(best_so_far))
+                if focus_used:
+                    _decrement_focus()
         finally:
             signal.signal(signal.SIGINT, old_handler)
             if self.live:

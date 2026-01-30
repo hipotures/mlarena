@@ -138,7 +138,10 @@ def upload_to_chatgpt(archive_path, start_new_session=False, custom_prompt=None,
             # Use provided prompt or default
             text_to_type = custom_prompt if custom_prompt else PROMPT_TEXT
             page.fill(prompt_selector, text_to_type)
-            
+
+            # Wait 5 seconds before pressing Enter/Shift+Enter
+            time.sleep(5)
+
             if press_enter:
                 # Press Enter to send
                 print("Sending message (Enter)...")

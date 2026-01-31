@@ -243,6 +243,65 @@ def _load_processed_or_raw(
     return _pack(train_df, test_df, sample_weight, orig_df, tuning_df, resolved_exp_dir)
 
 
+def _extract_preprocessing_steps(
+    preprocess_exp_dir: Path | None,
+    preprocess_template: str | None,
+) -> list[dict[str, Any]] | None:
+    """Extract preprocessing step information from state.json.
+
+    Args:
+        preprocess_exp_dir: Path to preprocessing experiment directory
+        preprocess_template: Name of preprocessing template (for logging)
+
+    Returns:
+        List of dicts with template, shapes, and duration_seconds, or None if unavailable
+    """
+    import json
+
+    if preprocess_exp_dir is None:
+        return None
+
+    try:
+        state_path = preprocess_exp_dir / "state.json"
+        if not state_path.exists():
+            logger.debug(f"No state.json found at {state_path}")
+            return None
+
+        with open(state_path, 'r') as f:
+            state = json.load(f)
+
+        # Extract pipeline_progress.steps array
+        pipeline_progress = state.get("pipeline_progress", {})
+        if not isinstance(pipeline_progress, dict):
+            return None
+
+        steps = pipeline_progress.get("steps", [])
+        if not steps or not isinstance(steps, list):
+            return None
+
+        # Extract information from each step
+        result = []
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+
+            step_info = {
+                "template": step.get("name"),
+                "shapes": step.get("shapes"),  # Keep full dict with train_before/train_after
+                "duration_seconds": round(step.get("duration", 0), 3),
+            }
+
+            # Only include if we have at least the template name
+            if step_info["template"]:
+                result.append(step_info)
+
+        return result if result else None
+
+    except Exception as e:
+        logger.debug(f"Failed to extract preprocessing steps: {e}")
+        return None
+
+
 def _resolve_model_path(project_root: Path, model_name: str) -> Path:
     """Resolve model file: check project-local first, then global.
 
@@ -339,6 +398,7 @@ def _print_training_summary(
     duration: float | None = None,
     json_output: bool = False,
     greater_is_better: bool | None = None,
+    preprocess_exp_dir: Path | None = None,
 ):
     """Print rich training summary with next steps or JSON output."""
     from rich.table import Table
@@ -347,6 +407,14 @@ def _print_training_summary(
     from datetime import datetime
 
     if json_output:
+        # Extract preprocessing steps if available
+        preprocessing_steps = None
+        if preprocess_exp_dir:
+            preprocessing_steps = _extract_preprocessing_steps(
+                preprocess_exp_dir,
+                preprocess_template
+            )
+
         # Collect data for JSON
         lb_data = []
         top1_model = None
@@ -393,6 +461,7 @@ def _print_training_summary(
             "time_limit": time_limit,
             "use_gpu": use_gpu,
             "preprocessing_template": preprocess_template,
+            "preprocessing_steps": preprocessing_steps,
             "best_model_implementation": best_model,
             "local_cv": local_cv_score,
             "best_model": top1_model,
@@ -904,6 +973,7 @@ class ModelModule(BaseModule):
             duration=duration,
             json_output=json_output,
             greater_is_better=greater_is_better,
+            preprocess_exp_dir=resolved_exp_dir,
         )
 
         mla_retention = self.invocation_params.get("mla_retention", False)

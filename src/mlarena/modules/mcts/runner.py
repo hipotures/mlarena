@@ -124,6 +124,68 @@ class MCTSRunner:
             if not self.mcts_live:
                 best = self.storage.get_best_trial(self.study_id)
                 best_val_str = f"{best['value']:.5f}" if best else "N/A"
+                best_node_str = "N/A"
+
+                if best:
+                    with self.storage._connect() as conn:
+                        conn.row_factory = sqlite3.Row
+                        cur = conn.cursor()
+                        cur.execute(
+                            """
+                            SELECT t.number, n.parent_trial_id, n.depth
+                            FROM trials t
+                            LEFT JOIN mcts_nodes n ON n.trial_id = t.trial_id
+                            WHERE t.trial_id = ?
+                            """,
+                            (best["trial_id"],),
+                        )
+                        row = cur.fetchone()
+                        best_number = row["number"] if row else None
+                        parent_trial_id = row["parent_trial_id"] if row else None
+                        depth = row["depth"] if row else None
+
+                        parent_number = None
+                        if parent_trial_id:
+                            cur.execute(
+                                "SELECT number FROM trials WHERE trial_id = ?",
+                                (parent_trial_id,),
+                            )
+                            prow = cur.fetchone()
+                            if prow:
+                                parent_number = prow["number"]
+
+                        # Try to extract feature count from stored evaluation details
+                        n_features = None
+                        cur.execute(
+                            """
+                            SELECT details_json FROM mcts_evaluations
+                            WHERE trial_id = ? AND status = 'COMPLETE'
+                            ORDER BY rowid DESC
+                            LIMIT 1
+                            """,
+                            (best["trial_id"],),
+                        )
+                        drow = cur.fetchone()
+                        if drow and drow["details_json"]:
+                            try:
+                                details = json.loads(drow["details_json"])
+                                raw = details.get("raw_json") if isinstance(details, dict) else None
+                                shapes = None
+                                if isinstance(raw, dict):
+                                    shapes = raw.get("shapes") or (raw.get("payload") or {}).get("shapes")
+                                if isinstance(shapes, dict) and shapes.get("train_after"):
+                                    try:
+                                        n_features = int(shapes["train_after"][1])
+                                    except (IndexError, TypeError, ValueError):
+                                        n_features = None
+                            except Exception:
+                                n_features = None
+
+                        t_str = f"{best_number}" if best_number is not None else "?"
+                        p_str = f"{parent_number}" if parent_number is not None else "?"
+                        d_str = f"{depth}" if depth is not None else "?"
+                        f_str = f"{n_features}" if n_features is not None else "?"
+                        best_node_str = f"T={t_str} P={p_str} D={d_str} F={f_str}"
 
                 # Fetch actual baseline score (Trial 0) instead of root record
                 base_score = None
@@ -154,6 +216,7 @@ class MCTSRunner:
                 table.add_row("Trials Found", str(len(nodes)))
                 table.add_row("Baseline Score", base_val_str)
                 table.add_row("Best Score", best_val_str)
+                table.add_row("Best Node", best_node_str)
 
                 self.console.print(table)
 
